@@ -357,6 +357,9 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
   });
   const [houses, setHouses] = useState<HouseItem[]>([]);
   const [loadingHouses, setLoadingHouses] = useState(true);
+  // Admin-editable dashboard announcement. null = not loaded yet or fetch failed
+  // → fall back to the built-in text so the banner never disappears unexpectedly.
+  const [announcement, setAnnouncement] = useState<{ body: string; enabled: boolean } | null>(null);
   // Fullscreen poster viewer — carries the whole poster list + which one was tapped
   // so the user can keep swiping at full size.
   const [previewImage, setPreviewImage] = useState<{ posters: string[]; index: number } | null>(null);
@@ -381,12 +384,18 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
       .then((d) => { if (Array.isArray(d)) setHouses(d); })
       .finally(() => setLoadingHouses(false));
 
+  const fetchAnnouncement = (signal?: AbortSignal) =>
+    fetch("/api/announcement", { signal })
+      .then((r) => r.json())
+      .then((d) => { setAnnouncement(d && typeof d.body === "string" ? d : null); })
+      .catch(() => {});
+
   // Poll events + leaderboard. Slow interval (60s) because this is student-facing
   // across potentially ~1,500 devices — at 20s a single event hour approaches the
   // Vercel free-tier invocation budget. Polling also avoids the Supabase free-tier
   // 200 concurrent-connection cap and pauses while the tab is hidden. Return the
   // combined promise so the poller awaits both and never stacks requests.
-  usePolling((signal) => Promise.all([fetchEvents(signal), fetchHouses(signal)]), 60000);
+  usePolling((signal) => Promise.all([fetchEvents(signal), fetchHouses(signal), fetchAnnouncement(signal)]), 60000);
 
   const handleRegister = async (eventId: string, registered: boolean) => {
     if (!session?.user) {
@@ -535,16 +544,20 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
           {/* Left Column: Events */}
           <div className="order-2 lg:order-1" style={{ display: "flex", flexDirection: "column", gap: 32 }}>
             
-            {/* Featured Event / Alert */}
+            {/* Featured Event / Alert — body is admin-editable via /admin/announcement.
+                Hidden only when an announcement is loaded AND explicitly disabled.
+                When none is loaded yet / fetch failed, fall back to the built-in text. */}
+            {!(announcement && announcement.enabled === false) && (
             <div className="alert alert-info" style={{ borderRadius: "var(--radius-lg)", padding: 20, background: "rgba(255,107,0,0.04)", border: "1px solid rgba(255,107,0,0.1)" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-surface)", padding: 8, borderRadius: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.05)", color: "var(--accent-primary)", width: 40, height: 40, flexShrink: 0 }}>
                 <Megaphone size={22} />
               </div>
               <div>
                 <p style={{ fontWeight: 700, fontSize: 16, color: "var(--text-primary)" }}>ประกาศสำคัญ | Important Announcement</p>
-                <p style={{ fontSize: 14, color: "var(--text-secondary)" }}>ขณะนี้ Web Application ActiveCAMT อยู่ระหว่างการพัฒนาและทดสอบระบบเพื่อเพิ่มประสิทธิภาพในการใช้งานสูงสุด <br/> หากท่านพบข้อผิดพลาดหรือมีข้อสงสัยประการใด สามารถแจ้งปัญหาหรือติดต่อเราได้ที่ IG: smocamt.official</p>
+                <p style={{ fontSize: 14, color: "var(--text-secondary)", whiteSpace: "pre-wrap" }}>{announcement?.body ?? "ขณะนี้ Web Application ActiveCAMT อยู่ระหว่างการพัฒนาและทดสอบระบบเพื่อเพิ่มประสิทธิภาพในการใช้งานสูงสุด\nหากท่านพบข้อผิดพลาดหรือมีข้อสงสัยประการใด สามารถแจ้งปัญหาหรือติดต่อเราได้ที่ IG: smocamt.official"}</p>
               </div>
             </div>
+            )}
 
             <div style={{ marginBottom: 40 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>

@@ -307,3 +307,15 @@ export const formSubmissionsRelations = relations(formSubmissions, ({ one }) => 
     references: [users.id],
   }),
 }));
+
+// Dashboard announcement banner. Treated as a SINGLETON — the app always reads
+// and writes the single most-recently-updated row (the editor upserts it). Body
+// is plain text; newlines render via white-space: pre-wrap on the dashboard.
+// updatedBy has no FK (like audit_logs) so editor deletion never rewrites it.
+export const announcements = pgTable("announcements", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  body: text("body").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  updatedBy: text("updated_by"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});

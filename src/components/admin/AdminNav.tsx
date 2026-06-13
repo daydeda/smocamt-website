@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { 
-  LayoutDashboard, 
-  Calendar, 
-  QrCode, 
-  Users, 
-  ShieldCheck, 
+import {
+  LayoutDashboard,
+  Calendar,
+  QrCode,
+  Users,
+  ShieldCheck,
+  Megaphone,
   User
 } from "lucide-react";
 import { useLanguage } from "@/lib/LanguageContext";
@@ -18,6 +19,7 @@ const NAV = [
   { href: "/admin/scanner",   key: "qrScanner",            icon: QrCode },
   { href: "/admin/students",  key: "adminStudentsDirectory",icon: Users },
   { href: "/admin/audit-logs",key: "auditTrails",          icon: ShieldCheck },
+  { href: "/admin/announcement",key: "manageAnnouncement", icon: Megaphone },
 ] as const;
 
 export function AdminNav({ role }: { role?: string | null }) {
@@ -36,6 +38,10 @@ export function AdminNav({ role }: { role?: string | null }) {
       if (item.href === "/admin/audit-logs") {
         return false;
       }
+    }
+    // Announcement editor is super_admin/admin only (matches the page + API gate)
+    if (item.href === "/admin/announcement" && role !== "super_admin" && role !== "admin") {
+      return false;
     }
     return true;
   });

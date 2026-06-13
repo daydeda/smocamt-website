@@ -379,6 +379,30 @@ async function migrate() {
   `;
   console.log("  ✅ events.image_urls added and backfilled from image_url");
 
+  // 30. Dashboard announcement banner (singleton table). Admins (super_admin/
+  // admin) edit the body + show/hide toggle from the admin panel instead of
+  // editing hardcoded JSX. Seed ONE row with the text that was hardcoded on the
+  // dashboard so the banner is unchanged on first deploy — only if empty, so a
+  // re-run never clobbers an edited announcement.
+  await sql`
+    CREATE TABLE IF NOT EXISTS announcements (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      body text NOT NULL,
+      enabled boolean NOT NULL DEFAULT true,
+      updated_by text,
+      updated_at timestamptz DEFAULT now()
+    )
+  `;
+  await sql`
+    INSERT INTO announcements (body, enabled)
+    SELECT
+      'ขณะนี้ Web Application ActiveCAMT อยู่ระหว่างการพัฒนาและทดสอบระบบเพื่อเพิ่มประสิทธิภาพในการใช้งานสูงสุด' || E'\n' ||
+      'หากท่านพบข้อผิดพลาดหรือมีข้อสงสัยประการใด สามารถแจ้งปัญหาหรือติดต่อเราได้ที่ IG: smocamt.official',
+      true
+    WHERE NOT EXISTS (SELECT 1 FROM announcements)
+  `;
+  console.log("  ✅ announcements table created and seeded");
+
   console.log("✅ Migration complete!");
   await sql.end();
   process.exit(0);

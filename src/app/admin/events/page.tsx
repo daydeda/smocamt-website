@@ -156,6 +156,30 @@ const toDatetimeLocal = (iso: string | null | undefined): string => {
   return new Date(d.getTime() - offset).toISOString().slice(0, 16);
 };
 
+// Stable fingerprint of the form-builder's editable state, used to detect
+// unsaved edits so we can warn before an accidental close / reload. Sections
+// are run through serializeForm so the comparison matches exactly what gets
+// persisted, and the assignment arrays are sorted so reordering alone never
+// reads as a change.
+type BuilderState = {
+  activeFormType: string;
+  formTitle: string;
+  formDescription: string;
+  formPoints: number;
+  formSections: FormSection[];
+  formIsAwarded: boolean;
+  formOpensAt: string;
+  formClosesAt: string;
+  formAssignedRoles: string[];
+  formAssignedUserIds: string[];
+};
+const builderFingerprint = (f: BuilderState): string =>
+  JSON.stringify([
+    f.activeFormType, f.formTitle, f.formDescription, f.formPoints,
+    serializeForm(f.formSections), f.formIsAwarded, f.formOpensAt, f.formClosesAt,
+    [...f.formAssignedRoles].sort(), [...f.formAssignedUserIds].sort(),
+  ]);
+
 const FORM_TYPE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   K_pre:  { bg: "rgba(99,102,241,0.12)",  text: "#6366f1", border: "rgba(99,102,241,0.3)"  },
   K_post: { bg: "rgba(16,185,129,0.12)",  text: "#10b981", border: "rgba(16,185,129,0.3)"  },
@@ -302,13 +326,18 @@ export default function AdminEventsPage() {
     message: ""
   });
 
+  // Snapshot of the builder state as last loaded or saved. Current state is
+  // compared against this to know whether there are unsaved edits.
+  const [pristineFingerprint, setPristineFingerprint] = useState("");
+
   const loadFormIntoEditor = (f: EventFormSummary) => {
     setActiveFormId(f.id);
     setActiveFormType(f.formType);
     setFormTitle(f.title);
     setFormDescription(f.description || "");
     setFormPoints(f.pointsAwarded || 0);
-    setFormSections(normalizeForm(f.questions).sections);
+    const loadedSections = normalizeForm(f.questions).sections;
+    setFormSections(loadedSections);
     setFormIsAwarded(f.isAwarded || false);
     setFormOpensAt(toDatetimeLocal(f.opensAt));
     setFormClosesAt(toDatetimeLocal(f.closesAt));
@@ -319,6 +348,19 @@ export default function AdminEventsPage() {
     setFormTab(f.submissions && f.submissions.length > 0 ? "stats" : "edit");
     setFormBuilderError(null);
     setFormBuilderSuccess(null);
+    // Baseline = the freshly loaded form, so only later edits read as unsaved.
+    setPristineFingerprint(builderFingerprint({
+      activeFormType: f.formType,
+      formTitle: f.title,
+      formDescription: f.description || "",
+      formPoints: f.pointsAwarded || 0,
+      formSections: loadedSections,
+      formIsAwarded: f.isAwarded || false,
+      formOpensAt: toDatetimeLocal(f.opensAt),
+      formClosesAt: toDatetimeLocal(f.closesAt),
+      formAssignedRoles: f.assignedRoles || [],
+      formAssignedUserIds: f.assignedUserIds || [],
+    }));
   };
 
   const openFormBuilder = async (eventId: string, eventTitle: string) => {
@@ -355,10 +397,7 @@ export default function AdminEventsPage() {
         setShowNewFormPicker(true);
         setActiveFormId(null);
         setActiveFormType("K_post");
-        setFormTitle("");
-        setFormDescription("");
-        setFormPoints(50);
-        setFormSections([{
+        const defaultSections: FormSection[] = [{
           id: "section-1",
           title: "",
           questions: [
@@ -366,7 +405,11 @@ export default function AdminEventsPage() {
             { id: "q2", type: "text", label: "What did you learn or enjoy the most?", required: true },
             { id: "q3", type: "text", label: "Any suggestions for improvement?", required: false },
           ],
-        }]);
+        }];
+        setFormTitle("");
+        setFormDescription("");
+        setFormPoints(50);
+        setFormSections(defaultSections);
         setFormIsAwarded(false);
         setFormOpensAt("");
         setFormClosesAt("");
@@ -374,6 +417,11 @@ export default function AdminEventsPage() {
         setFormAssignedUserIds([]);
         setFormStats(null);
         setFormSubmissions([]);
+        setPristineFingerprint(builderFingerprint({
+          activeFormType: "K_post", formTitle: "", formDescription: "", formPoints: 50,
+          formSections: defaultSections, formIsAwarded: false, formOpensAt: "", formClosesAt: "",
+          formAssignedRoles: [], formAssignedUserIds: [],
+        }));
       }
     } catch (e) {
       console.error(e);
@@ -400,10 +448,8 @@ export default function AdminEventsPage() {
     setActiveFormId(null);
     setActiveFormType(type);
     setShowNewFormPicker(false);
-    setFormTitle(`${formEventTitle || "Event"} — ${FORM_TYPE_LABELS[type] || type}`);
-    setFormDescription("");
-    setFormPoints(50);
-    setFormSections([{
+    const newTitle = `${formEventTitle || "Event"} — ${FORM_TYPE_LABELS[type] || type}`;
+    const newSections: FormSection[] = [{
       id: "section-1",
       title: "",
       questions: [
@@ -411,7 +457,11 @@ export default function AdminEventsPage() {
         { id: "q2", type: "text", label: "What did you learn or enjoy the most?", required: true },
         { id: "q3", type: "text", label: "Any suggestions for improvement?", required: false },
       ],
-    }]);
+    }];
+    setFormTitle(newTitle);
+    setFormDescription("");
+    setFormPoints(50);
+    setFormSections(newSections);
     setFormIsAwarded(false);
     setFormOpensAt("");
     setFormClosesAt("");
@@ -422,6 +472,12 @@ export default function AdminEventsPage() {
     setFormTab("edit");
     setFormBuilderError(null);
     setFormBuilderSuccess(null);
+    // Baseline = the default template, so closing an untouched new form is silent.
+    setPristineFingerprint(builderFingerprint({
+      activeFormType: type, formTitle: newTitle, formDescription: "", formPoints: 50,
+      formSections: newSections, formIsAwarded: false, formOpensAt: "", formClosesAt: "",
+      formAssignedRoles: [], formAssignedUserIds: [],
+    }));
   };
 
   const saveForm = async () => {
@@ -464,6 +520,13 @@ export default function AdminEventsPage() {
       if (res.ok) {
         const saved = await res.json();
         setFormBuilderSuccess("Evaluation form saved successfully!");
+        // Just persisted — current builder state is now the saved baseline, so
+        // there are no unsaved edits (also covers the new-form path, where
+        // refreshAllForms can't yet match by the not-yet-set activeFormId).
+        setPristineFingerprint(builderFingerprint({
+          activeFormType, formTitle, formDescription, formPoints, formSections,
+          formIsAwarded, formOpensAt, formClosesAt, formAssignedRoles, formAssignedUserIds,
+        }));
         // If this was a new form, set the activeFormId
         if (isNew && saved.form?.id) {
           setActiveFormId(saved.form.id);
@@ -507,6 +570,46 @@ export default function AdminEventsPage() {
       setFormBuilderError("Failed to delete form.");
     }
   };
+
+  // True when the builder has edits that differ from the last loaded/saved
+  // state. Skipped while loading so the mid-load state churn doesn't flicker.
+  const builderDirty =
+    showFormBuilder && !formLoading &&
+    builderFingerprint({
+      activeFormType, formTitle, formDescription, formPoints, formSections,
+      formIsAwarded, formOpensAt, formClosesAt, formAssignedRoles, formAssignedUserIds,
+    }) !== pristineFingerprint;
+
+  // Guarded close: if there are unsaved edits, confirm before discarding.
+  const closeFormBuilder = () => {
+    if (builderDirty) {
+      setConfirmModal({
+        show: true,
+        title: lang === "th" ? "ละทิ้งการแก้ไขที่ยังไม่บันทึก?" : lang === "cn" ? "放弃未保存的更改？" : lang === "mm" ? "မသိမ်းရသေးသော ပြင်ဆင်မှုများကို ပယ်မလား?" : "Discard unsaved changes?",
+        message: lang === "th"
+          ? "คุณมีการแก้ไขแบบฟอร์มที่ยังไม่ได้บันทึก หากปิดตอนนี้การเปลี่ยนแปลงจะหายไป"
+          : lang === "cn"
+          ? "您对表单的更改尚未保存。现在关闭将会丢失这些更改。"
+          : lang === "mm"
+          ? "ဖောင်ပြင်ဆင်မှုများ မသိမ်းရသေးပါ။ ယခုပိတ်ပါက ပြောင်းလဲမှုများ ပျောက်ဆုံးပါမည်။"
+          : "You have unsaved changes to this form. Closing now will discard them.",
+        confirmText: lang === "th" ? "ละทิ้ง" : lang === "cn" ? "放弃" : lang === "mm" ? "ပယ်မည်" : "Discard",
+        cancelText: lang === "th" ? "แก้ไขต่อ" : lang === "cn" ? "继续编辑" : lang === "mm" ? "ဆက်ပြင်မည်" : "Keep editing",
+        isDanger: true,
+        onConfirm: () => { setConfirmModal(prev => ({ ...prev, show: false })); setShowFormBuilder(false); },
+      });
+      return;
+    }
+    setShowFormBuilder(false);
+  };
+
+  // Warn on browser tab close / reload while the builder has unsaved edits.
+  useEffect(() => {
+    if (!builderDirty) return;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [builderDirty]);
 
   // ---- Section-aware form-builder helpers ----
   // All mutations target a question inside a specific section, identified by
@@ -2401,7 +2504,7 @@ export default function AdminEventsPage() {
           alignItems: "center",
           justifyContent: "center",
           padding: "clamp(12px, 3vw, 24px)"
-        }} onClick={() => setShowFormBuilder(false)}>
+        }} onClick={closeFormBuilder}>
           <div className="animate-fade-in-up custom-scrollbar" style={{
             background: "var(--bg-surface)",
             width: "100%",
@@ -2419,9 +2522,9 @@ export default function AdminEventsPage() {
                 <span style={{ fontSize: 11, fontWeight: 900, color: "var(--accent-primary)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{lang === "th" ? "แบบประเมินผู้เข้าร่วม" : lang === "cn" ? "互动反馈" : lang === "mm" ? "အပြန်အလှန် အကြံပြုချက်" : "Interactive Feedback"}</span>
                 <h3 style={{ fontSize: 22, fontWeight: 900, color: "var(--text-primary)", overflowWrap: "break-word", wordBreak: "break-word" }}>{formEventTitle || "Event"} Form</h3>
               </div>
-              <button 
-                className="btn btn-ghost" 
-                onClick={() => setShowFormBuilder(false)} 
+              <button
+                className="btn btn-ghost"
+                onClick={closeFormBuilder}
                 style={{ borderRadius: "50%", width: 40, height: 40, padding: 0 }}
               >
                 <X size={18} />
@@ -3153,7 +3256,7 @@ export default function AdminEventsPage() {
                           className="btn btn-ghost"
                           type="button"
                           style={{ height: 46, borderRadius: 12, padding: "0 24px", whiteSpace: "nowrap" }}
-                          onClick={() => setShowFormBuilder(false)}
+                          onClick={closeFormBuilder}
                         >
                           Cancel
                         </button>

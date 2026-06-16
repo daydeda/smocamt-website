@@ -22,6 +22,11 @@ const FORM_TYPE_LABELS: Record<string, string> = {
   S: "S - Skill",
 };
 
+// Auto-save draft key. Drafts live only in this browser's localStorage —
+// never sent to the server, so they cost nothing against Supabase/Vercel
+// quotas. Keyed per event+form so each form keeps its own in-progress answers.
+const draftKey = (eventId: string, formId: string) => `activecamt:form-draft:${eventId}:${formId}`;
+
 interface EventFormStatus {
   id: string;
   formType: string;
@@ -81,6 +86,10 @@ export default function HistoryPage() {
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [warningMessage, setWarningMessage] = useState("");
 
+  // True when the open form was repopulated from a locally-saved draft, so we
+  // can show a small "restored" hint to the student.
+  const [draftRestored, setDraftRestored] = useState(false);
+
   // Scroll container for the form modal. When the user moves between sections,
   // the new (shorter) section can leave the view scrolled partway down, landing
   // them in the middle instead of at the first question — reset to the top.
@@ -88,6 +97,18 @@ export default function HistoryPage() {
   useEffect(() => {
     modalScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   }, [sectionIndex]);
+
+  // Auto-save the in-progress answers to localStorage on every change so an
+  // accidental close (or page reload) doesn't lose the student's work. Guarded
+  // on !formLoading so the empty reset during openStudentForm's fetch doesn't
+  // clobber the saved draft before we've had a chance to restore it, and on
+  // !generalSuccess so we don't re-save right after a successful submit clears it.
+  useEffect(() => {
+    if (!showStudentForm || !activeForm || formLoading || generalSuccess) return;
+    try {
+      localStorage.setItem(draftKey(activeForm.eventId, activeForm.id), JSON.stringify(answers));
+    } catch { /* storage full or blocked (private mode) — fail silently */ }
+  }, [answers, showStudentForm, activeForm, formLoading, generalSuccess]);
 
   const fetchHistory = () => {
     setLoading(true);
@@ -121,6 +142,7 @@ export default function HistoryPage() {
     setSectionIndex(0);
     setNavStack([]);
     setScoreResult(null);
+    setDraftRestored(false);
 
     try {
       const res = await fetch(`/api/events/${eventId}/form`);
@@ -158,7 +180,26 @@ export default function HistoryPage() {
       allQuestions(nf).forEach((q) => {
         initialAnswers[q.id] = q.type === "rating" ? 5 : q.type === "multiple" ? [] : "";
       });
+
+      // Restore a locally-saved draft if one exists for this form. Merge over
+      // the defaults so we only restore answers for questions that still exist
+      // in the current form (a stale draft for a removed question is dropped).
+      let restored = false;
+      try {
+        const raw = localStorage.getItem(draftKey(eventId, formObj.id));
+        if (raw) {
+          const saved = JSON.parse(raw) as Record<string, string | number | string[]>;
+          for (const q of allQuestions(nf)) {
+            if (saved[q.id] !== undefined) {
+              initialAnswers[q.id] = saved[q.id];
+              restored = true;
+            }
+          }
+        }
+      } catch { /* corrupt or blocked storage — ignore and start fresh */ }
+
       setAnswers(initialAnswers);
+      setDraftRestored(restored);
     } catch (e) {
       console.error(e);
       setGeneralError(t.failedToLoadEvaluation);
@@ -234,6 +275,8 @@ export default function HistoryPage() {
         if (data.result?.hasGraded) {
           setScoreResult({ score: data.result.score, maxScore: data.result.maxScore });
         }
+        // Submitted successfully — discard the local draft so it isn't restored next time.
+        try { localStorage.removeItem(draftKey(activeForm.eventId, activeForm.id)); } catch { /* ignore */ }
         setGeneralSuccess("Submitted");
         fetchHistory();
       } else {
@@ -612,6 +655,22 @@ export default function HistoryPage() {
                 </div>
               ) : (
                 <div style={{ padding: "clamp(20px, 5vw, 40px)" }}>
+                  {draftRestored && sectionIndex === 0 && navStack.length === 0 && (
+                    <div className="animate-fade-in" style={{
+                      background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 16,
+                      padding: "12px 16px", marginBottom: 20, color: "#6366f1", fontSize: 13, fontWeight: 700,
+                      display: "flex", alignItems: "center", gap: 10
+                    }}>
+                      <span style={{ fontSize: 16 }}>💾</span>
+                      {lang === "th"
+                        ? "กู้คืนคำตอบที่บันทึกไว้ในเครื่องนี้แล้ว"
+                        : lang === "cn"
+                        ? "已恢复此设备上保存的草稿"
+                        : lang === "mm"
+                        ? "ဤစက်တွင် သိမ်းဆည်းထားသော အဖြေများကို ပြန်လည်ရယူပြီးပါပြီ"
+                        : "Restored your saved answers from this device"}
+                    </div>
+                  )}
                   {generalError && (
                     <div className="animate-fade-in" style={{
                       background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 16,

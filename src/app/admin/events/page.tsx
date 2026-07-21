@@ -50,6 +50,8 @@ interface AdminEvent {
   // Specific user IDs assigned as staff for THIS event (as opposed to global
   // role) — their attendance is exempt from quota/no-show. See schema.ts.
   staffUserIds: string[] | null;
+  // "Also count for Songsue" staff toggle — see events.songsueLinked in schema.ts.
+  songsueLinked: boolean;
   // Hold-and-diff for president edits — a president's PUT never touches the
   // live fields above; it's stored here until staff approve or discard it.
   // See events.detailsReviewStatus/pendingDetailsChanges in schema.ts.
@@ -316,6 +318,7 @@ const EMPTY_FORM = {
   ownerClubIds: [] as string[], // WHICH club(s) own this event, when managedByRoles includes club_president
   ownerMajors: [] as string[], // WHICH major(s) own this event, when managedByRoles includes major_president
   staffUserIds: [] as string[], // specific people assigned as staff for this event; empty = none
+  songsueLinked: false, // staff-only "also count for Songsue" mirror toggle
   // Hold-and-diff for president edits — see events.detailsReviewStatus/
   // pendingDetailsChanges in schema.ts. A brand new event (not yet saved) has
   // no pending edit, so this only matters once an existing event is loaded.
@@ -1197,6 +1200,7 @@ export default function AdminEventsPage() {
       ownerClubIds: evt.ownerClubIds || [],
       ownerMajors: evt.ownerMajors || [],
       staffUserIds: evt.staffUserIds || [],
+      songsueLinked: evt.songsueLinked || false,
       detailsReviewStatus: evt.detailsReviewStatus || "pending",
       detailsReviewedAt: evt.detailsReviewedAt || null,
     });
@@ -3491,6 +3495,54 @@ export default function AdminEventsPage() {
                     <p style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic", marginTop: 10 }}>
                       {lang === "th" ? "ยังไม่ได้กำหนดทีมงาน" : "No one assigned as staff yet."}
                     </p>
+                  )}
+                </div>
+
+                {/* "Also count for Songsue" — staff-only mirror toggle. See
+                    events.songsueLinked in schema.ts / src/lib/songsue-sync.ts. */}
+                <div className="field" style={{ marginTop: 20, opacity: canEditRestrictedFields ? 1 : 0.5, pointerEvents: canEditRestrictedFields ? "auto" : "none" }}>
+                  <div
+                    onClick={() => set("songsueLinked", !formData.songsueLinked)}
+                    style={{
+                      minHeight: 48,
+                      background: "var(--bg-elevated)",
+                      borderRadius: 16,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      padding: "12px 16px",
+                      cursor: "pointer",
+                      border: formData.songsueLinked ? "1px solid var(--accent-primary)" : "1px solid transparent",
+                      transition: "all 0.2s"
+                    }}
+                  >
+                    <div style={{
+                      width: 24,
+                      height: 24,
+                      flexShrink: 0,
+                      borderRadius: 6,
+                      border: "2px solid var(--border-medium)",
+                      background: formData.songsueLinked ? "var(--accent-primary)" : "transparent",
+                      borderColor: formData.songsueLinked ? "var(--accent-primary)" : "var(--border-medium)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transition: "all 0.1s"
+                    }}>
+                      {formData.songsueLinked && <CheckCircle2 size={16} color="white" />}
+                    </div>
+                    <ExternalLink size={18} style={{ flexShrink: 0, color: formData.songsueLinked ? "var(--accent-primary)" : "var(--text-muted)" }} />
+                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: formData.songsueLinked ? "var(--text-primary)" : "var(--text-secondary)" }}>
+                        {t.songsueLinkedLabel}
+                      </span>
+                      <span style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.4 }}>
+                        {t.songsueLinkedHint}
+                      </span>
+                    </div>
+                  </div>
+                  {!canEditRestrictedFields && (
+                    <p style={{ fontSize: 11, color: "#f59e0b", fontWeight: 700, marginTop: 8 }}>{t.eventStaffOnlyFieldHint}</p>
                   )}
                 </div>
 

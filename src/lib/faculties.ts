@@ -33,6 +33,27 @@ export const normalizeFaculty = (v: unknown): FacultyId =>
 export const majorsForFaculty = (faculty: unknown): string[] =>
   FACULTIES.find((f) => f.id === normalizeFaculty(faculty))?.majors ?? [];
 
+/**
+ * CMU official faculty code (student id digits 3-4, per km-core-62213.pdf) for
+ * CAMT: 21 = วิทยาลัยศิลปะ สื่อ และเทคโนโลยี. ActiveCAMT is CAMT-only, so this
+ * exists purely as typo protection — it flags a student id whose faculty
+ * digits don't say CAMT, rather than silently accepting any 9 digits.
+ */
+export const FACULTY_CODE_TO_ID: Record<string, FacultyId> = {
+  "21": "CAMT",
+};
+
+/**
+ * Derive a FacultyId from digits 3-4 of a student id. Returns null for a
+ * too-short id or a code other than CAMT's — callers must NOT default a null
+ * result to CAMT (that would silently accept a mistyped/non-CAMT id).
+ */
+export const facultyFromStudentId = (studentId: string | null | undefined): FacultyId | null => {
+  const cleanId = (studentId || "").trim();
+  if (cleanId.length < 4) return null;
+  return FACULTY_CODE_TO_ID[cleanId.slice(2, 4)] ?? null;
+};
+
 // The 4 shared colour houses. `name` mirrors the seed/i18n house names; `color`
 // is the display hex (kept in sync with src/db/seed.ts).
 export interface HouseColor {

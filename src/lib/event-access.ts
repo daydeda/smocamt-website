@@ -95,9 +95,17 @@ export function yearOfStudy(
 }
 
 /**
- * Thai vs international is derived from the student id: the first of the last
- * three digits being "5" marks an international student. Unknown/short ids
- * default to Thai (matches the historic /api/events behaviour).
+ * Thai vs international is derived from the first of the LAST THREE digits
+ * of the student id being "5" — this is nationality, not curriculum track.
+ * Digit 6 (the id's 6th character) separately marks curriculum TRACK
+ * (regular vs special international program) but does NOT determine
+ * nationality: a Thai student enrolled in an international-curriculum
+ * program still has "0" here, while an actual international student also
+ * has "5" here. Verified against two real ids: 682115036 (Thai, enrolled in
+ * an international-curriculum program) vs 682115513 (an actual
+ * international student, same curriculum track) — both have digit 6 "5",
+ * but only the latter has this digit "5" too. Unknown/short ids default to
+ * Thai (matches the historic /api/events behaviour).
  */
 export function deriveThaiIntl(studentId: string | null | undefined): {
   isThai: boolean;

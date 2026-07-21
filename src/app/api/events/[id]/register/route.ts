@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { getFormAvailability } from "@/lib/form-access";
 import { isFirstYearStudent } from "@/lib/event-access";
 import { ClubsService } from "@/modules/clubs/clubs.service";
+import { syncRegistrationToSongsue } from "@/lib/songsue-sync";
 
 // POST /api/events/[id]/register — One-click registration (FE-05)
 export async function POST(
@@ -27,7 +28,12 @@ export async function POST(
     // can be stale (auth.ts only eagerly refreshes while profileCompleted is false).
     const profile = await db.query.users.findFirst({
       where: eq(users.id, userId),
-      columns: { profileCompleted: true, major: true, registrationBlocked: true, noShowCount: true },
+      columns: {
+        profileCompleted: true, major: true, registrationBlocked: true, noShowCount: true,
+        // Identity fields only needed for the Songsue sync payload below —
+        // fetched here regardless (cheap, same row) rather than a second query.
+        email: true, name: true, prefix: true, faculty: true, phone: true, studentId: true,
+      },
     });
     if (!profile?.profileCompleted) {
       return NextResponse.json(
@@ -271,6 +277,23 @@ export async function POST(
       throw e;
     }
 
+    // Best-effort mirror into Songsue — never blocks registration (see songsue-sync.ts).
+    if (event.songsueLinked) {
+      await syncRegistrationToSongsue({
+        externalEventId: event.id,
+        user: {
+          email: profile.email,
+          studentId: profile.studentId,
+          name: profile.name,
+          prefix: profile.prefix,
+          faculty: profile.faculty,
+          major: profile.major,
+          phone: profile.phone,
+        },
+        status: "registered",
+      });
+    }
+
     // Surface the event's pre-test (K_pre) state so the dashboard can force the
     // student into a required pre-test immediately after registering — using this
     // fresh value rather than the cached events list, which on a re-register still
@@ -388,6 +411,21 @@ export async function DELETE(
             eq(formSubmissions.studentId, userId)
           )
         );
+    }
+
+    // Best-effort mirror into Songsue — never blocks unregistration (see songsue-sync.ts).
+    if (event?.songsueLinked) {
+      const profile = await db.query.users.findFirst({
+        where: eq(users.id, userId),
+        columns: { email: true, studentId: true, name: true, prefix: true, faculty: true, major: true, phone: true },
+      });
+      if (profile) {
+        await syncRegistrationToSongsue({
+          externalEventId: event.id,
+          user: profile,
+          status: "cancelled",
+        });
+      }
     }
 
     return NextResponse.json({ success: true });

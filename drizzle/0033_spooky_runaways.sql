@@ -1,0 +1,1 @@
+ALTER TABLE "events" ADD COLUMN "songsue_linked" boolean DEFAULT false NOT NULL;

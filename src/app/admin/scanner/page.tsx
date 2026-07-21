@@ -74,7 +74,7 @@ type EventSession = {
   endTime: string;
   sortOrder: number;
 };
-type Event = { id: string; title: string; startTime: string; endTime: string; sessions?: EventSession[] };
+type Event = { id: string; title: string; startTime: string; endTime: string; sessions?: EventSession[]; songsueLinked?: boolean };
 
 // Sessions sorted into display order ("Day 1", "Day 2", …).
 function sortedSessions(sessions?: EventSession[]): EventSession[] {
@@ -135,6 +135,36 @@ function LiveBadge({ label, small }: { label: string; small?: boolean }) {
       <span className="animate-pulse" style={{ width: 6, height: 6, borderRadius: "50%", background: "#10b981" }} />
       {label}
     </span>
+  );
+}
+
+// Post-check-in notice for a songsueLinked event's confirmed attendance. This
+// modal renders on the STAFF's own scanning device, not the student's — it
+// must never navigate that device away to Songsue (that used to happen here
+// via an auto-redirect and would kick the operator out of the scanner between
+// every single student). It's purely informational: tell the admin the
+// student checked in via ActiveCAMT and to ask them to open Songsue
+// themselves to see their house color.
+function SongsueCheckinNotice({ message }: { message: string }) {
+  return (
+    <div
+      style={{
+        marginTop: 16,
+        padding: 16,
+        borderRadius: 16,
+        background: "rgba(99, 102, 241, 0.06)",
+        border: "1.5px dashed rgba(99, 102, 241, 0.4)",
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 10,
+        textAlign: "left",
+      }}
+    >
+      <House size={18} color="#6366f1" style={{ marginTop: 1, flexShrink: 0 }} />
+      <p style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 600 }}>
+        {message}
+      </p>
+    </div>
   );
 }
 
@@ -744,6 +774,15 @@ export default function QRScannerPage() {
   // live right now, that's exactly the "forgot to switch the dropdown" mistake —
   // surface it explicitly with a one-tap fix instead of hoping they notice.
   const otherLiveEvent = selectedEventIsLive ? undefined : events.find((e) => e.id !== eventId && isEventLive(e));
+
+  // Show the "ask them to open Songsue" notice only on a fresh confirmed
+  // attendance (not a re-scan of an already-checked-in student) for a
+  // songsueLinked event — house color for these events lives in Songsue, not
+  // ActiveCAMT's own scan result.
+  const showSongsueNotice =
+    scanMode === "checkin"
+    && (scanResult?.status === "success" || scanResult?.status === "success_walk_in")
+    && Boolean(selectedEvent?.songsueLinked);
 
   let cfg = scanResult ? (STATUS_CONFIG[scanResult.status] || STATUS_CONFIG.error) : null;
 
@@ -1675,6 +1714,15 @@ export default function QRScannerPage() {
                   <CheckCircle2 size={24} />
                   {scanResult?.status === "already_checked_in" ? t.scanAlreadyCheckedIn : t.attended}
                 </div>
+              )}
+
+              {/* Post-check-in "checked in via ActiveCAMT, ask them to open
+                  Songsue" notice — only for events mirrored into Songsue
+                  (songsueLinked), only on a fresh confirmed attendance (not a
+                  re-scan of an already-checked-in student). Informational only
+                  for the staff operating this scanner; never navigates them away. */}
+              {showSongsueNotice && (
+                <SongsueCheckinNotice message={t.scanSongsueRedirectMessage} />
               )}
 
               {/* Pre-test (K_pre) reminder — walk-ins skip the dashboard pre-test gate,

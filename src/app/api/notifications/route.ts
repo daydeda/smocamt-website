@@ -31,6 +31,9 @@ type Notification = {
   points?: number;
   // Deep-link to act on the notification (pre_test_reminder → the K_pre form).
   link?: string;
+  // Set on a checkin notification when the event is mirrored into Songsue —
+  // drives the client's "see your house color on Songsue" redirect prompt.
+  songsueLinked?: boolean;
 };
 
 export async function GET(req: NextRequest) {
@@ -61,6 +64,7 @@ export async function GET(req: NextRequest) {
           eventId: attendance.eventId,
           checkInTime: attendance.checkInTime,
           eventTitle: events.title,
+          songsueLinked: events.songsueLinked,
         })
         .from(attendance)
         .innerJoin(events, eq(events.id, attendance.eventId))
@@ -103,6 +107,7 @@ export async function GET(req: NextRequest) {
         type: "checkin",
         at: c.checkInTime.toISOString(),
         eventTitle: c.eventTitle ?? null,
+        songsueLinked: c.songsueLinked,
       });
     }
 

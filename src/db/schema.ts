@@ -293,6 +293,13 @@ export const events = pgTable("events", {
   // source of truth for "already processed" — never infer it from score_history,
   // because mid-event individual/milestone/manual rows also carry this eventId.
   winnerAwardedAt: timestamp("winner_awarded_at", { withTimezone: true }),
+  // "Also count for Songsue" staff toggle — when true, this event's metadata and
+  // registration/attendance status are mirrored one-directionally into the
+  // sibling Songsue app via src/lib/songsue-sync.ts, so Songsue's own
+  // house-points system can credit the right house. Songsue owns nothing about
+  // this event; ActiveCAMT remains the single source of truth for creation,
+  // registration, quota, and check-in.
+  songsueLinked: boolean("songsue_linked").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });

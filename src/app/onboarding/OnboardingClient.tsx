@@ -7,7 +7,7 @@ import { Camera, Check, Loader2, LogOut, User, Menu, X, AlertTriangle, Lock } fr
 import { useLanguage } from "@/lib/LanguageContext";
 import { compressImageFile } from "@/lib/compress-image";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
-import { majorsForFaculty } from "@/lib/faculties";
+import { FACULTIES, majorsForFaculty, facultyFromStudentId } from "@/lib/faculties";
 
 // Rich CAMT major labels; other faculties show their bare code (or no Major
 // dropdown at all until their major lists are provided).
@@ -141,17 +141,22 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
     : degreeDigit === "5" ? ["KIM", "DTM"]
     : ["ANI", "DG", "DII", "MMIT", "SE"];
 
+  // Faculty is derived from the student id (digits 3-4) rather than assumed —
+  // ActiveCAMT is CAMT-only, so this is typo protection: it flags a student id
+  // whose faculty digits don't say CAMT instead of silently accepting it.
+  const derivedFaculty = facultyFromStudentId(formData.studentId);
+
   // Faculty-scoped major list. CAMT keeps the existing degree-digit-aware list
   // (undergrad SE/KIM/DTM by intake year vs the base ANI/DG/DII/MMIT/SE);
   // other faculties use their (currently empty, pending real data) list from
   // src/lib/faculties.ts.
-  const currentMajorOptions = formData.faculty === "CAMT" ? majorOptions : majorsForFaculty(formData.faculty);
+  const currentMajorOptions = derivedFaculty === "CAMT" ? majorOptions : majorsForFaculty(derivedFaculty);
 
   // Reset major to a valid option when the degree level or faculty changes
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!currentMajorOptions.includes(formData.major)) set("major", currentMajorOptions[0] ?? "");
-  }, [degreeDigit, formData.faculty]);
+    if (derivedFaculty && !currentMajorOptions.includes(formData.major)) set("major", currentMajorOptions[0] ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [degreeDigit, derivedFaculty]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -206,6 +211,12 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
       }
       if (isStudent && !/^[0-9]{9}$/.test(formData.studentId.trim())) {
         setError(isTh ? "รหัสนักศึกษาต้องเป็นตัวเลข 9 หลักเท่านั้น" : "Student ID must be exactly 9 digits.");
+        setValidationTriggered(true); return;
+      }
+      if (isStudent && /^[0-9]{9}$/.test(formData.studentId.trim()) && !derivedFaculty) {
+        setError(isTh
+          ? "รหัสนักศึกษานี้ไม่ตรงกับคณะ CAMT กรุณาตรวจสอบรหัสนักศึกษาอีกครั้ง หรือติดต่อเจ้าหน้าที่"
+          : "This student ID's faculty digits don't match CAMT. Please double-check your student ID or contact staff.");
         setValidationTriggered(true); return;
       }
       if (!/^[0-9]{10}$/.test(formData.phone.trim())) {
@@ -448,8 +459,38 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
             </div>
           </div>
 
-          {/* Major (only for faculties that have a major list) */}
-          {currentMajorOptions.length > 0 && (
+          {/* Faculty — auto-detected from the student id (digits 3-4) so you can
+              re-check it matches CAMT before submitting. Hidden until 9 digits. */}
+          {formData.studentId.trim().length === 9 && (
+            derivedFaculty ? (
+              <div className="field">
+                <label className={lbl}>{t.faculty}</label>
+                <input
+                  className={inp}
+                  disabled
+                  value={FACULTIES.find((f) => f.id === derivedFaculty)?.name ?? derivedFaculty}
+                  style={{ minHeight: 48, opacity: 0.85, cursor: "not-allowed" }}
+                />
+                <span style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+                  {isTh ? "ตรวจจับอัตโนมัติจากรหัสนักศึกษา" : "Auto-detected from your student ID"}
+                </span>
+              </div>
+            ) : (
+              <div className="alert alert-error" style={{ fontSize: 13 }}>
+                <AlertTriangle size={14} style={{ flexShrink: 0 }} />
+                <span>
+                  {isTh
+                    ? "รหัสนักศึกษานี้ไม่ตรงกับคณะ CAMT กรุณาตรวจสอบรหัสนักศึกษาอีกครั้ง หรือติดต่อเจ้าหน้าที่"
+                    : "This student ID's faculty digits don't match CAMT. Please double-check your student ID or contact staff."}
+                </span>
+              </div>
+            )
+          )}
+
+          {/* Major — depends on the degree-level digit read from the student id
+              (see degreeDigit above), so hide it until a full 9-digit id exists;
+              otherwise it briefly shows the wrong (undergrad-default) option list. */}
+          {derivedFaculty && currentMajorOptions.length > 0 && (
             <div className="field">
               <label className={lbl}>{t.major}</label>
               <select className={inp} value={formData.major} onChange={(e) => set("major", e.target.value)} style={{ minHeight: 48 }}>
@@ -608,6 +649,7 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
                 [t.fullName, `${formData.prefix}${formData.name}`],
                 [t.nickname, formData.nickname],
                 [t.studentId, formData.studentId || "—"],
+                [t.faculty, derivedFaculty ? (FACULTIES.find((f) => f.id === derivedFaculty)?.name ?? derivedFaculty) : "—"],
                 [t.major, formData.major],
                 [t.phone, formData.phone],
                 [t.religion, (() => {

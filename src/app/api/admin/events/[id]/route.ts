@@ -8,6 +8,7 @@ import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { sessionInputSchema, sessionsHaveInvalidSpan } from "@/lib/event-schema";
 import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/admin-access";
 import { EventScopeService } from "@/modules/events/event-scope.service";
+import { syncEventToSongsue } from "@/lib/songsue-sync";
 
 const eventUpdateSchema = z.object({
   title: z.string().min(1).optional(),
@@ -51,6 +52,9 @@ const eventUpdateSchema = z.object({
   // Specific user IDs assigned as staff for THIS event — see events.staffUserIds
   // in schema.ts. Staff-only, like managedByRoles below.
   staffUserIds: z.array(z.string()).optional().nullable(),
+  // "Also count for Songsue" — staff-only, like staffUserIds above. See
+  // events.songsueLinked in schema.ts.
+  songsueLinked: z.boolean().optional(),
   // Staff-only approve/reopen toggle — see events.detailsReviewStatus in
   // schema.ts. Never reaches a live column for a president actor (see
   // PRESIDENT_EDITABLE_FIELDS below) — a president's PUT always forces
@@ -165,6 +169,7 @@ function buildEventSetFields(
     ...(data.staffUserIds !== undefined && {
       staffUserIds: data.staffUserIds && data.staffUserIds.length > 0 ? data.staffUserIds : null
     }),
+    ...(data.songsueLinked !== undefined && { songsueLinked: data.songsueLinked }),
   };
 }
 
@@ -234,6 +239,13 @@ export async function PUT(
     const coverFromPosters = posters !== undefined ? (posters[0] ?? null) : undefined;
 
     const ip = getClientIp(req);
+
+    // Set true ONLY in the branch below that actually writes the events table's
+    // LIVE columns (not the president pending-diff branch, and not the discard
+    // branch, which never touches title/schedule/points/etc.) — gates the
+    // Songsue mirror call after the transaction commits, so a president's
+    // held-for-review edit or a no-op discard never fires a sync of stale data.
+    let liveColumnsChanged = false;
 
     let updated: typeof events.$inferSelect;
     try {
@@ -386,6 +398,8 @@ export async function PUT(
           ? (current.staffUserIds ?? [])
           : [];
 
+        liveColumnsChanged = true;
+
         const [row] = await tx
           .update(events)
           .set({
@@ -537,6 +551,22 @@ export async function PUT(
         return NextResponse.json({ error: "An event must have at least one session" }, { status: 400 });
       }
       throw e;
+    }
+
+    // Best-effort mirror into Songsue — never blocks this save (see songsue-sync.ts).
+    // Only fires when this request actually wrote the live columns (not a
+    // president's held-for-review diff, not a bare discard).
+    if (liveColumnsChanged && updated.songsueLinked) {
+      await syncEventToSongsue({
+        externalId: updated.id,
+        title: updated.title,
+        description: updated.description,
+        startTime: updated.startTime.toISOString(),
+        endTime: updated.endTime.toISOString(),
+        location: updated.location,
+        pointsAwarded: updated.pointsAwarded,
+        individualPointsAwarded: updated.individualPointsAwarded,
+      });
     }
 
     return NextResponse.json({ success: true, event: updated });

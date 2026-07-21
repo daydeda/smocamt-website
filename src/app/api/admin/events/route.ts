@@ -9,6 +9,7 @@ import { unstable_cache } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { sessionInputSchema, sessionsHaveInvalidSpan } from "@/lib/event-schema";
+import { syncEventToSongsue } from "@/lib/songsue-sync";
 
 const eventSchema = z.object({
   title: z.string().min(1),
@@ -55,6 +56,8 @@ const eventSchema = z.object({
   // role-based fields above) — exempts their attendance from quota counts and
   // no-show strikes. See events.staffUserIds in schema.ts.
   staffUserIds: z.array(z.string()).optional().nullable(),
+  // "Also count for Songsue" — staff-only. See events.songsueLinked in schema.ts.
+  songsueLinked: z.boolean().optional(),
   // Present when this event is being created FROM a club_president's proposal
   // (see /api/admin/event-proposals). Purely a linkage marker — staff still
   // fills in every field above explicitly; this just flips the source proposal
@@ -251,6 +254,7 @@ export async function POST(req: Request) {
           ownerClubIds: data.ownerClubIds && data.ownerClubIds.length > 0 ? data.ownerClubIds : null,
           ownerMajors: data.ownerMajors && data.ownerMajors.length > 0 ? data.ownerMajors : null,
           staffUserIds: data.staffUserIds && data.staffUserIds.length > 0 ? data.staffUserIds : null,
+          songsueLinked: data.songsueLinked ?? false,
           // Staff is creating (and has therefore already reviewed) every field
           // right now — unlike the DB column default of 'pending', which exists
           // for the president-edit-triggers-re-review case (see PUT
@@ -311,6 +315,20 @@ export async function POST(req: Request) {
 
       return created;
     });
+
+    // Best-effort mirror into Songsue — never blocks this save (see songsue-sync.ts).
+    if (event.songsueLinked) {
+      await syncEventToSongsue({
+        externalId: event.id,
+        title: event.title,
+        description: event.description,
+        startTime: event.startTime.toISOString(),
+        endTime: event.endTime.toISOString(),
+        location: event.location,
+        pointsAwarded: event.pointsAwarded,
+        individualPointsAwarded: event.individualPointsAwarded,
+      });
+    }
 
     return NextResponse.json({ success: true, event: event }, { status: 201 });
   } catch (error) {

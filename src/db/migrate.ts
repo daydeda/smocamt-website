@@ -1343,6 +1343,15 @@ async function migrate() {
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS anusmo_position text`;
   console.log("  ✅ club_members.position, users.major_position/smo_position/anusmo_position");
 
+  // 84. "Also count for Songsue" staff toggle. When true, this event's metadata
+  // and registration/attendance status are mirrored one-directionally into the
+  // sibling Songsue app via src/lib/songsue-sync.ts, so Songsue's own
+  // house-points system can credit the right house. Songsue owns nothing about
+  // this event; ActiveCAMT remains the single source of truth for creation,
+  // registration, quota, and check-in. NOT NULL DEFAULT false — additive/idempotent.
+  await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS songsue_linked boolean NOT NULL DEFAULT false`;
+  console.log("  ✅ events.songsue_linked");
+
   console.log("✅ Migration complete!");
   await sql.end();
   process.exit(0);

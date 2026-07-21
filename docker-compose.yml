@@ -30,6 +30,11 @@ services:
       # code (src/app/api/upload/route.ts, form-file-storage.ts, shop-storage.ts)
       # falls back to local disk — this is how we run without Supabase Storage.
       # Do NOT set those two vars here on the self-hosted deploy.
+      # Cross-app sync into the sibling Songsue app (src/lib/songsue-sync.ts) —
+      # both optional, sync silently no-ops if either is unset. Set these in
+      # .env when rehearsing the sync locally against a local Songsue instance.
+      - SONGSUE_SYNC_URL=${SONGSUE_SYNC_URL:-}
+      - ACTIVECAMT_SYNC_SECRET=${ACTIVECAMT_SYNC_SECRET:-}
     depends_on:
       db:
         condition: service_healthy

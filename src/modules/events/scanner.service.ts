@@ -7,6 +7,7 @@ import { AuditService } from "../audit/audit.service";
 import { HousesService } from "../houses/houses.service";
 import { canGiveIndividualScore } from "@/lib/admin-access";
 import { awardIndividualPoints } from "@/lib/award-individual-points";
+import { syncRegistrationToSongsue } from "@/lib/songsue-sync";
 
 type ResolvedStudent = NonNullable<Awaited<ReturnType<typeof UsersService.resolveStudentByToken>>>;
 type DBTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -325,6 +326,7 @@ export class ScannerService {
         if (updated.length === 0) {
           return { status: "already_checked_in", student: baseStudentInfo };
         }
+        await this.syncAttendedToSongsue(student, event);
         const preTestWarning = await this.getPreTestWarning(eventId, student.id);
         return {
           status: "success",
@@ -398,6 +400,7 @@ export class ScannerService {
           if (inserted.length === 0) {
             return { status: "already_checked_in", student: baseStudentInfo };
           }
+          await this.syncAttendedToSongsue(student, event);
           const preTestWarning = await this.getPreTestWarning(eventId, student.id);
           return { status: "success", student: studentWithMedical, preTestWarning };
         }
@@ -521,6 +524,7 @@ export class ScannerService {
         throw e;
       }
 
+      await this.syncAttendedToSongsue(student, event);
       const preTestWarning = await this.getPreTestWarning(eventId, student.id);
       return {
         status: "success_walk_in",
@@ -594,6 +598,32 @@ export class ScannerService {
   >(student: ResolvedStudent, info: T): Promise<T> {
     const h = await this.ensureHouseAssigned(student);
     return { ...info, house: h.name, houseId: h.id, houseColor: h.color };
+  }
+
+  /**
+   * Mirrors a confirmed check-in into Songsue when the event is `songsueLinked`
+   * — see src/lib/songsue-sync.ts. Called AFTER the check-in transaction commits
+   * (never inside it): this is a best-effort HTTP call to a sibling app and must
+   * never delay or fail a real check-in. No-op when the event isn't linked.
+   */
+  private static async syncAttendedToSongsue(
+    student: ResolvedStudent,
+    event: NonNullable<Awaited<ReturnType<typeof EventsService.getEventById>>>
+  ): Promise<void> {
+    if (!event.songsueLinked) return;
+    await syncRegistrationToSongsue({
+      externalEventId: event.id,
+      user: {
+        email: student.email,
+        studentId: student.studentId,
+        name: student.name,
+        prefix: student.prefix,
+        faculty: student.faculty,
+        major: student.major,
+        phone: student.phone,
+      },
+      status: "attended",
+    });
   }
 
   /**

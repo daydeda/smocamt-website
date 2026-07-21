@@ -12,7 +12,7 @@ import { useLanguage } from "@/lib/LanguageContext";
 import { compressImageFile } from "@/lib/compress-image";
 import { useRouter } from "next/navigation";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
-import { majorsForFaculty } from "@/lib/faculties";
+import { FACULTIES, majorsForFaculty, facultyFromStudentId } from "@/lib/faculties";
 
 // Rich CAMT major labels; other faculties show their bare code.
 const MAJOR_LABELS: Record<string, string> = {
@@ -133,20 +133,24 @@ export default function ProfilePage() {
     : degreeDigit === "5" ? ["KIM", "DTM"]
     : ["ANI", "DG", "DII", "MMIT", "SE"];
 
+  // Faculty is derived from the (locked) student id rather than assumed —
+  // typo protection: it flags an id whose faculty digits don't say CAMT.
+  const derivedFaculty = facultyFromStudentId(formData.studentId);
+
   // Faculty-scoped major list. CAMT keeps the existing degree-digit-aware list
   // (undergrad SE/KIM/DTM by intake year vs the base ANI/DG/DII/MMIT/SE);
   // other faculties use their (currently empty, pending real data) list from
   // src/lib/faculties.ts.
-  const currentMajorOptions = formData.faculty === "CAMT" ? majorOptions : majorsForFaculty(formData.faculty);
+  const currentMajorOptions = derivedFaculty === "CAMT" ? majorOptions : majorsForFaculty(derivedFaculty);
 
   // Reset major when degree level or faculty changes (only relevant while the field is editable)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!isProfileCompleted && !currentMajorOptions.includes(formData.major)) {
+    if (!isProfileCompleted && derivedFaculty && !currentMajorOptions.includes(formData.major)) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       set("major", currentMajorOptions[0] ?? "");
     }
-  }, [degreeDigit, formData.faculty]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [degreeDigit, derivedFaculty]);
 
   const setEC = (idx: number, key: string, value: string) => {
     const contacts = [...formData.emergencyContacts] as EmergencyContact[];
@@ -579,7 +583,28 @@ export default function ProfilePage() {
                     </span>
                   )}
                 </div>
-                {currentMajorOptions.length > 0 && (
+                {/* Faculty — auto-detected from the (locked) student id, so you can
+                    re-check it matches CAMT. Hidden until a 9-digit id exists. */}
+                {formData.studentId.trim().length === 9 && (
+                  derivedFaculty ? (
+                    <div className="field col-span-8">
+                      <label className="label">{t.faculty} (Locked)</label>
+                      <div className="input" style={{ display: "flex", alignItems: "center", background: "var(--bg-elevated)", cursor: "not-allowed", opacity: 0.7 }}>
+                        {FACULTIES.find((f) => f.id === derivedFaculty)?.name ?? derivedFaculty}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="field col-span-8">
+                      <span style={{ color: "#ef4444", fontSize: 12, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        <AlertTriangle size={12} style={{ flexShrink: 0 }} />
+                        {t.back === "กลับ"
+                          ? "รหัสนักศึกษานี้ไม่ตรงกับคณะ CAMT กรุณาติดต่อเจ้าหน้าที่"
+                          : "This student ID's faculty digits don't match CAMT. Please contact staff."}
+                      </span>
+                    </div>
+                  )
+                )}
+                {derivedFaculty && currentMajorOptions.length > 0 && (
                   <div className="field col-span-8">
                     <label className="label">
                       {t.major} {isProfileCompleted && "(Locked)"}

@@ -11,6 +11,9 @@ export type NotifItem = {
   points?: number;
   // Deep-link a tap navigates to (pre_test_reminder → the K_pre form).
   link?: string;
+  // Checkin for an event mirrored into Songsue — drives the "see your house
+  // color on Songsue" countdown redirect in NotificationModal.
+  songsueLinked?: boolean;
 };
 
 // How long a toast stays before auto-dismissing.

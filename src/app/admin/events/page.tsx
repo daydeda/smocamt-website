@@ -449,6 +449,8 @@ export default function AdminEventsPage() {
   const [removingStudentId, setRemovingStudentId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [detailsReviewToggling, setDetailsReviewToggling] = useState(false);
+  const [songsueResyncing, setSongsueResyncing] = useState(false);
+  const [songsueResyncMessage, setSongsueResyncMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<"all" | "live" | "upcoming" | "past">("all");
 
@@ -1139,6 +1141,7 @@ export default function AdminEventsPage() {
   };
 
   const handleEdit = (evt: AdminEvent) => {
+    setSongsueResyncMessage(null);
     const toLocal = (iso: string) => {
       const d = new Date(iso);
       const offset = d.getTimezoneOffset() * 60000;
@@ -1333,6 +1336,31 @@ export default function AdminEventsPage() {
       setError("Failed to discard pending changes.");
     } finally {
       setDetailsReviewToggling(false);
+    }
+  };
+
+  // Manually re-fires the event-level Songsue mirror (POST .../songsue-resync).
+  // songsue-sync.ts has no retry queue in v1: if the original sync attempt
+  // failed (Songsue down, network blip), the event silently never lands on
+  // Songsue's side and every registration sync 404s forever until someone
+  // re-triggers this. See src/lib/songsue-sync.ts.
+  const resyncSongsue = async () => {
+    if (!editingId) return;
+    setSongsueResyncing(true);
+    setSongsueResyncMessage(null);
+    try {
+      const res = await fetch(`/api/admin/events/${editingId}/songsue-resync`, { method: "POST" });
+      if (res.ok) {
+        setSongsueResyncMessage(t.songsueResyncSuccess);
+      } else {
+        const d = await res.json().catch(() => null);
+        setSongsueResyncMessage((d && d.error) || t.songsueResyncFailure);
+      }
+    } catch (e) {
+      console.error(e);
+      setSongsueResyncMessage(t.songsueResyncFailure);
+    } finally {
+      setSongsueResyncing(false);
     }
   };
 
@@ -3543,6 +3571,22 @@ export default function AdminEventsPage() {
                   </div>
                   {!canEditRestrictedFields && (
                     <p style={{ fontSize: 11, color: "#f59e0b", fontWeight: 700, marginTop: 8 }}>{t.eventStaffOnlyFieldHint}</p>
+                  )}
+                  {canEditRestrictedFields && editingId && formData.songsueLinked && (
+                    <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        style={{ borderRadius: 12 }}
+                        disabled={songsueResyncing}
+                        onClick={resyncSongsue}
+                      >
+                        {songsueResyncing ? t.songsueResyncing : t.songsueResyncButton}
+                      </button>
+                      {songsueResyncMessage && (
+                        <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{songsueResyncMessage}</span>
+                      )}
+                    </div>
                   )}
                 </div>
 

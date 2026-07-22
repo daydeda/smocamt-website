@@ -147,6 +147,30 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   // or lost device stays valid for a week, not a month, while inactive
   // students don't have to re-login daily between events.
   session: { strategy: "jwt", maxAge: 7 * 24 * 60 * 60 },
+  // Auth.js's default cookie names (authjs.session-token, etc.) carry no
+  // per-app namespace — cookies are scoped by hostname+path only, NOT port,
+  // so ActiveCAMT (localhost:3001) and Songsue (localhost:3000) running side
+  // by side in local dev silently share/overwrite ONE browser cookie. Both
+  // repos' .env.local also happen to hold the same AUTH_SECRET, so the JWT
+  // still decodes "successfully" in whichever app didn't set it last — just
+  // pointing at a user id from the OTHER app's (entirely separate) database.
+  // That's what a stale/missing-row session and "editing my profile on
+  // Songsue signs me out of ActiveCAMT too" both trace back to: signOut()
+  // clears the one cookie slot both apps were reading. Namespacing every
+  // cookie name here (only `name` is overridden — merge() deep-merges this
+  // onto Auth.js's default per-cookie `options`, so httpOnly/sameSite/secure
+  // stay correct) makes the two apps' sessions fully independent in the same
+  // browser. Only `name` differs from Auth.js's defaults (see defaultCookies
+  // in @auth/core/lib/utils/cookie.js) — never copy the `options` shape here
+  // by hand, since `secure` depends on the request's protocol at runtime.
+  cookies: {
+    sessionToken: { name: "activecamt.session-token" },
+    callbackUrl: { name: "activecamt.callback-url" },
+    csrfToken: { name: "activecamt.csrf-token" },
+    pkceCodeVerifier: { name: "activecamt.pkce.code_verifier" },
+    state: { name: "activecamt.state" },
+    nonce: { name: "activecamt.nonce" },
+  },
   providers: [
     Google({
       clientId: process.env.AUTH_GOOGLE_ID,

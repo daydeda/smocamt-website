@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import { getFormAvailability } from "@/lib/form-access";
 import { isFirstYearStudent } from "@/lib/event-access";
 import { ClubsService } from "@/modules/clubs/clubs.service";
-import { syncRegistrationToSongsue } from "@/lib/songsue-sync";
+import { syncRegistrationToSongsue, type SongsueEmergencyContact } from "@/lib/songsue-sync";
 
 // POST /api/events/[id]/register — One-click registration (FE-05)
 export async function POST(
@@ -30,9 +30,15 @@ export async function POST(
       where: eq(users.id, userId),
       columns: {
         profileCompleted: true, major: true, registrationBlocked: true, noShowCount: true,
-        // Identity fields only needed for the Songsue sync payload below —
-        // fetched here regardless (cheap, same row) rather than a second query.
+        // Identity + medical/emergency fields only needed for the Songsue sync
+        // payload below — fetched here regardless (cheap, same row) rather than
+        // a second query. See songsue-sync.ts's PDPA doc comment for how
+        // Songsue gates writing these onto a synced account.
         email: true, name: true, prefix: true, faculty: true, phone: true, studentId: true,
+        nickname: true, image: true, religion: true, contactChannels: true,
+        chronicDiseases: true, medicalHistory: true, drugAllergies: true, foodAllergies: true,
+        dietaryRestrictions: true, faintingHistory: true, emergencyMedication: true,
+        emergencyContacts: true,
       },
     });
     if (!profile?.profileCompleted) {
@@ -289,6 +295,18 @@ export async function POST(
           faculty: profile.faculty,
           major: profile.major,
           phone: profile.phone,
+          nickname: profile.nickname,
+          image: profile.image,
+          religion: profile.religion,
+          contactChannels: profile.contactChannels,
+          chronicDiseases: profile.chronicDiseases,
+          medicalHistory: profile.medicalHistory,
+          drugAllergies: profile.drugAllergies,
+          foodAllergies: profile.foodAllergies,
+          dietaryRestrictions: profile.dietaryRestrictions,
+          faintingHistory: profile.faintingHistory,
+          emergencyMedication: profile.emergencyMedication,
+          emergencyContacts: profile.emergencyContacts as SongsueEmergencyContact[] | null,
         },
         status: "registered",
       });
@@ -417,12 +435,17 @@ export async function DELETE(
     if (event?.songsueLinked) {
       const profile = await db.query.users.findFirst({
         where: eq(users.id, userId),
-        columns: { email: true, studentId: true, name: true, prefix: true, faculty: true, major: true, phone: true },
+        columns: {
+          email: true, studentId: true, name: true, prefix: true, faculty: true, major: true, phone: true,
+          nickname: true, image: true, religion: true, contactChannels: true,
+          chronicDiseases: true, medicalHistory: true, drugAllergies: true, foodAllergies: true,
+          dietaryRestrictions: true, faintingHistory: true, emergencyMedication: true, emergencyContacts: true,
+        },
       });
       if (profile) {
         await syncRegistrationToSongsue({
           externalEventId: event.id,
-          user: profile,
+          user: { ...profile, emergencyContacts: profile.emergencyContacts as SongsueEmergencyContact[] | null },
           status: "cancelled",
         });
       }

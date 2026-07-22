@@ -327,6 +327,9 @@ export async function POST(req: Request) {
         location: event.location,
         pointsAwarded: event.pointsAwarded,
         individualPointsAwarded: event.individualPointsAwarded,
+        walkInsEnabled: event.walkInsEnabled,
+        quota: event.quota,
+        quotaWalkIn: event.quotaWalkIn,
       });
     }
 

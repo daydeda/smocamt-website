@@ -566,6 +566,9 @@ export async function PUT(
         location: updated.location,
         pointsAwarded: updated.pointsAwarded,
         individualPointsAwarded: updated.individualPointsAwarded,
+        walkInsEnabled: updated.walkInsEnabled,
+        quota: updated.quota,
+        quotaWalkIn: updated.quotaWalkIn,
       });
     }
 

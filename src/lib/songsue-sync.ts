@@ -11,10 +11,16 @@
 // check-in. There is no retry queue in this v1; a failed sync is only visible
 // via the error log/webhook.
 //
-// PDPA: only identity fields needed to seed a minimal Songsue account are
-// sent (email/studentId/name/prefix/faculty/major/phone) — never medical,
-// emergency-contact, or PDPA-consent data. ActiveCAMT's own PDPA consent is
-// never inherited by the Songsue account created from this payload.
+// PDPA: identity fields (email/studentId/name/prefix/faculty/major/phone/
+// nickname/image/religion/contactChannels) AND medical/emergency-contact data
+// are both sent (product decision — see songsue's activecamt-sync.service.ts
+// upsertSyncedUser/backfillIncompleteProfile doc comments for the exact
+// tradeoff and how Songsue gates each write: full identity+medical write on
+// brand-new account creation; on an EXISTING Songsue row, only fields that
+// are still blank there get filled in — a completed profile is never
+// touched). ActiveCAMT's own PDPA consent is never inherited as Songsue's
+// own consent — pdpaConsent always starts/stays false until the student
+// explicitly consents inside Songsue itself.
 import { captureException } from "@/lib/logger";
 
 export interface SongsueEventSyncPayload {
@@ -26,6 +32,20 @@ export interface SongsueEventSyncPayload {
   location?: string | null;
   pointsAwarded?: number | null;
   individualPointsAwarded?: number | null;
+  // Needed so a check-in via Songsue's OWN scanner (bidirectional check-in sync,
+  // scanner.service.ts) can walk in a student the same way ActiveCAMT's own
+  // scanner would — without these, the mirrored event defaults to Songsue's
+  // schema defaults (walkInsEnabled=false, quota=unlimited), making walk-ins
+  // structurally impossible there regardless of the event's real settings here.
+  walkInsEnabled?: boolean | null;
+  quota?: number | null;
+  quotaWalkIn?: number | null;
+}
+
+export interface SongsueEmergencyContact {
+  name: string;
+  relationship: string;
+  phone: string;
 }
 
 export interface SongsueRegistrationSyncPayload {
@@ -38,6 +58,18 @@ export interface SongsueRegistrationSyncPayload {
     faculty?: string | null;
     major?: string | null;
     phone?: string | null;
+    nickname?: string | null;
+    image?: string | null;
+    religion?: string | null;
+    contactChannels?: string | null;
+    chronicDiseases?: string | null;
+    medicalHistory?: string | null;
+    drugAllergies?: string | null;
+    foodAllergies?: string | null;
+    dietaryRestrictions?: string | null;
+    faintingHistory?: boolean | null;
+    emergencyMedication?: string | null;
+    emergencyContacts?: SongsueEmergencyContact[] | null;
   };
   status: "registered" | "attended" | "cancelled";
 }

@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { attendance, events, users } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { effectiveRoles } from "@/lib/admin-access";
@@ -64,6 +64,9 @@ export async function POST(
       return NextResponse.json({ error: "Event is not linked to Songsue" }, { status: 400 });
     }
 
+    const staff = event.staffUserIds && event.staffUserIds.length > 0
+      ? await db.select({ email: users.email, name: users.name }).from(users).where(inArray(users.id, event.staffUserIds))
+      : [];
     await syncEventToSongsue({
       externalId: event.id,
       title: event.title,
@@ -76,6 +79,9 @@ export async function POST(
       walkInsEnabled: event.walkInsEnabled,
       quota: event.quota,
       quotaWalkIn: event.quotaWalkIn,
+      imageUrl: event.imageUrl,
+      imageUrls: event.imageUrls,
+      staff,
     });
 
     // Backfill attendees AFTER the event resync above, so the target event is

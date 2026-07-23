@@ -1,10 +1,10 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { events, attendance, eventSessions, eventProposals } from "@/db/schema";
+import { events, attendance, eventSessions, eventProposals, users } from "@/db/schema";
 import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/admin-access";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { EventScopeService } from "@/modules/events/event-scope.service";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -318,6 +318,9 @@ export async function POST(req: Request) {
 
     // Best-effort mirror into Songsue — never blocks this save (see songsue-sync.ts).
     if (event.songsueLinked) {
+      const staff = event.staffUserIds && event.staffUserIds.length > 0
+        ? await db.select({ email: users.email, name: users.name }).from(users).where(inArray(users.id, event.staffUserIds))
+        : [];
       await syncEventToSongsue({
         externalId: event.id,
         title: event.title,
@@ -330,6 +333,9 @@ export async function POST(req: Request) {
         walkInsEnabled: event.walkInsEnabled,
         quota: event.quota,
         quotaWalkIn: event.quotaWalkIn,
+        imageUrl: event.imageUrl,
+        imageUrls: event.imageUrls,
+        staff,
       });
     }
 

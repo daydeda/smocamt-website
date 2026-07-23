@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { events, eventSessions, attendance } from "@/db/schema";
+import { events, eventSessions, attendance, users } from "@/db/schema";
 import { and, count, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -557,6 +557,9 @@ export async function PUT(
     // Only fires when this request actually wrote the live columns (not a
     // president's held-for-review diff, not a bare discard).
     if (liveColumnsChanged && updated.songsueLinked) {
+      const staff = updated.staffUserIds && updated.staffUserIds.length > 0
+        ? await db.select({ email: users.email, name: users.name }).from(users).where(inArray(users.id, updated.staffUserIds))
+        : [];
       await syncEventToSongsue({
         externalId: updated.id,
         title: updated.title,
@@ -569,6 +572,9 @@ export async function PUT(
         walkInsEnabled: updated.walkInsEnabled,
         quota: updated.quota,
         quotaWalkIn: updated.quotaWalkIn,
+        imageUrl: updated.imageUrl,
+        imageUrls: updated.imageUrls,
+        staff,
       });
     }
 

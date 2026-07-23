@@ -23,6 +23,16 @@
 // explicitly consents inside Songsue itself.
 import { captureException } from "@/lib/logger";
 
+// A staff member assigned to a songsueLinked event (events.staffUserIds), resolved
+// to email/name before sending — ActiveCAMT's own user ids mean nothing on
+// Songsue's side, so the caller must look these up first (see the three
+// syncEventToSongsue call sites). Songsue upserts a matching account by email,
+// same identity join every other sync direction here already uses.
+export interface SongsueEventStaffMember {
+  email: string;
+  name: string;
+}
+
 export interface SongsueEventSyncPayload {
   externalId: string;
   title: string;
@@ -40,6 +50,15 @@ export interface SongsueEventSyncPayload {
   walkInsEnabled?: boolean | null;
   quota?: number | null;
   quotaWalkIn?: number | null;
+  // Banner — mirrors events.imageUrl/imageUrls (see schema.ts: imageUrl always
+  // mirrors imageUrls[0]). Always sent as the event's CURRENT full value (not a
+  // partial patch), same convention as every other field here.
+  imageUrl?: string | null;
+  imageUrls?: string[] | null;
+  // Full CURRENT roster, not a delta — Songsue replaces its mirrored
+  // staffUserIds wholesale with whatever this list resolves to, so removing
+  // someone here removes them there too.
+  staff?: SongsueEventStaffMember[];
 }
 
 export interface SongsueEmergencyContact {

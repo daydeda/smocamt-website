@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLanguage } from "@/lib/LanguageContext";
 import { NON_SMO_POSITION_IDS, POSITION_I18N_KEY } from "@/lib/positions";
+import { canonicalHouseName } from "@/lib/faculties";
 import { Download, Users, HeartPulse, ChevronDown, ChevronUp, Plus } from "lucide-react";
 
 type MajorTeamMember = {
@@ -351,7 +352,7 @@ export function MajorTeamSection({ major }: { major: string }) {
                         row reaching this client is already authorized to see it (see
                         MajorsService.getMajorMembers). */}
                     <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, display: "flex", flexWrap: "wrap", gap: 8 }}>
-                      {m.house?.name && <span>{m.house.name}</span>}
+                      {m.house?.name && <span>{canonicalHouseName(m.house)}</span>}
                       {m.phone && <span>{m.phone}</span>}
                       {m.contactChannels && <span>{m.contactChannels}</span>}
                     </div>

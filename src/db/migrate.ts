@@ -1018,12 +1018,15 @@ async function migrate() {
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_game_stats_user_game ON game_stats (user_id, game_type)`;
   console.log("  ✅ game_rooms, webrtc_signals, game_stats tables and indexes");
 
-  // 62. Single-faculty (CAMT) → 4-faculty house model. The column + index DDL
-  // (houses.faculty, houses.color_group, users.faculty + the two indexes) is
-  // applied by drizzle's own migration history (drizzle/0020_four_faculty_houses.sql).
-  // This runner adds the schema columns idempotently too, so db:migrate alone is
-  // sufficient, then does the data migration. NON-DESTRUCTIVE throughout: no
-  // DROP/DELETE; score_history is untouched; only the per-user house pointer is reset.
+  // 62. houses.faculty / houses.color_group / users.faculty columns + indexes.
+  // Originally added for a since-abandoned multi-faculty (MASSCOM/ARCH/ARTS)
+  // house model — that model (and the 12 orphan faculty-house rows it once
+  // inserted, plus the every-deploy insert-then-delete cycle that reverted it)
+  // has been removed entirely (2026-07-28); those faculties belong to the
+  // separate Songsue project, not here. ActiveCAMT is CAMT-only. The columns
+  // themselves stay — houses.faculty is always 'CAMT', color_group mirrors id
+  // — and users.faculty remains a legitimate, unrelated per-student academic
+  // field (profile/onboarding/Songsue sync). NON-DESTRUCTIVE: no DROP/DELETE.
   await sql`ALTER TABLE houses ADD COLUMN IF NOT EXISTS faculty text NOT NULL DEFAULT 'CAMT'`;
   await sql`ALTER TABLE houses ADD COLUMN IF NOT EXISTS color_group text NOT NULL DEFAULT 'red'`;
   await sql`ALTER TABLE users  ADD COLUMN IF NOT EXISTS faculty text`;
@@ -1041,66 +1044,21 @@ async function migrate() {
   `;
   console.log("  ✅ backfilled 4 legacy CAMT houses (faculty + color_group)");
 
-  // 64. Insert the 12 new faculty houses (MASSCOM/ARCH/ARTS × red/green/yellow/blue).
-  // ids/names/colours mirror src/lib/faculties.ts (ALL_HOUSE_ROWS / houseRowId / COLORS).
-  // ON CONFLICT (id) DO NOTHING makes re-runs a no-op and never clobbers points.
-  await sql`
-    INSERT INTO houses (id, name, color, points, faculty, color_group) VALUES
-      ('masscom-red',    'Mom',   '#ef4444', 0, 'MASSCOM', 'red'),
-      ('masscom-green',  'To',    '#94a3b8', 0, 'MASSCOM', 'green'),
-      ('masscom-yellow', 'Luang', '#3b82f6', 0, 'MASSCOM', 'yellow'),
-      ('masscom-blue',   'Makon', '#22c55e', 0, 'MASSCOM', 'blue'),
-      ('arch-red',       'Mom',   '#ef4444', 0, 'ARCH',    'red'),
-      ('arch-green',     'To',    '#94a3b8', 0, 'ARCH',    'green'),
-      ('arch-yellow',    'Luang', '#3b82f6', 0, 'ARCH',    'yellow'),
-      ('arch-blue',      'Makon', '#22c55e', 0, 'ARCH',    'blue'),
-      ('arts-red',       'Mom',   '#ef4444', 0, 'ARTS',    'red'),
-      ('arts-green',     'To',    '#94a3b8', 0, 'ARTS',    'green'),
-      ('arts-yellow',    'Luang', '#3b82f6', 0, 'ARTS',    'yellow'),
-      ('arts-blue',      'Makon', '#22c55e', 0, 'ARTS',    'blue')
-    ON CONFLICT (id) DO NOTHING
-  `;
-  console.log("  ✅ inserted 12 new faculty houses (ON CONFLICT DO NOTHING)");
-
-  // 65. Backfill users.faculty for legacy rows (all existing students are CAMT).
+  // 64. Backfill users.faculty for legacy rows (all existing students are CAMT).
   //
   // ⚠️ This step ORIGINALLY also ran `UPDATE users SET house_id = NULL` — a
   // one-time reset intended for the four-faculty-houses cutover. That line is
   // GONE. It ran unconditionally on every deploy (this script has no
   // migrations-tracking table; every `db:migrate`/`db:migrate:container` run
   // replays every step from the top), so it wiped EVERY user's house on every
-  // single deploy — the four-faculty model was reverted in step 66 below, but
-  // nothing ever removed the reset, so it kept firing forever after. That's
-  // the "my house changed after a redeploy" bug (fixed 2026-07-06; see
+  // single deploy — the four-faculty model was reverted, but nothing ever
+  // removed the reset, so it kept firing forever after. That's the "my house
+  // changed after a redeploy" bug (fixed 2026-07-06; see
   // scripts/restore-houses-from-supabase.mjs for the one-time recovery of
   // pre-reset assignments). DO NOT reintroduce an unconditional house_id
   // reset here — it will immediately reproduce that bug on the next deploy.
   await sql`UPDATE users SET faculty = 'CAMT' WHERE faculty IS NULL`;
   console.log("  ✅ backfilled users.faculty");
-
-  // 66. Revert the four-faculty-houses model (steps 62-65). ActiveCAMT is
-  // CAMT-only — MASSCOM/ARCH/ARTS were prep work for a separate project
-  // (Songsue) that landed here by mistake. src/lib/faculties.ts is already
-  // reverted to CAMT-only in code; this removes the 12 orphan faculty house
-  // rows step 64 inserted. NON-DESTRUCTIVE guard: only deletes a house row if
-  // nothing references it — users.house_id has no cascade (a real reference
-  // would abort the statement) and score_history.house_id CASCADEs on delete
-  // (a real reference would silently wipe that house's point history), so
-  // both are checked before any row is removed. Should always remove all 12
-  // rows in practice, since every user's faculty has been 'CAMT' since step
-  // 64 and the app never assigns a non-CAMT house.
-  const deletedHouses = await sql`
-    DELETE FROM houses h
-    WHERE h.faculty <> 'CAMT'
-      AND NOT EXISTS (SELECT 1 FROM users u WHERE u.house_id = h.id)
-      AND NOT EXISTS (SELECT 1 FROM score_history sh WHERE sh.house_id = h.id)
-    RETURNING h.id
-  `;
-  console.log(`  ✅ removed ${deletedHouses.length} orphan faculty house row(s)`);
-  const remaining = await sql`SELECT id FROM houses WHERE faculty <> 'CAMT'`;
-  if (remaining.length > 0) {
-    console.warn(`  ⚠️ ${remaining.length} non-CAMT house row(s) still referenced by data, left in place:`, remaining.map((r) => r.id).join(", "));
-  }
 
   // 67. No-show strike-out: users.no_show_count / users.registration_blocked.
   // Students who pre-register for an event but never check in accumulate

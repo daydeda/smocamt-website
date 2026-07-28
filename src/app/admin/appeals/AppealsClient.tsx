@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { MessageSquareWarning, CheckCircle2, XCircle, Loader2, Clock, UserCheck, CalendarX2 } from "lucide-react";
 import { useLanguage } from "@/lib/LanguageContext";
 import { effectiveRoles } from "@/lib/admin-access";
+import { canonicalHouseName } from "@/lib/faculties";
 import { NO_SHOW_STRIKE_THRESHOLD, RESOLVE_APPEALS_ROLES } from "@/lib/strikes";
 
 type Appeal = {
@@ -161,7 +162,7 @@ export function AppealsClient() {
                   <div>
                     <p style={{ fontWeight: 700, fontSize: 15 }}>
                       {a.user.name}
-                      {a.user.house && <span style={{ color: a.user.house.color ?? "var(--text-muted)", fontWeight: 600, fontSize: 12 }}> · {a.user.house.name}</span>}
+                      {a.user.house && <span style={{ color: a.user.house.color ?? "var(--text-muted)", fontWeight: 600, fontSize: 12 }}> · {canonicalHouseName(a.user.house)}</span>}
                     </p>
                     <p style={{ fontSize: 12, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 6, marginTop: 2, flexWrap: "wrap" }}>
                       {a.user.studentId ?? "—"} · {t.adminAppealsStrikesAtAppeal} {a.noShowCountAtAppeal}/{NO_SHOW_STRIKE_THRESHOLD}

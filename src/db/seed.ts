@@ -11,8 +11,8 @@ import { eq } from "drizzle-orm";
 import { assertDestructiveAllowed } from "./guard";
 import { ALL_HOUSE_ROWS } from "../lib/faculties";
 
-// All 16 (faculty × colour) houses. CAMT keeps the bare colour ids ('red'…) so
-// existing house_id foreign keys never move; other faculties use '<fac>-<colour>'.
+// The 4 CAMT colour houses. ActiveCAMT is CAMT-only, so ids stay the bare
+// colour ids ('red'…) — house_id foreign keys never move.
 const HOUSES = ALL_HOUSE_ROWS.map(({ id, faculty, color }) => ({
   id,
   name: color.name,

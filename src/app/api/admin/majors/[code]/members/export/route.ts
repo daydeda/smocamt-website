@@ -6,6 +6,7 @@ import { MajorsService } from "@/modules/majors/majors.service";
 import { formatAuditTargetList } from "@/lib/audit-target-list";
 import { NextResponse } from "next/server";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
+import { canonicalHouseName } from "@/lib/faculties";
 
 // xlsx is a CommonJS package — keep this route on the Node.js runtime.
 export const runtime = "nodejs";
@@ -58,7 +59,7 @@ export async function GET(
       "Student ID": m.studentId || "",
       "Phone": m.phone || "",
       "Contact Channels": m.contactChannels || "",
-      "House": m.house?.name || "",
+      "House": canonicalHouseName(m.house),
       "Position": m.position ? (POSITION_LABEL_EN[m.position as PositionId] ?? m.position) : "",
       "Chronic Diseases": m.chronicDiseases || "",
       "Medical History": m.medicalHistory || "",

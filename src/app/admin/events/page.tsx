@@ -358,15 +358,18 @@ export default function AdminEventsPage() {
   // scanner-only student-leader roles (smo/club_president/major_president)
   // may also export, but the server (api/admin/events/[id]/export) hands them
   // a THIN file with no phone, meds-check, medical, or emergency-contact
-  // columns — they must ask an admin/super_admin for that detail. Mirrors the
-  // server's isThinExportRole exactly — deliberately NARROWER than
-  // isAttendanceOnly, which also buckets in a plain club/major member whose
-  // position TITLE happens to be "registration" (club_members.position, see
-  // src/lib/positions.ts — cosmetic, not a system role) but who holds no
-  // export-eligible role; the server already 403s that case, so the button
-  // must not be shown for it either.
+  // columns — they must ask an admin/super_admin for that detail. registration/
+  // organizer may also export: contact info yes, but no individual medical
+  // signal (an aggregate-only medical summary is added to the file's Summary
+  // sheet instead) — mirrors the server's isRegOrgExportRole. Mirrors the
+  // server's isThinExportRole/isRegOrgExportRole exactly — deliberately
+  // NARROWER than isAttendanceOnly, which also buckets in a plain club/major
+  // member whose position TITLE happens to be "registration" (club_members.
+  // position, see src/lib/positions.ts — cosmetic, not a system role) but who
+  // holds no export-eligible role; the server already 403s that case, so the
+  // button must not be shown for it either.
   const canSeeExportButton = canExportAttendance || myRoles.some((r) =>
-    ["smo", "club_president", "major_president"].includes(r)
+    ["smo", "club_president", "major_president", "registration", "organizer"].includes(r)
   );
   // No-show strike-out (US-STRI-15): organizers confirm no-shows for their own
   // ended events; registration is unscoped staff, like admin. smo may view the
@@ -410,7 +413,20 @@ export default function AdminEventsPage() {
   // never create/edit/delete a form. Server-side gate is the real source of
   // truth (see gateEventForms in api/admin/events/[id]/form/route.ts).
   const isSmoRole = myRoles.includes("smo");
-  const canManageForms = !isAttendanceOnly || isPresidentRole;
+  // A "registration" TITLE (src/lib/positions.ts) — distinct from the
+  // "registration" ROLE already folded into isAttendanceOnly above — also gets
+  // full form management, scoped to their own club/major's events server-side
+  // (EventScopeService.hasRegistrationScope / gateEventForms's isPositionScoped).
+  // Covers all three places that title can be held: smo/anusmo (globalRegPosition,
+  // already computed above), the user's own major (majorPosition), and any club
+  // they belong to (hasClubRegistrationPosition — precomputed in auth.ts, since
+  // club_members rows aren't on the session). Deliberately narrow: this only
+  // widens FORM management, not event-editing/medical-visibility/removal, which
+  // the "registration" title was never asked to grant.
+  const hasRegistrationTitle = globalRegPosition
+    || session?.user?.majorPosition === "registration"
+    || !!session?.user?.hasClubRegistrationPosition;
+  const canManageForms = !isAttendanceOnly || isPresidentRole || hasRegistrationTitle;
   const canViewForms = canManageForms || isSmoRole;
   // Role/major access control, Managed By (president/owner), and points are
   // admin/registration/organizer only — even for a president editing their own event.

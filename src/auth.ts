@@ -81,13 +81,26 @@ async function fetchUserDataFromDb(userId: string) {
   // Precomputed here (rather than at every canEnterAdminAny call site) so the
   // edge proxy — which only ever reads the session, never queries the DB
   // directly — can gate confined /admin entry for a plain club staff-title
-  // holder without a round trip. See src/lib/admin-access.ts.
-  const clubPositionRow = await db.query.clubMembers.findFirst({
+  // holder without a round trip. See src/lib/admin-access.ts. One query for
+  // every club membership row's position covers both hasClubPosition (any
+  // title set) and hasClubRegistrationPosition (specifically "registration",
+  // see src/lib/positions.ts — lets client pages like admin/events grant this
+  // holder the same event-scoped form-management rights
+  // EventScopeService.hasRegistrationScope already grants server-side,
+  // without their own per-page club_members round trip). The smo/anusmo-global
+  // case is already covered by session smoPosition/anusmoPosition (see
+  // isGlobalRegistrationPosition); the major case by session.majorPosition —
+  // neither needs a DB round trip here, only the club-scoped case does.
+  const clubPositionRows = await db.query.clubMembers.findMany({
     where: and(eq(clubMembers.userId, userId), isNotNull(clubMembers.position)),
-    columns: { id: true },
+    columns: { position: true },
   });
 
-  return { ...dbUser, hasClubPosition: !!clubPositionRow };
+  return {
+    ...dbUser,
+    hasClubPosition: clubPositionRows.length > 0,
+    hasClubRegistrationPosition: clubPositionRows.some((r) => r.position === "registration"),
+  };
 }
 
 type DbUser = NonNullable<Awaited<ReturnType<typeof fetchUserDataFromDb>>>;
@@ -120,6 +133,7 @@ async function applyDbUserToToken(token: Record<string, unknown>, dbUser: DbUser
   token.smoPosition = dbUser.smoPosition ?? null;
   token.anusmoPosition = dbUser.anusmoPosition ?? null;
   token.hasClubPosition = dbUser.hasClubPosition;
+  token.hasClubRegistrationPosition = dbUser.hasClubRegistrationPosition;
   token.hasStaffPosition = !!(dbUser.majorPosition || dbUser.smoPosition || dbUser.anusmoPosition || dbUser.hasClubPosition);
 
   const currentEmail = (dbUser.email || "").toLowerCase();
@@ -248,6 +262,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                 smoPosition: user!.smoPosition ?? null,
                 anusmoPosition: user!.anusmoPosition ?? null,
                 hasClubPosition: false,
+                hasClubRegistrationPosition: false,
                 hasStaffPosition: !!(user!.majorPosition || user!.smoPosition || user!.anusmoPosition),
                 image: user!.image ?? null,
                 isDevBypass: true,
@@ -307,6 +322,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     token.smoPosition = dbUser.smoPosition ?? null;
     token.anusmoPosition = dbUser.anusmoPosition ?? null;
     token.hasClubPosition = dbUser.hasClubPosition;
+    token.hasClubRegistrationPosition = dbUser.hasClubRegistrationPosition;
     token.hasStaffPosition = !!(dbUser.majorPosition || dbUser.smoPosition || dbUser.anusmoPosition || dbUser.hasClubPosition);
           }
         } else {
@@ -339,6 +355,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     token.smoPosition = dbUser.smoPosition ?? null;
     token.anusmoPosition = dbUser.anusmoPosition ?? null;
     token.hasClubPosition = dbUser.hasClubPosition;
+    token.hasClubRegistrationPosition = dbUser.hasClubRegistrationPosition;
     token.hasStaffPosition = !!(dbUser.majorPosition || dbUser.smoPosition || dbUser.anusmoPosition || dbUser.hasClubPosition);
           } else {
             await applyDbUserToToken(token, dbUser, userId);
@@ -379,6 +396,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     token.smoPosition = dbUser.smoPosition ?? null;
     token.anusmoPosition = dbUser.anusmoPosition ?? null;
     token.hasClubPosition = dbUser.hasClubPosition;
+    token.hasClubRegistrationPosition = dbUser.hasClubRegistrationPosition;
     token.hasStaffPosition = !!(dbUser.majorPosition || dbUser.smoPosition || dbUser.anusmoPosition || dbUser.hasClubPosition);
           } else {
             await applyDbUserToToken(token, dbUser, userId);
@@ -414,6 +432,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.smoPosition = (token.smoPosition as string | null) ?? null;
       session.user.anusmoPosition = (token.anusmoPosition as string | null) ?? null;
       session.user.hasClubPosition = (token.hasClubPosition as boolean) ?? false;
+      session.user.hasClubRegistrationPosition = (token.hasClubRegistrationPosition as boolean) ?? false;
       session.user.hasStaffPosition = (token.hasStaffPosition as boolean) ?? false;
 
       // Force super_admin role for the official emails - CASE INSENSITIVE (FE-04)

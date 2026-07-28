@@ -250,6 +250,7 @@ export default function AdminStudentsDirectory() {
   const [majorFilter, setMajorFilter] = useState<string>("all");
   const [educationFilter, setEducationFilter] = useState<string>("all");
   const [yearFilter, setYearFilter] = useState<string>("all");
+  const [positionFilter, setPositionFilter] = useState<string>("all");
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [updating, setUpdating] = useState(false);
 
@@ -264,7 +265,7 @@ export default function AdminStudentsDirectory() {
     // Deferred page reset on filter change, keeping setState out of the effect body.
     const timer = setTimeout(() => setCurrentPage(1), 0);
     return () => clearTimeout(timer);
-  }, [debouncedSearch, houseFilter, roleFilter, majorFilter, educationFilter, yearFilter]);
+  }, [debouncedSearch, houseFilter, roleFilter, majorFilter, educationFilter, yearFilter, positionFilter]);
 
   const refreshData = () => {
     setLoading(true);
@@ -376,6 +377,19 @@ export default function AdminStudentsDirectory() {
     { value: "5plus", label: t.yearNPlus.replace("{n}", "5") },
   ];
 
+  // SMO/ANUSMO staff titles (src/lib/positions.ts) — the only "position" data
+  // present on this Student object (club/major titles live elsewhere, see the
+  // comment on Student.smoPosition above). Filters on either field so a
+  // student holding the same title in just one of the two roles still matches.
+  const positionOptions = [
+    { value: "all", label: t.allPositions || "All Positions", icon: <Briefcase size={16} className="text-muted" /> },
+    ...POSITION_IDS.map(id => ({
+      value: id,
+      label: t[POSITION_I18N_KEY[id] as keyof typeof t] as string,
+      icon: <Briefcase size={16} className="text-[var(--accent-primary)]" />,
+    })),
+  ];
+
   const editRoleOptions = [
     { value: "student", label: t.roleStudent, icon: <GraduationCap size={16} className="text-muted" /> },
     { value: "staff", label: t.roleStaff, icon: <Briefcase size={16} className="text-[#14b8a6]" /> },
@@ -436,7 +450,10 @@ export default function AdminStudentsDirectory() {
         return yr === parseInt(yearFilter, 10);
       })();
 
-      return matchesSearch && matchesHouse && matchesRole && matchesMajor && matchesEducation && matchesYear;
+      const matchesPosition = positionFilter === "all" ||
+        s.smoPosition === positionFilter || s.anusmoPosition === positionFilter;
+
+      return matchesSearch && matchesHouse && matchesRole && matchesMajor && matchesEducation && matchesYear && matchesPosition;
     }
   );
 
@@ -560,6 +577,13 @@ export default function AdminStudentsDirectory() {
               options={yearOptions}
               onChange={setYearFilter}
               icon={<Activity size={18} />}
+            />
+            <CustomDropdown
+              className="min-w-[200px] flex-1"
+              value={positionFilter}
+              options={positionOptions}
+              onChange={setPositionFilter}
+              icon={<Briefcase size={18} />}
             />
           </div>
         </div>

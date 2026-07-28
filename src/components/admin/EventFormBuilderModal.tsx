@@ -9,6 +9,7 @@ import {
   Plus, Sparkles, Trash2, Trophy, X, Zap,
 } from "lucide-react";
 import { useLanguage } from "@/lib/LanguageContext";
+import { isGlobalRegistrationPosition } from "@/lib/admin-access";
 import {
   normalizeForm,
   serializeForm,
@@ -170,11 +171,27 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
   // a view-only viewer (smo) may even open this modal — canViewForms itself
   // isn't needed inside once mounted.
   const myRoles = session?.user?.roles ?? (session?.user?.role ? [session.user.role] : []);
-  const isAttendanceOnly = !myRoles.some((r) =>
+  // A global registration POSITION (smo/anusmo + smoPosition/anusmoPosition ===
+  // "registration") gets the same staff-tier breadth the "registration" ROLE
+  // has — mirrors admin/events/page.tsx's globalRegPosition. Without this, a
+  // holder of this global title saw the page's "Create Form" button (that page
+  // DOES account for it) but this modal — which re-derives its own permissions
+  // independently — would still open read-only.
+  const globalRegPosition = isGlobalRegistrationPosition(myRoles, session?.user?.smoPosition, session?.user?.anusmoPosition);
+  const isAttendanceOnly = !globalRegPosition && !myRoles.some((r) =>
     ["super_admin", "admin", "registration", "organizer"].includes(r)
   );
   const isPresidentRole = myRoles.some((r) => ["club_president", "major_president"].includes(r));
-  const canManageForms = !isAttendanceOnly || isPresidentRole;
+  // A "registration" TITLE (src/lib/positions.ts) held in a club or major, or
+  // (via globalRegPosition above) as smo/anusmo — distinct from the
+  // "registration" ROLE — also gets full form management, scoped server-side to
+  // their own club/major's events (EventScopeService.hasRegistrationScope /
+  // gateEventForms's isPositionScoped). Mirrors admin/events/page.tsx's
+  // hasRegistrationTitle exactly.
+  const hasRegistrationTitle = globalRegPosition
+    || session?.user?.majorPosition === "registration"
+    || !!session?.user?.hasClubRegistrationPosition;
+  const canManageForms = !isAttendanceOnly || isPresidentRole || hasRegistrationTitle;
 
   const [formLoading, setFormLoading] = useState(false);
   const [formTitle, setFormTitle] = useState("");

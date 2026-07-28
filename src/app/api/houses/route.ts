@@ -13,9 +13,8 @@ export const maxDuration = 20;
 // DB. 30s staleness matches the previous s-maxage behavior. Revalidate the
 // "house-standings" tag after a points write to refresh sooner.
 //
-// Standings are ROLLED UP by colour across faculties (CAMT red + MASSCOM red + … =
-// one "red" total); getLeaderboard returns one row per colour, sorted high→low,
-// keyed by the colour id the house pages link to.
+// getLeaderboard returns one row per colour, sorted high→low, keyed by the
+// colour id the house pages link to.
 const getHouseStandings = unstable_cache(
   () => HousesService.getLeaderboard(),
   ["house-standings"],

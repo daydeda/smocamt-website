@@ -90,3 +90,23 @@ export const ALL_HOUSE_ROWS: { id: string; faculty: FacultyId; color: HouseColor
   FACULTY_IDS.flatMap((faculty) =>
     COLORS.map((color) => ({ id: houseRowId(faculty, color.id), faculty, color })),
   );
+
+/**
+ * Canonical (English, untranslated) house display name, derived from the
+ * house's id/colorGroup rather than trusting a stored `houses.name` column.
+ * The DB row's `name` is meant to always mirror COLORS (seed.ts force-syncs
+ * it on every reseed), but nothing stops it drifting in between reseeds — a
+ * stale row silently shows the wrong name everywhere that reads it directly.
+ * Callers that don't have (or don't want) full i18n — xlsx exports, admin
+ * list cards that are otherwise untranslated — should derive the name from
+ * this instead of `house.name` so a DB-level drift can't leak into the UI.
+ * Falls back to the stored name only for a house id this module doesn't
+ * recognise (defensive, should not happen for a CAMT-only house).
+ */
+export const canonicalHouseName = (
+  house: { id?: string | null; name?: string | null } | null | undefined,
+): string => {
+  const colorGroup = colorGroupOfHouseId(house?.id);
+  const color = colorGroup ? COLORS.find((c) => c.id === colorGroup) : undefined;
+  return color?.name ?? house?.name ?? "";
+};

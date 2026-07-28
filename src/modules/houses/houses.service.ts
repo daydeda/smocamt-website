@@ -166,10 +166,9 @@ export class HousesService {
   }
 
   /**
-   * Public leaderboard: the 4 colour houses with points ROLLED UP across
-   * faculties (CAMT red + MASSCOM red + … = one "red" total), sorted high→low.
-   * The returned `id` is the colour group ('red'/'green'/'yellow'/'blue'), which
-   * the house pages slug-map and link to exactly like the old per-colour rows.
+   * Public leaderboard: the 4 colour houses, sorted high→low by points.
+   * ActiveCAMT is CAMT-only, so this is a 1:1 read today, not a rollup — kept
+   * grouped by colorGroup for parity with getFacultyBreakdown below.
    */
   static async getLeaderboard() {
     const rows = await db
@@ -190,9 +189,9 @@ export class HousesService {
   }
 
   /**
-   * Per-faculty breakdown for a single colour group — the four (or fewer)
-   * faculty houses that make up one rolled-up colour, with their individual
-   * points. Used by the colour house detail view.
+   * The house row(s) for a single colour group. ActiveCAMT is CAMT-only, so
+   * this returns exactly one row today; kept plural-shaped so the colour
+   * house detail view doesn't need to special-case a single-faculty result.
    */
   static async getFacultyBreakdown(colorGroup: string) {
     return await db.query.houses.findMany({

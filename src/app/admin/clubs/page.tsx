@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { useLanguage } from "@/lib/LanguageContext";
 import { effectiveRoles } from "@/lib/admin-access";
 import { NON_SMO_POSITION_IDS, POSITION_I18N_KEY } from "@/lib/positions";
+import { canonicalHouseName } from "@/lib/faculties";
 import { ProposeEventSection } from "./ProposeEventSection";
 import { EventFeedbackFormsShortcut } from "@/components/admin/EventFeedbackFormsShortcut";
 import {
@@ -863,7 +864,7 @@ export default function ClubsPage() {
                                 what its viewer is authorized to see. */}
                             <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, display: "flex", flexWrap: "wrap", gap: 8 }}>
                               {m.major && <span>{m.major}</span>}
-                              {m.house?.name && <span>{m.house.name}</span>}
+                              {m.house?.name && <span>{canonicalHouseName(m.house)}</span>}
                               {m.phone && <span>{m.phone}</span>}
                               {m.contactChannels && <span>{m.contactChannels}</span>}
                             </div>

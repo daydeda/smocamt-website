@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { EventScopeService } from "@/modules/events/event-scope.service";
 import { redactEmergencyContacts } from "@/lib/emergency-contacts";
+import { canonicalHouseName } from "@/lib/faculties";
 
 // xlsx is a CommonJS package — keep this route on the Node.js runtime.
 export const runtime = "nodejs";
@@ -30,7 +31,7 @@ type AttendeeUser = {
   contactChannels?: string | null;
   major: string | null;
   role: string | null;
-  house: { name: string } | null;
+  house: { id: string; name: string } | null;
   chronicDiseases?: string | null;
   medicalHistory?: string | null;
   drugAllergies?: string | null;
@@ -186,7 +187,7 @@ export async function GET(
             emergencyContacts: includeMedicalColumns,
           },
           with: {
-            house: { columns: { name: true } },
+            house: { columns: { id: true, name: true } },
           },
         },
       },
@@ -287,7 +288,7 @@ export async function GET(
         "Nationality": nationality(u?.studentId),
         "Major": u?.major || "",
         "Role": u?.role || "",
-        "House": u?.house?.name || "",
+        "House": canonicalHouseName(u?.house),
         "Staff": m.isStaff ? "Yes" : "",
         "Status": m.status === "attended" ? "Checked In" : m.status || "",
         "Check-in (Bangkok)": fmtTime(m.checkInTime),
@@ -504,15 +505,23 @@ export async function GET(
     // statistical release) — reg/org already see this same person's individual
     // medicalCategories signal on the on-screen roster, so the export is not
     // handing them a NEW capability, only a summary of one they already have.
+    //
+    // Staff (super_admin/admin) and president exporters already see every
+    // individual's medical DETAIL on the roster sheet (includeMedicalColumns),
+    // so the same aggregate block is also appended for them below — it's a
+    // convenience roll-up (e.g. "how many need meds today") of data they can
+    // already see one-by-one, not a new capability, so the small-headcount
+    // suppression (which exists to protect reg/org, who see no per-row detail)
+    // does not apply to them.
     const MIN_AGGREGATE_ATTENDEES = 5;
-    if (isRegOrgOnlyExportRole) {
+    if (fetchMedicalFields) {
       const byStudent = new Map<string, AttendeeUser | null | undefined>();
       for (const m of list) {
         const key = m.studentId || m.user?.studentId || m.id;
         if (!byStudent.has(key)) byStudent.set(key, m.user as AttendeeUser | null);
       }
       const distinctUsers = [...byStudent.values()];
-      if (distinctUsers.length < MIN_AGGREGATE_ATTENDEES) {
+      if (isRegOrgOnlyExportRole && distinctUsers.length < MIN_AGGREGATE_ATTENDEES) {
         XLSX.utils.sheet_add_aoa(summaryWs, [
           [],
           [`Medical Summary suppressed — fewer than ${MIN_AGGREGATE_ATTENDEES} distinct attendees (would risk identifying individuals)`],

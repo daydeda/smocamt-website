@@ -55,13 +55,17 @@ type AttendeeUser = {
 // as that roster; the audit log is the accountability mechanism.
 // registration/organizer may now also export (previously blocked here, unlike
 // the attendance/report endpoints which already admit them for on-screen
-// viewing): contact info yes, but NO individual medical/meds-check signal at
+// viewing): phone only (not email/contactChannels — see
+// includeFullContactColumns), and NO individual medical/meds-check column at
 // all — narrower than their on-screen roster (which shows a per-row category
 // signal, see medicalCategoriesOf in the sibling attendance API) because an
 // exported file is far easier to forward/leak than a screen. In exchange they
-// get an AGGREGATE-only medical summary (counts per category, no names) added
-// to the Summary sheet — see the isRegOrgExportRole block appended to
-// summaryWs below.
+// get an AGGREGATE-only medical summary (counts per category, suppressed below
+// MIN_AGGREGATE_ATTENDEES to avoid re-identifying a small crowd) added to the
+// Summary sheet — see the isRegOrgOnlyExportRole block appended to summaryWs
+// below. That aggregate is a convenience, not a hard privacy guarantee: it
+// doesn't defend against differencing a whole-event export against several
+// ?sessionId= day exports.
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -78,6 +82,12 @@ export async function GET(
     );
     const isRegOrgExportRole = roles.some((r) => ["registration", "organizer"].includes(r));
     const canExport = isStaffRole || isThinExportRole || isRegOrgExportRole;
+    // A user who ALSO holds admin/super_admin or a president role (multi-role)
+    // must not lose the meds-check/full-contact/medical breadth those higher
+    // tiers already grant just because "registration"/"organizer" happens to
+    // also be in their role set — the narrowing below only applies to someone
+    // who is registration/organizer and NOTHING higher.
+    const isRegOrgOnlyExportRole = isRegOrgExportRole && !isStaffRole && !isPresidentRole;
     if (!session?.user || !canExport) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
@@ -99,7 +109,13 @@ export async function GET(
     // "Meds Check" reveals whether a meds-check happened at all — itself a
     // medical signal — so registration/organizer don't get it either, even
     // though they're not thin. Every other non-thin exporter still does.
-    const includeMedsCheckColumn = !isThinRoster && !isRegOrgExportRole;
+    const includeMedsCheckColumn = !isThinRoster && !isRegOrgOnlyExportRole;
+    // Email + Contact Channels are NOT part of registration/organizer's
+    // on-screen roster (the sibling attendance API's FULL_USER_COLUMNS/safeUser
+    // give them phone only, never email/contactChannels) — so the export must
+    // not hand them two new bulk-PII columns they never had access to. Staff and
+    // president still get all three, same as before.
+    const includeFullContactColumns = !isThinRoster && !isRegOrgOnlyExportRole;
     // Medical fields still need to be FETCHED (not rendered) for
     // registration/organizer so the aggregate-only summary below has data to
     // count from, without ever exposing a single row's detail.
@@ -155,9 +171,9 @@ export async function GET(
             name: true,
             nickname: true,
             studentId: true,
-            email: !isThinRoster,
+            email: includeFullContactColumns,
             phone: !isThinRoster,
-            contactChannels: !isThinRoster,
+            contactChannels: includeFullContactColumns,
             major: true,
             role: true,
             chronicDiseases: fetchMedicalFields,
@@ -166,7 +182,7 @@ export async function GET(
             foodAllergies: fetchMedicalFields,
             dietaryRestrictions: fetchMedicalFields,
             faintingHistory: fetchMedicalFields,
-            emergencyMedication: includeMedicalColumns,
+            emergencyMedication: fetchMedicalFields,
             emergencyContacts: includeMedicalColumns,
           },
           with: {
@@ -192,14 +208,16 @@ export async function GET(
     // note the health info in the export. Mirrors the CSV report and the
     // attendance-list access log.
     //
-    // The "Meds Check" (medsCheckOption) column is in every non-thin export, so a
-    // plain admin's export still carries health info the descriptor must disclose.
-    // super_admin additionally receives full medical detail + full emergency-contact
-    // columns (incl. contact name); a club/major president exporting their own
-    // event gets the same medical detail but with the contact's NAME redacted
-    // (relationship + phone only); a plain admin gets only the meds-check signal.
-    // Thin-roster exporters (smo) get neither — no health info of any kind. Record
-    // which, so the log never understates (or overstates) the exposure.
+    // Four actual tiers, in descending breadth: super_admin/admin (canViewMedical)
+    // get full medical detail + full emergency-contact columns (incl. contact
+    // name) and the Meds Check column; a club/major president exporting their
+    // own event gets the same medical detail + Meds Check but with the contact's
+    // NAME redacted (relationship + phone only); registration/organizer get
+    // contact info (phone only — see includeFullContactColumns below) but NO
+    // individual medical signal at all, not even Meds Check, in exchange for the
+    // aggregate-only Medical Summary appended to the Summary sheet; thin-roster
+    // exporters (smo) get neither contact info nor any health info. Record which,
+    // so the log never understates (or overstates) the exposure.
     // isStaffRole (admin/super_admin) always implies canViewMedical now, so the
     // remaining branches are exhaustive over the other export-eligible roles.
     const healthNote = canViewMedical
@@ -243,7 +261,7 @@ export async function GET(
       typeof v === "string" ? v.trim() !== "" && v.trim() !== "-" : !!v;
     const MEDICAL_CATEGORY_LABELS = [
       "Chronic Diseases", "Medical History", "Drug Allergies",
-      "Food Allergies", "Dietary Restrictions", "Fainting History",
+      "Food Allergies", "Dietary Restrictions", "Fainting History", "Emergency Medication",
     ] as const;
     const medicalCategoriesOf = (u: AttendeeUser | null | undefined): string[] => {
       if (!u) return [];
@@ -254,6 +272,7 @@ export async function GET(
       if (isMeaningfulMedicalValue(u.foodAllergies)) cats.push("Food Allergies");
       if (isMeaningfulMedicalValue(u.dietaryRestrictions)) cats.push("Dietary Restrictions");
       if (u.faintingHistory === true) cats.push("Fainting History");
+      if (isMeaningfulMedicalValue(u.emergencyMedication)) cats.push("Emergency Medication");
       return cats;
     };
 
@@ -281,9 +300,12 @@ export async function GET(
       // major_president and registration/organizer are NOT thin (see
       // isThinRoster above), so this branch covers them too.
       if (!isThinRoster) {
-        base["Email"] = u?.email || "";
+        // Email + Contact Channels: staff/president only — see
+        // includeFullContactColumns above (registration/organizer's on-screen
+        // roster never had these either, only Phone).
+        if (includeFullContactColumns) base["Email"] = u?.email || "";
         base["Phone"] = u?.phone || "";
-        base["Contact Channels"] = u?.contactChannels || "";
+        if (includeFullContactColumns) base["Contact Channels"] = u?.contactChannels || "";
         // Registration/organizer don't get this column — see
         // includeMedsCheckColumn above.
         if (includeMedsCheckColumn) base["Meds Check"] = m.medsCheckOption || "";
@@ -305,7 +327,9 @@ export async function GET(
 
     const header = [
       "Name", "Nickname", "Student ID", "Nationality",
-      ...(!isThinRoster ? ["Email", "Phone", "Contact Channels"] : []),
+      ...(includeFullContactColumns ? ["Email"] : []),
+      ...(!isThinRoster ? ["Phone"] : []),
+      ...(includeFullContactColumns ? ["Contact Channels"] : []),
       "Major", "Role", "House", "Staff", "Status", "Check-in (Bangkok)", "Method",
       ...(includeMedsCheckColumn ? ["Meds Check"] : []),
       ...(includeMedicalColumns
@@ -468,30 +492,47 @@ export async function GET(
 
     // Registration/organizer get no individual medical column (see
     // includeMedicalColumns/isThinRoster above) — instead, an AGGREGATE-only
-    // block (counts per category across distinct attendees, never a name) is
-    // appended below the summary table, so they still know the overall shape
-    // of the crowd's medical needs without ever seeing whose it is.
-    if (isRegOrgExportRole) {
+    // block (counts per category across distinct attendees) is appended below
+    // the summary table, so they still know the overall shape of the crowd's
+    // medical needs without a per-row column naming who has what. This is NOT
+    // an absolute guarantee against re-identification: at a small headcount a
+    // count of 1 next to a one-name roster sheet is as good as naming them, and
+    // exporting the same event both whole and re-exporting per ?sessionId= day
+    // lets the counts be differenced to isolate a single-day attendee. The
+    // MIN_AGGREGATE_ATTENDEES gate below covers the first case; the second is an
+    // accepted tradeoff (this is aggregate-of-the-export, not a privacy-safe
+    // statistical release) — reg/org already see this same person's individual
+    // medicalCategories signal on the on-screen roster, so the export is not
+    // handing them a NEW capability, only a summary of one they already have.
+    const MIN_AGGREGATE_ATTENDEES = 5;
+    if (isRegOrgOnlyExportRole) {
       const byStudent = new Map<string, AttendeeUser | null | undefined>();
       for (const m of list) {
         const key = m.studentId || m.user?.studentId || m.id;
         if (!byStudent.has(key)) byStudent.set(key, m.user as AttendeeUser | null);
       }
       const distinctUsers = [...byStudent.values()];
-      const counts = Object.fromEntries(MEDICAL_CATEGORY_LABELS.map((l) => [l, 0])) as Record<string, number>;
-      let withAnyCondition = 0;
-      for (const u of distinctUsers) {
-        const cats = medicalCategoriesOf(u);
-        if (cats.length > 0) withAnyCondition++;
-        for (const c of cats) counts[c]++;
+      if (distinctUsers.length < MIN_AGGREGATE_ATTENDEES) {
+        XLSX.utils.sheet_add_aoa(summaryWs, [
+          [],
+          [`Medical Summary suppressed — fewer than ${MIN_AGGREGATE_ATTENDEES} distinct attendees (would risk identifying individuals)`],
+        ], { origin: -1 });
+      } else {
+        const counts = Object.fromEntries(MEDICAL_CATEGORY_LABELS.map((l) => [l, 0])) as Record<string, number>;
+        let withAnyCondition = 0;
+        for (const u of distinctUsers) {
+          const cats = medicalCategoriesOf(u);
+          if (cats.length > 0) withAnyCondition++;
+          for (const c of cats) counts[c]++;
+        }
+        const aggregateRows: (string | number)[][] = [
+          [],
+          ["Medical Summary (aggregate only — counts, no individual detail)"],
+          ["Attendees with any reported condition", withAnyCondition, `of ${distinctUsers.length} distinct attendees`],
+          ...MEDICAL_CATEGORY_LABELS.map((label) => [label, counts[label]]),
+        ];
+        XLSX.utils.sheet_add_aoa(summaryWs, aggregateRows, { origin: -1 });
       }
-      const aggregateRows: (string | number)[][] = [
-        [],
-        ["Medical Summary (aggregate only — no individual detail)"],
-        ["Attendees with any reported condition", withAnyCondition, `of ${distinctUsers.length} distinct attendees`],
-        ...MEDICAL_CATEGORY_LABELS.map((label) => [label, counts[label]]),
-      ];
-      XLSX.utils.sheet_add_aoa(summaryWs, aggregateRows, { origin: -1 });
     }
 
     XLSX.utils.book_append_sheet(wb, summaryWs, "Summary");

@@ -81,29 +81,25 @@ async function fetchUserDataFromDb(userId: string) {
   // Precomputed here (rather than at every canEnterAdminAny call site) so the
   // edge proxy — which only ever reads the session, never queries the DB
   // directly — can gate confined /admin entry for a plain club staff-title
-  // holder without a round trip. See src/lib/admin-access.ts.
-  const clubPositionRow = await db.query.clubMembers.findFirst({
-    where: and(eq(clubMembers.userId, userId), isNotNull(clubMembers.position)),
-    columns: { id: true },
-  });
-
-  // Same idea, narrowed to specifically the "registration" title (see
-  // src/lib/positions.ts) in ANY club — lets client pages (e.g. admin/events)
-  // grant this specific holder the same event-scoped form-management rights
-  // EventScopeService.hasRegistrationScope already grants server-side, without
-  // a per-page club_members round trip. The smo/anusmo-global case is already
-  // covered by session smoPosition/anusmoPosition (see
+  // holder without a round trip. See src/lib/admin-access.ts. One query for
+  // every club membership row's position covers both hasClubPosition (any
+  // title set) and hasClubRegistrationPosition (specifically "registration",
+  // see src/lib/positions.ts — lets client pages like admin/events grant this
+  // holder the same event-scoped form-management rights
+  // EventScopeService.hasRegistrationScope already grants server-side,
+  // without their own per-page club_members round trip). The smo/anusmo-global
+  // case is already covered by session smoPosition/anusmoPosition (see
   // isGlobalRegistrationPosition); the major case by session.majorPosition —
-  // neither needs a new field, only this club-scoped one does.
-  const clubRegistrationPositionRow = await db.query.clubMembers.findFirst({
-    where: and(eq(clubMembers.userId, userId), eq(clubMembers.position, "registration")),
-    columns: { id: true },
+  // neither needs a DB round trip here, only the club-scoped case does.
+  const clubPositionRows = await db.query.clubMembers.findMany({
+    where: and(eq(clubMembers.userId, userId), isNotNull(clubMembers.position)),
+    columns: { position: true },
   });
 
   return {
     ...dbUser,
-    hasClubPosition: !!clubPositionRow,
-    hasClubRegistrationPosition: !!clubRegistrationPositionRow,
+    hasClubPosition: clubPositionRows.length > 0,
+    hasClubRegistrationPosition: clubPositionRows.some((r) => r.position === "registration"),
   };
 }
 

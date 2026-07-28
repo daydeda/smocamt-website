@@ -87,7 +87,24 @@ async function fetchUserDataFromDb(userId: string) {
     columns: { id: true },
   });
 
-  return { ...dbUser, hasClubPosition: !!clubPositionRow };
+  // Same idea, narrowed to specifically the "registration" title (see
+  // src/lib/positions.ts) in ANY club — lets client pages (e.g. admin/events)
+  // grant this specific holder the same event-scoped form-management rights
+  // EventScopeService.hasRegistrationScope already grants server-side, without
+  // a per-page club_members round trip. The smo/anusmo-global case is already
+  // covered by session smoPosition/anusmoPosition (see
+  // isGlobalRegistrationPosition); the major case by session.majorPosition —
+  // neither needs a new field, only this club-scoped one does.
+  const clubRegistrationPositionRow = await db.query.clubMembers.findFirst({
+    where: and(eq(clubMembers.userId, userId), eq(clubMembers.position, "registration")),
+    columns: { id: true },
+  });
+
+  return {
+    ...dbUser,
+    hasClubPosition: !!clubPositionRow,
+    hasClubRegistrationPosition: !!clubRegistrationPositionRow,
+  };
 }
 
 type DbUser = NonNullable<Awaited<ReturnType<typeof fetchUserDataFromDb>>>;
@@ -120,6 +137,7 @@ async function applyDbUserToToken(token: Record<string, unknown>, dbUser: DbUser
   token.smoPosition = dbUser.smoPosition ?? null;
   token.anusmoPosition = dbUser.anusmoPosition ?? null;
   token.hasClubPosition = dbUser.hasClubPosition;
+  token.hasClubRegistrationPosition = dbUser.hasClubRegistrationPosition;
   token.hasStaffPosition = !!(dbUser.majorPosition || dbUser.smoPosition || dbUser.anusmoPosition || dbUser.hasClubPosition);
 
   const currentEmail = (dbUser.email || "").toLowerCase();
@@ -248,6 +266,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                 smoPosition: user!.smoPosition ?? null,
                 anusmoPosition: user!.anusmoPosition ?? null,
                 hasClubPosition: false,
+                hasClubRegistrationPosition: false,
                 hasStaffPosition: !!(user!.majorPosition || user!.smoPosition || user!.anusmoPosition),
                 image: user!.image ?? null,
                 isDevBypass: true,
@@ -307,6 +326,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     token.smoPosition = dbUser.smoPosition ?? null;
     token.anusmoPosition = dbUser.anusmoPosition ?? null;
     token.hasClubPosition = dbUser.hasClubPosition;
+    token.hasClubRegistrationPosition = dbUser.hasClubRegistrationPosition;
     token.hasStaffPosition = !!(dbUser.majorPosition || dbUser.smoPosition || dbUser.anusmoPosition || dbUser.hasClubPosition);
           }
         } else {
@@ -339,6 +359,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     token.smoPosition = dbUser.smoPosition ?? null;
     token.anusmoPosition = dbUser.anusmoPosition ?? null;
     token.hasClubPosition = dbUser.hasClubPosition;
+    token.hasClubRegistrationPosition = dbUser.hasClubRegistrationPosition;
     token.hasStaffPosition = !!(dbUser.majorPosition || dbUser.smoPosition || dbUser.anusmoPosition || dbUser.hasClubPosition);
           } else {
             await applyDbUserToToken(token, dbUser, userId);
@@ -379,6 +400,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     token.smoPosition = dbUser.smoPosition ?? null;
     token.anusmoPosition = dbUser.anusmoPosition ?? null;
     token.hasClubPosition = dbUser.hasClubPosition;
+    token.hasClubRegistrationPosition = dbUser.hasClubRegistrationPosition;
     token.hasStaffPosition = !!(dbUser.majorPosition || dbUser.smoPosition || dbUser.anusmoPosition || dbUser.hasClubPosition);
           } else {
             await applyDbUserToToken(token, dbUser, userId);
@@ -414,6 +436,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.smoPosition = (token.smoPosition as string | null) ?? null;
       session.user.anusmoPosition = (token.anusmoPosition as string | null) ?? null;
       session.user.hasClubPosition = (token.hasClubPosition as boolean) ?? false;
+      session.user.hasClubRegistrationPosition = (token.hasClubRegistrationPosition as boolean) ?? false;
       session.user.hasStaffPosition = (token.hasStaffPosition as boolean) ?? false;
 
       // Force super_admin role for the official emails - CASE INSENSITIVE (FE-04)

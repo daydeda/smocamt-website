@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 // Type-only: the runtime module is imported dynamically inside startScanner so the
 // (heavy) scanner lib stays out of the initial page bundle.
 import type { Html5Qrcode } from "html5-qrcode";
+import type { MedicalFlags } from "@/lib/medical-signal";
 import { 
   Search, 
   CheckCircle2, 
@@ -49,6 +50,9 @@ type ScanResult = {
     houseId?: string;
     houseColor?: string;
     hasMedicalCondition?: boolean;
+    // PDPA signal-only breakdown — sent to every scanning role, unlike the
+    // raw string fields below which are admin/super_admin-only.
+    medicalFlags?: MedicalFlags;
     chronicDiseases?: string | null;
     medicalHistory?: string | null;
     drugAllergies?: string | null;
@@ -1534,25 +1538,25 @@ export default function QRScannerPage() {
                             {lang === "th" ? "ข้อมูลสุขภาพสำคัญ" : lang === "cn" ? "重要健康信息" : lang === "mm" ? "ကျန်းမာရေး သတိပေးချက်" : "Important Health Information"}
                           </p>
                           <div style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 500, marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}>
-                            {scanResult.student.chronicDiseases && scanResult.student.chronicDiseases !== "-" && scanResult.student.chronicDiseases !== "" && (
+                            {scanResult.student.medicalFlags?.chronicDiseases && (
                               <p>• <b>{t.chronicDiseases}</b></p>
                             )}
-                            {scanResult.student.medicalHistory && scanResult.student.medicalHistory !== "-" && scanResult.student.medicalHistory !== "" && (
+                            {scanResult.student.medicalFlags?.medicalHistory && (
                               <p>• <b>{t.medicalHistory}</b></p>
                             )}
-                            {scanResult.student.drugAllergies && scanResult.student.drugAllergies !== "-" && scanResult.student.drugAllergies !== "" && (
+                            {scanResult.student.medicalFlags?.drugAllergies && (
                               <p>• <b>{t.drugAllergies}</b></p>
                             )}
-                            {scanResult.student.foodAllergies && scanResult.student.foodAllergies !== "-" && scanResult.student.foodAllergies !== "" && (
+                            {scanResult.student.medicalFlags?.foodAllergies && (
                               <p>• <b>{t.foodAllergies}</b></p>
                             )}
-                            {scanResult.student.dietaryRestrictions && scanResult.student.dietaryRestrictions !== "-" && scanResult.student.dietaryRestrictions !== "" && (
+                            {scanResult.student.medicalFlags?.dietaryRestrictions && (
                               <p>• <b>{t.dietaryRestrictions}</b></p>
                             )}
-                            {scanResult.student.faintingHistory && (
+                            {scanResult.student.medicalFlags?.faintingHistory && (
                               <p>• <b>{t.faintingHistory}</b></p>
                             )}
-                            {scanResult.student.emergencyMedication && scanResult.student.emergencyMedication !== "-" && scanResult.student.emergencyMedication !== "" && (
+                            {scanResult.student.medicalFlags?.emergencyMed && (
                               <p>• <b>{t.emergencyMed}</b></p>
                             )}
                           </div>

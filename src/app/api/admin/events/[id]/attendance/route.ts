@@ -7,6 +7,7 @@ import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { EventScopeService } from "@/modules/events/event-scope.service";
 import { isGlobalRegistrationPosition } from "@/lib/admin-access";
 import { redactEmergencyContacts } from "@/lib/emergency-contacts";
+import { medicalCategoriesOf } from "@/lib/medical-signal";
 
 // Columns read for a normal/staff roster. Medical free-text + emergency contacts
 // are fetched so super_admin/admin (and, per the sanitize step, a club/major
@@ -155,23 +156,11 @@ export async function GET(
     });
 
     // Which medical CATEGORIES a user filled in (mirrors hasActualMedicalInfo
-    // on the client). "-" and blanks are treated as empty. The identifiers match
-    // i18n keys so the client can translate them directly — values are never
-    // included, so non-admins learn the category but not the detail.
-    const isMeaningful = (v: unknown) =>
-      typeof v === "string" ? v.trim() !== "" && v.trim() !== "-" : !!v;
-    const medicalCategoriesOf = (u: (typeof list)[number]["user"]): string[] => {
-      if (!u) return [];
-      const cats: string[] = [];
-      if (isMeaningful(u.chronicDiseases)) cats.push("chronicDiseases");
-      if (isMeaningful(u.medicalHistory)) cats.push("medicalHistory");
-      if (isMeaningful(u.drugAllergies)) cats.push("drugAllergies");
-      if (isMeaningful(u.foodAllergies)) cats.push("foodAllergies");
-      if (isMeaningful(u.dietaryRestrictions)) cats.push("dietaryRestrictions");
-      if (isMeaningful(u.emergencyMedication)) cats.push("emergencyMed");
-      if (u.faintingHistory === true) cats.push("faintingHistory");
-      return cats;
-    };
+    // on the client). The identifiers match i18n keys so the client can
+    // translate them directly — values are never included, so non-admins
+    // learn the category but not the detail. Shared with the scanner and the
+    // XLSX export so all three agree on what counts as "flagged".
+    const categoriesOf = (u: (typeof list)[number]["user"]) => (u ? medicalCategoriesOf(u) : []);
 
     // super_admin/admin receive the full record (plus the hasMedicalInfo flag).
     // A president viewing their own event gets the same full detail, minus the
@@ -181,7 +170,7 @@ export async function GET(
     // itself reveal a condition).
     const sanitized = list.map((row) => {
       const u = row.user;
-      const medicalCategories = medicalCategoriesOf(u);
+      const medicalCategories = categoriesOf(u);
       const hasMedicalInfo = medicalCategories.length > 0;
       if (canViewMedical) {
         return { ...row, user: u ? { ...u, hasMedicalInfo } : u };

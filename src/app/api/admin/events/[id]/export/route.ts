@@ -7,6 +7,7 @@ import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { EventScopeService } from "@/modules/events/event-scope.service";
 import { redactEmergencyContacts } from "@/lib/emergency-contacts";
 import { canonicalHouseName } from "@/lib/faculties";
+import { medicalCategoriesOf, MEDICAL_CATEGORY_LABELS } from "@/lib/medical-signal";
 
 // xlsx is a CommonJS package — keep this route on the Node.js runtime.
 export const runtime = "nodejs";
@@ -256,26 +257,11 @@ export async function GET(
       d ? d.toLocaleString("en-GB", { timeZone: "Asia/Bangkok" }) : "";
 
     // Which medical categories a user filled in — never the value itself.
-    // Mirrors medicalCategoriesOf in the sibling attendance API, used here only
-    // to COUNT (never name) for registration/organizer's aggregate summary.
-    const isMeaningfulMedicalValue = (v: unknown) =>
-      typeof v === "string" ? v.trim() !== "" && v.trim() !== "-" : !!v;
-    const MEDICAL_CATEGORY_LABELS = [
-      "Chronic Diseases", "Medical History", "Drug Allergies",
-      "Food Allergies", "Dietary Restrictions", "Fainting History", "Emergency Medication",
-    ] as const;
-    const medicalCategoriesOf = (u: AttendeeUser | null | undefined): string[] => {
-      if (!u) return [];
-      const cats: string[] = [];
-      if (isMeaningfulMedicalValue(u.chronicDiseases)) cats.push("Chronic Diseases");
-      if (isMeaningfulMedicalValue(u.medicalHistory)) cats.push("Medical History");
-      if (isMeaningfulMedicalValue(u.drugAllergies)) cats.push("Drug Allergies");
-      if (isMeaningfulMedicalValue(u.foodAllergies)) cats.push("Food Allergies");
-      if (isMeaningfulMedicalValue(u.dietaryRestrictions)) cats.push("Dietary Restrictions");
-      if (u.faintingHistory === true) cats.push("Fainting History");
-      if (isMeaningfulMedicalValue(u.emergencyMedication)) cats.push("Emergency Medication");
-      return cats;
-    };
+    // Shared with the attendance API and the scanner so all three agree on
+    // what counts as "flagged". Used here only to COUNT (never name) for
+    // registration/organizer's aggregate summary.
+    const categoryLabelsOf = (u: AttendeeUser | null | undefined): string[] =>
+      u ? medicalCategoriesOf(u).map((k) => MEDICAL_CATEGORY_LABELS[k]) : [];
 
     // One row object per attendance record. The day no longer needs a "Session"
     // column — each day gets its own worksheet (see grouping below).
@@ -527,18 +513,19 @@ export async function GET(
           [`Medical Summary suppressed — fewer than ${MIN_AGGREGATE_ATTENDEES} distinct attendees (would risk identifying individuals)`],
         ], { origin: -1 });
       } else {
-        const counts = Object.fromEntries(MEDICAL_CATEGORY_LABELS.map((l) => [l, 0])) as Record<string, number>;
+        const labelList = Object.values(MEDICAL_CATEGORY_LABELS);
+        const counts = Object.fromEntries(labelList.map((l) => [l, 0])) as Record<string, number>;
         let withAnyCondition = 0;
         for (const u of distinctUsers) {
-          const cats = medicalCategoriesOf(u);
-          if (cats.length > 0) withAnyCondition++;
-          for (const c of cats) counts[c]++;
+          const labels = categoryLabelsOf(u);
+          if (labels.length > 0) withAnyCondition++;
+          for (const l of labels) counts[l]++;
         }
         const aggregateRows: (string | number)[][] = [
           [],
           ["Medical Summary (aggregate only — counts, no individual detail)"],
           ["Attendees with any reported condition", withAnyCondition, `of ${distinctUsers.length} distinct attendees`],
-          ...MEDICAL_CATEGORY_LABELS.map((label) => [label, counts[label]]),
+          ...labelList.map((label) => [label, counts[label]]),
         ];
         XLSX.utils.sheet_add_aoa(summaryWs, aggregateRows, { origin: -1 });
       }

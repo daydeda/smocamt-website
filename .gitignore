@@ -56,3 +56,6 @@ CLAUDE.md
 
 # House logo source masters (multi-MB originals; app uses optimized versions)
 public/house_logo/original/
+
+# Local reference docs (Word .docx source material, not for version control)
+/docs/manual-tor-srs/

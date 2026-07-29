@@ -8,6 +8,7 @@ import { HousesService } from "../houses/houses.service";
 import { canGiveIndividualScore } from "@/lib/admin-access";
 import { awardIndividualPoints } from "@/lib/award-individual-points";
 import { syncRegistrationToSongsue, type SongsueEmergencyContact } from "@/lib/songsue-sync";
+import { toMedicalFlags, type MedicalFlags } from "@/lib/medical-signal";
 
 type ResolvedStudent = NonNullable<Awaited<ReturnType<typeof UsersService.resolveStudentByToken>>>;
 type DBTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -23,6 +24,10 @@ export interface ScanResult {
     houseColor: string;
     // Medical fields only included when operationally needed (pending/first check-in)
     hasMedicalCondition?: boolean;
+    // PDPA signal-only breakdown: WHICH categories are flagged, as booleans —
+    // no free-text content. Sent to every scanning role, unlike the raw
+    // string fields below which stay admin/super_admin-only.
+    medicalFlags?: MedicalFlags;
     chronicDiseases?: string | null;
     medicalHistory?: string | null;
     drugAllergies?: string | null;
@@ -96,7 +101,8 @@ export class ScannerService {
     // Awarded inside every "attended" transition below, in the same transaction.
     const individualPoints = event.individualPointsAwarded ?? 0;
 
-    const hasMedicalCondition = this.evaluateMedicalCondition(student);
+    const medicalFlags = toMedicalFlags(student);
+    const hasMedicalCondition = medicalFlags.hasMedicalCondition;
 
     // Base info: safe to return in all contexts (no sensitive health data)
     const baseStudentInfo = {
@@ -116,7 +122,7 @@ export class ScannerService {
     const canViewMedicalDetail = actorRole === "super_admin" || actorRole === "admin";
 
     // Signal-only view: what non-admin scanners receive at the gate.
-    const studentWithSignal = { ...baseStudentInfo, hasMedicalCondition };
+    const studentWithSignal = { ...baseStudentInfo, hasMedicalCondition, medicalFlags };
 
     // Full info: only super_admin/admin sees the detail fields; everyone else falls
     // back to the signal-only view.
@@ -336,13 +342,20 @@ export class ScannerService {
       }
 
       // Scan only — staff sees medical alert before deciding to confirm. PDPA: record
-      // the medical-detail view (admin/super_admin only) since no check-in transaction
-      // logs it on this non-mutating path.
-      if (canViewMedicalDetail && hasMedicalCondition) {
-        await this.logMedicalDetailView({
-          actorId, targetId: student.id, studentName: student.name,
-          eventTitle: event.title, ipAddress, context: "registered scan",
-        });
+      // the medical view (detail for admin/super_admin, signal-only otherwise) since
+      // no check-in transaction logs it on this non-mutating path.
+      if (hasMedicalCondition) {
+        if (canViewMedicalDetail) {
+          await this.logMedicalDetailView({
+            actorId, targetId: student.id, studentName: student.name,
+            eventTitle: event.title, ipAddress, context: "registered scan",
+          });
+        } else {
+          await this.logMedicalSignalView({
+            actorId, targetId: student.id, studentName: student.name,
+            eventTitle: event.title, ipAddress, context: "registered scan",
+          });
+        }
       }
       return { status: "pending_confirmation", student: studentWithMedical };
     }
@@ -404,11 +417,18 @@ export class ScannerService {
           const preTestWarning = await this.getPreTestWarning(eventId, student.id);
           return { status: "success", student: studentWithMedical, preTestWarning };
         }
-        if (canViewMedicalDetail && hasMedicalCondition) {
-          await this.logMedicalDetailView({
-            actorId, targetId: student.id, studentName: student.name,
-            eventTitle: event.title, ipAddress, context: "once-mode scan",
-          });
+        if (hasMedicalCondition) {
+          if (canViewMedicalDetail) {
+            await this.logMedicalDetailView({
+              actorId, targetId: student.id, studentName: student.name,
+              eventTitle: event.title, ipAddress, context: "once-mode scan",
+            });
+          } else {
+            await this.logMedicalSignalView({
+              actorId, targetId: student.id, studentName: student.name,
+              eventTitle: event.title, ipAddress, context: "once-mode scan",
+            });
+          }
         }
         return { status: "pending_confirmation", student: studentWithMedical };
       }
@@ -534,13 +554,20 @@ export class ScannerService {
     }
 
     // Walk-in scan only — staff sees medical alert before deciding to confirm. PDPA:
-    // record the medical-detail view (admin/super_admin only); the non-mutating scan
-    // path has no check-in transaction to log it.
-    if (canViewMedicalDetail && hasMedicalCondition) {
-      await this.logMedicalDetailView({
-        actorId, targetId: student.id, studentName: student.name,
-        eventTitle: event.title, ipAddress, context: "walk-in scan",
-      });
+    // record the medical view (detail for admin/super_admin, signal-only otherwise);
+    // the non-mutating scan path has no check-in transaction to log it.
+    if (hasMedicalCondition) {
+      if (canViewMedicalDetail) {
+        await this.logMedicalDetailView({
+          actorId, targetId: student.id, studentName: student.name,
+          eventTitle: event.title, ipAddress, context: "walk-in scan",
+        });
+      } else {
+        await this.logMedicalSignalView({
+          actorId, targetId: student.id, studentName: student.name,
+          eventTitle: event.title, ipAddress, context: "walk-in scan",
+        });
+      }
     }
     return { status: "pending_confirmation", isWalkIn: true, student: studentWithMedical };
   }
@@ -734,6 +761,34 @@ export class ScannerService {
     }
   }
 
+  /**
+   * Same as logMedicalDetailView, but for the signal-only view (category
+   * flags, no free text) that registration/organizer/smo receive. Their
+   * roster-level reads of this same signal are already audited (see
+   * attendance/route.ts); the scanner's non-mutating scan path had no
+   * equivalent trail. Generic wording — no category names — mirrors the
+   * roster's "medical-category signal" audit action.
+   */
+  private static async logMedicalSignalView(params: {
+    actorId: string;
+    targetId: string;
+    studentName: string;
+    eventTitle: string;
+    ipAddress: string;
+    context: string;
+  }): Promise<void> {
+    try {
+      await AuditService.logAction({
+        actorId: params.actorId,
+        targetId: params.targetId,
+        action: `Viewed medical signal at scanner (${params.context}) for ${params.studentName} — event "${params.eventTitle}"`,
+        ipAddress: params.ipAddress,
+      });
+    } catch (e) {
+      console.error("Failed to audit scanner medical-signal view:", e);
+    }
+  }
+
   static async searchStudents(query: string) {
     // Escape LIKE metacharacters so a query of "%" or "_" can't wildcard-match
     // the whole table; the search should only ever match literal substrings.
@@ -759,26 +814,4 @@ export class ScannerService {
     });
   }
 
-  private static evaluateMedicalCondition(student: ResolvedStudent): boolean {
-    const checkMedical = (val?: string | null) => {
-      if (!val) return false;
-      const clean = val.trim().toLowerCase();
-      const negativeValues = [
-        "", "-", "ไม่มี", "ไม่มีโรคประจำตัว", "ไม่มีประวัติแพ้ยา",
-        "ไม่มีประวัติแพ้อาหาร", "ไม่มีโรค", "ไม่มีแพ้ยา",
-        "ไม่มีแพ้อาหาร", "ปกติ", "none", "no", "n/a", "nil"
-      ];
-      return !negativeValues.includes(clean);
-    };
-
-    return !!(
-      student.faintingHistory ||
-      checkMedical(student.chronicDiseases) ||
-      checkMedical(student.medicalHistory) ||
-      checkMedical(student.drugAllergies) ||
-      checkMedical(student.foodAllergies) ||
-      checkMedical(student.dietaryRestrictions) ||
-      checkMedical(student.emergencyMedication)
-    );
-  }
 }

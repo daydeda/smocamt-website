@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { attendance, users, houses, scoreHistory, eventSessions, forms, formSubmissions } from "@/db/schema";
+import { attendance, users, houses, scoreHistory, eventSessions, forms, formSubmissions, events } from "@/db/schema";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { UsersService } from "../users/users.service";
 import { EventsService } from "./events.service";
@@ -310,6 +310,7 @@ export class ScannerService {
             .returning({ id: attendance.id });
 
           if (rows.length > 0) {
+            await this.maybeAutoAssignStaff(tx, event, actorId, student.id);
             await this.awardAttendanceIndividualPoints(tx, {
               studentId: student.id,
               studentName: student.name,
@@ -391,6 +392,7 @@ export class ScannerService {
               .returning({ id: attendance.id });
 
             if (rows.length > 0) {
+              await this.maybeAutoAssignStaff(tx, event, actorId, student.id);
               await this.awardAttendanceIndividualPoints(tx, {
                 studentId: student.id,
                 studentName: student.name,
@@ -515,6 +517,7 @@ export class ScannerService {
 
           if (inserted.length === 0) throw new Error("ALREADY_CHECKED_IN");
 
+          await this.maybeAutoAssignStaff(tx, event, actorId, student.id);
           await this.awardAttendanceIndividualPoints(tx, {
             studentId: student.id,
             studentName: student.name,
@@ -625,6 +628,63 @@ export class ScannerService {
   >(student: ResolvedStudent, info: T): Promise<T> {
     const h = await this.ensureHouseAssigned(student);
     return { ...info, house: h.name, houseId: h.id, houseColor: h.color };
+  }
+
+  /**
+   * Auto-staff-on-scan: an operator who checks a DIFFERENT student in (i.e. runs
+   * the scanner for someone else, as opposed to walking themselves in) is
+   * implicitly working the event and gets persisted onto events.staffUserIds —
+   * the same explicit, authoritative roster the admin Edit Event form manages —
+   * so they show up correctly (and can be removed) in that picker, and so
+   * exports/quota/no-show counting treat them as staff without an admin having
+   * to remember to add them by hand. A no-op for a self check-in, and a no-op
+   * once the operator is already on the list (the common case — this only
+   * writes once per operator per event, on their first scan-for-someone-else).
+   * Runs inside the caller's check-in transaction so the assignment and the
+   * check-in it was triggered by commit together.
+   */
+  private static async maybeAutoAssignStaff(
+    tx: DBTransaction,
+    event: NonNullable<Awaited<ReturnType<typeof EventsService.getEventById>>>,
+    actorId: string,
+    scannedStudentId: string
+  ): Promise<void> {
+    if (actorId === scannedStudentId) return;
+    const alreadyStaff = Array.isArray(event.staffUserIds) && event.staffUserIds.includes(actorId);
+    if (alreadyStaff) return;
+
+    const actorIdJson = JSON.stringify([actorId]);
+    await tx
+      .update(events)
+      .set({
+        // Guarded append: only adds actorId if it isn't already present,
+        // avoiding a duplicate entry under a concurrent scan by the same
+        // not-yet-staff operator.
+        staffUserIds: sql`CASE
+          WHEN ${events.staffUserIds} IS NULL OR NOT (${events.staffUserIds} @> ${actorIdJson}::jsonb)
+          THEN COALESCE(${events.staffUserIds}, '[]'::jsonb) || ${actorIdJson}::jsonb
+          ELSE ${events.staffUserIds}
+        END`,
+        updatedAt: new Date(),
+      })
+      .where(eq(events.id, event.id));
+
+    // Mirrors the isStaff-sync the admin PUT route does when staffUserIds
+    // changes (src/app/api/admin/events/[id]/route.ts) — if the operator
+    // already has their own attendance row for this event (e.g. they
+    // registered as a regular attendee before picking up the scanner), flip it
+    // so they're excluded from quota/no-show counting and show as Staff on the
+    // roster/export too.
+    await tx
+      .update(attendance)
+      .set({ isStaff: true })
+      .where(
+        and(
+          eq(attendance.eventId, event.id),
+          eq(attendance.studentId, actorId),
+          eq(attendance.isStaff, false)
+        )
+      );
   }
 
   /**

@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { attendance, events, eventSessions } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { attendance, events, eventSessions, users } from "@/db/schema";
+import { and, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { EventScopeService } from "@/modules/events/event-scope.service";
@@ -130,7 +130,7 @@ export async function GET(
 
     const event = await db.query.events.findFirst({
       where: eq(events.id, eventId),
-      columns: { id: true, title: true, managedByRoles: true, ownerClubIds: true, ownerMajors: true },
+      columns: { id: true, title: true, managedByRoles: true, ownerClubIds: true, ownerMajors: true, staffUserIds: true },
     });
     if (!event) {
       return NextResponse.json({ error: "Event not found" }, { status: 404 });
@@ -162,31 +162,36 @@ export async function GET(
       sessionLabelForFile = s.title?.trim() || `Day ${s.sortOrder + 1}`;
     }
 
-    const list = await db.query.attendance.findMany({
+    // Shared column selection for an attendee's `user` relation — also reused
+    // below (with `id` added) to fetch users who are on events.staffUserIds but
+    // have no attendance row of their own.
+    const attendeeUserColumns = {
+      name: true,
+      nickname: true,
+      studentId: true,
+      email: includeFullContactColumns,
+      phone: !isThinRoster,
+      contactChannels: includeFullContactColumns,
+      major: true,
+      role: true,
+      chronicDiseases: fetchMedicalFields,
+      medicalHistory: fetchMedicalFields,
+      drugAllergies: fetchMedicalFields,
+      foodAllergies: fetchMedicalFields,
+      dietaryRestrictions: fetchMedicalFields,
+      faintingHistory: fetchMedicalFields,
+      emergencyMedication: fetchMedicalFields,
+      emergencyContacts: includeMedicalColumns,
+    } as const;
+
+    const attendanceRows = await db.query.attendance.findMany({
       where: sessionIdFilter
         ? and(eq(attendance.eventId, eventId), eq(attendance.sessionId, sessionIdFilter))
         : eq(attendance.eventId, eventId),
       with: {
         session: { columns: { title: true, sortOrder: true } },
         user: {
-          columns: {
-            name: true,
-            nickname: true,
-            studentId: true,
-            email: includeFullContactColumns,
-            phone: !isThinRoster,
-            contactChannels: includeFullContactColumns,
-            major: true,
-            role: true,
-            chronicDiseases: fetchMedicalFields,
-            medicalHistory: fetchMedicalFields,
-            drugAllergies: fetchMedicalFields,
-            foodAllergies: fetchMedicalFields,
-            dietaryRestrictions: fetchMedicalFields,
-            faintingHistory: fetchMedicalFields,
-            emergencyMedication: fetchMedicalFields,
-            emergencyContacts: includeMedicalColumns,
-          },
+          columns: attendeeUserColumns,
           with: {
             house: { columns: { id: true, name: true } },
           },
@@ -194,6 +199,65 @@ export async function GET(
       },
       orderBy: (attendance, { desc }) => [desc(attendance.checkInTime)],
     });
+    type Att = (typeof attendanceRows)[number];
+
+    // Sessions are needed both to attach a real sessionId to the synthetic staff
+    // rows below (so they land in the right day sheet) and, further down, to
+    // group the roster into per-day sheets — fetch once and reuse both places.
+    const allSessions = sessionIdFilter
+      ? []
+      : await db.query.eventSessions.findMany({
+          where: eq(eventSessions.eventId, eventId),
+          columns: { id: true, title: true, sortOrder: true },
+          orderBy: (s, { asc }) => [asc(s.sortOrder), asc(s.startTime)],
+        });
+
+    // events.staffUserIds is the authoritative, explicitly-assigned staff roster
+    // (set from the admin Edit Event form) — but it's independent of attendance:
+    // a staff member who never personally registered/checked in has zero rows in
+    // `attendanceRows` and was previously completely invisible in this export
+    // (unlike the on-screen roster, which already synthesizes a placeholder row
+    // for them — see groupedAttendance in src/app/admin/events/page.tsx). Union
+    // them in here the same way, one synthetic row per day so they show on every
+    // day sheet they're assigned to work, matching the on-screen behavior.
+    const presentStudentIds = new Set(attendanceRows.map((m) => m.studentId));
+    const missingStaffIds = (event.staffUserIds ?? []).filter(
+      (uid) => uid && !presentStudentIds.has(uid)
+    );
+    const syntheticStaffRows: Att[] = [];
+    if (missingStaffIds.length > 0) {
+      const missingUsers = await db.query.users.findMany({
+        where: inArray(users.id, missingStaffIds),
+        columns: { id: true, ...attendeeUserColumns },
+        with: { house: { columns: { id: true, name: true } } },
+      });
+      const sessionIdsToAttach: (string | null)[] = sessionIdFilter
+        ? [sessionIdFilter]
+        : allSessions.length > 0
+        ? allSessions.map((s) => s.id)
+        : [null];
+      for (const uid of missingStaffIds) {
+        const person = missingUsers.find((u) => u.id === uid);
+        for (const sid of sessionIdsToAttach) {
+          syntheticStaffRows.push({
+            id: `unregistered-staff-${uid}-${sid ?? "none"}`,
+            eventId,
+            sessionId: sid,
+            studentId: uid,
+            checkInTime: null,
+            method: null,
+            status: "not_registered",
+            scannedBy: null,
+            medsCheckOption: null,
+            isStaff: true,
+            session: null,
+            user: person ?? null,
+          } as unknown as Att);
+        }
+      }
+    }
+
+    const list: Att[] = [...attendanceRows, ...syntheticStaffRows];
 
     // Defensive cap: the whole roster + the xlsx buffer are built in memory (xlsx
     // can't stream). Per-event this is bounded, but refuse a pathologically large
@@ -276,7 +340,11 @@ export async function GET(
         "Role": u?.role || "",
         "House": canonicalHouseName(u?.house),
         "Staff": m.isStaff ? "Yes" : "",
-        "Status": m.status === "attended" ? "Checked In" : m.status || "",
+        "Status": m.status === "attended"
+          ? "Checked In"
+          : m.status === "not_registered"
+          ? "Not Registered"
+          : m.status || "",
         "Check-in (Bangkok)": fmtTime(m.checkInTime),
         "Method": m.method || "",
       };
@@ -331,7 +399,6 @@ export async function GET(
     // derived from the same source. With ?sessionId= the list is already a single
     // day; otherwise we enumerate every session so even days with no check-ins
     // still get their own (header-only) sheet.
-    type Att = (typeof list)[number];
     type DayGroup = { label: string; rows: Att[] };
     let groups: DayGroup[];
     // "Multi-day" is keyed off the count of REAL sessions, not the group count —
@@ -341,11 +408,7 @@ export async function GET(
     if (sessionIdFilter) {
       groups = [{ label: sessionLabelForFile || "Attendees", rows: list }];
     } else {
-      const sessions = await db.query.eventSessions.findMany({
-        where: eq(eventSessions.eventId, eventId),
-        columns: { id: true, title: true, sortOrder: true },
-        orderBy: (s, { asc }) => [asc(s.sortOrder), asc(s.startTime)],
-      });
+      const sessions = allSessions;
       isMultiDay = sessions.length > 1;
       const rowsBySession = new Map<string, Att[]>();
       const orphans: Att[] = [];

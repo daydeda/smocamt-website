@@ -122,16 +122,31 @@ export function NotificationModal({
 
   const isCheckin = current.type === "checkin";
   const isPreTest = current.type === "pre_test_reminder";
+  // A songsueLinked check-in gets its own dedicated "heading to Songsue"
+  // modal instead of the generic checkin card — it's queue-jumped to the
+  // front (see songsueIdx above) so this is the FIRST popup the student
+  // sees, ahead of any other queued success/reminder modal.
+  const isSongsueRedirect = shouldRedirectToSongsue;
   const positive = (current.points ?? 0) >= 0;
-  const accent = isPreTest ? "#e11d48" : isCheckin ? "#14b8a6" : positive ? "var(--accent-primary)" : "#f59e0b";
+  const accent = isSongsueRedirect
+    ? "#6366f1"
+    : isPreTest
+      ? "#e11d48"
+      : isCheckin
+        ? "#14b8a6"
+        : positive
+          ? "var(--accent-primary)"
+          : "#f59e0b";
 
-  const title = isPreTest
-    ? t.notifPreTestTitle
-    : isCheckin
-      ? t.notifCheckinTitle
-      : positive
-        ? t.notifScorePosTitle
-        : t.notifScoreTitle;
+  const title = isSongsueRedirect
+    ? t.notifSongsueRedirectTitle
+    : isPreTest
+      ? t.notifPreTestTitle
+      : isCheckin
+        ? t.notifCheckinTitle
+        : positive
+          ? t.notifScorePosTitle
+          : t.notifScoreTitle;
 
   return (
     <div
@@ -194,7 +209,9 @@ export function NotificationModal({
             color: accent,
           }}
         >
-          {isPreTest ? (
+          {isSongsueRedirect ? (
+            <House size={46} strokeWidth={2.5} />
+          ) : isPreTest ? (
             <ClipboardList size={46} strokeWidth={2.5} />
           ) : isCheckin ? (
             <CheckCircle2 size={46} strokeWidth={2.5} />

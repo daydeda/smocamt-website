@@ -1,7 +1,9 @@
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { and, eq, or, sql } from "drizzle-orm";
-import { verifyQrToken } from "@/lib/qr-token";
+import { verifyQrToken, verifyCrossAppQrToken, splitCombinedQrToken } from "@/lib/qr-token";
+import { fetchSongsueProfileByEmail } from "@/lib/songsue-sync";
+import { SongsueSyncService } from "@/modules/integrations/songsue-sync.service";
 import { getStaffBypassNickname } from "@/lib/staff-bypass";
 import { HousesService, HOUSE_BALANCE_LOCK_KEY } from "@/modules/houses/houses.service";
 
@@ -9,16 +11,49 @@ export class UsersService {
   /**
    * Resolves a student profile from a QR scan token.
    * Accepts HMAC-signed 5-minute tokens (from the Digital ID page) or legacy
-   * static qrToken / user ID (used for manual check-in fallback).
+   * static qrToken / user ID (used for manual check-in fallback). A token
+   * scanned by the "wrong" app (student generated it on Songsue, but is being
+   * scanned here on ActiveCAMT) falls through to its cross-app companion (see
+   * qr-token.ts's splitCombinedQrToken/verifyCrossAppQrToken), resolving by
+   * email — auto-creating a minimal local account on first sight via the same
+   * upsert Songsue→ActiveCAMT sync already uses, if ActiveCAMT has never seen
+   * this student before. `ipAddress` is only used on that (rare, one-time per
+   * student) creation path, for its PDPA audit log entry.
    */
-  static async resolveStudentByToken(token: string) {
-    const userId = verifyQrToken(token);
+  static async resolveStudentByToken(token: string, ipAddress: string) {
+    const { local, cross } = splitCombinedQrToken(token);
+
+    const userId = verifyQrToken(local);
     if (userId) {
-      return db.query.users.findFirst({
+      const found = await db.query.users.findFirst({
         where: eq(users.id, userId),
         with: { house: true },
       });
+      if (found) return found;
     }
+
+    if (cross) {
+      const email = verifyCrossAppQrToken(cross);
+      if (email) {
+        const found = await db.query.users.findFirst({
+          where: eq(users.email, email),
+          with: { house: true },
+        });
+        if (found) return found;
+
+        const profile = await fetchSongsueProfileByEmail(email);
+        if (profile) {
+          const { id } = await db.transaction((tx) =>
+            SongsueSyncService.upsertSyncedUser(tx, profile, ipAddress)
+          );
+          return db.query.users.findFirst({
+            where: eq(users.id, id),
+            with: { house: true },
+          });
+        }
+      }
+    }
+
     // Legacy: static qrToken UUID or direct user ID (manual search → confirm flow)
     return db.query.users.findFirst({
       where: or(eq(users.qrToken, token), eq(users.id, token)),

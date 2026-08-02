@@ -34,9 +34,10 @@ Existing files (`updates/2026-06-13_to_06-14.md`, etc.) define the format. Repro
 3. **Classify & group.** Each change → ฝั่งนักศึกษา (would a student notice?) or ฝั่งทีม (grouped by domain). When unsure whether something is user-visible, put it under ฝั่งทีม.
 4. **Write in Thai** matching the tone of prior files — concise bold-led bullets for students; precise grouped notes for the team. Reuse the house's existing terminology (e.g. บ้านมอม/โต/ลวง/มกร, "scanner-only", PDPA สัญญาณ vs รายละเอียด).
 5. **Write the file** to `updates/<range>.md`, then show it to the user for a phrasing pass.
+6. **Once the phrasing is approved, commit and push directly to `main`.** No feature branch, no PR — this is the CLAUDE.md-documented exception for changelog-only `updates/*.md` entries (docs-only, no code/schema risk). Don't run the full branch → PR → merge cycle just for this file.
 
 ## Rules
 - **Never fabricate.** Every line must trace to a commit/diff in the range. If a feature isn't in the commits, it doesn't go in.
 - **Don't leak secrets or PDPA detail.** Describe medical/PDPA work at the level the existing files do ("เห็นแค่สัญญาณ ไม่เห็นรายละเอียด") — never include actual student data, tokens, or credentials.
-- **Don't auto-commit.** The user usually edits Thai phrasing first; leave committing to them (or to `/ship` afterward).
+- **Push straight to `main` after approval** (see step 6) — don't open a branch/PR for this file alone, and don't bundle it into an unrelated feature branch.
 - Keep section headers **verbatim** so every file in `updates/` stays consistent and greppable.

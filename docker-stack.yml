@@ -20,6 +20,14 @@
 #       SONGSUE_SYNC_URL, ACTIVECAMT_SYNC_SECRET (cross-app sync to Songsue —
 #       see src/lib/songsue-sync.ts; both optional, sync no-ops if unset)
 #
+# NOT settable here: NEXT_PUBLIC_SONGSUE_DASHBOARD_URL. Next.js inlines
+# NEXT_PUBLIC_* vars into the client bundle at BUILD time — a Portainer stack
+# "Environment variables" entry only affects the running container, so setting
+# it here does nothing. It must be a GitHub Actions repo Variable instead (see
+# .github/workflows/docker-publish.yml's build-args); the deployed image simply
+# won't have it otherwise, and the check-in redirect countdown in
+# src/components/NotificationModal.tsx silently stays disabled.
+#
 # NOTES:
 #   - The image must be pullable: make the GHCR package public, or add a ghcr.io
 #     registry credential in Portainer (username + PAT with read:packages).

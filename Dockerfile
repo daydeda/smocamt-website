@@ -21,6 +21,16 @@ COPY . .
 # Uncomment the following line in case you want to disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# NEXT_PUBLIC_* vars are inlined into the client bundle at BUILD time, not read
+# from the container at runtime — setting this only in docker-stack.yml's
+# `environment:` (a runtime mechanism) would silently do nothing. Must be
+# supplied as a --build-arg (see .github/workflows/docker-publish.yml). Songsue's
+# dashboard URL, e.g. https://songsue.vercel.app/dashboard — drives the
+# check-in redirect countdown in src/components/NotificationModal.tsx; unset =
+# that feature quietly stays disabled (falls back to the plain success message).
+ARG NEXT_PUBLIC_SONGSUE_DASHBOARD_URL
+ENV NEXT_PUBLIC_SONGSUE_DASHBOARD_URL=$NEXT_PUBLIC_SONGSUE_DASHBOARD_URL
+
 RUN npm run build
 
 # Production image, copy all the files and run next

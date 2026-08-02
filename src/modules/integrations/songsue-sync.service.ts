@@ -135,7 +135,11 @@ export class SongsueSyncService {
   // Finds the user by email, or creates an account from the Songsue payload —
   // including medical/emergency fields. NO house — houses are ActiveCAMT's
   // own, unrelated concept and are never touched by this sync.
-  private static async upsertSyncedUser(
+  // Not private: also called directly by UsersService.resolveStudentByToken
+  // when a cross-app QR scan (see qr-token.ts) resolves to an email with no
+  // local account yet — reuses this exact upsert/collision-handling/audit
+  // logic instead of duplicating it for that path.
+  static async upsertSyncedUser(
     tx: DBTransaction,
     payload: SongsueCheckinSyncUser,
     ipAddress: string,

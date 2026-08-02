@@ -44,6 +44,14 @@ jobs:
             ${{ env.IMAGE }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # NEXT_PUBLIC_* vars must be baked in at build time (Next.js inlines
+          # them into the client bundle) — a docker-stack.yml runtime env var
+          # cannot supply this. Not secret (it's just Songsue's public dashboard
+          # URL), so a repo Variable, not a Secret: Settings → Secrets and
+          # variables → Actions → Variables → NEXT_PUBLIC_SONGSUE_DASHBOARD_URL
+          # (e.g. https://songsue.vercel.app/dashboard).
+          build-args: |
+            NEXT_PUBLIC_SONGSUE_DASHBOARD_URL=${{ vars.NEXT_PUBLIC_SONGSUE_DASHBOARD_URL }}
 
       # Auto-deploy: tell Portainer to re-pull the new image and redeploy the
       # stack. Runs only once PORTAINER_WEBHOOK_URL is set as a repo secret (until

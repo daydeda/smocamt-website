@@ -74,7 +74,7 @@ export class ScannerService {
     const { qrToken, eventId, sessionId, action, medsCheckOption, actorId, actorRole, ipAddress } = params;
 
     const [student, event, session] = await Promise.all([
-      UsersService.resolveStudentByToken(qrToken),
+      UsersService.resolveStudentByToken(qrToken, ipAddress),
       EventsService.getEventById(eventId),
       db.query.eventSessions.findFirst({
         where: and(eq(eventSessions.id, sessionId), eq(eventSessions.eventId, eventId)),

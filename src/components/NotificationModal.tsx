@@ -93,11 +93,17 @@ export function NotificationModal({
   onDismiss: (id: string) => void;
 }) {
   const { t } = useLanguage();
-  const current = items[0];
   // Baked in at build time (NEXT_PUBLIC_*); unset in an environment that hasn't
   // configured Songsue yet, in which case we fall back to the plain check-in
   // confirmation instead of counting down to nowhere.
   const songsueUrl = process.env.NEXT_PUBLIC_SONGSUE_DASHBOARD_URL;
+  // A Songsue-bound check-in is time-critical (it's a short countdown that
+  // navigates the page away) and must jump the queue — otherwise it can land
+  // behind an already-queued, non-auto-dismissing pre_test_reminder from an
+  // earlier check-in and never get seen before the student walks off. Every
+  // other item keeps its original (server-timestamp-sorted) order.
+  const songsueIdx = items.findIndex((n) => n.type === "checkin" && !!n.songsueLinked && !!songsueUrl);
+  const current = songsueIdx > 0 ? items[songsueIdx] : items[0];
   const shouldRedirectToSongsue = current?.type === "checkin" && !!current.songsueLinked && !!songsueUrl;
 
   useEffect(() => {

@@ -139,3 +139,38 @@ export async function syncEventToSongsue(payload: SongsueEventSyncPayload): Prom
 export async function syncRegistrationToSongsue(payload: SongsueRegistrationSyncPayload): Promise<void> {
   await postSync("/api/integrations/activecamt/register", payload);
 }
+
+// Called by UsersService.resolveStudentByToken when ActiveCAMT's OWN scanner
+// resolves a cross-app QR (a student who generated their QR on Songsue but is
+// being scanned here on ActiveCAMT — see qr-token.ts's verifyCrossAppQrToken)
+// to an email with no local ActiveCAMT account yet. Pulls that student's
+// profile from Songsue so ActiveCAMT can auto-create a minimal account and
+// complete the check-in — see SongsueSyncService.upsertSyncedUser for the
+// write side and its PDPA doc comment. Returns null (never throws) if Songsue
+// is unreachable, doesn't know this email either, or sync isn't configured —
+// the caller falls through to "not found" rather than the scan erroring out.
+export async function fetchSongsueProfileByEmail(
+  email: string
+): Promise<SongsueRegistrationSyncPayload["user"] | null> {
+  const config = songsueSyncConfig();
+  if (!config) return null;
+
+  try {
+    const res = await fetch(
+      `${config.baseUrl}/api/integrations/activecamt/profile?email=${encodeURIComponent(email)}`,
+      { headers: { Authorization: `Bearer ${config.secret}` } }
+    );
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      captureException(new Error(`Songsue profile fetch failed: ${res.status} ${text}`), {
+        songsueProfileFetch: true,
+      });
+      return null;
+    }
+    return await res.json();
+  } catch (error) {
+    captureException(error, { songsueProfileFetch: true });
+    return null;
+  }
+}

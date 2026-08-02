@@ -117,7 +117,10 @@ changelog entry.
    merge lands, write/extend today's entry in `updates/` yourself, in the established
    Thai house style (ฝั่งนักศึกษา + ฝั่งทีม). This is not optional and not automatic
    anywhere else — shipping without a changelog entry is incomplete. This step only
-   touches Markdown under `updates/`, never code or `main` history.
+   touches Markdown under `updates/`, never code or `main` history. **Commit and
+   push this directly to `main`** — no separate branch/PR for it (CLAUDE.md's
+   documented exception for docs-only `updates/*.md` entries). Don't repeat the
+   full branch → PR → merge cycle just to land the changelog file.
    - **Find the date.** `date +%Y-%m-%d`. Buddhist year for the header = Gregorian
      year + 543, shown as last two digits (2026 → "69"). Thai month abbreviations:
      ม.ค. ก.พ. มี.ค. เม.ย. พ.ค. มิ.ย. ก.ค. ส.ค. ก.ย. ต.ค. พ.ย. ธ.ค.

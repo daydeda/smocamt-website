@@ -1532,22 +1532,27 @@ export default function AdminEventsPage() {
   // Based on the day-scoped set, not the browsing filters (medical/nationality).
   // A person is classified once across all their day rows: pre-registered if any
   // session was a pre-registration (else walk-in), attended if present on any day.
-  // All five tallies derive purely from tallyUnits, so compute them together once
-  // per roster change instead of five full passes on every render / 15s poll.
-  const { checkInCount, registeredCount, summaryPreRegistered, summaryAttendedPre, summaryWalkIns, summaryPreRegisteredNonStaff, summaryAttendedPreNonStaff } = useMemo(() => ({
-    checkInCount: tallyUnits.filter(rows => rows.some(m => m.status === "attended")).length,
-    registeredCount: tallyUnits.length,
-    summaryPreRegistered: tallyUnits.filter(rows => rows.some(m => m.method === "pre-registered")).length,
-    summaryAttendedPre: tallyUnits.filter(rows => rows.some(m => m.method === "pre-registered") && rows.some(m => m.status === "attended")).length,
-    summaryWalkIns: tallyUnits.filter(rows => rows.every(m => m.method === "walk-in")).length,
-    // Staff-excluded variants feed the No-shows tile below, which is directly
-    // tied to the "Strike No-shows" action — it must match who apply-strikes
-    // (isStaff-excluded, see findNoShowStudentIds) will actually strike.
-    summaryPreRegisteredNonStaff: tallyUnits.filter(rows => rows.some(m => m.method === "pre-registered" && !m.isStaff)).length,
-    summaryAttendedPreNonStaff: tallyUnits.filter(rows => rows.some(m => m.method === "pre-registered" && !m.isStaff) && rows.some(m => m.status === "attended")).length,
+  // All tallies are staff-excluded — staff don't count toward the quota (see
+  // isStaff exemption in register/route.ts and scanner.service.ts), and the
+  // card's Quota Progress bar (evt.attendeeCount, staff-excluded — see
+  // api/admin/events/route.ts) must match what this header shows, or the
+  // "checked in" figure here can end up bigger than the "registered" figure
+  // shown on the card. Compute them together once per roster change instead
+  // of several full passes on every render / 15s poll.
+  const { checkInCount, registeredCount, summaryPreRegistered, summaryAttendedPre, summaryWalkIns } = useMemo(() => ({
+    checkInCount: tallyUnits.filter(rows => rows.some(m => m.status === "attended" && !m.isStaff)).length,
+    registeredCount: tallyUnits.filter(rows => rows.some(m => !m.isStaff)).length,
+    summaryPreRegistered: tallyUnits.filter(rows => rows.some(m => m.method === "pre-registered" && !m.isStaff)).length,
+    summaryAttendedPre: tallyUnits.filter(rows => rows.some(m => m.method === "pre-registered" && !m.isStaff) && rows.some(m => m.status === "attended")).length,
+    summaryWalkIns: tallyUnits.filter(rows => rows.every(m => m.method === "walk-in") && rows.some(m => !m.isStaff)).length,
   }), [tallyUnits]);
-  const summaryNoShows = Math.max(0, summaryPreRegisteredNonStaff - summaryAttendedPreNonStaff);
-  const summaryNoShowPct = summaryPreRegisteredNonStaff > 0 ? Math.round((summaryNoShows / summaryPreRegisteredNonStaff) * 100) : 0;
+  // Feeds the No-shows tile, which is directly tied to the "Strike No-shows"
+  // action — must match who apply-strikes (isStaff-excluded, see
+  // findNoShowStudentIds) will actually strike. summaryPreRegistered/
+  // summaryAttendedPre above are already staff-excluded, so no separate
+  // NonStaff variant is needed here.
+  const summaryNoShows = Math.max(0, summaryPreRegistered - summaryAttendedPre);
+  const summaryNoShowPct = summaryPreRegistered > 0 ? Math.round((summaryNoShows / summaryPreRegistered) * 100) : 0;
   // Shared by the attendance modal's action bar (export/strike buttons),
   // computed once instead of re-deriving events.find(...) inline per button.
   const activeEvent = events.find((e) => e.id === activeEventId);

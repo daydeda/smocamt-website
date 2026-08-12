@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Menu, X, User } from "lucide-react";
 import { AdminNav } from "./AdminNav";
+import { AdminCommandPalette } from "./AdminCommandPalette";
 import { LanguageProvider } from "@/lib/LanguageContext";
 import { effectiveRoles } from "@/lib/admin-access";
+import { buildAdminNavContext } from "@/lib/admin-nav-config";
 import Link from "next/link";
 
 export function AdminLayoutWrapper({
@@ -24,7 +26,29 @@ export function AdminLayoutWrapper({
   };
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const roles = effectiveRoles(user.role, user.roles);
+  const navCtx = buildAdminNavContext({
+    roles,
+    hasStaffPosition: user.hasStaffPosition,
+    hasClubPosition: user.hasClubPosition,
+    smoPosition: user.smoPosition,
+    anusmoPosition: user.anusmoPosition,
+  });
+
+  // First app-wide keydown listener in this codebase (every prior one is
+  // scoped to a single dropdown's own effect) — deliberately kept here
+  // rather than a new provider, since the command palette is admin-only.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setIsPaletteOpen((open) => !open);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   return (
     <LanguageProvider>
@@ -100,6 +124,7 @@ export function AdminLayoutWrapper({
             hasClubPosition={user.hasClubPosition}
             smoPosition={user.smoPosition}
             anusmoPosition={user.anusmoPosition}
+            onOpenPalette={() => setIsPaletteOpen(true)}
           />
         </div>
 
@@ -127,6 +152,8 @@ export function AdminLayoutWrapper({
           {children}
         </div>
       </main>
+
+      <AdminCommandPalette open={isPaletteOpen} onClose={() => setIsPaletteOpen(false)} ctx={navCtx} />
 
       <style jsx>{`
         .admin-main {

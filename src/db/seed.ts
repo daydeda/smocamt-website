@@ -56,9 +56,15 @@ async function seed() {
     });
 
     if (existing) {
+      // Must also overwrite roles[] here, not just the singular role column:
+      // admin-access.ts's effectiveRoles() prefers roles[] whenever it's
+      // non-empty, so a user whose roles[] already held something else (e.g.
+      // ["student"] from their original sign-in/onboarding) would keep
+      // resolving to that old set and silently never see the Admin Panel,
+      // even though `role` correctly said super_admin.
       await db
         .update(users)
-        .set({ role: "super_admin", profileCompleted: true })
+        .set({ role: "super_admin", roles: ["super_admin"], profileCompleted: true })
         .where(eq(users.email, admin.email));
       console.log(`  ✅ Updated role to super_admin for: ${admin.email}`);
     } else {
@@ -67,6 +73,7 @@ async function seed() {
         name: admin.name,
         email: admin.email,
         role: "super_admin",
+        roles: ["super_admin"],
         profileCompleted: true,
         qrToken: crypto.randomUUID(),
       });

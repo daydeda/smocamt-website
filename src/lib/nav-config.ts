@@ -113,7 +113,7 @@ export const NAV_ITEMS: NavItem[] = [
   // plan) — these exist purely so the IA can be previewed and the launcher
   // proven to scale before either feature is built. Never a real <Link>.
   { id: "voc", href: "#", i18nKey: "vocFeedback", fallback: "Feedback", icon: MessageSquareWarning, tier: "launcher", group: "feedback", comingSoon: true },
-  { id: "study", href: "#", i18nKey: "studyThings", fallback: "Study", icon: GraduationCap, tier: "launcher", group: "learning", comingSoon: true },
+  { id: "study", href: "#", i18nKey: "studyResources", fallback: "Study", icon: GraduationCap, tier: "launcher", group: "learning", comingSoon: true },
 ];
 
 export function resolveHref(item: NavItem, ctx: NavContext): string {

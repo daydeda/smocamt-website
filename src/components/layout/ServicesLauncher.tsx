@@ -47,13 +47,46 @@ export function ServicesLauncher({
   const previouslyFocused = useRef<HTMLElement | null>(null);
 
   // Escape-to-close + a minimal manual focus trap. Only wired up while open,
-  // torn down on close/unmount.
+  // `open` starts false (parent state), identical on server and client, so
+  // gating the portal on `hasOpened` — rather than on `typeof document` —
+  // means the very first render (SSR + the client's hydration pass) renders
+  // null on BOTH sides: no mismatch. `document.body` is only ever touched
+  // from a later, client-only render after the user actually opens this,
+  // by which point we're well past hydration. Once opened, we keep
+  // rendering (toggling the "open" CSS class) so close transitions can
+  // still animate instead of the panel just vanishing. Declared here (not
+  // further down) because the focus-capture effect right below needs it:
+  // the panel doesn't exist in the DOM until hasOpened catches up to open,
+  // one tick later, so focusing/capturing keyed on `open` alone races the
+  // DOM not existing yet (panelRef.current was still null, so
+  // firstFocusable?.focus() below silently no-op'd every time).
+  const [hasOpened, setHasOpened] = useState(false);
   useEffect(() => {
+    // The timeout keeps the setState out of the synchronous effect body
+    // (react-hooks/set-state-in-effect) — same trick as LanguageContext.tsx's
+    // localStorage read. Timing doesn't matter here: `hasOpened` only needs
+    // to flip true sometime after `open` does, well before the user can
+    // perceive it.
     if (!open) return;
+    const timer = setTimeout(() => setHasOpened(true), 0);
+    return () => clearTimeout(timer);
+  }, [open]);
 
+  // Capture what to return focus to, and focus the first focusable element —
+  // kept as its own effect keyed on hasOpened (not folded into the keydown
+  // effect below) precisely because it must run AFTER the panel exists in
+  // the DOM.
+  useEffect(() => {
+    if (!open || !hasOpened) return;
     previouslyFocused.current = document.activeElement as HTMLElement | null;
     const firstFocusable = panelRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
     firstFocusable?.focus();
+  }, [open, hasOpened]);
+
+  // Escape-to-close + a minimal manual focus trap. Only wired up while open,
+  // torn down on close/unmount.
+  useEffect(() => {
+    if (!open) return;
 
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
@@ -96,19 +129,6 @@ export function ServicesLauncher({
     return () => {
       document.body.style.overflow = prevOverflow;
     };
-  }, [open]);
-
-  // `open` starts false (parent state), identical on server and client, so
-  // gating the portal on `hasOpened` — rather than on `typeof document` —
-  // means the very first render (SSR + the client's hydration pass) renders
-  // null on BOTH sides: no mismatch. `document.body` is only ever touched
-  // from a later, client-only render after the user actually opens this,
-  // by which point we're well past hydration. Once opened, we keep
-  // rendering (toggling the "open" CSS class) so close transitions can
-  // still animate instead of the panel just vanishing.
-  const [hasOpened, setHasOpened] = useState(false);
-  useEffect(() => {
-    if (open) setHasOpened(true);
   }, [open]);
 
   if (!hasOpened) return null;

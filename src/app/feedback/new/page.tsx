@@ -102,11 +102,25 @@ export default function FeedbackNewPage() {
           </Link>
         )}
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-          <MessageSquareWarning size={24} color="var(--accent-primary)" />
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>
-            {tt("vocFeedback", "Feedback & Complaints")}
-          </h1>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 6, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <MessageSquareWarning size={24} color="var(--accent-primary)" />
+            <h1 style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>
+              {tt("vocFeedback", "Feedback & Complaints")}
+            </h1>
+          </div>
+          {/* Always reachable, not just on the post-submit confirmation
+              screen — previously the only way to reach /feedback/track was
+              a button that existed for a few seconds right after sending,
+              so anyone who navigated away had no way back to it. */}
+          {step !== "done" && (
+            <Link
+              href="/feedback/track"
+              style={{ fontSize: 13, fontWeight: 700, color: "var(--accent-primary)", textDecoration: "none" }}
+            >
+              {tt("feedbackGoToTrack", "Check status")}
+            </Link>
+          )}
         </div>
 
         {step === "category" && (

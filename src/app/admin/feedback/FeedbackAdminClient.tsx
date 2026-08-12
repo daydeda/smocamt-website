@@ -199,12 +199,15 @@ export function FeedbackAdminClient() {
         <div
           role="dialog"
           aria-modal="true"
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 100 }}
+          // Centered dialog on both axes (matches AppealsClient's resolve
+          // modal convention) — the previous alignItems:"flex-end" bottom
+          // sheet read as "stuck to the bottom, not centered" on desktop.
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 16 }}
           onClick={closeDetail}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{ width: "100%", maxWidth: 560, maxHeight: "88vh", overflowY: "auto", background: "var(--bg-elevated)", borderRadius: "20px 20px 0 0", padding: 20, display: "flex", flexDirection: "column", gap: 14 }}
+            style={{ width: "100%", maxWidth: 560, maxHeight: "88vh", overflowY: "auto", background: "var(--bg-elevated)", borderRadius: 20, padding: 20, display: "flex", flexDirection: "column", gap: 14 }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 15, fontWeight: 800, color: "var(--text-primary)" }}>

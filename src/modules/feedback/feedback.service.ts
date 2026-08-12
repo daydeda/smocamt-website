@@ -117,6 +117,11 @@ export class FeedbackService {
         category: true,
         severity: true,
         status: true,
+        // `message` is included so a submitter can confirm what they
+        // actually sent when they check back — the tracking code is the
+        // only record they keep of it, there's no account history to fall
+        // back on for a self-check (that's the anonymity tradeoff).
+        message: true,
         adminReply: true,
         createdAt: true,
         repliedAt: true,

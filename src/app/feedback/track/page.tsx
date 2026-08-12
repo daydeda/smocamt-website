@@ -12,6 +12,7 @@ interface TrackedComplaint {
   category: FeedbackCategory;
   severity: FeedbackSeverity;
   status: FeedbackStatus;
+  message: string;
   adminReply: string | null;
   createdAt: string;
   repliedAt: string | null;
@@ -106,6 +107,12 @@ export default function FeedbackTrackPage() {
               {tt(severityMeta.i18nKey, severityMeta.fallback)}
             </span>
             <div>
+              <p style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em", margin: "0 0 6px" }}>
+                {tt("feedbackTrackYourMessageLabel", "What you sent")}
+              </p>
+              <p style={{ whiteSpace: "pre-wrap", fontSize: 14, color: "var(--text-primary)", lineHeight: 1.6, margin: 0 }}>{complaint.message}</p>
+            </div>
+            <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 12 }}>
               <p style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em", margin: "0 0 6px" }}>
                 {tt("feedbackTrackReplyLabel", "Staff reply")}
               </p>

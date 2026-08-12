@@ -18,7 +18,7 @@
 // this component establishes that pattern for the first time, deliberately
 // kept small (manual Tab-cycle, no library) rather than pulling in a new
 // dependency for one overlay.
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -98,7 +98,20 @@ export function ServicesLauncher({
     };
   }, [open]);
 
-  if (typeof document === "undefined") return null;
+  // `open` starts false (parent state), identical on server and client, so
+  // gating the portal on `hasOpened` — rather than on `typeof document` —
+  // means the very first render (SSR + the client's hydration pass) renders
+  // null on BOTH sides: no mismatch. `document.body` is only ever touched
+  // from a later, client-only render after the user actually opens this,
+  // by which point we're well past hydration. Once opened, we keep
+  // rendering (toggling the "open" CSS class) so close transitions can
+  // still animate instead of the panel just vanishing.
+  const [hasOpened, setHasOpened] = useState(false);
+  useEffect(() => {
+    if (open) setHasOpened(true);
+  }, [open]);
+
+  if (!hasOpened) return null;
 
   const groups = getAllGroups(ctx);
   // nav-config keys are plain `string` (not a string-literal union), so index

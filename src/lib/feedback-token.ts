@@ -1,12 +1,20 @@
-// Pure logic for the Anonymous Feedback & Complaints feature: tracking-code
-// generation/hashing and the keyed-hash "submitter reference" that stands in
-// for a raw user FK. See docs/features/feedback-complaints.md §5 for the full
-// design rationale — this file implements the mechanics that make the
-// anonymity guarantee architectural rather than a role-based UI mask.
+// Pure logic for the Anonymous Feedback & Complaints feature: the keyed-hash
+// "submitter reference" that stands in for a raw user FK. See
+// docs/features/feedback-complaints.md §5 for the full design rationale —
+// this file implements the mechanic that makes the anonymity guarantee
+// architectural rather than a role-based UI mask.
+//
+// This file used to also hold one-time tracking-code generation/hashing
+// (password-reset-token pattern) for a public, no-login status-lookup path.
+// Dropped 2026-08-13 (§7.0/§8 in the docs) once self-service lookup via the
+// submitter's own account (GET /api/feedback/mine, built on computeSubmitterRef
+// below) made it redundant — submission already requires login, so the code
+// wasn't buying additional anonymity, just UX/security surface (a code to
+// save, a public no-auth lookup route to rate-limit and defend).
 //
 // No DB/React dependencies here so it can run in a pure Vitest unit test
 // (per this project's convention — see CLAUDE.md "Commands").
-import { createHash, createHmac, randomBytes, timingSafeEqual } from "crypto";
+import { createHmac } from "crypto";
 
 export const FEEDBACK_CATEGORIES = [
   "event",
@@ -42,51 +50,18 @@ export const CATEGORY_DEFAULT_SEVERITY: Record<FeedbackCategory, FeedbackSeverit
   other: "low",
 };
 
-// Unambiguous alphabet — excludes 0/O, 1/I/L — so a submitter can read the
-// code back off a screen or write it down without transcription errors.
-const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-const CODE_LENGTH = 10;
-
 /**
- * Crypto-random tracking code shown to the submitter exactly once at
- * creation. Never persisted in plaintext anywhere — only hashTrackingCode's
- * output is stored (same principle as a password-reset token). Combined with
- * IP rate-limiting on the lookup route (not this function's job), a 10-char
- * draw from a 32-symbol alphabet is impractical to brute-force at the rate a
- * rate-limited endpoint allows.
- */
-export function generateTrackingCode(): string {
-  const bytes = randomBytes(CODE_LENGTH);
-  let code = "";
-  for (let i = 0; i < CODE_LENGTH; i++) {
-    code += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
-  }
-  return code;
-}
-
-/** sha256 hex of a tracking code (case/whitespace-normalized) — the ONLY form ever stored. */
-export function hashTrackingCode(code: string): string {
-  return createHash("sha256").update(code.trim().toUpperCase(), "utf8").digest("hex");
-}
-
-/** Timing-safe compare of two hex hash strings — cheap defense in depth on
- * top of the DB equality lookup. */
-export function hashesMatch(a: string, b: string): boolean {
-  const bufA = Buffer.from(a, "hex");
-  const bufB = Buffer.from(b, "hex");
-  if (bufA.length !== bufB.length) return false;
-  return timingSafeEqual(bufA, bufB);
-}
-
-/**
- * Keyed-hash abuse-control reference for a userId — NOT reversible to a
- * userId without FEEDBACK_HMAC_SECRET. This is the anonymity boundary itself
- * (see schema.ts's feedbackComplaints.submitterRef comment): it supports
- * "has this account submitted N times recently" equality queries and nothing
- * else. Application code must NEVER select/return the raw submitterRef
- * column in an admin-facing response, and this function must NEVER be
- * exposed to a client — it only ever runs server-side against the logged-in
- * user's own session id.
+ * Keyed-hash abuse-control + self-service-lookup reference for a userId —
+ * NOT reversible to a userId without FEEDBACK_HMAC_SECRET. This is the
+ * anonymity boundary itself (see schema.ts's feedbackComplaints.submitterRef
+ * comment): it supports (a) "has this account submitted N times recently"
+ * abuse-control equality queries, and (b) a submitter's own self-service
+ * status lookup (GET /api/feedback/mine) — nothing admin-facing. Application
+ * code must NEVER select/return the raw submitterRef column in an
+ * admin-facing response, and this function must NEVER be called with
+ * anything other than the CALLER'S OWN session id — passing any
+ * client-supplied id here would turn a self-service lookup into a lookup of
+ * someone else's submissions.
  *
  * Throws if the secret isn't configured. Unlike the SMTP notification vars
  * (which fail open — a missing notification channel must never block a

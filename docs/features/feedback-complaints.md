@@ -43,7 +43,7 @@ complaint into two systems.
 |---|---|---|
 | Who can submit | Must be logged in (any ActiveCAMT account) | See caveat below — this is *not* currently a CMU-verification gate |
 | Identity visibility | Withheld from **every** admin role, including super_admin — no in-app unmask feature | Stronger than the existing `showRespondentIdentity` pattern; see §5 |
-| Follow-up | One-time **tracking code**, shown once at submission, never re-derivable if lost | Lets a submitter check status/reply without any account link |
+| Follow-up | Self-service — signed-in submitter sees their own history/reply automatically (revised 2026-08-13, §7.0) | Removed the original one-time-tracking-code design once it proved redundant: submission already requires login |
 | Category taxonomy | Proposed by this doc (§4), for review | Grounded in ActiveCAMT's actual domains, not generic |
 
 **Important caveat carried over from scoping:** Google OAuth is not yet actually
@@ -104,10 +104,6 @@ serious enough"), which is exactly the signal you'd also want to collect.
 ```
 feedback_complaints
   id                  uuid PK
-  tracking_code_hash  text NOT NULL UNIQUE   -- sha256(code); plaintext code is
-                                              -- shown ONCE at submit and never
-                                              -- stored — same principle as a
-                                              -- password-reset token
   category            text NOT NULL          -- §4 enum, validated in Zod
   severity            text NOT NULL DEFAULT 'normal'   -- 'low'|'normal'|'urgent'
   message             text NOT NULL
@@ -116,15 +112,16 @@ feedback_complaints
   attachment_keys     jsonb NOT NULL DEFAULT '[]'  -- private-bucket storage
                                               -- keys, reuse form-file-storage.ts
   submitter_ref       text NOT NULL          -- HMAC-SHA256(userId, FEEDBACK_HMAC_SECRET)
-                                              -- NOT a users FK. Equality-comparable
-                                              -- for abuse-control queries
-                                              -- ("has this account submitted 10
-                                              -- times today") but not reversible
-                                              -- to a userId without the secret.
-                                              -- NEVER selected in any admin-facing
-                                              -- query/response — enforce via a
-                                              -- narrow column allowlist, not by
-                                              -- convention alone.
+                                              -- NOT a users FK. Supports (a)
+                                              -- abuse-control equality queries
+                                              -- and (b) the submitter's own
+                                              -- self-service lookup (§7.0) —
+                                              -- not reversible to a userId
+                                              -- without the secret by anyone
+                                              -- else. NEVER selected in any
+                                              -- admin-facing query/response —
+                                              -- enforce via a narrow column
+                                              -- allowlist, not convention alone.
   status               text NOT NULL DEFAULT 'new'  -- 'new'|'in_review'|'resolved'|'closed'
   admin_reply          text
   replied_by           text                  -- admin's own userId, no FK (mirrors
@@ -135,7 +132,7 @@ feedback_complaints
   created_at           timestamptz DEFAULT now()
   updated_at           timestamptz DEFAULT now()
 
-indexes: unique(tracking_code_hash), index(status), index(category), index(severity)
+indexes: index(submitter_ref), index(status), index(category)
 ```
 
 Why HMAC over a raw FK: with a raw `studentId` (the `formSubmissions` pattern),
@@ -151,30 +148,35 @@ imminent-harm threat), that has to be a manual, off-app, legally-reviewed
 process — not a button in `/admin/feedback`. Flag this explicitly to whoever
 signs off (§8) — it's a real limitation, not an oversight.
 
-**Tracking code mechanics** (mirrors `calendarFeedTokens`'s revocable-secret
-pattern, but one-shot instead of regenerable):
-- Generate with `crypto.randomBytes`, render as an unambiguous alphabet (no
-  `0/O`, `1/I`) at ~10 chars → comparable entropy to a UUID segment, low enough
-  to type by hand, high enough that brute-forcing `/feedback/track` is
-  impractical *combined with* IP rate-limiting on that endpoint (reuse
-  `rate-limit.ts`) — the length alone is not the safeguard, the pairing is.
-  Without rate-limiting, a bare 10-char code is still guessable at scale; this
-  route needs its own explicit limit like `rateLimit(ip, 20, 60_000)`, not
-  the default.
-- Store only `sha256(code)`. Lookup hashes the incoming code and compares —
-  timing-safe compare recommended even though this isn't a password (defense
-  in depth is cheap here).
-- Confirmation screen shows the code **once**, with an explicit "we cannot
-  recover this for you, and we cannot look it up on your behalf, because we
-  don't know who you are either" — see §7 for why that phrasing matters more
-  than it looks.
+**Status/reply lookup** is self-service only (§7.0) — a submitter checks
+`/feedback/track` while signed into the same account that submitted, via `GET
+/api/feedback/mine` matching their own re-derived `submitter_ref`. There used
+to also be a one-time tracking-code path here (`crypto.randomBytes`, an
+unambiguous alphabet, `sha256(code)` stored, a public no-auth lookup route) —
+**dropped 2026-08-13** once self-service made it redundant: submission
+already requires login, so the code wasn't buying additional anonymity, just
+UX cost (a code to save, "what if I lose it") and security surface (a public
+route to rate-limit and defend against brute-force). Removed cleanly before
+ever shipping to prod — see `migrate-ts-not-auto-wired` in this repo's Claude
+memory for the migration-squashing mechanics, not repeated here.
+
+**Self-close**: once a complaint is `resolved`, the submitter may close it
+themselves (`PATCH /api/feedback/mine/[id]`, `resolved`→`closed` only,
+ownership-checked via `submitter_ref` in the query itself) to archive it as
+history — rows are kept, never deleted. This is deliberately **not**
+audit-logged: `audit_logs` is admin-visible (`/admin/audit-logs`), so logging
+the submitter's own `userId` against this complaint's `id` would itself be a
+re-identification leak (an admin could join that log entry against the
+complaint contents they already see in `/admin/feedback`). Contrast with
+`updateComplaint` (§6), a genuine staff action on someone else's data, which
+*is* audit-logged — the two are not the same kind of event.
 
 ### 5.1 Notification hook (SMTP)
 
 `src/lib/feedback-notify.ts` exposes two calls — `notifyNewComplaint(complaint)`
 and `notifyComplaintResolved(complaint)` — each building a plain-text/HTML
-summary (category, severity, message, tracking-code-hash-derived short id for
-cross-reference, **never** the raw tracking code or any submitter reference)
+summary (category, severity, message, a row-id-derived short ref for
+cross-reference, **never** `submitter_ref` or anything else identity-bearing)
 and sending it via `nodemailer` SMTP to `smocamt.official@camt.info`. Both are
 called from the service layer (§6), not the route handler, and are
 **fail-open**: an SMTP error is logged (`src/lib/logger.ts`) but never blocks
@@ -222,13 +224,13 @@ read-access side, since there is no read-access to gate here.
 
 ## 7. UX / HCI design
 
-### 7.0 Self-service status, not just the tracking code (decided 2026-08-13)
+### 7.0 Self-service status, not just the tracking code (decided 2026-08-13, code removed same day)
 
-The original design (§5.1) relied entirely on the submitter saving a
-one-time tracking code to ever check status/reply again — a real failure
-mode ("what if I forget to save it") flagged during review. Fix: since
-submission already requires login (§2), `/feedback/track` also shows the
-signed-in visitor's own submissions automatically, via `GET
+The original design relied entirely on the submitter saving a one-time
+tracking code to ever check status/reply again — a real failure mode ("what
+if I forget to save it") flagged during review. Fix: since submission
+already requires login (§2), `/feedback/track` (renamed "My Feedback" in the
+UI) shows the signed-in visitor's own submissions automatically, via `GET
 /api/feedback/mine` — which computes `submitterRef` from the CALLER'S OWN
 session id server-side (never a client-supplied id) and matches against it.
 This does **not** weaken §5's anonymity guarantee: nothing here is
@@ -236,8 +238,21 @@ admin-facing, there is still no path for anyone (including an admin) to look
 up someone else's submissions this way, and admins still never see
 `submitterRef`. It's exactly as self-scoped as "my orders" on the shop —
 just self-service the account already has because it made the submission.
-The manual tracking-code box stays on the same page as a fallback (checking
-from a different device/account, or while logged out).
+
+Once self-service existed, the tracking code stopped earning its keep — it
+was pure downside (a code to save and lose, a public no-auth lookup route to
+defend) for zero anonymity benefit beyond what login-gated submission
+already provided. **Removed entirely the same day**, before it ever shipped
+to prod: no more tracking code generated at submission, no more
+`/feedback/track/[code]` API, no manual code-entry box on the page at all.
+`/feedback/track` is now purely the self-service history view, gated on
+being signed in (a logged-out visitor gets an in-page sign-in prompt, not a
+lookup box).
+
+**Self-close, added the same pass**: once a complaint is `resolved`, the
+submitter can mark it `closed` themselves from this same page (§5's
+"Self-close" note) — closed items stay visible as history, they're never
+deleted.
 
 ### 7.1 Submission flow
 1. **Category picker** — cards, not a dropdown (recognition over recall):
@@ -258,10 +273,13 @@ from a different device/account, or while logged out).
    just told them how to reach me."
 3. **Review-before-send screen** — because there's no "edit my last message"
    once it's anonymous and sent; catch typos/regret here, not after.
-4. **Confirmation screen** — tracking code, copy-to-clipboard, explicit
-   "save this now" warning phrased precisely (see below), optional
-   client-side-only "email this code to yourself" via a `mailto:` link
-   (never touches the server, so it can't compromise the anonymity model).
+4. **Confirmation screen** — simple "sent, thank you" (no tracking code to
+   show or save, per §7.0) with two buttons: "Check status" (→ My Feedback)
+   and "Back to Dashboard". The same "Check status" action is also a
+   prominent full-width button on the submission form itself — deliberately
+   its own row, separate from the page heading (an earlier version crammed
+   it into the header as a small pill next to the title and it read as easy
+   to miss / not obviously clickable).
 
 ### 7.2 Calibrated trust copy (do this precisely, not vaguely)
 Don't ship generic "100% anonymous" marketing language — it overpromises and,
@@ -340,9 +358,55 @@ copy is finalized rather than hardcoding.
 
 ## 9. Phasing
 
-**MVP:** submit + categorize + tracking code + admin triage list + single
-reply + in-app urgent notification.
-**V2 (not blocking MVP):** threaded follow-up via tracking code (submitter can
-reply again, not just read), category-trend analytics for staff (which
+**Shipped:** submit + categorize + self-service status/reply (§7.0, no
+tracking code) + self-close (§5) + admin triage list + single reply + SMTP
+notification to `smocamt.official@camt.info` on submit/resolve (§5.1).
+**Open (see §10 below):** two-way conversation with the submitter, with
+per-side email notification — a real trade-off to resolve before building,
+not a straightforward addition.
+**Later, not blocking:** category-trend analytics for staff (which
 categories spike around which events — useful signal, zero re-identification
-risk since it's aggregate), out-of-band urgent alerting if not done in v1.
+risk since it's aggregate).
+
+## 10. Open: threaded conversation + email notifications (not yet built)
+
+Staff sometimes need to ask a follow-up question, and the submitter should
+be able to answer without starting a whole new complaint — a real gap in the
+single-reply model shipped so far. Two things this needs, and the second one
+has a genuine anonymity trade-off that needs a decision before building:
+
+1. **Threaded messages, not one `adminReply` field.** Replace
+   `feedback_complaints.adminReply/repliedBy/repliedAt` with a
+   `feedback_complaint_messages` table (complaint id, sender type
+   submitter/staff, staff sender id when applicable, body, timestamp) so
+   either side can post more than once. A submitter message on a `resolved`
+   complaint should probably bump it back to `in_review` (not `closed` —
+   once closed, per §5/§7.0, it's final history; reopening it defeats the
+   point of closing).
+2. **Email notification to the SUBMITTER when staff replies** — this is
+   where it gets architecturally interesting. The staff-reply email to
+   `smocamt.official@camt.info` (§5.1) is easy: it's the admin side, no
+   anonymity implication. Emailing the *submitter* is harder, because the
+   row has no identity-bearing field to send to by design (§5) — `submitterRef`
+   is one-way on purpose. Two paths, not equivalent:
+   - **(a) Store the account's real email on the row** (even if excluded
+     from admin-facing selects, same treatment as `submitterRef`). This is a
+     real regression from §5's strongest claim — "not reversible... not for
+     a human with raw DB access either" — since a plaintext (or
+     app-decryptable, which is the same thing for a determined DB-access
+     holder) email sitting on the row means a database backup, a Portainer
+     console session, or a `psql` query WOULD reveal who submitted it. Don't
+     do this without explicitly re-confirming that trade-off is acceptable —
+     it directly contradicts the design's headline guarantee.
+   - **(b) Only email the voluntarily-disclosed `contactInfo`** (the
+     existing opt-in field, §7.1 point 2) when it looks like an email
+     address and `contactOptIn` is true. No new identity-bearing data
+     stored — reuses a channel the submitter already explicitly chose to
+     share for follow-up. **Recommended**: consistent with every other
+     anonymity decision in this doc, and the submitter who wants email
+     updates already has a way to ask for them.
+   - If (b), a submitter who did NOT opt into contact only ever finds out
+     about a reply by checking `/feedback/track` (self-service, §7.0) — no
+     email notification for them. Worth surfacing that limitation in the
+     opt-in copy itself ("check back here for updates" vs. "we'll email
+     you") so expectations are set correctly at submission time.

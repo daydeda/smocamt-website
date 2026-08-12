@@ -1312,19 +1312,23 @@ async function migrate() {
 
   // 85. feedback_complaints — Anonymous Feedback & Complaints (see
   // docs/features/feedback-complaints.md). submitter_ref is a keyed-hash
-  // (HMAC) abuse-control reference, NOT a foreign key to users — this table
-  // deliberately has no FK back to users at all; that absence is the
-  // anonymity guarantee itself, not an oversight (see the table-level
-  // comment on feedbackComplaints in src/db/schema.ts for the full
-  // rationale). New table + CREATE INDEX IF NOT EXISTS ⇒ additive,
-  // idempotent, non-destructive. Mirrors drizzle/0034_tiny_puff_adder.sql
+  // (HMAC) abuse-control + self-service-lookup reference, NOT a foreign key
+  // to users — this table deliberately has no FK back to users at all; that
+  // absence is the anonymity guarantee itself, not an oversight (see the
+  // table-level comment on feedbackComplaints in src/db/schema.ts for the
+  // full rationale). New table + CREATE INDEX IF NOT EXISTS ⇒ additive,
+  // idempotent, non-destructive. Mirrors drizzle/0034_amusing_hiroim.sql
   // exactly — drizzle-kit generate only emits that file, it does NOT wire
   // into this hand-maintained script, so every new table/column here needs
-  // its own step appended manually like this one.
+  // its own step appended manually like this one. (No tracking_code_hash
+  // column here — that mechanism was designed, briefly generated as an
+  // earlier 0034, then dropped 2026-08-13 in favor of self-service lookup
+  // before ever shipping anywhere; amended in place rather than left as a
+  // confusing separate "add then remove" migration pair, since nothing had
+  // consumed the original shape yet.)
   await sql`
     CREATE TABLE IF NOT EXISTS feedback_complaints (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-      tracking_code_hash text NOT NULL,
       category text NOT NULL,
       severity text NOT NULL DEFAULT 'normal',
       message text NOT NULL,
@@ -1340,11 +1344,10 @@ async function migrate() {
       updated_at timestamptz NOT NULL DEFAULT now()
     )
   `;
-  await sql`CREATE UNIQUE INDEX IF NOT EXISTS feedback_complaints_tracking_code_hash_idx ON feedback_complaints (tracking_code_hash)`;
   await sql`CREATE INDEX IF NOT EXISTS feedback_complaints_submitter_ref_idx ON feedback_complaints (submitter_ref)`;
   await sql`CREATE INDEX IF NOT EXISTS feedback_complaints_status_idx ON feedback_complaints (status)`;
   await sql`CREATE INDEX IF NOT EXISTS feedback_complaints_category_idx ON feedback_complaints (category)`;
-  console.log("  ✅ feedback_complaints table + tracking_code_hash/submitter_ref/status/category indexes");
+  console.log("  ✅ feedback_complaints table + submitter_ref/status/category indexes");
 
   console.log("✅ Migration complete!");
   await sql.end();

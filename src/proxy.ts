@@ -22,13 +22,15 @@ export async function proxy(req: NextRequest) {
     pathname === "/dashboard" ||
     pathname === "/dashboard/id" ||
     pathname === "/login" ||
-    // Public, deliberately no auth: the Feedback & Complaints tracking code
-    // IS the credential (docs/features/feedback-complaints.md §5.1) — a
-    // submitter must be able to check status without logging in, otherwise
-    // this page is unreachable for exactly the anonymous use case it exists
-    // for. /feedback/new (the submission form) is NOT listed here — it
-    // needs a session, and the default (redirect-to-login below) already
-    // enforces that correctly.
+    // Public route, but NOT public data: "My Feedback" (/feedback/track)
+    // requires being signed in to see anything — it renders its own
+    // sign-in prompt for a logged-out visitor rather than being force-
+    // redirected to /login by the proxy, so it stays here even though the
+    // content behind it isn't actually reachable without a session. (Used
+    // to also be the tracking-code lookup page, dropped 2026-08-13 — see
+    // docs/features/feedback-complaints.md §7.0/§8.) /feedback/new (the
+    // submission form) is NOT listed here — it needs a session, and the
+    // default (redirect-to-login below) already enforces that correctly.
     pathname === "/feedback/track" ||
     pathname === "/api/events" ||
     pathname === "/api/houses" ||

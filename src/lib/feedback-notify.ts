@@ -54,8 +54,8 @@ function getTransport() {
 }
 
 // Non-identifying reference for cross-checking against the /admin/feedback
-// queue: the first 8 hex chars of the row id. Deliberately never the
-// tracking code — this function must never receive that value.
+// queue: the first 8 hex chars of the row id. Deliberately never
+// submitterRef — this function must never receive that value.
 function shortRef(id: string): string {
   return id.slice(0, 8);
 }

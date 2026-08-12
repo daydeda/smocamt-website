@@ -1,5 +1,5 @@
 {
-  "id": "84d6563f-04d0-4340-a80e-01c25ee66521",
+  "id": "4f0f902f-6eb7-4a83-b328-8d3d82f3e697",
   "prevId": "2e86de2e-c426-4852-a179-87aad74cd32c",
   "version": "7",
   "dialect": "postgresql",
@@ -1724,12 +1724,6 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "tracking_code_hash": {
-          "name": "tracking_code_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
         "category": {
           "name": "category",
           "type": "text",
@@ -1816,21 +1810,6 @@
         }
       },
       "indexes": {
-        "feedback_complaints_tracking_code_hash_idx": {
-          "name": "feedback_complaints_tracking_code_hash_idx",
-          "columns": [
-            {
-              "expression": "tracking_code_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "feedback_complaints_submitter_ref_idx": {
           "name": "feedback_complaints_submitter_ref_idx",
           "columns": [

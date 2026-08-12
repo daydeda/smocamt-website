@@ -1,6 +1,5 @@
 CREATE TABLE "feedback_complaints" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"tracking_code_hash" text NOT NULL,
 	"category" text NOT NULL,
 	"severity" text DEFAULT 'normal' NOT NULL,
 	"message" text NOT NULL,
@@ -16,7 +15,6 @@ CREATE TABLE "feedback_complaints" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX "feedback_complaints_tracking_code_hash_idx" ON "feedback_complaints" USING btree ("tracking_code_hash");--> statement-breakpoint
 CREATE INDEX "feedback_complaints_submitter_ref_idx" ON "feedback_complaints" USING btree ("submitter_ref");--> statement-breakpoint
 CREATE INDEX "feedback_complaints_status_idx" ON "feedback_complaints" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "feedback_complaints_category_idx" ON "feedback_complaints" USING btree ("category");

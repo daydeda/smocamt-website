@@ -1012,10 +1012,12 @@ export const noShowAppealsRelations = relations(noShowAppeals, ({ one }) => ({
 // carve-out) — it's architecturally absent. There is deliberately no FK back to
 // `users`, and no admin break-glass unmask feature.
 //
-// trackingCodeHash: sha256(one-time tracking code). The plaintext code is shown
-// to the submitter exactly once at creation and is never stored anywhere —
-// same principle as a password-reset token. `/feedback/track` hashes an
-// incoming code and looks it up by this column; use a timing-safe compare.
+// Status/reply is checked via GET /api/feedback/mine (self-service, matched
+// against the CALLER's own re-derived submitterRef) — there used to also be a
+// one-time tracking-code lookup path, dropped 2026-08-13 (§7.0/§8) once the
+// self-service path made it redundant and it was adding real UX/complexity
+// cost (a code to save, a public no-auth lookup route) for no anonymity
+// benefit beyond what login-gated submission already required.
 //
 // category: 'event' | 'staff_conduct' | 'harassment_safety' | 'house_points' |
 // 'shop_order' | 'technical' | 'facility' | 'other' — validated in app code via
@@ -1035,17 +1037,26 @@ export const noShowAppealsRelations = relations(noShowAppeals, ({ one }) => ({
 // submitterRef: HMAC-SHA256(userId, a server-only secret — FEEDBACK_HMAC_SECRET,
 // never committed). Deliberately NOT a `references(() => users.id)` FK and
 // deliberately not named/commented in a way that implies it's directly joinable
-// to a user. It exists ONLY to support abuse-control equality queries ("has this
-// account submitted N times today" via `WHERE submitter_ref = HMAC(userId)`) and
-// is NOT reversible to a userId without the secret — not through the app, and
-// not for a human with raw DB access either. Application code must NEVER
-// select/return this column in any admin-facing API response; enforce that via
-// a narrow column allowlist in the query, not by convention alone. Unlike
-// forms.showRespondentIdentity (a role-based UI mask on top of a raw FK,
-// visible to super_admin), anonymity here is architectural — there is no
-// in-app unmask path for any role, including super_admin.
+// to a user. It exists to support (a) abuse-control equality queries ("has this
+// account submitted N times today") and (b) the submitter's own self-service
+// lookup (GET /api/feedback/mine, computed from THEIR OWN session — never a
+// client-supplied id). It is NOT reversible to a userId without the secret by
+// anyone else — not through the app, and not for a human with raw DB access
+// either. Application code must NEVER select/return this column in any
+// admin-facing API response; enforce that via a narrow column allowlist in the
+// query, not by convention alone. Unlike forms.showRespondentIdentity (a
+// role-based UI mask on top of a raw FK, visible to super_admin), anonymity
+// here is architectural — there is no in-app unmask path for any role,
+// including super_admin.
 //
-// status: 'new' | 'in_review' | 'resolved' | 'closed'.
+// status: 'new' | 'in_review' | 'resolved' | 'closed'. 'closed' is reachable
+// two ways: staff set it directly, OR the submitter closes their own
+// 'resolved' complaint themselves (PATCH /api/feedback/mine/[id], ownership-
+// checked via submitterRef, resolved->closed only — deliberately NOT
+// audit-logged, see FeedbackService.closeMine's comment for why logging
+// a submitter's own userId against this row would itself be a re-
+// identification leak via /admin/audit-logs). Closed rows are kept, not
+// deleted — they're the submitter's own history (docs §7.0).
 //
 // repliedBy: admin's own userId who wrote adminReply. No FK — mirrors
 // noShowAppeals.reviewedBy — so staff-account deletion never rewrites/cascades
@@ -1053,16 +1064,16 @@ export const noShowAppealsRelations = relations(noShowAppeals, ({ one }) => ({
 // ============================================================================
 export const feedbackComplaints = pgTable("feedback_complaints", {
   id: uuid("id").defaultRandom().primaryKey(),
-  trackingCodeHash: text("tracking_code_hash").notNull(),
   category: text("category").notNull(),
   severity: text("severity").notNull().default("normal"),
   message: text("message").notNull(),
   contactOptIn: boolean("contact_opt_in").notNull().default(false),
   contactInfo: text("contact_info"),
   attachmentKeys: jsonb("attachment_keys").$type<string[]>().notNull().default([]),
-  // Keyed-hash abuse-control reference — NOT reversible to a userId without the
-  // app-only secret. NEVER select/return this in admin-facing responses. See
-  // the table-level comment above and docs/features/feedback-complaints.md §5.
+  // Keyed-hash abuse-control + self-service-lookup reference — NOT reversible
+  // to a userId without the app-only secret. NEVER select/return this in
+  // admin-facing responses. See the table-level comment above and
+  // docs/features/feedback-complaints.md §5.
   submitterRef: text("submitter_ref").notNull(),
   status: text("status").notNull().default("new"),
   adminReply: text("admin_reply"),
@@ -1071,7 +1082,6 @@ export const feedbackComplaints = pgTable("feedback_complaints", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ([
-  uniqueIndex("feedback_complaints_tracking_code_hash_idx").on(table.trackingCodeHash),
   index("feedback_complaints_submitter_ref_idx").on(table.submitterRef),
   index("feedback_complaints_status_idx").on(table.status),
   index("feedback_complaints_category_idx").on(table.category),

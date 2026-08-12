@@ -7,7 +7,6 @@ import {
   ArrowLeftRight,
   ArrowRight,
   Check,
-  Copy,
   Loader2,
   MessageSquareWarning,
   Search,
@@ -42,8 +41,6 @@ export default function FeedbackNewPage() {
   const [contactInfo, setContactInfo] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [trackingCode, setTrackingCode] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
   const selectCategory = (id: FeedbackCategory) => {
     setCategory(id);
@@ -69,23 +66,11 @@ export default function FeedbackNewPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to submit");
-      setTrackingCode(data.trackingCode);
       setStep("done");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong. Please try again.");
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const copyCode = async () => {
-    if (!trackingCode) return;
-    try {
-      await navigator.clipboard.writeText(trackingCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard API unavailable — the code is still selectable/visible on screen.
     }
   };
 
@@ -103,30 +88,27 @@ export default function FeedbackNewPage() {
           </Link>
         )}
 
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 6, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <MessageSquareWarning size={24} color="var(--accent-primary)" />
-            <h1 style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>
-              {tt("vocFeedback", "Feedback & Complaints")}
-            </h1>
-          </div>
-          {/* Always reachable, not just on the post-submit confirmation
-              screen — previously the only way to reach /feedback/track was
-              a button that existed for a few seconds right after sending,
-              so anyone who navigated away had no way back to it. Rendered as
-              a real bordered button (not plain colored text) so it reads as
-              an action at a glance, same fix as the category-change button
-              below — plain text links here were reported as ambiguous. */}
-          {step !== "done" && (
-            <Link
-              href="/feedback/track"
-              className="btn btn-ghost btn-sm"
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 99, textDecoration: "none" }}
-            >
-              <Search size={14} /> {tt("feedbackGoToTrack", "Check status")}
-            </Link>
-          )}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+          <MessageSquareWarning size={24} color="var(--accent-primary)" />
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>
+            {tt("vocFeedback", "Feedback & Complaints")}
+          </h1>
         </div>
+
+        {/* Deliberately its own full-width row, separate from the heading
+            above — an earlier version crammed this into the header as a
+            small pill next to the title and it read as ambiguous/easy to
+            miss. Always reachable (not just right after submitting), so
+            navigating away and coming back later still has a way in. */}
+        {step !== "done" && (
+          <Link
+            href="/feedback/track"
+            className="btn btn-ghost btn-full"
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, height: 48, borderRadius: 12, marginBottom: 20, fontSize: 14, fontWeight: 700 }}
+          >
+            <Search size={16} /> {tt("feedbackGoToTrack", "Check status")}
+          </Link>
+        )}
 
         {step === "category" && (
           <>
@@ -313,7 +295,7 @@ export default function FeedbackNewPage() {
           </div>
         )}
 
-        {step === "done" && trackingCode && (
+        {step === "done" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16, alignItems: "center", textAlign: "center", paddingTop: 12 }}>
             <div style={{ width: 56, height: 56, borderRadius: "50%", background: "rgba(20,184,166,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Check size={28} color="#0d9488" />
@@ -322,20 +304,8 @@ export default function FeedbackNewPage() {
               {tt("feedbackConfirmTitle", "Sent — thank you")}
             </h2>
             <p style={{ fontSize: 13, color: "var(--text-muted)", maxWidth: 440, lineHeight: 1.6, margin: 0 }}>
-              {tt("feedbackConfirmBody", "Save this tracking code to check its status or read a staff reply later. We cannot recover it for you if it's lost — we don't know who you are either, so there's no account to reset it from.")}
+              {tt("feedbackConfirmBody", "Staff will review this. You can check its status and any reply anytime under My Feedback, from this account.")}
             </p>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 20px", borderRadius: 14, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)" }}>
-              <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: "0.08em", color: "var(--text-primary)", fontFamily: "monospace" }}>{trackingCode}</span>
-              <button type="button" onClick={copyCode} className="btn btn-ghost btn-sm" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? tt("copied", "Copied") : tt("copy", "Copy")}
-              </button>
-            </div>
-            <a
-              href={`mailto:?subject=${encodeURIComponent(tt("feedbackEmailSubject", "My ActiveCAMT feedback tracking code"))}&body=${encodeURIComponent(`${tt("feedbackTrackingCodeLabel", "Tracking code")}: ${trackingCode}`)}`}
-              style={{ fontSize: 12, color: "var(--text-muted)", textDecoration: "underline" }}
-            >
-              {tt("feedbackEmailCodeLink", "Email this code to yourself")}
-            </a>
             <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
               <Link href="/feedback/track" className="btn btn-ghost" style={{ height: 42, borderRadius: 12, padding: "0 18px", display: "flex", alignItems: "center" }}>
                 {tt("feedbackGoToTrack", "Check status")}

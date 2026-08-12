@@ -60,9 +60,10 @@ export async function POST(req: Request) {
       contactInfo: body.contactInfo,
     });
 
-    // The tracking code is returned exactly once here and never persisted —
-    // the client is responsible for showing/saving it (see /feedback/new).
-    return NextResponse.json({ id: result.id, trackingCode: result.trackingCode });
+    // Status/reply are checked via GET /api/feedback/mine (self-service,
+    // matched against the submitter's own account) — no tracking code to
+    // hand back here anymore, see docs/features/feedback-complaints.md §7.0.
+    return NextResponse.json({ id: result.id });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.issues.map((e) => e.message).join(", ") }, { status: 400 });

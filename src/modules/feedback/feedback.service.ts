@@ -10,8 +10,6 @@ import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import {
   CATEGORY_DEFAULT_SEVERITY,
   computeSubmitterRef,
-  generateTrackingCode,
-  hashTrackingCode,
   type FeedbackCategory,
   type FeedbackSeverity,
   type FeedbackStatus,
@@ -69,8 +67,6 @@ export class FeedbackService {
 
   static async createComplaint(input: CreateComplaintInput) {
     const submitterRef = computeSubmitterRef(input.submitterId);
-    const trackingCode = generateTrackingCode();
-    const trackingCodeHash = hashTrackingCode(trackingCode);
     // harassment_safety is always 'urgent' at creation — CATEGORY_DEFAULT_SEVERITY
     // is authoritative here; a submitter-supplied severity is never accepted.
     const severity = CATEGORY_DEFAULT_SEVERITY[input.category];
@@ -78,7 +74,6 @@ export class FeedbackService {
     const [row] = await db
       .insert(feedbackComplaints)
       .values({
-        trackingCodeHash,
         category: input.category,
         severity,
         message: input.message,
@@ -99,35 +94,7 @@ export class FeedbackService {
     // (feedback-notify.ts is itself fail-open, this is belt-and-suspenders).
     void notifyNewComplaint(row).catch(() => {});
 
-    // The plaintext code is returned exactly once and never persisted.
-    return { id: row.id, trackingCode };
-  }
-
-  /** Public lookup by tracking code — no auth, the code IS the credential.
-   * Column list is deliberately narrow and submitter-safe (there is no
-   * submitter info on this table to leak, but keeping this explicit rather
-   * than `SELECT *` matches the rest of the codebase's convention for
-   * anything PDPA-adjacent). */
-  static async getByTrackingCode(code: string) {
-    const hash = hashTrackingCode(code);
-    const row = await db.query.feedbackComplaints.findFirst({
-      where: eq(feedbackComplaints.trackingCodeHash, hash),
-      columns: {
-        id: true,
-        category: true,
-        severity: true,
-        status: true,
-        // `message` is included so a submitter can confirm what they
-        // actually sent when they check back — the tracking code is the
-        // only record they keep of it, there's no account history to fall
-        // back on for a self-check (that's the anonymity tradeoff).
-        message: true,
-        adminReply: true,
-        createdAt: true,
-        repliedAt: true,
-      },
-    });
-    return row ?? null;
+    return { id: row.id };
   }
 
   /**
@@ -140,10 +107,9 @@ export class FeedbackService {
    * self-scoped as "my orders" on the shop; it doesn't weaken the
    * admin-facing guarantee at all, since nothing here is admin-facing.
    *
-   * Exists specifically so a submitter isn't fully dependent on saving the
-   * one-time tracking code (/feedback/track) to ever see their own
-   * status/reply again — losing the code no longer means losing the ability
-   * to check back, as long as they're signed into the same account.
+   * This is the ONLY way a submitter ever checks status/reply — there is no
+   * separate tracking-code path (dropped 2026-08-13, docs §7.0/§8): as long
+   * as they're signed into the same account, their history is always here.
    */
   static async listMine(userId: string) {
     const submitterRef = computeSubmitterRef(userId);
@@ -161,6 +127,38 @@ export class FeedbackService {
         repliedAt: true,
       },
     });
+  }
+
+  /**
+   * Submitter closes their OWN resolved complaint, archiving it as history
+   * (docs §7.0). Ownership is verified via submitterRef match (never a raw
+   * userId/FK comparison) and the transition is restricted to
+   * resolved -> closed ONLY, enforced in the WHERE clause itself (not just
+   * checked-then-trusted) — a submitter can't skip a complaint straight from
+   * new/in_review to closed, so something staff hasn't actually acted on yet
+   * can't be prematurely hidden from the admin queue.
+   *
+   * Deliberately NOT audit-logged. AuditService exists to trail STAFF access
+   * to someone else's data — this is the submitter acting on their own
+   * resource. Logging their userId against this complaint's id would itself
+   * BE a re-identification leak: audit_logs is admin-visible
+   * (/admin/audit-logs), so an admin could join "user X closed complaint Y"
+   * against the complaint contents they already see in /admin/feedback and
+   * learn that user X submitted it — exactly what §5's architecture exists
+   * to prevent.
+   */
+  static async closeMine(userId: string, complaintId: string) {
+    const submitterRef = computeSubmitterRef(userId);
+    const [row] = await db
+      .update(feedbackComplaints)
+      .set({ status: "closed", updatedAt: new Date() })
+      .where(and(
+        eq(feedbackComplaints.id, complaintId),
+        eq(feedbackComplaints.submitterRef, submitterRef),
+        eq(feedbackComplaints.status, "resolved"),
+      ))
+      .returning({ id: feedbackComplaints.id, status: feedbackComplaints.status });
+    return row ?? null;
   }
 
   /** Admin triage list. NEVER selects submitterRef — see ADMIN_LIST_COLUMNS. */

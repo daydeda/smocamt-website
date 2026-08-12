@@ -215,8 +215,8 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
       }
       if (isStudent && /^[0-9]{9}$/.test(formData.studentId.trim()) && !derivedFaculty) {
         setError(isTh
-          ? "รหัสนักศึกษานี้ไม่ตรงกับคณะ CAMT กรุณาตรวจสอบรหัสนักศึกษาอีกครั้ง หรือติดต่อเจ้าหน้าที่"
-          : "This student ID's faculty digits don't match CAMT. Please double-check your student ID or contact staff.");
+          ? "รหัสนักศึกษานี้ไม่ตรงกับวิทยาลัยศิลปะ สื่อ และเทคโนโลยี กรุณาตรวจสอบรหัสนักศึกษาอีกครั้ง หรือติดต่อที่ IG: smocamt.official"
+          : "This student ID's digits don't match to College of Arts, Media and Technology. Please double-check your student ID or contact IG: smocamt.official.");
         setValidationTriggered(true); return;
       }
       if (!/^[0-9]{10}$/.test(formData.phone.trim())) {
@@ -480,8 +480,8 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
                 <AlertTriangle size={14} style={{ flexShrink: 0 }} />
                 <span>
                   {isTh
-                    ? "รหัสนักศึกษานี้ไม่ตรงกับคณะ CAMT กรุณาตรวจสอบรหัสนักศึกษาอีกครั้ง หรือติดต่อเจ้าหน้าที่"
-                    : "This student ID's faculty digits don't match CAMT. Please double-check your student ID or contact staff."}
+                    ? "รหัสนักศึกษานี้ไม่ตรงกับวิทยาลัยศิลปะ สื่อ และเทคโนโลยี กรุณาตรวจสอบรหัสนักศึกษาอีกครั้ง หรือติดต่อที่ IG: smocamt.official"
+                    : "This student ID's digits don't match to College of Arts, Media and Technology. Please double-check your student ID or contact IG: smocamt.official."}
                 </span>
               </div>
             )

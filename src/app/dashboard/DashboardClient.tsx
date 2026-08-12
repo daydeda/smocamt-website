@@ -7,15 +7,20 @@ import { useEffect, useRef, useState } from "react";
 import { usePolling } from "@/lib/usePolling";
 import { useQrToken } from "@/lib/useQrToken";
 import dynamic from "next/dynamic";
-const QRCodeSVG = dynamic(
-  () => import("qrcode.react").then((mod) => mod.QRCodeSVG),
-  { 
-    ssr: false, 
+// Canvas, not SVG: Android/Chrome "force dark" auto-inverts inline <svg> DOM
+// content like any other element, even with `color-scheme: only light` set
+// (see globals.css) — but it treats <canvas> like a raster image and leaves
+// it alone, so the black-on-white attendance QR stays scannable on phones
+// with system/browser dark mode forced on. See /dashboard/id and this file.
+const QRCodeCanvas = dynamic(
+  () => import("qrcode.react").then((mod) => mod.QRCodeCanvas),
+  {
+    ssr: false,
     loading: () => (
-      <div style={{ width: 240, height: 240, background: "var(--bg-elevated)", borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ color: "var(--text-muted)", fontSize: 14 }}>Loading...</span>
+      <div style={{ width: 240, height: 240, background: "#ffffff", borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <span style={{ color: "#9ca3af", fontSize: 14 }}>Loading...</span>
       </div>
-    ) 
+    )
   }
 );
 import Link from "next/link";
@@ -1550,7 +1555,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                         <User size={32} color="var(--text-muted)" />
                       </div>
                     )}
-                    <QRCodeSVG
+                    <QRCodeCanvas
                       value={qrValue}
                       size={240}
                       style={{ width: "100%", height: "auto", maxWidth: 240 }}

@@ -32,9 +32,12 @@ import { canGiveIndividualScoreAny, effectiveRoles } from "@/lib/admin-access";
 import { usePolling } from "@/lib/usePolling";
 import dynamic from "next/dynamic";
 
-// Pre-test warning QR — client-only (qrcode.react reads the DOM). Same component
-// the dashboard uses to render the student QR.
-const QRCodeSVG = dynamic(() => import("qrcode.react").then((mod) => mod.QRCodeSVG), {
+// Pre-test warning QR — client-only (qrcode.react reads the DOM). Canvas, not
+// SVG: Android/Chrome "force dark" auto-inverts inline <svg> DOM content, but
+// leaves <canvas> alone like a raster image, so it stays scannable on a
+// staff device with dark mode forced on. Same component the dashboard uses
+// to render the student attendance QR.
+const QRCodeCanvas = dynamic(() => import("qrcode.react").then((mod) => mod.QRCodeCanvas), {
   ssr: false,
 });
 
@@ -1766,7 +1769,7 @@ export default function QRScannerPage() {
                         : `This event has a pre-test “${scanResult.preTestWarning.title}” the attendee hasn't completed yet. Scan to complete it.`}
                     </p>
                     <div style={{ background: "#ffffff", padding: 12, borderRadius: 12, lineHeight: 0 }}>
-                      <QRCodeSVG value={preTestUrl} size={160} level="M" bgColor="#ffffff" fgColor="#000000" />
+                      <QRCodeCanvas value={preTestUrl} size={160} level="M" bgColor="#ffffff" fgColor="#000000" />
                     </div>
                     <a
                       href={preTestUrl}

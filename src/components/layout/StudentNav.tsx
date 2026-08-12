@@ -7,30 +7,27 @@ import {
 LogOut,
 User,
 ShieldCheck,
-History,
-Trophy,
 Menu,
-X,
-Settings,
-LayoutDashboard,
-QrCode,
-ShoppingBag,
-Users,
-CalendarDays,
+LayoutGrid,
 Gamepad2
 } from "lucide-react";
 import { useLanguage } from "@/lib/LanguageContext";
-import { houseSlug } from "@/lib/houses";
 import { canEnterAdminAny, effectiveRoles } from "@/lib/admin-access";
 import { canAccessBattle } from "@/lib/battle-access";
+import { getPinnedItems, resolveHref, type NavContext } from "@/lib/nav-config";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
+import { ServicesLauncher } from "@/components/layout/ServicesLauncher";
 import { useState, useRef, useEffect } from "react";
 
 export function StudentNav() {
 const { data: session } = useSession();
 const { t, lang } = useLanguage();
 const pathname = usePathname();
-const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+// One shared overlay (see ServicesLauncher) drives both the mobile hamburger
+// drawer and the desktop "Apps" grid — replaces the old separate mobile
+// drawer + avatar-dropdown split, which left the account items unreachable
+// from the hamburger drawer.
+const [isLauncherOpen, setIsLauncherOpen] = useState(false);
 const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
 
 const mobileProfileRef = useRef<HTMLDivElement>(null);
@@ -51,42 +48,42 @@ return () => document.removeEventListener("mousedown", handleClickOutside);
 
 const user = session?.user;
 
-// Top-bar tabs — only the core destinations, kept lean.
-const primaryLinks = user ? [
-  { href: "/dashboard", label: t.upcomingEvents, icon: LayoutDashboard },
-  { href: "/dashboard/calendar", label: t.calendar || "Calendar", icon: CalendarDays },
-  { href: "/dashboard/houses", label: t.leaderboard, icon: Trophy },
-  { href: "/dashboard/history", label: t.eventHistory, icon: History },
-  { href: "/dashboard/shop", label: t.shop || "Shop", icon: ShoppingBag },
-] : [
-  { href: "/dashboard", label: t.upcomingEvents, icon: LayoutDashboard },
-  { href: "/dashboard/houses", label: t.leaderboard, icon: Trophy },
-];
-
-// Secondary destinations — live in the avatar ▾ account menu (and the mobile drawer).
-const secondaryLinks = user ? [
-{ href: "/dashboard/id", label: t.digitalId || "Digital ID", icon: QrCode },
-// Members roster for the student's own house — only when they belong to one.
-...(user.houseId ? [{ href: `/dashboard/houses/${houseSlug(user.houseId)}`, label: t.myHouse, icon: Users }] : []),
-{ href: "/dashboard/profile", label: t.editProfile, icon: Settings },
-] : [];
+// Config-driven nav (src/lib/nav-config.ts): both the pinned top-bar strip
+// and the Services launcher grid read the SAME item list, filtered by role
+// and sign-in state, so re-tiering (which items are pinned vs one tap
+// deeper) is a data edit there, not a component change.
+const navCtx: NavContext = {
+roles: effectiveRoles(user?.role, user?.roles),
+houseId: user?.houseId ?? null,
+signedIn: !!user,
+};
+// nav-config keys are plain `string` (not a string-literal union), so index
+// through an untyped view rather than relying on `t`'s literal key type.
+const tr = t as Record<string, string>;
+const pinnedLinks = getPinnedItems(navCtx).map((item) => ({
+...item,
+href: resolveHref(item, navCtx),
+label: tr[item.i18nKey] || item.fallback,
+}));
 
 // Standalone icon affordance — not a core destination tab, not an account action,
 // so it gets its own slot next to the language switcher instead of competing for
 // space in either list (see nav-right / mobile-controls below).
 const battleLabel = lang === "th" ? "เกม P2P" : "P2P Battle";
 
+const isAdmin = canEnterAdminAny(effectiveRoles(user?.role, user?.roles), user?.hasStaffPosition);
+
 return (
 <>
 <nav className="student-nav">
 <div className="nav-content">
 
-{/* Mobile Left: Hamburger, Battle shortcut, and Profile Icon */}
+{/* Mobile Left: Hamburger (opens the shared launcher), and Profile Icon */}
 <div className="mobile-controls">
 <button
 className="mobile-toggle touch-target"
-onClick={() => setIsMobileMenuOpen(true)}
-aria-label="Open Menu"
+onClick={() => setIsLauncherOpen(true)}
+aria-label={t.servicesLauncher || "Open Menu"}
 >
 <Menu size={24} />
 </button>
@@ -113,54 +110,18 @@ transform: user.imageTransform ? `scale(${user.imageTransform.scale}) translate(
 </div>
 </button>
 
-{/* Mobile Profile Dropdown (GitHub style) */}
+{/* Mobile Profile Dropdown (GitHub style) — account-scoped actions only
+    (sign out / admin escape hatch); every destination lives in the
+    launcher now, so this stays identical to the desktop version below. */}
 {isProfileDropdownOpen && (
 <div className="profile-dropdown mobile-dropdown-pos">
-<div className="dropdown-header">
-<p className="dropdown-name">{user ? user.name : (lang === "th" ? "ผู้เยี่ยมชม" : "Guest")}</p>
-<p className="dropdown-sub">
-{user ? (
-  user.role === "super_admin" ? t.roleSuperAdmin :
-  user.role === "admin" ? t.roleAdmin :
-  user.role === "registration" ? t.roleRegistration :
-  user.role === "organizer" ? t.roleOrganizer :
-  user.role === "staff" ? t.roleStaff :
-  (user.studentId || t.roleStudent)
-) : (
-  lang === "th" ? "ไม่ได้เข้าสู่ระบบ" : "Not logged in"
-)}
-</p>
-</div>
-<div className="dropdown-divider" />
-{user ? (
-  <>
-    {secondaryLinks.map((link) => {
-      const Icon = link.icon;
-      return (
-        <Link key={link.href} href={link.href} className="dropdown-item" onClick={() => setIsProfileDropdownOpen(false)}>
-          <Icon size={16} />
-          {link.label}
-        </Link>
-      );
-    })}
-    <div className="dropdown-divider" />
-    <button className="dropdown-item text-danger" onClick={() => signOut({ callbackUrl: "/" })}>
-      <LogOut size={16} />
-      {t.signOut}
-    </button>
-  </>
-) : (
-  <>
-    <Link href="/dashboard/id" className="dropdown-item" onClick={() => setIsProfileDropdownOpen(false)}>
-      <QrCode size={16} />
-      {t.digitalId || "Digital ID"}
-    </Link>
-    <Link href="/login" className="dropdown-item" onClick={() => setIsProfileDropdownOpen(false)}>
-      <User size={16} />
-      {lang === "th" ? "ลงทะเบียนบัญชี" : "Register Account"}
-    </Link>
-  </>
-)}
+<AccountDropdownContent
+user={user}
+t={t}
+lang={lang}
+isAdmin={isAdmin}
+onNavigate={() => setIsProfileDropdownOpen(false)}
+/>
 </div>
 )}
 </div>
@@ -178,12 +139,12 @@ transform: user.imageTransform ? `scale(${user.imageTransform.scale}) translate(
 
 {/* Center: Desktop Nav (Hidden on Mobile) */}
 <div className="nav-center desktop-links">
-{primaryLinks.map((link) => {
+{pinnedLinks.map((link) => {
 const Icon = link.icon;
 const isActive = pathname === link.href;
 return (
 <Link
-key={link.href}
+key={link.id}
 href={link.href}
 className={`nav-link ${isActive ? "active" : ""}`}
 >
@@ -192,6 +153,13 @@ className={`nav-link ${isActive ? "active" : ""}`}
 </Link>
 );
 })}
+<button
+className={`nav-link launcher-trigger ${isLauncherOpen ? "active" : ""}`}
+onClick={() => setIsLauncherOpen(true)}
+>
+<LayoutGrid size={16} />
+{t.servicesLauncher || "Services"}
+</button>
 </div>
 
 {/* Right: Desktop Actions & User */}
@@ -240,57 +208,13 @@ transform: user.imageTransform ? `scale(${user.imageTransform.scale}) translate(
 {/* Desktop Profile Dropdown (GitHub style) */}
 {isProfileDropdownOpen && (
 <div className="profile-dropdown desktop-dropdown-pos">
-<div className="dropdown-header">
-<p className="dropdown-name">{user ? user.name : (lang === "th" ? "ผู้เยี่ยมชม" : "Guest")}</p>
-<p className="dropdown-sub">
-{user ? (
-  user.role === "super_admin" ? t.roleSuperAdmin :
-  user.role === "admin" ? t.roleAdmin :
-  user.role === "registration" ? t.roleRegistration :
-  user.role === "organizer" ? t.roleOrganizer :
-  user.role === "staff" ? t.roleStaff :
-  (user.studentId || t.roleStudent)
-) : (
-  lang === "th" ? "ไม่ได้เข้าสู่ระบบ" : "Not logged in"
-)}
-</p>
-</div>
-<div className="dropdown-divider" />
-{user ? (
-  <>
-    {secondaryLinks.map((link) => {
-      const Icon = link.icon;
-      return (
-        <Link key={link.href} href={link.href} className="dropdown-item" onClick={() => setIsProfileDropdownOpen(false)}>
-          <Icon size={16} />
-          {link.label}
-        </Link>
-      );
-    })}
-    {(canEnterAdminAny(effectiveRoles(user?.role, user?.roles), user?.hasStaffPosition)) && (
-      <Link href="/admin" className="dropdown-item admin-item" onClick={() => setIsProfileDropdownOpen(false)}>
-        <ShieldCheck size={16} />
-        {t.adminPanel}
-      </Link>
-    )}
-    <div className="dropdown-divider" />
-    <button className="dropdown-item text-danger" onClick={() => signOut({ callbackUrl: "/" })}>
-      <LogOut size={16} />
-      {t.signOut}
-    </button>
-  </>
-) : (
-  <>
-    <Link href="/dashboard/id" className="dropdown-item" onClick={() => setIsProfileDropdownOpen(false)}>
-      <QrCode size={16} />
-      {t.digitalId || "Digital ID"}
-    </Link>
-    <Link href="/login" className="dropdown-item" onClick={() => setIsProfileDropdownOpen(false)}>
-      <User size={16} />
-      {lang === "th" ? "ลงทะเบียนบัญชี" : "Register Account"}
-    </Link>
-  </>
-)}
+<AccountDropdownContent
+user={user}
+t={t}
+lang={lang}
+isAdmin={isAdmin}
+onNavigate={() => setIsProfileDropdownOpen(false)}
+/>
 </div>
 )}
 </div>
@@ -304,7 +228,9 @@ transform: user.imageTransform ? `scale(${user.imageTransform.scale}) translate(
     bar or the account menu for space. Fixed bottom-right on every viewport.
     Staged rollout: SMO/ANUSMO/Admin only while battle is tested on prod —
     hiding it for everyone else avoids a dead-end into the /dashboard bounce
-    the proxy/layout gates already enforce. */}
+    the proxy/layout gates already enforce. Deliberately kept OUT of
+    nav-config.ts: folding it into the launcher grid would mean re-wiring
+    canAccessBattle a second time and risks it drifting from the FAB's gate. */}
 {user && canAccessBattle(effectiveRoles(user.role, user.roles)) && (
 <Link
 href="/battle"
@@ -316,117 +242,13 @@ title={battleLabel}
 </Link>
 )}
 
-{/* Mobile Sidebar (Drawer sliding from Left) */}
-<div 
-  className={`mobile-sidebar-overlay ${isMobileMenuOpen ? "open" : ""}`} 
-  onClick={() => setIsMobileMenuOpen(false)} 
-  style={{
-    position: "fixed",
-    inset: 0,
-    zIndex: 2000,
-    opacity: isMobileMenuOpen ? 1 : 0,
-    visibility: isMobileMenuOpen ? "visible" : "hidden"
-  }}
+{/* The single Services launcher — mobile left-drawer / desktop centered
+    grid, driven entirely by nav-config.ts. See ServicesLauncher.tsx. */}
+<ServicesLauncher
+open={isLauncherOpen}
+onClose={() => setIsLauncherOpen(false)}
+ctx={navCtx}
 />
-<aside 
-  className={`mobile-sidebar ${isMobileMenuOpen ? "open" : ""}`}
-  style={{
-    position: "fixed",
-    top: 0,
-    bottom: 0,
-    left: 0,
-    width: 300,
-    zIndex: 2001,
-    transform: isMobileMenuOpen ? "translateX(0)" : "translateX(-100%)",
-    visibility: isMobileMenuOpen ? "visible" : "hidden",
-    display: "flex",
-    flexDirection: "column"
-  }}
->
-<div className="sidebar-header">
-<div className="logo">
-<img src="/smocamt-logo-icon.png" alt="SMOCAMT Logo" className="logo-icon" width={32} height={32} style={{ width: 32, height: 32 }} />
-<div className="logo-text">
-<span className="gradient-text">ActiveCAMT</span>
-</div>
-</div>
-<button
-className="sidebar-close touch-target"
-onClick={() => setIsMobileMenuOpen(false)}
-aria-label="Close Menu"
->
-<X size={24} />
-</button>
-</div>
-
-<div className="sidebar-body">
-{primaryLinks.map((link) => {
-const Icon = link.icon;
-const isActive = pathname === link.href;
-return (
-<Link 
-key={link.href} 
-href={link.href} 
-className={`nav-link ${isActive ? "active" : ""}`}
-onClick={() => setIsMobileMenuOpen(false)}
-style={{
-display: "flex",
-alignItems: "center",
-gap: "12px",
-padding: "14px 20px",
-color: isActive ? "var(--accent-primary)" : "var(--text-secondary)",
-fontWeight: 600,
-fontSize: "15px",
-borderRadius: "12px",
-textDecoration: "none",
-marginBottom: "4px",
-background: isActive ? "var(--accent-glow)" : "transparent",
-border: isActive ? "1px solid rgba(255, 107, 0, 0.15)" : "1px solid transparent",
-}}
->
-<Icon size={16} style={{ flexShrink: 0 }} />
-{link.label}
-</Link>
-);
-})}
-{(canEnterAdminAny(effectiveRoles(user?.role, user?.roles))) && (
-<Link 
-href="/admin"
-className={`nav-link admin-link ${pathname.startsWith("/admin") ? "active" : ""}`}
-onClick={() => setIsMobileMenuOpen(false)}
-style={{
-display: "flex",
-alignItems: "center",
-gap: "12px",
-padding: "14px 20px",
-color: "var(--accent-primary)",
-fontWeight: 600,
-fontSize: "15px",
-borderRadius: "12px",
-textDecoration: "none",
-marginBottom: "4px",
-background: pathname.startsWith("/admin") ? "var(--accent-glow)" : "rgba(255,107,0,0.05)",
-border: pathname.startsWith("/admin") ? "1px solid rgba(255, 107, 0, 0.15)" : "1px solid transparent",
-}}
->
-<ShieldCheck size={16} style={{ flexShrink: 0 }} /> {t.adminPanel}
-</Link>
-)}
-</div>
-
-<div className="sidebar-footer">
-<LanguageSwitcher position="top" align="left" />
-{user ? (
-  <button className="btn btn-danger btn-sm rounded-full w-full" onClick={() => signOut({ callbackUrl: "/" })} style={{ gap: 8, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center" }}>
-    <LogOut size={14} /> {t.signOut}
-  </button>
-) : (
-  <Link href="/login" className="btn btn-primary btn-sm rounded-full w-full" style={{ gap: 8, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
-    <User size={14} /> {lang === "th" ? "ลงทะเบียนบัญชี" : "Register Account"}
-  </Link>
-)}
-</div>
-</aside>
 
 <style jsx>{`
 .student-nav {
@@ -529,6 +351,11 @@ padding: 0;
 cursor: pointer;
 display: block;
 }
+:global(.launcher-trigger) {
+border: none;
+background: transparent;
+font-family: inherit;
+}
 :global(.battle-fab) {
 position: fixed;
 right: 20px;
@@ -618,28 +445,28 @@ top: 100%;
 .mobile-dropdown-pos::before {
 left: 14px;
 }
-.dropdown-header {
+:global(.dropdown-header) {
 padding: 12px 16px;
 text-align: left;
 display: flex;
 flex-direction: column;
 gap: 2px;
 }
-.dropdown-name {
+:global(.dropdown-name) {
 font-size: 14px;
 font-weight: 800;
 color: var(--text-primary);
 margin: 0;
 line-height: 1.4;
 }
-.dropdown-sub {
+:global(.dropdown-sub) {
 font-size: 11px;
 color: var(--text-muted);
 margin: 0;
 font-weight: 600;
 letter-spacing: 0.02em;
 }
-.dropdown-divider {
+:global(.dropdown-divider) {
 height: 1px;
 background: var(--border-subtle);
 margin: 6px 0;
@@ -705,80 +532,6 @@ align-items: center;
 justify-content: center;
 }
 
-/* Mobile Sidebar Drawer styling */
-.mobile-sidebar-overlay {
-position: fixed;
-inset: 0;
-background: rgba(0, 0, 0, 0.4);
-backdrop-filter: blur(4px);
--webkit-backdrop-filter: blur(4px);
-z-index: 2000;
-opacity: 0;
-visibility: hidden;
-transition: opacity 0.3s ease, visibility 0.3s ease;
-}
-.mobile-sidebar-overlay.open {
-opacity: 1;
-visibility: visible;
-}
-.mobile-sidebar {
-  position: fixed;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 300px;
-  background: white;
-  box-shadow: 20px 0 40px rgba(0, 0, 0, 0.1);
-  z-index: 2001;
-  transform: translateX(-100%);
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  display: flex;
-  flex-direction: column;
-  padding: 24px;
-  visibility: hidden;
-}
-.mobile-sidebar.open {
-  transform: translateX(0);
-  visibility: visible;
-}
-@media (min-width: 1024px) {
-  .mobile-sidebar,
-  .mobile-sidebar-overlay {
-    display: none !important;
-  }
-}
-.sidebar-header {
-display: flex;
-justify-content: space-between;
-align-items: center;
-margin-bottom: 32px;
-}
-.sidebar-close {
-border: none;
-background: none;
-cursor: pointer;
-color: var(--text-primary);
-padding: 4px;
-display: flex;
-align-items: center;
-justify-content: center;
-}
-.sidebar-body {
-display: flex;
-flex-direction: column;
-gap: 8px;
-flex: 1;
-overflow-y: auto;
-}
-.sidebar-footer {
-margin-top: auto;
-padding-top: 20px;
-border-top: 1px solid var(--border-subtle);
-display: flex;
-flex-direction: column;
-gap: 16px;
-}
-
 :global(.nav-link) {
 font-size: 14px;
 font-weight: 700;
@@ -822,7 +575,7 @@ min-height: 36px !important;
 }
 
 /* Tablet band (e.g. iPad landscape): tabs stay visible but the textual
-   user name/role is dropped to leave room for the 4 tabs — avatar remains. */
+   user name/role is dropped to leave room for the tabs — avatar remains. */
 @media (max-width: 1280px) and (min-width: 1024px) {
 .user-info {
 display: none;
@@ -844,6 +597,66 @@ from { opacity: 0; transform: translateY(10px); }
 to { opacity: 1; transform: translateY(0); }
 }
 `}</style>
+</>
+);
+}
+
+// Account-scoped actions only (identity header, admin escape hatch, sign
+// out / register) — every actual destination now lives in the Services
+// launcher (nav-config.ts), so this is intentionally the same content on
+// mobile and desktop (the old version only showed Admin Panel in the
+// mobile hamburger drawer, never the mobile avatar dropdown — this fixes
+// that asymmetry too).
+function AccountDropdownContent({
+user,
+t,
+lang,
+isAdmin,
+onNavigate,
+}: {
+user: { name?: string | null; role?: string; studentId?: string | null } | undefined;
+t: Record<string, string>;
+lang: string;
+isAdmin: boolean;
+onNavigate: () => void;
+}) {
+return (
+<>
+<div className="dropdown-header">
+<p className="dropdown-name">{user ? user.name : (lang === "th" ? "ผู้เยี่ยมชม" : "Guest")}</p>
+<p className="dropdown-sub">
+{user ? (
+  user.role === "super_admin" ? t.roleSuperAdmin :
+  user.role === "admin" ? t.roleAdmin :
+  user.role === "registration" ? t.roleRegistration :
+  user.role === "organizer" ? t.roleOrganizer :
+  user.role === "staff" ? t.roleStaff :
+  (user.studentId || t.roleStudent)
+) : (
+  lang === "th" ? "ไม่ได้เข้าสู่ระบบ" : "Not logged in"
+)}
+</p>
+</div>
+<div className="dropdown-divider" />
+{user ? (
+  <>
+    {isAdmin && (
+      <Link href="/admin" className="dropdown-item admin-item" onClick={onNavigate}>
+        <ShieldCheck size={16} />
+        {t.adminPanel}
+      </Link>
+    )}
+    <button className="dropdown-item text-danger" onClick={() => signOut({ callbackUrl: "/" })}>
+      <LogOut size={16} />
+      {t.signOut}
+    </button>
+  </>
+) : (
+  <Link href="/login" className="dropdown-item" onClick={onNavigate}>
+    <User size={16} />
+    {lang === "th" ? "ลงทะเบียนบัญชี" : "Register Account"}
+  </Link>
+)}
 </>
 );
 }

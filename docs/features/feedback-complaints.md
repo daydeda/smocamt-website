@@ -222,6 +222,23 @@ read-access side, since there is no read-access to gate here.
 
 ## 7. UX / HCI design
 
+### 7.0 Self-service status, not just the tracking code (decided 2026-08-13)
+
+The original design (§5.1) relied entirely on the submitter saving a
+one-time tracking code to ever check status/reply again — a real failure
+mode ("what if I forget to save it") flagged during review. Fix: since
+submission already requires login (§2), `/feedback/track` also shows the
+signed-in visitor's own submissions automatically, via `GET
+/api/feedback/mine` — which computes `submitterRef` from the CALLER'S OWN
+session id server-side (never a client-supplied id) and matches against it.
+This does **not** weaken §5's anonymity guarantee: nothing here is
+admin-facing, there is still no path for anyone (including an admin) to look
+up someone else's submissions this way, and admins still never see
+`submitterRef`. It's exactly as self-scoped as "my orders" on the shop —
+just self-service the account already has because it made the submission.
+The manual tracking-code box stays on the same page as a fallback (checking
+from a different device/account, or while logged out).
+
 ### 7.1 Submission flow
 1. **Category picker** — cards, not a dropdown (recognition over recall):
    icon + one-line label + one-line example per §4. Harassment/Safety card

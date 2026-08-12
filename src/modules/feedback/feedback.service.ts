@@ -130,6 +130,39 @@ export class FeedbackService {
     return row ?? null;
   }
 
+  /**
+   * The CALLING user's own submissions, matched via their own re-derived
+   * submitterRef. Safe under the anonymity model in docs §5: the lookup key
+   * is computed here from `userId`, which every call site derives from the
+   * caller's OWN session (never a client-supplied id — see GET
+   * /api/feedback/mine) — there is no path for anyone, including an admin,
+   * to use this to look up someone else's submissions. This is exactly as
+   * self-scoped as "my orders" on the shop; it doesn't weaken the
+   * admin-facing guarantee at all, since nothing here is admin-facing.
+   *
+   * Exists specifically so a submitter isn't fully dependent on saving the
+   * one-time tracking code (/feedback/track) to ever see their own
+   * status/reply again — losing the code no longer means losing the ability
+   * to check back, as long as they're signed into the same account.
+   */
+  static async listMine(userId: string) {
+    const submitterRef = computeSubmitterRef(userId);
+    return db.query.feedbackComplaints.findMany({
+      where: eq(feedbackComplaints.submitterRef, submitterRef),
+      orderBy: [desc(feedbackComplaints.createdAt)],
+      columns: {
+        id: true,
+        category: true,
+        severity: true,
+        status: true,
+        message: true,
+        adminReply: true,
+        createdAt: true,
+        repliedAt: true,
+      },
+    });
+  }
+
   /** Admin triage list. NEVER selects submitterRef — see ADMIN_LIST_COLUMNS. */
   static async listForAdmin(filters: { status?: FeedbackStatus; category?: FeedbackCategory; severity?: FeedbackSeverity }) {
     const conditions = [];

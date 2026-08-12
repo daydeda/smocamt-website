@@ -10,6 +10,7 @@ import {
   Copy,
   Loader2,
   MessageSquareWarning,
+  Search,
   ShieldAlert,
   Sparkles,
 } from "lucide-react";
@@ -112,13 +113,17 @@ export default function FeedbackNewPage() {
           {/* Always reachable, not just on the post-submit confirmation
               screen — previously the only way to reach /feedback/track was
               a button that existed for a few seconds right after sending,
-              so anyone who navigated away had no way back to it. */}
+              so anyone who navigated away had no way back to it. Rendered as
+              a real bordered button (not plain colored text) so it reads as
+              an action at a glance, same fix as the category-change button
+              below — plain text links here were reported as ambiguous. */}
           {step !== "done" && (
             <Link
               href="/feedback/track"
-              style={{ fontSize: 13, fontWeight: 700, color: "var(--accent-primary)", textDecoration: "none" }}
+              className="btn btn-ghost btn-sm"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 99, textDecoration: "none" }}
             >
-              {tt("feedbackGoToTrack", "Check status")}
+              <Search size={14} /> {tt("feedbackGoToTrack", "Check status")}
             </Link>
           )}
         </div>

@@ -359,25 +359,6 @@ export const translations = {
     navGroupCommunity: "Community",
     navGroupContent: "Content",
     navGroupSystem: "System",
-    // Shared with the student Services launcher (src/lib/nav-config.ts) —
-    // deliberately the same key/value on both surfaces so the "Feedback"/
-    // "Learning" taxonomy reads the same whichever side of the app you're
-    // on. Deliberately admin-prefixed, DISTINCT keys from the student
-    // launcher's own navGroupFeedback/navGroupLearning/vocFeedback/
-    // studyThings/comingSoon (unmerged sibling branch) even though the
-    // values match — two branches inserting literally identical keys at
-    // the same spot in this file is exactly the kind of thing that
-    // produces a duplicate-insertion merge conflict; distinct keys avoid
-    // it regardless of which branch merges first.
-    adminNavGroupFeedback: "Feedback",
-    adminNavGroupLearning: "Learning",
-    adminVocFeedback: "Feedback & Complaints",
-    adminStudyResources: "Study Resources",
-    adminComingSoon: "Coming soon",
-    // Admin command palette (Cmd/Ctrl+K quick-jump, src/components/admin/AdminCommandPalette.tsx).
-    commandPaletteLabel: "Search",
-    commandPalettePlaceholder: "Search admin pages…",
-    commandPaletteEmpty: "No matching pages",
     manageEvents: "Manage Events",
     manageClubs: "Clubs",
     manageMajors: "My Major",
@@ -395,6 +376,28 @@ export const translations = {
     saving: "Saving…",
     qrScanner: "QR Scanner",
     auditTrails: "Audit Trails",
+    // Admin sidebar's Feedback/Learning groups + command palette
+    // (src/components/admin/AdminCommandPalette.tsx). Deliberately BOTH
+    // admin-prefixed keys (distinct from the student launcher's own
+    // navGroupFeedback/navGroupLearning/vocFeedback/studyResources/
+    // comingSoon, src/lib/nav-config.ts, unmerged sibling branch — same
+    // string values, so the taxonomy reads the same on both surfaces) AND
+    // anchored to a different insertion point in this file (auditTrails,
+    // not navGroupSystem). Distinct key NAMES alone weren't enough to
+    // avoid a merge conflict with that branch — two branches each
+    // inserting a new block immediately after the identical line
+    // (navGroupSystem) still conflict on insertion ORDER even when the
+    // inserted content itself doesn't overlap (verified with `git
+    // merge-tree` while preparing this). Anchoring here instead removes
+    // that adjacency entirely.
+    adminNavGroupFeedback: "Feedback",
+    adminNavGroupLearning: "Learning",
+    adminVocFeedback: "Feedback & Complaints",
+    adminStudyResources: "Study Resources",
+    adminComingSoon: "Coming soon",
+    commandPaletteLabel: "Search",
+    commandPalettePlaceholder: "Search admin pages…",
+    commandPaletteEmpty: "No matching pages",
     // Audit Trails Page
     auditTrailsTitle: "Audit Trails",
     resetLogsBtn: "Reset All Logs",
@@ -1116,14 +1119,6 @@ export const translations = {
     navGroupCommunity: "ชุมชน",
     navGroupContent: "เนื้อหา",
     navGroupSystem: "ระบบ",
-    adminNavGroupFeedback: "ข้อเสนอแนะ",
-    adminNavGroupLearning: "การเรียนรู้",
-    adminVocFeedback: "ข้อเสนอแนะและร้องเรียน",
-    adminStudyResources: "แหล่งเรียนรู้",
-    adminComingSoon: "เร็วๆ นี้",
-    commandPaletteLabel: "ค้นหา",
-    commandPalettePlaceholder: "ค้นหาหน้าผู้ดูแลระบบ…",
-    commandPaletteEmpty: "ไม่พบหน้าที่ตรงกัน",
     manageEvents: "จัดการกิจกรรม",
     manageClubs: "ชมรม",
     manageMajors: "สาขาวิชาของฉัน",
@@ -1141,6 +1136,14 @@ export const translations = {
     saving: "กำลังบันทึก…",
     qrScanner: "สแกนเนอร์ QR",
     auditTrails: "บันทึกการตรวจสอบ",
+    adminNavGroupFeedback: "ข้อเสนอแนะ",
+    adminNavGroupLearning: "การเรียนรู้",
+    adminVocFeedback: "ข้อเสนอแนะและร้องเรียน",
+    adminStudyResources: "แหล่งเรียนรู้",
+    adminComingSoon: "เร็วๆ นี้",
+    commandPaletteLabel: "ค้นหา",
+    commandPalettePlaceholder: "ค้นหาหน้าผู้ดูแลระบบ…",
+    commandPaletteEmpty: "ไม่พบหน้าที่ตรงกัน",
     // Audit Trails Page
     auditTrailsTitle: "บันทึกการตรวจสอบ",
     resetLogsBtn: "ล้างบันทึกทั้งหมด",
@@ -1862,14 +1865,6 @@ export const translations = {
     navGroupCommunity: "အသိုင်းအဝိုင်း",
     navGroupContent: "အကြောင်းအရာ",
     navGroupSystem: "စနစ်",
-    adminNavGroupFeedback: "အကြံပြုချက်",
-    adminNavGroupLearning: "သင်ယူမှု",
-    adminVocFeedback: "အကြံပြုချက်နှင့် တိုင်ကြားချက်",
-    adminStudyResources: "လေ့လာရေး အရင်းအမြစ်များ",
-    adminComingSoon: "မကြာမီ လာမည်",
-    commandPaletteLabel: "ရှာဖွေရန်",
-    commandPalettePlaceholder: "အက်ဒမင်စာမျက်နှာများ ရှာဖွေရန်…",
-    commandPaletteEmpty: "ကိုက်ညီသောစာမျက်နှာ မတွေ့ပါ",
     manageEvents: "ပွဲများ စီမံခန့်ခွဲရန်",
     manageClubs: "ကလပ်များ",
     manageMajors: "ကျွန်ုပ်၏ ကျောင်းအဌာန",
@@ -1887,6 +1882,14 @@ export const translations = {
     saving: "သိမ်းဆည်းနေသည်…",
     qrScanner: "QR စကင်နာ",
     auditTrails: "စစ်ဆေးမှုမှတ်တမ်း",
+    adminNavGroupFeedback: "အကြံပြုချက်",
+    adminNavGroupLearning: "သင်ယူမှု",
+    adminVocFeedback: "အကြံပြုချက်နှင့် တိုင်ကြားချက်",
+    adminStudyResources: "လေ့လာရေး အရင်းအမြစ်များ",
+    adminComingSoon: "မကြာမီ လာမည်",
+    commandPaletteLabel: "ရှာဖွေရန်",
+    commandPalettePlaceholder: "အက်ဒမင်စာမျက်နှာများ ရှာဖွေရန်…",
+    commandPaletteEmpty: "ကိုက်ညီသောစာမျက်နှာ မတွေ့ပါ",
     // Audit Trails Page
     auditTrailsTitle: "စစ်ဆေးမှုမှတ်တမ်းများ",
     resetLogsBtn: "မှတ်တမ်းအားလုံး ဖျက်ရန်",
@@ -2608,14 +2611,6 @@ export const translations = {
     navGroupCommunity: "社群",
     navGroupContent: "内容",
     navGroupSystem: "系统",
-    adminNavGroupFeedback: "反馈",
-    adminNavGroupLearning: "学习",
-    adminVocFeedback: "反馈与投诉",
-    adminStudyResources: "学习资源",
-    adminComingSoon: "即将推出",
-    commandPaletteLabel: "搜索",
-    commandPalettePlaceholder: "搜索管理页面…",
-    commandPaletteEmpty: "未找到匹配页面",
     manageEvents: "管理活动",
     manageClubs: "社团",
     manageMajors: "我的专业",
@@ -2633,6 +2628,14 @@ export const translations = {
     saving: "保存中…",
     qrScanner: "二维码扫描",
     auditTrails: "审核日志",
+    adminNavGroupFeedback: "反馈",
+    adminNavGroupLearning: "学习",
+    adminVocFeedback: "反馈与投诉",
+    adminStudyResources: "学习资源",
+    adminComingSoon: "即将推出",
+    commandPaletteLabel: "搜索",
+    commandPalettePlaceholder: "搜索管理页面…",
+    commandPaletteEmpty: "未找到匹配页面",
     // Audit Trails Page
     auditTrailsTitle: "审核日志",
     resetLogsBtn: "重置所有日志",

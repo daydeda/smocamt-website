@@ -181,6 +181,13 @@ export function ServicesLauncher({
                   const isActive = pathname === href;
 
                   if (item.comingSoon) {
+                    // Full-width row, not a grid tile — a group with only
+                    // one or two placeholder items (Feedback, Learning
+                    // today) would otherwise sit in a 3-4 column grid with
+                    // empty cells beside it, reading like missing content
+                    // rather than "more of these are coming later" (looked
+                    // broken in review). Spanning the row sidesteps that
+                    // regardless of how many real columns the grid has.
                     return (
                       <div
                         key={item.id}
@@ -190,7 +197,7 @@ export function ServicesLauncher({
                         <span className="tile-icon-wrap">
                           <Icon size={22} />
                         </span>
-                        <span>{label}</span>
+                        <span className="coming-soon-label">{label}</span>
                         <span className="launcher-badge">{t.comingSoon || "Coming soon"}</span>
                       </div>
                     );
@@ -322,8 +329,19 @@ export function ServicesLauncher({
           border-color: rgba(255, 107, 0, 0.2);
         }
         :global(.launcher-tile.coming-soon) {
+          grid-column: 1 / -1;
+          flex-direction: row;
+          align-items: center;
+          justify-content: flex-start;
+          gap: 12px;
+          min-height: unset;
+          padding: 14px 16px;
+          text-align: left;
           opacity: 0.55;
           cursor: default;
+        }
+        :global(.launcher-tile.coming-soon .coming-soon-label) {
+          flex: 1;
         }
         :global(.launcher-tile .tile-icon-wrap) {
           width: 40px;
@@ -334,12 +352,14 @@ export function ServicesLauncher({
           justify-content: center;
           background: rgba(255, 107, 0, 0.08);
           color: var(--accent-primary);
+          flex-shrink: 0;
         }
         :global(.launcher-tile.coming-soon .tile-icon-wrap) {
           background: var(--bg-glass);
           color: var(--text-muted);
         }
         :global(.launcher-badge) {
+          flex-shrink: 0;
           font-size: 9px;
           font-weight: 800;
           text-transform: uppercase;

@@ -140,7 +140,20 @@ export async function POST(
       );
     }
 
-    const noShowIds = await findNoShowStudentIds(eventId);
+    // Optional: the organizer may deselect specific students in the confirm
+    // modal (checkbox picker) rather than striking every current no-show.
+    // Re-derived against findNoShowStudentIds rather than trusted as-is, so a
+    // stale/tampered id list can never strike someone who isn't actually a
+    // no-show for this event.
+    const requestedIds = Array.isArray(body?.studentIds)
+      ? (body.studentIds as unknown[]).filter((v): v is string => typeof v === "string")
+      : null;
+
+    let noShowIds = await findNoShowStudentIds(eventId);
+    if (requestedIds) {
+      const requestedSet = new Set(requestedIds);
+      noShowIds = noShowIds.filter((id) => requestedSet.has(id));
+    }
     if (noShowIds.length === 0) {
       return NextResponse.json({ struck: 0, blocked: 0, pointsDeducted: 0 });
     }

@@ -362,12 +362,18 @@ export const translations = {
     // Shared with the student Services launcher (src/lib/nav-config.ts) —
     // deliberately the same key/value on both surfaces so the "Feedback"/
     // "Learning" taxonomy reads the same whichever side of the app you're
-    // on. vocFeedback/studyThings are the coming-soon placeholder labels.
-    navGroupFeedback: "Feedback",
-    navGroupLearning: "Learning",
-    vocFeedback: "Feedback & Complaints",
-    studyThings: "Study Things",
-    comingSoon: "Coming soon",
+    // on. Deliberately admin-prefixed, DISTINCT keys from the student
+    // launcher's own navGroupFeedback/navGroupLearning/vocFeedback/
+    // studyThings/comingSoon (unmerged sibling branch) even though the
+    // values match — two branches inserting literally identical keys at
+    // the same spot in this file is exactly the kind of thing that
+    // produces a duplicate-insertion merge conflict; distinct keys avoid
+    // it regardless of which branch merges first.
+    adminNavGroupFeedback: "Feedback",
+    adminNavGroupLearning: "Learning",
+    adminVocFeedback: "Feedback & Complaints",
+    adminStudyResources: "Study Resources",
+    adminComingSoon: "Coming soon",
     // Admin command palette (Cmd/Ctrl+K quick-jump, src/components/admin/AdminCommandPalette.tsx).
     commandPaletteLabel: "Search",
     commandPalettePlaceholder: "Search admin pages…",
@@ -1110,11 +1116,11 @@ export const translations = {
     navGroupCommunity: "ชุมชน",
     navGroupContent: "เนื้อหา",
     navGroupSystem: "ระบบ",
-    navGroupFeedback: "ข้อเสนอแนะ",
-    navGroupLearning: "การเรียนรู้",
-    vocFeedback: "ข้อเสนอแนะและร้องเรียน",
-    studyThings: "เรื่องการเรียน",
-    comingSoon: "เร็วๆ นี้",
+    adminNavGroupFeedback: "ข้อเสนอแนะ",
+    adminNavGroupLearning: "การเรียนรู้",
+    adminVocFeedback: "ข้อเสนอแนะและร้องเรียน",
+    adminStudyResources: "แหล่งเรียนรู้",
+    adminComingSoon: "เร็วๆ นี้",
     commandPaletteLabel: "ค้นหา",
     commandPalettePlaceholder: "ค้นหาหน้าผู้ดูแลระบบ…",
     commandPaletteEmpty: "ไม่พบหน้าที่ตรงกัน",
@@ -1856,11 +1862,11 @@ export const translations = {
     navGroupCommunity: "အသိုင်းအဝိုင်း",
     navGroupContent: "အကြောင်းအရာ",
     navGroupSystem: "စနစ်",
-    navGroupFeedback: "အကြံပြုချက်",
-    navGroupLearning: "သင်ယူမှု",
-    vocFeedback: "အကြံပြုချက်နှင့် တိုင်ကြားချက်",
-    studyThings: "စာသင်ရေးဆိုင်ရာ",
-    comingSoon: "မကြာမီ လာမည်",
+    adminNavGroupFeedback: "အကြံပြုချက်",
+    adminNavGroupLearning: "သင်ယူမှု",
+    adminVocFeedback: "အကြံပြုချက်နှင့် တိုင်ကြားချက်",
+    adminStudyResources: "လေ့လာရေး အရင်းအမြစ်များ",
+    adminComingSoon: "မကြာမီ လာမည်",
     commandPaletteLabel: "ရှာဖွေရန်",
     commandPalettePlaceholder: "အက်ဒမင်စာမျက်နှာများ ရှာဖွေရန်…",
     commandPaletteEmpty: "ကိုက်ညီသောစာမျက်နှာ မတွေ့ပါ",
@@ -2602,11 +2608,11 @@ export const translations = {
     navGroupCommunity: "社群",
     navGroupContent: "内容",
     navGroupSystem: "系统",
-    navGroupFeedback: "反馈",
-    navGroupLearning: "学习",
-    vocFeedback: "反馈与投诉",
-    studyThings: "学习事项",
-    comingSoon: "即将推出",
+    adminNavGroupFeedback: "反馈",
+    adminNavGroupLearning: "学习",
+    adminVocFeedback: "反馈与投诉",
+    adminStudyResources: "学习资源",
+    adminComingSoon: "即将推出",
     commandPaletteLabel: "搜索",
     commandPalettePlaceholder: "搜索管理页面…",
     commandPaletteEmpty: "未找到匹配页面",

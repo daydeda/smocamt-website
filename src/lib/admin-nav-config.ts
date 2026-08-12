@@ -94,8 +94,14 @@ export const ADMIN_NAV_GROUPS: AdminNavGroupDef[] = [
   { id: "events", titleI18nKey: "navGroupEvents" },
   { id: "community", titleI18nKey: "navGroupCommunity" },
   { id: "content", titleI18nKey: "navGroupContent" },
-  { id: "feedback", titleI18nKey: "navGroupFeedback" },
-  { id: "learning", titleI18nKey: "navGroupLearning" },
+  // i18n keys are admin-prefixed and distinct from the student launcher's
+  // navGroupFeedback/navGroupLearning (src/lib/nav-config.ts, unmerged
+  // sibling branch) even though the VALUES match (same taxonomy word on
+  // both surfaces, deliberately) — this is what keeps the two branches'
+  // i18n.ts insertions from landing in the same spot and conflicting,
+  // regardless of which branch merges first.
+  { id: "feedback", titleI18nKey: "adminNavGroupFeedback" },
+  { id: "learning", titleI18nKey: "adminNavGroupLearning" },
   { id: "system", titleI18nKey: "navGroupSystem" },
 ];
 
@@ -236,7 +242,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   {
     id: "voc",
     href: "#",
-    i18nKey: "vocFeedback",
+    i18nKey: "adminVocFeedback",
     fallback: "Feedback & Complaints",
     icon: MessagesSquare,
     group: "feedback",
@@ -246,8 +252,8 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   {
     id: "study",
     href: "#",
-    i18nKey: "studyThings",
-    fallback: "Study Things",
+    i18nKey: "adminStudyResources",
+    fallback: "Study Resources",
     icon: BookOpen,
     group: "learning",
     allowed: canSeeRoadmap,

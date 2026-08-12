@@ -143,11 +143,20 @@ export function AdminNav({
                   const labelText = tr[item.i18nKey] || item.fallback;
 
                   if (item.comingSoon) {
+                    // Icon+label on one line, badge on its own line below —
+                    // NOT inline beside the label. A 280px sidebar minus
+                    // icon+gap leaves too little width for label+badge on
+                    // one row without the label wrapping character-by-
+                    // character around the badge (looked broken in review).
+                    // Stacking scales to any label length without widening
+                    // the sidebar on every admin page just for this row.
                     return (
-                      <div key={item.id} className="nav-link admin-coming-soon" style={{ gap: 12, position: "relative" }} aria-disabled="true">
-                        <Icon size={18} strokeWidth={2} style={{ pointerEvents: "none" }} />
-                        <span style={{ fontWeight: 500, pointerEvents: "none", flex: 1 }}>{labelText}</span>
-                        <span className="admin-coming-soon-badge">{t.comingSoon || "Coming soon"}</span>
+                      <div key={item.id} className="admin-coming-soon" aria-disabled="true">
+                        <div className="admin-coming-soon-row">
+                          <Icon size={18} strokeWidth={2} style={{ pointerEvents: "none" }} />
+                          <span style={{ fontWeight: 500, pointerEvents: "none" }}>{labelText}</span>
+                        </div>
+                        <span className="admin-coming-soon-badge">{tr.adminComingSoon || "Coming soon"}</span>
                       </div>
                     );
                   }
@@ -243,10 +252,24 @@ export function AdminNav({
         }
 
         .admin-coming-soon {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 6px;
+          padding: 10px 14px;
+          margin-bottom: 2px;
+          border-radius: var(--radius-md);
           opacity: 0.55;
           cursor: default;
         }
+        .admin-coming-soon-row {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          font-size: 14px;
+        }
         .admin-coming-soon-badge {
+          margin-left: 30px; /* icon (18px) + row gap (12px) — aligns under the label, not the icon */
           font-size: 9px;
           font-weight: 800;
           text-transform: uppercase;
@@ -255,7 +278,6 @@ export function AdminNav({
           background: var(--bg-glass);
           padding: 2px 6px;
           border-radius: 999px;
-          flex-shrink: 0;
         }
       `}</style>
     </nav>

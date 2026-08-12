@@ -598,8 +598,8 @@ export default function ProfilePage() {
                       <span style={{ color: "#ef4444", fontSize: 12, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
                         <AlertTriangle size={12} style={{ flexShrink: 0 }} />
                         {t.back === "กลับ"
-                          ? "รหัสนักศึกษานี้ไม่ตรงกับคณะ CAMT กรุณาติดต่อเจ้าหน้าที่"
-                          : "This student ID's faculty digits don't match CAMT. Please contact staff."}
+                          ? "รหัสนักศึกษานี้ไม่ตรงกับวิทยาลัยศิลปะ สื่อ และเทคโนโลยี กรุณาติดต่อที่ IG: smocamt.official"
+                          : "This student ID's digits don't match to College of Arts, Media and Technology. Please contact IG: smocamt.official."}
                       </span>
                     </div>
                   )

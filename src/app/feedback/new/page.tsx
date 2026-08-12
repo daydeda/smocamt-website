@@ -20,7 +20,13 @@ import type { FeedbackCategory } from "@/lib/feedback-token";
 type Step = "category" | "message" | "review" | "done";
 
 const MESSAGE_MIN = 10;
-const MESSAGE_MAX = 3000;
+// A generous technical backstop, not a practical limit — no legitimate
+// complaint should ever get close to it. High enough that it's never a UX
+// constraint (a detailed harassment report with dates/context easily runs
+// past a tight cap like the old 3000), just a ceiling so a single submission
+// can't blow up the notification email (feedback-notify.ts) or the admin
+// list render. Must match the Zod schema in src/app/api/feedback/route.ts.
+const MESSAGE_MAX = 10000;
 const CONTACT_MAX = 200;
 
 export default function FeedbackNewPage() {
@@ -200,12 +206,14 @@ export default function FeedbackNewPage() {
                 onChange={(e) => setMessage(e.target.value)}
                 style={{ resize: "vertical" }}
               />
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-                <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                  {tt("feedbackMessageMinHint", `At least ${MESSAGE_MIN} characters`)}
-                </span>
-                <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{message.length}/{MESSAGE_MAX}</span>
-              </div>
+              {/* No "X/MAX" counter here on purpose — a visible countdown
+                  toward a cap reads as a constraint even when the cap itself
+                  (MESSAGE_MAX) is a generous technical backstop nobody
+                  should ever hit. Only the minimum is worth surfacing, since
+                  that one's an actual quality bar (long enough to act on). */}
+              <span style={{ display: "block", fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+                {tt("feedbackMessageMinHint", `At least ${MESSAGE_MIN} characters`)}
+              </span>
             </div>
 
             <div style={{ padding: 14, borderRadius: 12, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)" }}>

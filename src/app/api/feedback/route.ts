@@ -10,9 +10,14 @@ import { captureException } from "@/lib/logger";
 // Severity is deliberately NOT accepted from the client — FeedbackService
 // always derives it from CATEGORY_DEFAULT_SEVERITY server-side, so a
 // harassment_safety report can never be under-flagged by a tampered request.
+// message max is a generous technical backstop (matches MESSAGE_MAX in
+// src/app/feedback/new/page.tsx), not a practical limit — high enough that
+// no legitimate complaint should ever hit it, just a ceiling so a single
+// submission can't blow up the notification email (feedback-notify.ts) or
+// the admin list render.
 const submitSchema = z.object({
   category: z.enum(FEEDBACK_CATEGORIES),
-  message: z.string().trim().min(10, "Please write at least 10 characters.").max(3000),
+  message: z.string().trim().min(10, "Please write at least 10 characters.").max(10000),
   contactOptIn: z.boolean().default(false),
   contactInfo: z.string().trim().max(200).optional(),
 });

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
+  ArrowLeftRight,
   ArrowRight,
   Check,
   Copy,
@@ -138,13 +139,31 @@ export default function FeedbackNewPage() {
 
         {step === "message" && cat && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <button
-              type="button"
-              onClick={() => setStep("category")}
-              style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, color: "var(--accent-primary)", background: "none", border: "none", cursor: "pointer", padding: 0 }}
-            >
-              <cat.icon size={16} /> {tt(cat.i18nKey, cat.fallback)} — {tt("feedbackBackToCategories", "Change category")}
-            </button>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+              {/* Static tag, not clickable — reads as "this is your selection", not
+                  as part of the action next to it (see the confusion this fixed:
+                  "Category — Change category" read as one long descriptive line
+                  with no visible affordance that the second half was a button). */}
+              <span
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700,
+                  color: "var(--text-primary)", padding: "6px 12px", borderRadius: 99,
+                  background: "var(--bg-surface)", border: "1px solid var(--border-subtle)",
+                }}
+              >
+                <cat.icon size={16} color="var(--accent-primary)" /> {tt(cat.i18nKey, cat.fallback)}
+              </span>
+              {/* The actual action: a real button (pill, bordered, own icon) so it
+                  visibly affords a tap, distinct from the tag above. */}
+              <button
+                type="button"
+                onClick={() => setStep("category")}
+                className="btn btn-ghost btn-sm"
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 99 }}
+              >
+                <ArrowLeftRight size={14} /> {tt("feedbackBackToCategories", "Change category")}
+              </button>
+            </div>
 
             {category === "harassment_safety" && (
               <div style={{ display: "flex", gap: 10, padding: 12, borderRadius: 12, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)" }}>

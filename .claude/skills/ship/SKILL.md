@@ -149,7 +149,10 @@ changelog entry.
      naturally. Same goes for the closing PR-reference line: write it as
      flowing prose ("อัปเดตรอบนี้รวม PR #X (…) และ PR #Y (…)"), not a
      dot-separated data dump.
-   - **Write the entry:** header `# อัปเดต ActiveCAMT ประจำวันที่ <date> 69`, a
+   - **Write the entry:** first line is the version header `# ActiveCAMT vX.Y.Z 🎉`
+     using the tag just created in step 7 (this is the natural source of truth
+     here, since it was just tagged). Then the existing Thai title line
+     `# อัปเดต ActiveCAMT ประจำวันที่ <date> 69` below it, a
      one-line subtitle like "สรุปสำหรับวันที่ … เอาไว้ลง Discord และให้ทีมที่
      เกี่ยวข้องอ่านกัน", then:
      - `## ฝั่งนักศึกษา (สิ่งที่ user จะเห็น)`: user-facing, plain Thai,

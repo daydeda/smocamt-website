@@ -16,6 +16,7 @@ Existing files (`updates/2026-06-13_to_06-14.md`, etc.) define the format. Repro
 
 - **No em dashes (—), anywhere in the output.** Write natural, human sentences in both Thai and English instead of dash-stitched fragments. Join clauses with "เพราะ", "ซึ่ง", "โดย", a comma, or just split into two sentences, whichever reads most naturally. This applies to every bullet, not just the title/subtitle. (An en-dash `–` used for a numeric date range, e.g. `14–16`, is a different character and stays fine.)
 - **Filename:** `updates/YYYY-MM-DD_to_MM-DD.md`, using Gregorian dates: start as `YYYY-MM-DD`, end as `MM-DD` (same year). e.g. `updates/2026-06-14_to_06-16.md`.
+- **Version header (first line, always):** `# ActiveCAMT vX.Y.Z 🎉` where `vX.Y.Z` is the latest git tag as of writing (`git describe --tags --abbrev=0`, or `git tag -l --sort=-creatordate | head -1`). This is a separate line above the Thai title line below, not a replacement for it. If no tag exists yet, or the version to show is ambiguous (e.g. this period spans more than one tag and it's unclear whether to show the latest or ask), confirm with the user rather than guessing.
 - **Title line:** `# อัปเดต ActiveCAMT ช่วง <D–D เดือน ปีพ.ศ.-2หลัก>` using Thai month abbreviation and **2-digit Buddhist year** (2026 → `69`). e.g. `# อัปเดต ActiveCAMT ช่วง 14–16 มิ.ย. 69`.
 - **Subtitle:** one flowing sentence, not a dot-separated fragment. e.g. `สรุปสำหรับช่วง <same Thai range> เอาไว้ลง Discord และให้ทีมที่เกี่ยวข้องอ่านกัน`.
 - `---` separator, then:
@@ -32,6 +33,7 @@ Existing files (`updates/2026-06-13_to_06-14.md`, etc.) define the format. Repro
 
 ## Workflow
 1. **Determine the range.** List `updates/` and take the latest file's **end date** as the new start; the new end is today (use today's date from context). If the gap is large or ambiguous, confirm the range with the user before writing.
+   Also check the current version tag now (`git describe --tags --abbrev=0`) for the version header.
 2. **Gather the commits.** `git log --since=<start> --until=<end> --no-merges --pretty=...` (and skim diffstats where a message is terse). Read enough to tell **user-visible** changes from internal ones. Ignore pure merge/chore noise unless it's user-relevant.
 3. **Classify & group.** Each change → ฝั่งนักศึกษา (would a student notice?), ฝั่งแอดมิน/ทีมงาน (would only admin/staff notice, as a real UI/workflow change?), or ฝั่งทีม (grouped by domain, for the technical writeup everything still gets). When unsure whether something is user-visible, put it under ฝั่งทีม.
 4. **Write in Thai** matching the tone of prior files: concise bold-led bullets for students and staff, precise grouped notes for the team. Reuse the house's existing terminology (e.g. บ้านมอม/โต/ลวง/มกร, "scanner-only", PDPA สัญญาณ vs รายละเอียด).

@@ -8,7 +8,10 @@ import Link from "next/link";
 import { useLanguage } from "@/lib/LanguageContext";
 import dynamic from "next/dynamic";
 
-const QRCodeSVG = dynamic(() => import("qrcode.react").then((mod) => mod.QRCodeSVG), {
+// Canvas, not SVG: Android/Chrome "force dark" auto-inverts inline <svg> DOM
+// content, but leaves <canvas> alone like a raster image, so the join QR
+// stays scannable on phones with dark mode forced on.
+const QRCodeCanvas = dynamic(() => import("qrcode.react").then((mod) => mod.QRCodeCanvas), {
   ssr: false,
 });
 
@@ -622,10 +625,12 @@ export function RoomClient({ initialSession, roomCode }: RoomClientProps) {
 
             {/* QR Code */}
             <div style={{ background: "#fff", display: "inline-block", padding: 24, borderRadius: "var(--radius-lg)", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)", border: "1px solid var(--border-subtle)", marginBottom: 24 }}>
-              <QRCodeSVG 
+              <QRCodeCanvas
                 value={`${typeof window !== "undefined" ? window.location.origin : ""}/battle/join?room=${roomCodeUpper}`}
                 size={220}
                 level="M"
+                bgColor="#ffffff"
+                fgColor="#000000"
               />
             </div>
 

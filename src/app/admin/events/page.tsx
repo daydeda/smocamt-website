@@ -499,6 +499,10 @@ export default function AdminEventsPage() {
   const [strikesResult, setStrikesResult] = useState<{ struck: number; blocked: number; pointsDeducted: number } | null>(null);
   // Editable per-application penalty, bounded server-side by NO_SHOW_PENALTY_MIN/MAX.
   const [strikesPoints, setStrikesPoints] = useState(NO_SHOW_PENALTY_POINTS);
+  // Which previewed no-shows the organizer has left checked to actually
+  // strike — defaults to "everyone" (matches the old strike-all behavior)
+  // but lets them uncheck individual students before confirming.
+  const [strikesSelected, setStrikesSelected] = useState<Set<string>>(new Set());
   const [filterStudentsOnly, setFilterStudentsOnly] = useState(false);
   const [filterMaster, setFilterMaster] = useState(false);
   const [filterPhd, setFilterPhd] = useState(false);
@@ -1745,7 +1749,9 @@ export default function AdminEventsPage() {
       const res = await fetch(`/api/admin/events/${activeEventId}/apply-strikes`);
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to load no-show preview");
-      setStrikesPreview(data.students || []);
+      const students = data.students || [];
+      setStrikesPreview(students);
+      setStrikesSelected(new Set(students.map((s: { id: string }) => s.id)));
     } catch (e) {
       setStrikesPreview([]);
       setErrorModal({ show: true, title: "Couldn't load no-shows", message: e instanceof Error ? e.message : "Please try again." });
@@ -1759,18 +1765,19 @@ export default function AdminEventsPage() {
   // Idempotent server-side, but we also refresh the roster afterward so the
   // "Not Checked In" filter/summary reflect the new no_show status immediately.
   const confirmApplyStrikes = async () => {
-    if (!activeEventId) return;
+    if (!activeEventId || strikesSelected.size === 0) return;
     setStrikesSubmitting(true);
     try {
       const res = await fetch(`/api/admin/events/${activeEventId}/apply-strikes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ points: strikesPoints }),
+        body: JSON.stringify({ points: strikesPoints, studentIds: Array.from(strikesSelected) }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to apply strikes");
       setStrikesResult(data);
       setStrikesPreview([]);
+      setStrikesSelected(new Set());
       viewAttendance(activeEventId);
     } catch (e) {
       setErrorModal({ show: true, title: "Couldn't apply strikes", message: e instanceof Error ? e.message : "Please try again." });
@@ -5283,32 +5290,66 @@ export default function AdminEventsPage() {
                 </div>
               ) : (
                 <div style={{ padding: "4px 0 16px", display: "flex", flexDirection: "column", gap: 6 }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                    {lang === "th" ? `${strikesPreview.length} คนที่ลงทะเบียนแต่ไม่มาเช็คอิน` : `${strikesPreview.length} registered, never checked in`}
-                  </p>
-                  {strikesPreview.map((s) => (
-                    <div
-                      key={s.id}
-                      style={{
-                        display: "flex", alignItems: "center", justifyContent: "space-between",
-                        padding: "10px 12px", borderRadius: 10, background: "var(--bg-surface)",
-                        border: "1px solid var(--border-subtle)",
-                      }}
-                    >
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{s.name}{s.nickname ? ` (${s.nickname})` : ""}</div>
-                        <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{s.studentId || "—"}</div>
-                      </div>
-                      {s.noShowCount > 0 && (
-                        <span style={{
-                          fontSize: 11, fontWeight: 800, color: "#ef4444", background: "rgba(239,68,68,0.12)",
-                          borderRadius: 99, padding: "3px 10px", flexShrink: 0,
-                        }}>
-                          {s.noShowCount + 1}/{NO_SHOW_STRIKE_THRESHOLD}
-                        </span>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                      {lang === "th"
+                        ? `เลือก ${strikesSelected.size}/${strikesPreview.length} คนที่ลงทะเบียนแต่ไม่มาเช็คอิน`
+                        : `${strikesSelected.size}/${strikesPreview.length} selected — registered, never checked in`}
+                    </p>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      style={{ height: 26, paddingInline: 10, fontSize: 12, fontWeight: 700, borderRadius: 8, flexShrink: 0 }}
+                      onClick={() => setStrikesSelected(
+                        strikesSelected.size === strikesPreview.length
+                          ? new Set()
+                          : new Set(strikesPreview.map((s) => s.id))
                       )}
-                    </div>
-                  ))}
+                    >
+                      {strikesSelected.size === strikesPreview.length
+                        ? (lang === "th" ? "ไม่เลือกทั้งหมด" : "Deselect all")
+                        : (lang === "th" ? "เลือกทั้งหมด" : "Select all")}
+                    </button>
+                  </div>
+                  {strikesPreview.map((s) => {
+                    const checked = strikesSelected.has(s.id);
+                    return (
+                      <label
+                        key={s.id}
+                        style={{
+                          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+                          padding: "10px 12px", borderRadius: 10, background: "var(--bg-surface)",
+                          border: "1px solid var(--border-subtle)",
+                          opacity: checked ? 1 : 0.55, cursor: "pointer",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => setStrikesSelected((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(s.id)) next.delete(s.id); else next.add(s.id);
+                              return next;
+                            })}
+                            style={{ width: 16, height: 16, flexShrink: 0, accentColor: "#ef4444" }}
+                          />
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{s.name}{s.nickname ? ` (${s.nickname})` : ""}</div>
+                            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{s.studentId || "—"}</div>
+                          </div>
+                        </div>
+                        {s.noShowCount > 0 && (
+                          <span style={{
+                            fontSize: 11, fontWeight: 800, color: "#ef4444", background: "rgba(239,68,68,0.12)",
+                            borderRadius: 99, padding: "3px 10px", flexShrink: 0,
+                          }}>
+                            {s.noShowCount + 1}/{NO_SHOW_STRIKE_THRESHOLD}
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -5317,7 +5358,7 @@ export default function AdminEventsPage() {
               <button
                 className="btn btn-ghost"
                 style={{ borderRadius: 12, height: 42, paddingInline: 18, fontWeight: 700 }}
-                onClick={() => { setShowStrikesModal(false); setStrikesResult(null); setStrikesPreview([]); }}
+                onClick={() => { setShowStrikesModal(false); setStrikesResult(null); setStrikesPreview([]); setStrikesSelected(new Set()); }}
               >
                 {strikesResult ? (lang === "th" ? "ปิด" : "Close") : t.cancel}
               </button>
@@ -5325,12 +5366,12 @@ export default function AdminEventsPage() {
                 <button
                   className="btn btn-primary"
                   style={{ borderRadius: 12, height: 42, paddingInline: 18, fontWeight: 700, background: "linear-gradient(135deg, #ef4444, #dc2626)", border: "1px solid #dc2626" }}
-                  disabled={strikesSubmitting}
+                  disabled={strikesSubmitting || strikesSelected.size === 0}
                   onClick={confirmApplyStrikes}
                 >
                   {strikesSubmitting
                     ? (lang === "th" ? "กำลังลงโทษ..." : "Applying…")
-                    : (lang === "th" ? `ลงโทษ ${strikesPreview.length} คน` : `Strike ${strikesPreview.length} student(s)`)}
+                    : (lang === "th" ? `ลงโทษ ${strikesSelected.size} คน` : `Strike ${strikesSelected.size} student(s)`)}
                 </button>
               )}
             </div>

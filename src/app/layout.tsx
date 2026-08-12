@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Sans, IBM_Plex_Sans_Thai, Noto_Sans_Myanmar, Noto_Sans_SC } from "next/font/google";
 import "./globals.css";
 
@@ -51,6 +51,15 @@ export const metadata: Metadata = {
   icons: {
     icon: "/smocamt-logo-icon.png",
   },
+};
+
+// Mirrors globals.css's `color-scheme: only light`. Emitting the same signal
+// as a <meta name="color-scheme"> tag (not just CSS) covers browsers/extensions
+// that check the meta before or instead of the stylesheet — the attendance QR
+// on /dashboard and /dashboard/id must never get algorithmically dark-mode
+// inverted, or staff can't scan it.
+export const viewport: Viewport = {
+  colorScheme: "light",
 };
 
 import { SessionProvider } from "@/components/providers/SessionProvider";

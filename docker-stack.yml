@@ -19,6 +19,12 @@
 #       docs/supabase-to-university-server-cutover.md "Backups")
 #       SONGSUE_SYNC_URL, ACTIVECAMT_SYNC_SECRET (cross-app sync to Songsue —
 #       see src/lib/songsue-sync.ts; both optional, sync no-ops if unset)
+#       FEEDBACK_HMAC_SECRET (required — Feedback & Complaints anonymity boundary,
+#       src/lib/feedback-token.ts; generate with `openssl rand -base64 32`, a NEW
+#       value, never reuse .env.local's), FEEDBACK_SMTP_USER, FEEDBACK_SMTP_PASS
+#       (optional — notification emails are skipped, not an error, if unset;
+#       src/lib/feedback-notify.ts). FEEDBACK_SMTP_HOST/FEEDBACK_SMTP_PORT are
+#       optional too, defaulting to smtp.gmail.com:465 in code.
 #
 # NOT settable here: NEXT_PUBLIC_SONGSUE_DASHBOARD_URL. Next.js inlines
 # NEXT_PUBLIC_* vars into the client bundle at BUILD time — a Portainer stack
@@ -77,6 +83,15 @@ services:
       # the sync silently no-ops (logs nothing) if either is unset.
       SONGSUE_SYNC_URL: "${SONGSUE_SYNC_URL:-}"
       ACTIVECAMT_SYNC_SECRET: "${ACTIVECAMT_SYNC_SECRET:-}"
+      # Feedback & Complaints (src/lib/feedback-token.ts, feedback-notify.ts).
+      # FEEDBACK_HMAC_SECRET is required — without it every submission fails
+      # loudly by design (it's the anonymity boundary, not an optional
+      # feature). The SMTP vars are optional: notifications just get skipped.
+      FEEDBACK_HMAC_SECRET: "${FEEDBACK_HMAC_SECRET}"
+      FEEDBACK_SMTP_HOST: "${FEEDBACK_SMTP_HOST:-smtp.gmail.com}"
+      FEEDBACK_SMTP_PORT: "${FEEDBACK_SMTP_PORT:-465}"
+      FEEDBACK_SMTP_USER: "${FEEDBACK_SMTP_USER:-}"
+      FEEDBACK_SMTP_PASS: "${FEEDBACK_SMTP_PASS:-}"
     volumes:
       - uploads:/app/public/uploads          # public posters/avatars/QR
       - uploads-private:/app/.uploads-private # PDPA: form docs + payment slips

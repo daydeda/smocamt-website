@@ -3,10 +3,17 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { ArrowLeft, Check, Loader2, LogIn } from "lucide-react";
+import { ArrowLeft, Check, Loader2, LogIn, Send } from "lucide-react";
 import { useLanguage } from "@/lib/LanguageContext";
 import { FEEDBACK_SEVERITY_META, FEEDBACK_STATUS_META, categoryMeta } from "@/lib/feedback-ui";
 import type { FeedbackCategory, FeedbackSeverity, FeedbackStatus } from "@/lib/feedback-token";
+
+interface ThreadMessage {
+  id: string;
+  senderType: "submitter" | "staff";
+  body: string;
+  createdAt: string;
+}
 
 interface TrackedComplaint {
   id: string;
@@ -14,9 +21,8 @@ interface TrackedComplaint {
   severity: FeedbackSeverity;
   status: FeedbackStatus;
   message: string;
-  adminReply: string | null;
   createdAt: string;
-  repliedAt: string | null;
+  messages: ThreadMessage[];
 }
 
 // Detail block for an expanded row — deliberately does NOT repeat
@@ -28,13 +34,27 @@ function ComplaintDetail({
   tt,
   onClose,
   closing,
+  onSend,
+  sending,
 }: {
   complaint: TrackedComplaint;
   tt: (key: string, fallback: string) => string;
   onClose: () => void;
   closing: boolean;
+  onSend: (body: string) => Promise<void>;
+  sending: boolean;
 }) {
   const severityMeta = FEEDBACK_SEVERITY_META[complaint.severity];
+  const [reply, setReply] = useState("");
+  const canMessage = complaint.status !== "closed";
+
+  const send = async () => {
+    const trimmed = reply.trim();
+    if (!trimmed) return;
+    await onSend(trimmed);
+    setReply("");
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 99, color: severityMeta.color, background: severityMeta.bg, alignSelf: "flex-start" }}>
@@ -46,16 +66,54 @@ function ComplaintDetail({
         </p>
         <p style={{ whiteSpace: "pre-wrap", fontSize: 14, color: "var(--text-primary)", lineHeight: 1.6, margin: 0 }}>{complaint.message}</p>
       </div>
-      <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 12 }}>
-        <p style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em", margin: "0 0 6px" }}>
-          {tt("feedbackTrackReplyLabel", "Staff reply")}
-        </p>
-        {complaint.adminReply ? (
-          <p style={{ whiteSpace: "pre-wrap", fontSize: 14, color: "var(--text-primary)", lineHeight: 1.6, margin: 0 }}>{complaint.adminReply}</p>
-        ) : (
+
+      {complaint.messages.length > 0 && (
+        <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em", margin: 0 }}>
+            {tt("feedbackTrackReplyLabel", "Conversation")}
+          </p>
+          {complaint.messages.map((m) => (
+            <div
+              key={m.id}
+              style={{
+                alignSelf: m.senderType === "submitter" ? "flex-end" : "flex-start",
+                maxWidth: "85%",
+                padding: "8px 12px",
+                borderRadius: 12,
+                background: m.senderType === "submitter" ? "var(--accent-primary)" : "var(--bg-elevated)",
+                color: m.senderType === "submitter" ? "#fff" : "var(--text-primary)",
+              }}
+            >
+              <p style={{ fontSize: 10, fontWeight: 700, opacity: 0.7, margin: "0 0 2px", textTransform: "uppercase" }}>
+                {m.senderType === "submitter" ? tt("feedbackTrackYou", "You") : tt("feedbackTrackStaff", "Staff")}
+              </p>
+              <p style={{ whiteSpace: "pre-wrap", fontSize: 14, lineHeight: 1.5, margin: 0 }}>{m.body}</p>
+            </div>
+          ))}
+        </div>
+      )}
+      {complaint.messages.length === 0 && (
+        <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 12 }}>
           <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>{tt("feedbackTrackNoReplyYet", "No reply yet — check back later.")}</p>
-        )}
-      </div>
+        </div>
+      )}
+
+      {canMessage && (
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            className="input"
+            placeholder={tt("feedbackTrackReplyPlaceholder", "Write a follow-up message…")}
+            value={reply}
+            onChange={(e) => setReply(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && send()}
+            maxLength={5000}
+          />
+          <button type="button" onClick={send} disabled={sending || !reply.trim()} className="btn btn-primary btn-sm" style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6 }}>
+            {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+          </button>
+        </div>
+      )}
+
       {complaint.status === "resolved" && (
         <button
           type="button"
@@ -87,6 +145,7 @@ export default function FeedbackTrackPage() {
   const [mine, setMine] = useState<TrackedComplaint[] | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [closingId, setClosingId] = useState<string | null>(null);
+  const [sendingId, setSendingId] = useState<string | null>(null);
   // Derived, not stored — mine stays null until the fetch resolves, so
   // "authenticated and still null" already means "loading" with no separate
   // setState needed at the top of the effect (avoids a synchronous setState
@@ -118,6 +177,29 @@ export default function FeedbackTrackPage() {
       }
     } finally {
       setClosingId(null);
+    }
+  };
+
+  const sendMessage = async (id: string, body: string) => {
+    setSendingId(id);
+    try {
+      const res = await fetch(`/api/feedback/mine/${id}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body }),
+      });
+      const data = await res.json();
+      if (res.ok && data.message) {
+        setMine((prev) =>
+          prev?.map((c) =>
+            c.id === id
+              ? { ...c, messages: [...c.messages, data.message], status: c.status === "resolved" ? "in_review" : c.status }
+              : c,
+          ) ?? prev,
+        );
+      }
+    } finally {
+      setSendingId(null);
     }
   };
 
@@ -177,7 +259,14 @@ export default function FeedbackTrackPage() {
                     </button>
                     {isOpen && (
                       <div style={{ padding: "0 14px 14px" }}>
-                        <ComplaintDetail complaint={c} tt={tt} onClose={() => closeComplaint(c.id)} closing={closingId === c.id} />
+                        <ComplaintDetail
+                          complaint={c}
+                          tt={tt}
+                          onClose={() => closeComplaint(c.id)}
+                          closing={closingId === c.id}
+                          onSend={(body) => sendMessage(c.id, body)}
+                          sending={sendingId === c.id}
+                        />
                       </div>
                     )}
                   </div>

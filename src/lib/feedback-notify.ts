@@ -1,22 +1,29 @@
 // Out-of-band alert channel for Feedback & Complaints (decided 2026-08-13 —
-// see docs/features/feedback-complaints.md §5.1/§8): every new submission,
-// and every admin resolve/reply, emails the shared staff inbox
-// smocamt.official@camt.info via SMTP (that mailbox's own app password —
-// no third-party transactional-email vendor, to avoid adding a new external
-// processor to a PDPA-sensitive app that already went self-hosted specifically
-// to minimize third parties). This is an interim channel until the app
-// becomes a PWA with push notifications — both calls below are narrow and
-// swappable for a push send later without touching the submit/resolve logic
-// that calls them.
+// see docs/features/feedback-complaints.md §5.1/§8/§10). Two directions:
+//  - staff-facing: every new submission, status resolve, and submitter
+//    message emails the shared staff inbox smocamt.official@camt.info via
+//    SMTP (that mailbox's own app password — no third-party transactional-
+//    email vendor, to avoid adding a new external processor to a
+//    PDPA-sensitive app that already went self-hosted specifically to
+//    minimize third parties).
+//  - submitter-facing: a staff reply also emails the submitter, but ONLY at
+//    the voluntary contact address they opted into (contactOptIn/
+//    contactInfo — see schema.ts's feedbackComplaints.contactInfo comment
+//    and docs §10) — never derived from anything else, since the row has no
+//    other identity-bearing field by design.
+//
+// This is an interim channel until the app becomes a PWA with push
+// notifications — every call below is narrow and swappable for a push send
+// later without touching the submit/reply logic that calls them.
 //
 // Fail-open by design: an SMTP error is logged but never blocks or fails the
-// submission/resolve request it's attached to (same principle as
-// rate-limit.ts's fail-open behavior) — a notification channel must never
-// become a reason a complaint fails to save.
+// request it's attached to (same principle as rate-limit.ts's fail-open
+// behavior) — a notification channel must never become a reason a complaint
+// or message fails to save.
 import nodemailer from "nodemailer";
 import { logger } from "@/lib/logger";
 
-const NOTIFY_TO = "smocamt.official@camt.info";
+const STAFF_INBOX = "smocamt.official@camt.info";
 
 // category/severity/status are plain `string` here, not the literal unions
 // from feedback-token.ts: drizzle's `text()` columns come back as `string`
@@ -30,7 +37,6 @@ interface NotifyComplaint {
   severity: string;
   status: string;
   message: string;
-  adminReply?: string | null;
 }
 
 let cachedTransport: ReturnType<typeof nodemailer.createTransport> | null | undefined;
@@ -60,11 +66,11 @@ function shortRef(id: string): string {
   return id.slice(0, 8);
 }
 
-async function send(subject: string, text: string) {
+async function send(to: string, subject: string, text: string) {
   const transport = getTransport();
   if (!transport) return;
   try {
-    await transport.sendMail({ from: process.env.FEEDBACK_SMTP_USER, to: NOTIFY_TO, subject, text });
+    await transport.sendMail({ from: process.env.FEEDBACK_SMTP_USER, to, subject, text });
   } catch (error) {
     logger.warn("feedback-notify: send failed", {
       subject,
@@ -75,6 +81,7 @@ async function send(subject: string, text: string) {
 
 export async function notifyNewComplaint(c: NotifyComplaint): Promise<void> {
   await send(
+    STAFF_INBOX,
     `[ActiveCAMT] New ${c.severity} feedback — ${c.category}`,
     [
       `A new ${c.severity}-severity feedback/complaint was submitted.`,
@@ -92,13 +99,50 @@ export async function notifyNewComplaint(c: NotifyComplaint): Promise<void> {
 
 export async function notifyComplaintResolved(c: NotifyComplaint): Promise<void> {
   await send(
+    STAFF_INBOX,
     `[ActiveCAMT] Feedback ${c.status} — ${c.category} (${shortRef(c.id)})`,
     [
       `A feedback/complaint was marked "${c.status}".`,
       "",
       `Category: ${c.category}`,
       `Ref: ${shortRef(c.id)}`,
-      ...(c.adminReply ? ["", "Reply sent to the submitter:", c.adminReply] : []),
+    ].join("\n"),
+  );
+}
+
+// The SUBMITTER added a follow-up message — staff-facing only (they need to
+// know to go look), never sent to the submitter (they just wrote it).
+export async function notifySubmitterMessage(c: NotifyComplaint): Promise<void> {
+  await send(
+    STAFF_INBOX,
+    `[ActiveCAMT] Submitter replied — ${c.category} (${shortRef(c.id)})`,
+    [
+      "The submitter added a follow-up message on a feedback/complaint.",
+      "",
+      `Category: ${c.category}`,
+      `Ref: ${shortRef(c.id)}`,
+      "",
+      "Review it at /admin/feedback (filter by this ref).",
+    ].join("\n"),
+  );
+}
+
+// STAFF added a message — notify the submitter, but ONLY if they voluntarily
+// opted into a contact address (contactEmail is null/undefined otherwise —
+// see docs §10's "only email the voluntary contact field" decision). A
+// no-op when contactEmail is absent; the submitter still sees the reply via
+// self-service (/feedback/track) either way.
+export async function notifyStaffMessage(c: NotifyComplaint, replyBody: string, contactEmail?: string | null): Promise<void> {
+  if (!contactEmail) return;
+  await send(
+    contactEmail,
+    "[ActiveCAMT] Staff replied to your feedback",
+    [
+      `Staff replied to your feedback/complaint (category: ${c.category}).`,
+      "",
+      replyBody,
+      "",
+      "You can also check this anytime by signing in and visiting My Feedback on ActiveCAMT.",
     ].join("\n"),
   );
 }

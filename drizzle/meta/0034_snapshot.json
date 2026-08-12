@@ -1,5 +1,5 @@
 {
-  "id": "4f0f902f-6eb7-4a83-b328-8d3d82f3e697",
+  "id": "8be6a46b-9542-4b19-a258-854825e30635",
   "prevId": "2e86de2e-c426-4852-a179-87aad74cd32c",
   "version": "7",
   "dialect": "postgresql",
@@ -1713,6 +1713,87 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.feedback_complaint_messages": {
+      "name": "feedback_complaint_messages",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "complaint_id": {
+          "name": "complaint_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sender_type": {
+          "name": "sender_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "staff_user_id": {
+          "name": "staff_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "feedback_complaint_messages_complaint_idx": {
+          "name": "feedback_complaint_messages_complaint_idx",
+          "columns": [
+            {
+              "expression": "complaint_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "feedback_complaint_messages_complaint_id_feedback_complaints_id_fk": {
+          "name": "feedback_complaint_messages_complaint_id_feedback_complaints_id_fk",
+          "tableFrom": "feedback_complaint_messages",
+          "tableTo": "feedback_complaints",
+          "columnsFrom": [
+            "complaint_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.feedback_complaints": {
       "name": "feedback_complaints",
       "schema": "",
@@ -1775,24 +1856,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'new'"
-        },
-        "admin_reply": {
-          "name": "admin_reply",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "replied_by": {
-          "name": "replied_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "replied_at": {
-          "name": "replied_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
         },
         "created_at": {
           "name": "created_at",

@@ -3,18 +3,19 @@
 // this file must never violate: no query here selects `submitterRef` into an
 // admin-facing response, and no function accepts a raw userId from anywhere
 // other than the caller's own authenticated session.
-import { and, desc, eq, gte } from "drizzle-orm";
+import { and, asc, desc, eq, gte } from "drizzle-orm";
 import { db } from "@/db";
-import { feedbackComplaints } from "@/db/schema";
+import { feedbackComplaintMessages, feedbackComplaints } from "@/db/schema";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import {
   CATEGORY_DEFAULT_SEVERITY,
   computeSubmitterRef,
+  isEmailLike,
   type FeedbackCategory,
   type FeedbackSeverity,
   type FeedbackStatus,
 } from "@/lib/feedback-token";
-import { notifyComplaintResolved, notifyNewComplaint } from "@/lib/feedback-notify";
+import { notifyComplaintResolved, notifyNewComplaint, notifyStaffMessage, notifySubmitterMessage } from "@/lib/feedback-notify";
 
 export interface CreateComplaintInput {
   /** The logged-in user's own id. Used ONLY to derive submitterRef via HMAC —
@@ -34,6 +35,18 @@ export interface CreateComplaintInput {
 const ABUSE_WINDOW_MS = 24 * 60 * 60 * 1000;
 export const ACCOUNT_DAILY_SUBMISSION_LIMIT = 10;
 
+// Shared between listMine and listForAdmin so the two surfaces render the
+// same shape of message. staffUserId is deliberately excluded from BOTH —
+// neither the submitter nor the admin queue needs to know WHICH staff
+// member replied, just that staff did; it's tracked internally (see
+// postStaffMessage's audit log) for accountability, not surfaced here.
+const MESSAGE_COLUMNS = {
+  id: true,
+  senderType: true,
+  body: true,
+  createdAt: true,
+} as const;
+
 const ADMIN_LIST_COLUMNS = {
   id: true,
   category: true,
@@ -43,9 +56,6 @@ const ADMIN_LIST_COLUMNS = {
   contactInfo: true,
   attachmentKeys: true,
   status: true,
-  adminReply: true,
-  repliedBy: true,
-  repliedAt: true,
   createdAt: true,
   updatedAt: true,
   // submitterRef is deliberately NOT listed — see the file-level comment and
@@ -98,14 +108,15 @@ export class FeedbackService {
   }
 
   /**
-   * The CALLING user's own submissions, matched via their own re-derived
-   * submitterRef. Safe under the anonymity model in docs §5: the lookup key
-   * is computed here from `userId`, which every call site derives from the
-   * caller's OWN session (never a client-supplied id — see GET
-   * /api/feedback/mine) — there is no path for anyone, including an admin,
-   * to use this to look up someone else's submissions. This is exactly as
-   * self-scoped as "my orders" on the shop; it doesn't weaken the
-   * admin-facing guarantee at all, since nothing here is admin-facing.
+   * The CALLING user's own submissions (with their full message thread),
+   * matched via their own re-derived submitterRef. Safe under the anonymity
+   * model in docs §5: the lookup key is computed here from `userId`, which
+   * every call site derives from the caller's OWN session (never a
+   * client-supplied id — see GET /api/feedback/mine) — there is no path for
+   * anyone, including an admin, to use this to look up someone else's
+   * submissions. This is exactly as self-scoped as "my orders" on the shop;
+   * it doesn't weaken the admin-facing guarantee at all, since nothing here
+   * is admin-facing.
    *
    * This is the ONLY way a submitter ever checks status/reply — there is no
    * separate tracking-code path (dropped 2026-08-13, docs §7.0/§8): as long
@@ -122,9 +133,10 @@ export class FeedbackService {
         severity: true,
         status: true,
         message: true,
-        adminReply: true,
         createdAt: true,
-        repliedAt: true,
+      },
+      with: {
+        messages: { orderBy: [asc(feedbackComplaintMessages.createdAt)], columns: MESSAGE_COLUMNS },
       },
     });
   }
@@ -161,7 +173,81 @@ export class FeedbackService {
     return row ?? null;
   }
 
-  /** Admin triage list. NEVER selects submitterRef — see ADMIN_LIST_COLUMNS. */
+  /**
+   * Submitter posts a follow-up message on their OWN complaint (docs §10).
+   * Ownership-checked via submitterRef, same pattern as closeMine — and same
+   * reasoning for NOT audit-logging it (their own action on their own
+   * resource; logging their userId against this complaint would itself leak
+   * who submitted it via /admin/audit-logs). Blocked once a complaint is
+   * 'closed' — that's the final state, reopening it via a message would
+   * defeat the point of closing. A message on a 'resolved' complaint bumps
+   * it back to 'in_review' so it resurfaces in the admin queue instead of
+   * silently sitting in a "done" bucket staff has stopped checking.
+   */
+  static async postSubmitterMessage(userId: string, complaintId: string, body: string) {
+    const submitterRef = computeSubmitterRef(userId);
+    const complaint = await db.query.feedbackComplaints.findFirst({
+      where: and(eq(feedbackComplaints.id, complaintId), eq(feedbackComplaints.submitterRef, submitterRef)),
+      columns: { id: true, category: true, severity: true, status: true, message: true },
+    });
+    if (!complaint || complaint.status === "closed") return null;
+
+    const [msg] = await db
+      .insert(feedbackComplaintMessages)
+      .values({ complaintId, senderType: "submitter", body })
+      .returning({ id: feedbackComplaintMessages.id, senderType: feedbackComplaintMessages.senderType, body: feedbackComplaintMessages.body, createdAt: feedbackComplaintMessages.createdAt });
+
+    if (complaint.status === "resolved") {
+      await db.update(feedbackComplaints).set({ status: "in_review", updatedAt: new Date() }).where(eq(feedbackComplaints.id, complaintId));
+    }
+
+    void notifySubmitterMessage(complaint).catch(() => {});
+
+    return msg;
+  }
+
+  /**
+   * Staff posts a message on ANY complaint (no ownership scoping — that's
+   * the point of the admin surface). Wraps the insert + audit write in ONE
+   * transaction, per this project's standard admin-route pattern. Notifies
+   * the submitter's voluntary contact address if they opted in and it looks
+   * like an email (docs §10's "only email the voluntary contact field"
+   * decision) — never derived from anything else.
+   */
+  static async postStaffMessage(complaintId: string, staffUserId: string, body: string, req: Request) {
+    const result = await db.transaction(async (tx) => {
+      const complaint = await tx.query.feedbackComplaints.findFirst({
+        where: eq(feedbackComplaints.id, complaintId),
+        columns: { id: true, category: true, severity: true, status: true, message: true, contactOptIn: true, contactInfo: true },
+      });
+      if (!complaint) return null;
+
+      const [msg] = await tx
+        .insert(feedbackComplaintMessages)
+        .values({ complaintId, senderType: "staff", staffUserId, body })
+        .returning({ id: feedbackComplaintMessages.id, senderType: feedbackComplaintMessages.senderType, body: feedbackComplaintMessages.body, createdAt: feedbackComplaintMessages.createdAt });
+
+      await AuditService.logActionInternal(tx, {
+        actorId: staffUserId,
+        targetId: complaintId,
+        action: "Feedback complaint message added",
+        ipAddress: getClientIp(req),
+      });
+
+      return { msg, complaint };
+    });
+    if (!result) return null;
+
+    const contactEmail = result.complaint.contactOptIn && result.complaint.contactInfo && isEmailLike(result.complaint.contactInfo)
+      ? result.complaint.contactInfo
+      : null;
+    void notifyStaffMessage(result.complaint, body, contactEmail).catch(() => {});
+
+    return result.msg;
+  }
+
+  /** Admin triage list (with full message threads). NEVER selects
+   * submitterRef — see ADMIN_LIST_COLUMNS. */
   static async listForAdmin(filters: { status?: FeedbackStatus; category?: FeedbackCategory; severity?: FeedbackSeverity }) {
     const conditions = [];
     if (filters.status) conditions.push(eq(feedbackComplaints.status, filters.status));
@@ -172,34 +258,30 @@ export class FeedbackService {
       where: conditions.length ? and(...conditions) : undefined,
       orderBy: [desc(feedbackComplaints.createdAt)],
       columns: ADMIN_LIST_COLUMNS,
+      with: {
+        messages: { orderBy: [asc(feedbackComplaintMessages.createdAt)], columns: MESSAGE_COLUMNS },
+      },
     });
   }
 
   /**
-   * Admin update: status / severity / reply. Wraps the mutation + audit
-   * write in ONE transaction (this project's standard admin-route pattern —
-   * see .claude/skills/new-admin-route), so a failed audit append can never
-   * leave the mutation applied without a trail. The audit action text logs
-   * WHAT changed (status/severity/whether a reply was sent), never the
-   * message content or anything submitter-identifying — there is no
-   * submitter identity for an admin to have accessed in the first place,
-   * this is accountability for the STAFF action alone. Fires the resolve
-   * notification when status moves to 'resolved' or a reply is attached.
+   * Admin update: status / severity ONLY — replying is now a separate action
+   * (postStaffMessage above; the old single adminReply field is gone, see
+   * schema.ts). Wraps the mutation + audit write in ONE transaction (this
+   * project's standard admin-route pattern — see
+   * .claude/skills/new-admin-route), so a failed audit append can never
+   * leave the mutation applied without a trail. Fires the resolve
+   * notification when status moves to 'resolved'.
    */
   static async updateComplaint(
     id: string,
-    changes: { status?: FeedbackStatus; severity?: FeedbackSeverity; adminReply?: string },
+    changes: { status?: FeedbackStatus; severity?: FeedbackSeverity },
     adminUserId: string,
     req: Request,
   ) {
     const values: Partial<typeof feedbackComplaints.$inferInsert> = { updatedAt: new Date() };
     if (changes.status) values.status = changes.status;
     if (changes.severity) values.severity = changes.severity;
-    if (changes.adminReply !== undefined) {
-      values.adminReply = changes.adminReply;
-      values.repliedBy = adminUserId;
-      values.repliedAt = new Date();
-    }
 
     const row = await db.transaction(async (tx) => {
       const [updated] = await tx
@@ -212,14 +294,12 @@ export class FeedbackService {
           severity: feedbackComplaints.severity,
           status: feedbackComplaints.status,
           message: feedbackComplaints.message,
-          adminReply: feedbackComplaints.adminReply,
         });
       if (!updated) return null;
 
       const changeDescriptors = [
         changes.status ? `status→${changes.status}` : null,
         changes.severity ? `severity→${changes.severity}` : null,
-        changes.adminReply !== undefined ? "reply sent" : null,
       ].filter(Boolean);
 
       await AuditService.logActionInternal(tx, {
@@ -233,7 +313,7 @@ export class FeedbackService {
     });
     if (!row) return null;
 
-    if (changes.status === "resolved" || changes.adminReply !== undefined) {
+    if (changes.status === "resolved") {
       void notifyComplaintResolved(row).catch(() => {});
     }
 

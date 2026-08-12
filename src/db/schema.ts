@@ -1056,17 +1056,29 @@ export const noShowAppealsRelations = relations(noShowAppeals, ({ one }) => ({
 // audit-logged, see FeedbackService.closeMine's comment for why logging
 // a submitter's own userId against this row would itself be a re-
 // identification leak via /admin/audit-logs). Closed rows are kept, not
-// deleted — they're the submitter's own history (docs §7.0).
+// deleted — they're the submitter's own history (docs §7.0). A closed
+// complaint is final — no more messages can be posted to it either.
 //
-// repliedBy: admin's own userId who wrote adminReply. No FK — mirrors
-// noShowAppeals.reviewedBy — so staff-account deletion never rewrites/cascades
-// this. This identifies STAFF, not the reporter, so it's fine to store plainly.
+// The original single adminReply/repliedBy/repliedAt fields (one-shot
+// staff reply) were replaced 2026-08-13 by feedbackComplaintMessages below,
+// a proper two-way thread — staff sometimes need to ask a follow-up
+// question, and a single reply field can't hold a back-and-forth.
 // ============================================================================
 export const feedbackComplaints = pgTable("feedback_complaints", {
   id: uuid("id").defaultRandom().primaryKey(),
   category: text("category").notNull(),
   severity: text("severity").notNull().default("normal"),
   message: text("message").notNull(),
+  // Voluntary, purpose-limited follow-up contact channel — only meaningful
+  // when contactOptIn is true. Populated either from a manually-typed value
+  // (Line ID, a different email, etc.) or, if the submitter chooses to, from
+  // their OWN ActiveCAMT account email (server-derived from their session at
+  // submit time — see POST /api/feedback — never a value the client can set
+  // on someone else's behalf). Either way this is an ACTIVE, EXPLICIT choice
+  // the submitter makes (contactOptIn defaults false) — categorically
+  // different from the submitter-identity withholding below (submitterRef);
+  // it is NOT submitter identity, just a channel the reporter chose to share
+  // specifically so staff can follow up.
   contactOptIn: boolean("contact_opt_in").notNull().default(false),
   contactInfo: text("contact_info"),
   attachmentKeys: jsonb("attachment_keys").$type<string[]>().notNull().default([]),
@@ -1076,9 +1088,6 @@ export const feedbackComplaints = pgTable("feedback_complaints", {
   // docs/features/feedback-complaints.md §5.
   submitterRef: text("submitter_ref").notNull(),
   status: text("status").notNull().default("new"),
-  adminReply: text("admin_reply"),
-  repliedBy: text("replied_by"), // no FK — mirrors noShowAppeals.reviewedBy
-  repliedAt: timestamp("replied_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ([
@@ -1086,7 +1095,39 @@ export const feedbackComplaints = pgTable("feedback_complaints", {
   index("feedback_complaints_status_idx").on(table.status),
   index("feedback_complaints_category_idx").on(table.category),
 ]));
-// No relations() block — this table deliberately has no FK relations to users.
+
+export const feedbackComplaintsRelations = relations(feedbackComplaints, ({ many }) => ({
+  messages: many(feedbackComplaintMessages),
+}));
+// Still no relation to `users` — that absence is the anonymity guarantee
+// itself, not an oversight (see the table-level comment above).
+
+// Two-way conversation on a complaint, replacing the old single adminReply
+// field (see above). senderType: 'submitter' | 'staff'. staffUserId is set
+// ONLY for staff messages, no FK (mirrors noShowAppeals.reviewedBy /
+// feedbackComplaints' old repliedBy) — identifies STAFF, not the reporter,
+// so it's fine to store plainly. A submitter message carries NO sender
+// identity at all beyond the parent row's submitterRef (which this table
+// doesn't even duplicate — ownership for a submitter's own message-post is
+// checked by joining to the parent complaint's submitterRef, never stored
+// again here).
+export const feedbackComplaintMessages = pgTable("feedback_complaint_messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  complaintId: uuid("complaint_id").notNull().references(() => feedbackComplaints.id, { onDelete: "cascade" }),
+  senderType: text("sender_type").notNull(), // 'submitter' | 'staff'
+  staffUserId: text("staff_user_id"), // no FK — see comment above
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ([
+  index("feedback_complaint_messages_complaint_idx").on(table.complaintId),
+]));
+
+export const feedbackComplaintMessagesRelations = relations(feedbackComplaintMessages, ({ one }) => ({
+  complaint: one(feedbackComplaints, {
+    fields: [feedbackComplaintMessages.complaintId],
+    references: [feedbackComplaints.id],
+  }),
+}));
 
 // ============================================================================
 // EVENT PROPOSALS (club-president feature)

@@ -359,54 +359,50 @@ copy is finalized rather than hardcoding.
 ## 9. Phasing
 
 **Shipped:** submit + categorize + self-service status/reply (§7.0, no
-tracking code) + self-close (§5) + admin triage list + single reply + SMTP
-notification to `smocamt.official@camt.info` on submit/resolve (§5.1).
-**Open (see §10 below):** two-way conversation with the submitter, with
-per-side email notification — a real trade-off to resolve before building,
-not a straightforward addition.
+tracking code) + self-close (§5) + admin triage list + two-way threaded
+conversation (§10) + SMTP notification to `smocamt.official@camt.info` on
+submit/resolve/submitter-message, plus an optional submitter-facing email on
+staff reply (§10).
 **Later, not blocking:** category-trend analytics for staff (which
 categories spike around which events — useful signal, zero re-identification
 risk since it's aggregate).
 
-## 10. Open: threaded conversation + email notifications (not yet built)
+## 10. Threaded conversation + email notifications (shipped 2026-08-13)
 
 Staff sometimes need to ask a follow-up question, and the submitter should
 be able to answer without starting a whole new complaint — a real gap in the
-single-reply model shipped so far. Two things this needs, and the second one
-has a genuine anonymity trade-off that needs a decision before building:
+original single-reply model. Two decisions this needed, resolved as follows:
 
-1. **Threaded messages, not one `adminReply` field.** Replace
-   `feedback_complaints.adminReply/repliedBy/repliedAt` with a
-   `feedback_complaint_messages` table (complaint id, sender type
-   submitter/staff, staff sender id when applicable, body, timestamp) so
-   either side can post more than once. A submitter message on a `resolved`
-   complaint should probably bump it back to `in_review` (not `closed` —
-   once closed, per §5/§7.0, it's final history; reopening it defeats the
-   point of closing).
-2. **Email notification to the SUBMITTER when staff replies** — this is
-   where it gets architecturally interesting. The staff-reply email to
-   `smocamt.official@camt.info` (§5.1) is easy: it's the admin side, no
-   anonymity implication. Emailing the *submitter* is harder, because the
-   row has no identity-bearing field to send to by design (§5) — `submitterRef`
-   is one-way on purpose. Two paths, not equivalent:
-   - **(a) Store the account's real email on the row** (even if excluded
-     from admin-facing selects, same treatment as `submitterRef`). This is a
-     real regression from §5's strongest claim — "not reversible... not for
-     a human with raw DB access either" — since a plaintext (or
-     app-decryptable, which is the same thing for a determined DB-access
-     holder) email sitting on the row means a database backup, a Portainer
-     console session, or a `psql` query WOULD reveal who submitted it. Don't
-     do this without explicitly re-confirming that trade-off is acceptable —
-     it directly contradicts the design's headline guarantee.
-   - **(b) Only email the voluntarily-disclosed `contactInfo`** (the
-     existing opt-in field, §7.1 point 2) when it looks like an email
-     address and `contactOptIn` is true. No new identity-bearing data
-     stored — reuses a channel the submitter already explicitly chose to
-     share for follow-up. **Recommended**: consistent with every other
-     anonymity decision in this doc, and the submitter who wants email
-     updates already has a way to ask for them.
-   - If (b), a submitter who did NOT opt into contact only ever finds out
-     about a reply by checking `/feedback/track` (self-service, §7.0) — no
-     email notification for them. Worth surfacing that limitation in the
-     opt-in copy itself ("check back here for updates" vs. "we'll email
-     you") so expectations are set correctly at submission time.
+1. **Threaded messages, not one `adminReply` field.** Replaced the original
+   `feedback_complaints.adminReply/repliedBy/repliedAt` fields with a
+   `feedback_complaint_messages` table (`complaintId`, `senderType`
+   `'submitter'|'staff'`, `staffUserId` set only for staff messages — no FK,
+   same treatment as the old `repliedBy` — `body`, `createdAt`), FK-cascaded
+   to the parent complaint. Either side can post more than once. A submitter
+   message on a `resolved` complaint bumps it back to `in_review` so it
+   resurfaces in the admin queue; messaging is blocked once a complaint is
+   `closed` (final state — reopening it via a message would defeat the point
+   of closing, §5/§7.0). Amended in place before ever shipping to prod, same
+   squashing approach as the earlier tracking-code removal.
+2. **Email notification to the SUBMITTER when staff replies** — decided
+   **(b): only the voluntarily-disclosed `contactInfo`**, never the
+   account's real email stored automatically. The submitter can, at submit
+   time, actively *choose* to share their own ActiveCAMT account email as
+   that voluntary contact (derived server-side from their session at submit
+   time — POST /api/feedback's `useAccountEmail`, never client-supplied) —
+   this is convenience, not a change to the underlying rule: `contactInfo`
+   is only ever populated by an explicit, active choice (`contactOptIn`
+   defaults false), never automatically regardless of opt-in status. A
+   submitter who didn't opt in only ever finds out about a reply by checking
+   `/feedback/track` (self-service) — no email for them. This keeps §5's
+   strongest claim intact: nothing identity-bearing is EVER stored without
+   the submitter's own explicit action to put it there.
+   - Rejected alternative (a) — auto-storing the account's real email on
+     every row regardless of opt-in — would have been a real regression:
+     "not reversible... not for a human with raw DB access either" would
+     stop being true the moment a plaintext (or app-decryptable, same thing
+     for a determined DB-access holder) email sits on the row by default.
+   - `isEmailLike()` (feedback-token.ts) gates whether a `contactInfo` value
+     is attempted as an email destination — a Line ID or phone number
+     silently just doesn't trigger a send; the submitter still isn't
+     penalized, they just check `/feedback/track` instead.

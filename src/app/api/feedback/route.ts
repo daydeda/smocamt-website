@@ -15,11 +15,20 @@ import { captureException } from "@/lib/logger";
 // no legitimate complaint should ever hit it, just a ceiling so a single
 // submission can't blow up the notification email (feedback-notify.ts) or
 // the admin list render.
+// useAccountEmail: when contactOptIn is true, the submitter can choose to
+// share their OWN ActiveCAMT account email (derived server-side from their
+// session below, never client-supplied) instead of typing one in. Either
+// way this is an explicit, active choice — contactOptIn defaults false, and
+// picking "use my account email" is itself an opt-in action, not something
+// inferred. See schema.ts's feedbackComplaints.contactInfo comment and docs
+// §10 for why this is the ONLY way the submitter's real email ever reaches
+// this table — never automatically, regardless of contactOptIn.
 const submitSchema = z.object({
   category: z.enum(FEEDBACK_CATEGORIES),
   message: z.string().trim().min(10, "Please write at least 10 characters.").max(10000),
   contactOptIn: z.boolean().default(false),
   contactInfo: z.string().trim().max(200).optional(),
+  useAccountEmail: z.boolean().default(false),
 });
 
 // POST /api/feedback — submit a new anonymous feedback/complaint. Requires a
@@ -52,12 +61,19 @@ export async function POST(req: Request) {
       );
     }
 
+    // "Use my account email" resolves to the CALLER's own session email —
+    // never anything client-supplied — so this can't be used to attach an
+    // arbitrary email to the row.
+    const contactInfo = body.contactOptIn
+      ? (body.useAccountEmail ? session.user.email ?? undefined : body.contactInfo)
+      : undefined;
+
     const result = await FeedbackService.createComplaint({
       submitterId: session.user.id,
       category: body.category,
       message: body.message,
       contactOptIn: body.contactOptIn,
-      contactInfo: body.contactInfo,
+      contactInfo,
     });
 
     // Status/reply are checked via GET /api/feedback/mine (self-service,

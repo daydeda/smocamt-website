@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { CATEGORY_DEFAULT_SEVERITY, FEEDBACK_CATEGORIES, computeSubmitterRef } from "@/lib/feedback-token";
+import { CATEGORY_DEFAULT_SEVERITY, FEEDBACK_CATEGORIES, computeSubmitterRef, isEmailLike } from "@/lib/feedback-token";
 
 describe("computeSubmitterRef", () => {
   const ORIGINAL_SECRET = process.env.FEEDBACK_HMAC_SECRET;
@@ -48,5 +48,18 @@ describe("CATEGORY_DEFAULT_SEVERITY", () => {
     for (const category of FEEDBACK_CATEGORIES) {
       expect(CATEGORY_DEFAULT_SEVERITY[category]).toBeDefined();
     }
+  });
+});
+
+describe("isEmailLike", () => {
+  it("true for a plausible email", () => {
+    expect(isEmailLike("student@cmu.ac.th")).toBe(true);
+    expect(isEmailLike("  student@cmu.ac.th  ")).toBe(true);
+  });
+
+  it("false for a Line ID / plain text", () => {
+    expect(isEmailLike("my.line.id")).toBe(false);
+    expect(isEmailLike("081-234-5678")).toBe(false);
+    expect(isEmailLike("")).toBe(false);
   });
 });

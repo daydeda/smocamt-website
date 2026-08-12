@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -33,11 +34,16 @@ export default function FeedbackNewPage() {
   const { t } = useLanguage();
   const tr = t as Record<string, string>;
   const tt = (key: string, fallback: string) => tr[key] || fallback;
+  const { data: session } = useSession();
+  const accountEmail = session?.user?.email || null;
 
   const [step, setStep] = useState<Step>("category");
   const [category, setCategory] = useState<FeedbackCategory | null>(null);
   const [message, setMessage] = useState("");
   const [contactOptIn, setContactOptIn] = useState(false);
+  // "account" pre-selected when the session has an email — it's the
+  // zero-typing default; "custom" covers a different email, a Line ID, etc.
+  const [contactMethod, setContactMethod] = useState<"account" | "custom">("account");
   const [contactInfo, setContactInfo] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,13 +53,16 @@ export default function FeedbackNewPage() {
     setStep("message");
   };
 
-  const canContinueFromMessage = message.trim().length >= MESSAGE_MIN;
+  const needsCustomContact = contactOptIn && (contactMethod === "custom" || !accountEmail);
+  const canContinueFromMessage =
+    message.trim().length >= MESSAGE_MIN && (!needsCustomContact || contactInfo.trim().length > 0);
 
   const submit = async () => {
     if (!category) return;
     setSubmitting(true);
     setError(null);
     try {
+      const useAccountEmail = contactOptIn && contactMethod === "account" && !!accountEmail;
       const res = await fetch("/api/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -61,7 +70,11 @@ export default function FeedbackNewPage() {
           category,
           message: message.trim(),
           contactOptIn,
-          contactInfo: contactOptIn ? contactInfo.trim() : undefined,
+          useAccountEmail,
+          // The server derives the actual address from the session when
+          // useAccountEmail is true — this is never sent, so there's no
+          // client-controlled path to attach an arbitrary email.
+          contactInfo: contactOptIn && !useAccountEmail ? contactInfo.trim() : undefined,
         }),
       });
       const data = await res.json();
@@ -230,14 +243,41 @@ export default function FeedbackNewPage() {
                 </span>
               </label>
               {contactOptIn && (
-                <input
-                  className="input"
-                  style={{ marginTop: 10 }}
-                  maxLength={CONTACT_MAX}
-                  placeholder={tt("feedbackContactInfoPlaceholder", "Line ID, email, or another way to reach you")}
-                  value={contactInfo}
-                  onChange={(e) => setContactInfo(e.target.value)}
-                />
+                <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+                  {accountEmail && (
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13 }}>
+                      <input
+                        type="radio"
+                        name="contactMethod"
+                        checked={contactMethod === "account"}
+                        onChange={() => setContactMethod("account")}
+                        style={{ accentColor: "var(--accent-primary)", cursor: "pointer" }}
+                      />
+                      <span style={{ color: "var(--text-primary)" }}>
+                        {tt("feedbackUseAccountEmail", "Use my account email")} <span style={{ color: "var(--text-muted)" }}>({accountEmail})</span>
+                      </span>
+                    </label>
+                  )}
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13 }}>
+                    <input
+                      type="radio"
+                      name="contactMethod"
+                      checked={contactMethod === "custom" || !accountEmail}
+                      onChange={() => setContactMethod("custom")}
+                      style={{ accentColor: "var(--accent-primary)", cursor: "pointer" }}
+                    />
+                    <span style={{ color: "var(--text-primary)" }}>{tt("feedbackUseDifferentContact", "Use a different contact")}</span>
+                  </label>
+                  {(contactMethod === "custom" || !accountEmail) && (
+                    <input
+                      className="input"
+                      maxLength={CONTACT_MAX}
+                      placeholder={tt("feedbackContactInfoPlaceholder", "Line ID, email, or another way to reach you")}
+                      value={contactInfo}
+                      onChange={(e) => setContactInfo(e.target.value)}
+                    />
+                  )}
+                </div>
               )}
             </div>
 
@@ -273,9 +313,12 @@ export default function FeedbackNewPage() {
                   {tt("edit", "Edit")}
                 </button>
               </div>
-              {contactOptIn && contactInfo.trim() && (
+              {contactOptIn && (contactMethod === "account" && accountEmail ? true : contactInfo.trim().length > 0) && (
                 <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
-                  {tt("feedbackReviewContactPrefix", "Follow-up contact: ")}<span style={{ color: "var(--text-primary)", fontWeight: 600 }}>{contactInfo.trim()}</span>
+                  {tt("feedbackReviewContactPrefix", "Follow-up contact: ")}
+                  <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>
+                    {contactMethod === "account" && accountEmail ? accountEmail : contactInfo.trim()}
+                  </span>
                 </div>
               )}
             </div>

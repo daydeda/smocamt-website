@@ -14,13 +14,14 @@ const updateSchema = z.object({
   // 'urgent') is deliberately admin-only and gets logged like any other
   // change here (docs/features/feedback-complaints.md §4).
   severity: z.enum(FEEDBACK_SEVERITIES).optional(),
-  adminReply: z.string().trim().min(1).max(3000).optional(),
 });
 
-// PATCH /api/admin/feedback/[id] — update status/severity/reply. super_admin/
-// admin ONLY (src/lib/feedback-access.ts). Mutation + audit log are wrapped
-// in one transaction inside FeedbackService.updateComplaint, per this
-// project's standard admin-route pattern.
+// PATCH /api/admin/feedback/[id] — update status/severity ONLY. Replying is
+// a separate action now (POST .../messages, docs §10) — the old single
+// adminReply field is gone. super_admin/admin ONLY
+// (src/lib/feedback-access.ts). Mutation + audit log are wrapped in one
+// transaction inside FeedbackService.updateComplaint, per this project's
+// standard admin-route pattern.
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await auth();
@@ -31,7 +32,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     const { id } = await params;
     const data = updateSchema.parse(await req.json());
-    if (!data.status && !data.severity && data.adminReply === undefined) {
+    if (!data.status && !data.severity) {
       return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
     }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MessageSquareWarning, Loader2, X, ShieldOff } from "lucide-react";
+import { MessageSquareWarning, Loader2, Send, X, ShieldOff } from "lucide-react";
 import { useLanguage } from "@/lib/LanguageContext";
 import {
   FEEDBACK_SEVERITY_META,
@@ -17,6 +17,13 @@ import {
   type FeedbackStatus,
 } from "@/lib/feedback-token";
 
+interface ThreadMessage {
+  id: string;
+  senderType: "submitter" | "staff";
+  body: string;
+  createdAt: string;
+}
+
 interface Complaint {
   id: string;
   category: FeedbackCategory;
@@ -25,11 +32,9 @@ interface Complaint {
   contactOptIn: boolean;
   contactInfo: string | null;
   status: FeedbackStatus;
-  adminReply: string | null;
-  repliedBy: string | null;
-  repliedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  messages: ThreadMessage[];
 }
 
 export function FeedbackAdminClient() {
@@ -42,11 +47,14 @@ export function FeedbackAdminClient() {
   const [filterStatus, setFilterStatus] = useState<FeedbackStatus | "all">("new");
   const [filterCategory, setFilterCategory] = useState<FeedbackCategory | "all">("all");
   const [filterSeverity, setFilterSeverity] = useState<FeedbackSeverity | "all">("all");
-  const [selected, setSelected] = useState<Complaint | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
   const [pendingStatus, setPendingStatus] = useState<FeedbackStatus | null>(null);
   const [pendingSeverity, setPendingSeverity] = useState<FeedbackSeverity | null>(null);
   const [saving, setSaving] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  const selected = complaints.find((c) => c.id === selectedId) ?? null;
 
   const load = () => {
     fetch("/api/admin/feedback")
@@ -68,25 +76,23 @@ export function FeedbackAdminClient() {
   );
 
   const openDetail = (c: Complaint) => {
-    setSelected(c);
-    setReplyText(c.adminReply || "");
+    setSelectedId(c.id);
+    setReplyText("");
     setPendingStatus(c.status);
     setPendingSeverity(c.severity);
   };
 
-  const closeDetail = () => setSelected(null);
+  const closeDetail = () => setSelectedId(null);
 
+  // Status/severity save is now SEPARATE from replying (postStaffMessage,
+  // below) — the old single adminReply field is gone (docs §10), so this
+  // only ever touches status/severity.
   const save = async () => {
     if (!selected) return;
-    const body: { status?: FeedbackStatus; severity?: FeedbackSeverity; adminReply?: string } = {};
+    const body: { status?: FeedbackStatus; severity?: FeedbackSeverity } = {};
     if (pendingStatus && pendingStatus !== selected.status) body.status = pendingStatus;
     if (pendingSeverity && pendingSeverity !== selected.severity) body.severity = pendingSeverity;
-    const trimmedReply = replyText.trim();
-    if (trimmedReply && trimmedReply !== (selected.adminReply || "")) body.adminReply = trimmedReply;
-    if (Object.keys(body).length === 0) {
-      closeDetail();
-      return;
-    }
+    if (Object.keys(body).length === 0) return;
     setSaving(true);
     try {
       const res = await fetch(`/api/admin/feedback/${selected.id}`, {
@@ -99,10 +105,31 @@ export function FeedbackAdminClient() {
         alert(d?.error || "Failed to save");
         return;
       }
-      closeDetail();
       load();
     } finally {
       setSaving(false);
+    }
+  };
+
+  const sendReply = async () => {
+    const trimmed = replyText.trim();
+    if (!selected || !trimmed) return;
+    setSending(true);
+    try {
+      const res = await fetch(`/api/admin/feedback/${selected.id}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: trimmed }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data?.error || "Failed to send reply");
+        return;
+      }
+      setComplaints((prev) => prev.map((c) => (c.id === selected.id ? { ...c, messages: [...c.messages, data.message] } : c)));
+      setReplyText("");
+    } finally {
+      setSending(false);
     }
   };
 
@@ -183,6 +210,11 @@ export function FeedbackAdminClient() {
                     <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 99, color: statusMeta.color, background: statusMeta.bg }}>
                       {tt(statusMeta.i18nKey, statusMeta.fallback)}
                     </span>
+                    {c.messages.length > 0 && (
+                      <span style={{ fontSize: 10, fontWeight: 800, color: "var(--text-muted)" }}>
+                        {c.messages.length} {tt("feedbackAdminMessagesCount", "messages")}
+                      </span>
+                    )}
                   </div>
                   <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
                     {c.message}
@@ -228,7 +260,7 @@ export function FeedbackAdminClient() {
               </div>
             )}
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2" style={{ alignItems: "flex-end" }}>
               <div>
                 <label className="label" style={{ fontSize: 11 }}>{tt("feedbackAdminStatusLabel", "Status")}</label>
                 <select className="input" style={{ height: 36, fontSize: 13 }} value={pendingStatus ?? selected.status} onChange={(e) => setPendingStatus(e.target.value as FeedbackStatus)}>
@@ -245,23 +277,63 @@ export function FeedbackAdminClient() {
                   ))}
                 </select>
               </div>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                disabled={saving || (pendingStatus === selected.status && pendingSeverity === selected.severity)}
+                onClick={save}
+              >
+                {saving ? tt("saving", "Saving…") : tt("feedbackAdminSave", "Save")}
+              </button>
             </div>
 
-            <div>
-              <label className="label" style={{ display: "block", marginBottom: 6 }}>{tt("feedbackAdminReplyLabel", "Reply (visible to the submitter via their tracking code)")}</label>
+            {selected.messages.length > 0 && (
+              <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em", margin: 0 }}>
+                  {tt("feedbackAdminConversationLabel", "Conversation")}
+                </p>
+                {selected.messages.map((m) => (
+                  <div
+                    key={m.id}
+                    style={{
+                      alignSelf: m.senderType === "staff" ? "flex-end" : "flex-start",
+                      maxWidth: "85%",
+                      padding: "8px 12px",
+                      borderRadius: 12,
+                      background: m.senderType === "staff" ? "var(--accent-primary)" : "var(--bg-surface)",
+                      color: m.senderType === "staff" ? "#fff" : "var(--text-primary)",
+                    }}
+                  >
+                    <p style={{ fontSize: 10, fontWeight: 700, opacity: 0.7, margin: "0 0 2px", textTransform: "uppercase" }}>
+                      {m.senderType === "staff" ? tt("feedbackAdminStaffLabel", "Staff") : tt("feedbackAdminSubmitterLabel", "Submitter")}
+                    </p>
+                    <p style={{ whiteSpace: "pre-wrap", fontSize: 14, lineHeight: 1.5, margin: 0 }}>{m.body}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ borderTop: selected.messages.length === 0 ? "1px solid var(--border-subtle)" : undefined, paddingTop: selected.messages.length === 0 ? 12 : 0 }}>
+              <label className="label" style={{ display: "block", marginBottom: 6 }}>{tt("feedbackAdminReplyLabel", "Reply (visible to the submitter under My Feedback)")}</label>
               <textarea
                 className="input"
-                rows={4}
-                placeholder={tt("feedbackAdminReplyPlaceholder", "Write a reply the submitter will see when they check their tracking code…")}
+                rows={3}
+                placeholder={tt("feedbackAdminReplyPlaceholder", "Write a reply the submitter will see…")}
                 value={replyText}
                 onChange={(e) => setReplyText(e.target.value)}
                 style={{ resize: "vertical" }}
               />
+              <button
+                type="button"
+                className="btn btn-primary btn-full"
+                disabled={sending || !replyText.trim()}
+                onClick={sendReply}
+                style={{ height: 44, borderRadius: 12, marginTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+              >
+                {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                {sending ? tt("submitting", "Sending…") : tt("feedbackAdminSendReply", "Send")}
+              </button>
             </div>
-
-            <button type="button" className="btn btn-primary btn-full" disabled={saving} onClick={save} style={{ height: 44, borderRadius: 12 }}>
-              {saving ? tt("saving", "Saving…") : tt("feedbackAdminSave", "Save")}
-            </button>
           </div>
         </div>
       )}

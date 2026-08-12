@@ -76,3 +76,13 @@ export function computeSubmitterRef(userId: string): string {
   }
   return createHmac("sha256", secret).update(userId, "utf8").digest("hex");
 }
+
+// Loose but adequate check — used only to decide whether contactInfo (a
+// voluntary, purpose-limited free-text field — see schema.ts's
+// feedbackComplaints.contactInfo comment) looks enough like an email address
+// to attempt notifying it on a staff reply (docs §10). Not a validator for
+// accepting/rejecting the field at submit time — a Line ID is a perfectly
+// valid contactInfo value that just never triggers an email.
+export function isEmailLike(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}

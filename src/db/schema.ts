@@ -1005,6 +1005,80 @@ export const noShowAppealsRelations = relations(noShowAppeals, ({ one }) => ({
 }));
 
 // ============================================================================
+// ANONYMOUS FEEDBACK & COMPLAINTS
+// See docs/features/feedback-complaints.md (§5 especially) for the full design
+// rationale. This table's whole point is that submitter identity is NOT just
+// role-masked (like forms.showRespondentIdentity or the president medical-detail
+// carve-out) — it's architecturally absent. There is deliberately no FK back to
+// `users`, and no admin break-glass unmask feature.
+//
+// trackingCodeHash: sha256(one-time tracking code). The plaintext code is shown
+// to the submitter exactly once at creation and is never stored anywhere —
+// same principle as a password-reset token. `/feedback/track` hashes an
+// incoming code and looks it up by this column; use a timing-safe compare.
+//
+// category: 'event' | 'staff_conduct' | 'harassment_safety' | 'house_points' |
+// 'shop_order' | 'technical' | 'facility' | 'other' — validated in app code via
+// Zod, not a DB enum (same convention as forms.formType / noShowAppeals.status).
+//
+// severity: 'low' | 'normal' | 'urgent'. Each category has a default severity
+// (see docs §4) that only admins may downgrade, and a downgrade gets audit-logged.
+//
+// contactInfo: only meaningful when contactOptIn is true. This is a voluntary,
+// purpose-limited disclosure (e.g. a Line ID/email typed in for follow-up) —
+// categorically different from the submitter-identity withholding below; it is
+// NOT submitter identity, just a contact channel the reporter chose to share.
+//
+// attachmentKeys: private-bucket storage keys, same storage pattern as
+// form_submissions file uploads (form-file-storage.ts).
+//
+// submitterRef: HMAC-SHA256(userId, a server-only secret — FEEDBACK_HMAC_SECRET,
+// never committed). Deliberately NOT a `references(() => users.id)` FK and
+// deliberately not named/commented in a way that implies it's directly joinable
+// to a user. It exists ONLY to support abuse-control equality queries ("has this
+// account submitted N times today" via `WHERE submitter_ref = HMAC(userId)`) and
+// is NOT reversible to a userId without the secret — not through the app, and
+// not for a human with raw DB access either. Application code must NEVER
+// select/return this column in any admin-facing API response; enforce that via
+// a narrow column allowlist in the query, not by convention alone. Unlike
+// forms.showRespondentIdentity (a role-based UI mask on top of a raw FK,
+// visible to super_admin), anonymity here is architectural — there is no
+// in-app unmask path for any role, including super_admin.
+//
+// status: 'new' | 'in_review' | 'resolved' | 'closed'.
+//
+// repliedBy: admin's own userId who wrote adminReply. No FK — mirrors
+// noShowAppeals.reviewedBy — so staff-account deletion never rewrites/cascades
+// this. This identifies STAFF, not the reporter, so it's fine to store plainly.
+// ============================================================================
+export const feedbackComplaints = pgTable("feedback_complaints", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  trackingCodeHash: text("tracking_code_hash").notNull(),
+  category: text("category").notNull(),
+  severity: text("severity").notNull().default("normal"),
+  message: text("message").notNull(),
+  contactOptIn: boolean("contact_opt_in").notNull().default(false),
+  contactInfo: text("contact_info"),
+  attachmentKeys: jsonb("attachment_keys").$type<string[]>().notNull().default([]),
+  // Keyed-hash abuse-control reference — NOT reversible to a userId without the
+  // app-only secret. NEVER select/return this in admin-facing responses. See
+  // the table-level comment above and docs/features/feedback-complaints.md §5.
+  submitterRef: text("submitter_ref").notNull(),
+  status: text("status").notNull().default("new"),
+  adminReply: text("admin_reply"),
+  repliedBy: text("replied_by"), // no FK — mirrors noShowAppeals.reviewedBy
+  repliedAt: timestamp("replied_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ([
+  uniqueIndex("feedback_complaints_tracking_code_hash_idx").on(table.trackingCodeHash),
+  index("feedback_complaints_submitter_ref_idx").on(table.submitterRef),
+  index("feedback_complaints_status_idx").on(table.status),
+  index("feedback_complaints_category_idx").on(table.category),
+]));
+// No relations() block — this table deliberately has no FK relations to users.
+
+// ============================================================================
 // EVENT PROPOSALS (club-president feature)
 // A club president proposes a candidate event; staff review and either approve
 // (creating the real row in `events`) or reject/leave it withdrawn. Requested

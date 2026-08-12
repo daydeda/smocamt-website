@@ -58,14 +58,16 @@ describe("admin-nav-config: full-admin roles (super_admin/admin) see the full no
     "/admin/announcement",
     "/admin/shop",
     "/admin/audit-logs",
+    "/admin/feedback",
   ];
 
   it("super_admin", () => {
     for (const href of FULL_SET) expect(visibleHrefs(SUPER_ADMIN)).toContain(href);
     // major_president-only item stays hidden even from super_admin (role-only gate).
     expect(visibleHrefs(SUPER_ADMIN)).not.toContain("/admin/majors");
-    // roadmap placeholders: visible (comingSoon) to super_admin/admin.
-    expect(getVisibleAdminItems(SUPER_ADMIN).some((i) => i.id === "voc" && i.comingSoon)).toBe(true);
+    // "voc" (Feedback & Complaints) shipped — real link now, not comingSoon.
+    expect(getVisibleAdminItems(SUPER_ADMIN).some((i) => i.id === "voc" && i.comingSoon)).toBe(false);
+    // "study" remains a roadmap placeholder.
     expect(getVisibleAdminItems(SUPER_ADMIN).some((i) => i.id === "study" && i.comingSoon)).toBe(true);
   });
 
@@ -85,6 +87,9 @@ describe("admin-nav-config: registration/organizer are barred from admin/student
     expect(hrefs).not.toContain("/admin/announcement");
     expect(hrefs).not.toContain("/admin/shop");
     expect(hrefs).not.toContain("/admin/appeals");
+    // Feedback & Complaints stays super_admin/admin-only — registration can
+    // itself be the subject of a Staff Conduct complaint (docs §6).
+    expect(hrefs).not.toContain("/admin/feedback");
   });
 
   it("organizer: same shape as registration for the role-listed items", () => {
@@ -94,6 +99,7 @@ describe("admin-nav-config: registration/organizer are barred from admin/student
     expect(hrefs).toContain("/admin/reviews");
     expect(hrefs).not.toContain("/admin/clubs");
     expect(hrefs).not.toContain("/admin/audit-logs");
+    expect(hrefs).not.toContain("/admin/feedback");
   });
 });
 

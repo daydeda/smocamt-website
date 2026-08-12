@@ -108,11 +108,12 @@ export const NAV_ITEMS: NavItem[] = [
   },
   { id: "profile", href: "/dashboard/profile", i18nKey: "editProfile", fallback: "Profile", icon: Settings, tier: "launcher", group: "account" },
 
-  // Launcher — roadmap placeholders. VOC and "Study things" have no route or
-  // data model yet (confirmed against the codebase during the redesign
-  // plan) — these exist purely so the IA can be previewed and the launcher
-  // proven to scale before either feature is built. Never a real <Link>.
-  { id: "voc", href: "#", i18nKey: "vocFeedback", fallback: "Feedback", icon: MessageSquareWarning, tier: "launcher", group: "feedback", comingSoon: true },
+  // Launcher — "Study things" has no route or data model yet (confirmed
+  // against the codebase during the redesign plan) — it stays a placeholder
+  // so the IA can be previewed before that feature is built. VOC (Feedback &
+  // Complaints) shipped — see docs/features/feedback-complaints.md — and is
+  // a real route now, no longer comingSoon.
+  { id: "voc", href: "/feedback/new", i18nKey: "vocFeedback", fallback: "Feedback", icon: MessageSquareWarning, tier: "launcher", group: "feedback" },
   { id: "study", href: "#", i18nKey: "studyResources", fallback: "Study", icon: GraduationCap, tier: "launcher", group: "learning", comingSoon: true },
 ];
 

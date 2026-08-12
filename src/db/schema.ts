@@ -1005,6 +1005,131 @@ export const noShowAppealsRelations = relations(noShowAppeals, ({ one }) => ({
 }));
 
 // ============================================================================
+// ANONYMOUS FEEDBACK & COMPLAINTS
+// See docs/features/feedback-complaints.md (§5 especially) for the full design
+// rationale. This table's whole point is that submitter identity is NOT just
+// role-masked (like forms.showRespondentIdentity or the president medical-detail
+// carve-out) — it's architecturally absent. There is deliberately no FK back to
+// `users`, and no admin break-glass unmask feature.
+//
+// Status/reply is checked via GET /api/feedback/mine (self-service, matched
+// against the CALLER's own re-derived submitterRef) — there used to also be a
+// one-time tracking-code lookup path, dropped 2026-08-13 (§7.0/§8) once the
+// self-service path made it redundant and it was adding real UX/complexity
+// cost (a code to save, a public no-auth lookup route) for no anonymity
+// benefit beyond what login-gated submission already required.
+//
+// category: 'event' | 'staff_conduct' | 'harassment_safety' | 'house_points' |
+// 'shop_order' | 'technical' | 'facility' | 'other' — validated in app code via
+// Zod, not a DB enum (same convention as forms.formType / noShowAppeals.status).
+//
+// severity: 'low' | 'normal' | 'urgent'. Each category has a default severity
+// (see docs §4) that only admins may downgrade, and a downgrade gets audit-logged.
+//
+// contactInfo: only meaningful when contactOptIn is true. This is a voluntary,
+// purpose-limited disclosure (e.g. a Line ID/email typed in for follow-up) —
+// categorically different from the submitter-identity withholding below; it is
+// NOT submitter identity, just a contact channel the reporter chose to share.
+//
+// attachmentKeys: private-bucket storage keys, same storage pattern as
+// form_submissions file uploads (form-file-storage.ts).
+//
+// submitterRef: HMAC-SHA256(userId, a server-only secret — FEEDBACK_HMAC_SECRET,
+// never committed). Deliberately NOT a `references(() => users.id)` FK and
+// deliberately not named/commented in a way that implies it's directly joinable
+// to a user. It exists to support (a) abuse-control equality queries ("has this
+// account submitted N times today") and (b) the submitter's own self-service
+// lookup (GET /api/feedback/mine, computed from THEIR OWN session — never a
+// client-supplied id). It is NOT reversible to a userId without the secret by
+// anyone else — not through the app, and not for a human with raw DB access
+// either. Application code must NEVER select/return this column in any
+// admin-facing API response; enforce that via a narrow column allowlist in the
+// query, not by convention alone. Unlike forms.showRespondentIdentity (a
+// role-based UI mask on top of a raw FK, visible to super_admin), anonymity
+// here is architectural — there is no in-app unmask path for any role,
+// including super_admin.
+//
+// status: 'new' | 'in_review' | 'resolved' | 'closed'. 'closed' is reachable
+// two ways: staff set it directly, OR the submitter closes their own
+// 'resolved' complaint themselves (PATCH /api/feedback/mine/[id], ownership-
+// checked via submitterRef, resolved->closed only — deliberately NOT
+// audit-logged, see FeedbackService.closeMine's comment for why logging
+// a submitter's own userId against this row would itself be a re-
+// identification leak via /admin/audit-logs). Closed rows are kept, not
+// deleted — they're the submitter's own history (docs §7.0). A closed
+// complaint is final — no more messages can be posted to it either.
+//
+// The original single adminReply/repliedBy/repliedAt fields (one-shot
+// staff reply) were replaced 2026-08-13 by feedbackComplaintMessages below,
+// a proper two-way thread — staff sometimes need to ask a follow-up
+// question, and a single reply field can't hold a back-and-forth.
+// ============================================================================
+export const feedbackComplaints = pgTable("feedback_complaints", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  category: text("category").notNull(),
+  severity: text("severity").notNull().default("normal"),
+  message: text("message").notNull(),
+  // Voluntary, purpose-limited follow-up contact channel — only meaningful
+  // when contactOptIn is true. Populated either from a manually-typed value
+  // (Line ID, a different email, etc.) or, if the submitter chooses to, from
+  // their OWN ActiveCAMT account email (server-derived from their session at
+  // submit time — see POST /api/feedback — never a value the client can set
+  // on someone else's behalf). Either way this is an ACTIVE, EXPLICIT choice
+  // the submitter makes (contactOptIn defaults false) — categorically
+  // different from the submitter-identity withholding below (submitterRef);
+  // it is NOT submitter identity, just a channel the reporter chose to share
+  // specifically so staff can follow up.
+  contactOptIn: boolean("contact_opt_in").notNull().default(false),
+  contactInfo: text("contact_info"),
+  attachmentKeys: jsonb("attachment_keys").$type<string[]>().notNull().default([]),
+  // Keyed-hash abuse-control + self-service-lookup reference — NOT reversible
+  // to a userId without the app-only secret. NEVER select/return this in
+  // admin-facing responses. See the table-level comment above and
+  // docs/features/feedback-complaints.md §5.
+  submitterRef: text("submitter_ref").notNull(),
+  status: text("status").notNull().default("new"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ([
+  index("feedback_complaints_submitter_ref_idx").on(table.submitterRef),
+  index("feedback_complaints_status_idx").on(table.status),
+  index("feedback_complaints_category_idx").on(table.category),
+]));
+
+export const feedbackComplaintsRelations = relations(feedbackComplaints, ({ many }) => ({
+  messages: many(feedbackComplaintMessages),
+}));
+// Still no relation to `users` — that absence is the anonymity guarantee
+// itself, not an oversight (see the table-level comment above).
+
+// Two-way conversation on a complaint, replacing the old single adminReply
+// field (see above). senderType: 'submitter' | 'staff'. staffUserId is set
+// ONLY for staff messages, no FK (mirrors noShowAppeals.reviewedBy /
+// feedbackComplaints' old repliedBy) — identifies STAFF, not the reporter,
+// so it's fine to store plainly. A submitter message carries NO sender
+// identity at all beyond the parent row's submitterRef (which this table
+// doesn't even duplicate — ownership for a submitter's own message-post is
+// checked by joining to the parent complaint's submitterRef, never stored
+// again here).
+export const feedbackComplaintMessages = pgTable("feedback_complaint_messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  complaintId: uuid("complaint_id").notNull().references(() => feedbackComplaints.id, { onDelete: "cascade" }),
+  senderType: text("sender_type").notNull(), // 'submitter' | 'staff'
+  staffUserId: text("staff_user_id"), // no FK — see comment above
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ([
+  index("feedback_complaint_messages_complaint_idx").on(table.complaintId),
+]));
+
+export const feedbackComplaintMessagesRelations = relations(feedbackComplaintMessages, ({ one }) => ({
+  complaint: one(feedbackComplaints, {
+    fields: [feedbackComplaintMessages.complaintId],
+    references: [feedbackComplaints.id],
+  }),
+}));
+
+// ============================================================================
 // EVENT PROPOSALS (club-president feature)
 // A club president proposes a candidate event; staff review and either approve
 // (creating the real row in `events`) or reject/leave it withdrawn. Requested

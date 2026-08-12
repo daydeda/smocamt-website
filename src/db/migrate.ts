@@ -1310,6 +1310,63 @@ async function migrate() {
   await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS songsue_linked boolean NOT NULL DEFAULT false`;
   console.log("  ✅ events.songsue_linked");
 
+  // 85. feedback_complaints — Anonymous Feedback & Complaints (see
+  // docs/features/feedback-complaints.md). submitter_ref is a keyed-hash
+  // (HMAC) abuse-control + self-service-lookup reference, NOT a foreign key
+  // to users — this table deliberately has no FK back to users at all; that
+  // absence is the anonymity guarantee itself, not an oversight (see the
+  // table-level comment on feedbackComplaints in src/db/schema.ts for the
+  // full rationale). New table + CREATE INDEX IF NOT EXISTS ⇒ additive,
+  // idempotent, non-destructive. Mirrors drizzle/0034_familiar_outlaw_kid.sql
+  // exactly — drizzle-kit generate only emits that file, it does NOT wire
+  // into this hand-maintained script, so every new table/column here needs
+  // its own step appended manually like this one. No admin_reply/replied_by/
+  // replied_at here — replaced by the feedbackComplaintMessages thread
+  // (step 86) before this ever shipped anywhere, same as the earlier
+  // tracking_code_hash removal: amended in place rather than left as a
+  // confusing "add then remove" migration pair.
+  await sql`
+    CREATE TABLE IF NOT EXISTS feedback_complaints (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      category text NOT NULL,
+      severity text NOT NULL DEFAULT 'normal',
+      message text NOT NULL,
+      contact_opt_in boolean NOT NULL DEFAULT false,
+      contact_info text,
+      attachment_keys jsonb NOT NULL DEFAULT '[]',
+      submitter_ref text NOT NULL,
+      status text NOT NULL DEFAULT 'new',
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS feedback_complaints_submitter_ref_idx ON feedback_complaints (submitter_ref)`;
+  await sql`CREATE INDEX IF NOT EXISTS feedback_complaints_status_idx ON feedback_complaints (status)`;
+  await sql`CREATE INDEX IF NOT EXISTS feedback_complaints_category_idx ON feedback_complaints (category)`;
+  console.log("  ✅ feedback_complaints table + submitter_ref/status/category indexes");
+
+  // 86. feedback_complaint_messages — two-way conversation thread on a
+  // complaint (docs/features/feedback-complaints.md §10), replacing the
+  // one-shot admin_reply field step 85 used to have. sender_type is
+  // 'submitter' | 'staff'; staff_user_id is set ONLY for staff messages, no
+  // FK (mirrors no_show_appeals.reviewed_by) — a submitter message carries
+  // NO identity at all, ownership for posting one is checked by joining to
+  // the parent complaint's submitter_ref, never duplicated on this table.
+  // New table + FK + CREATE INDEX IF NOT EXISTS ⇒ additive, idempotent,
+  // non-destructive.
+  await sql`
+    CREATE TABLE IF NOT EXISTS feedback_complaint_messages (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      complaint_id uuid NOT NULL REFERENCES feedback_complaints(id) ON DELETE CASCADE,
+      sender_type text NOT NULL,
+      staff_user_id text,
+      body text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS feedback_complaint_messages_complaint_idx ON feedback_complaint_messages (complaint_id)`;
+  console.log("  ✅ feedback_complaint_messages table + complaint_id index");
+
   console.log("✅ Migration complete!");
   await sql.end();
   process.exit(0);

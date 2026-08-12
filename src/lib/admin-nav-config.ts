@@ -234,20 +234,20 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     keywords: ["store", "points", "redeem"],
   },
 
-  // Feedback / Learning — roadmap placeholders. No route or data model yet
-  // (confirmed against the codebase during the redesign plan) — these exist
-  // purely so the IA is ready before either module is built. Never a real
-  // <Link>; comingSoon:true keeps them non-navigating in both the sidebar
-  // and the command palette.
+  // Feedback (VOC) shipped — see docs/features/feedback-complaints.md — real
+  // route now, no longer comingSoon. Deliberately gated to canManage
+  // (super_admin/admin only), NOT canSeeRoadmap's wider roadmap-preview
+  // audience: registration/organizer can themselves be the subject of a
+  // Staff Conduct or Harassment complaint, so this stays narrower than most
+  // admin areas (docs §6). Study remains a roadmap placeholder below.
   {
     id: "voc",
-    href: "#",
+    href: "/admin/feedback",
     i18nKey: "adminVocFeedback",
     fallback: "Feedback & Complaints",
     icon: MessagesSquare,
     group: "feedback",
-    allowed: canSeeRoadmap,
-    comingSoon: true,
+    allowed: canManage,
   },
   {
     id: "study",

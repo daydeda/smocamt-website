@@ -4,6 +4,8 @@ import { shopOrderItems, shopOrders, shopProducts, shopSettings, shopVariants, u
 import { buildViewer, isEligibleFor } from "@/lib/event-access";
 import { validateCustomAnswers } from "@/lib/shop-custom-fields";
 import { computeProductDeliveryFee } from "@/lib/shop-delivery";
+import { classifySlip, decodeSlipQr, hashSlip, verifySlipMeta } from "@/lib/shop-slip-verify";
+import { downloadSlip } from "@/lib/shop-storage";
 import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -31,6 +33,10 @@ const orderSchema = z.object({
     .min(1),
   // Object key from POST /api/shop/slip — server-generated "<uuid>.<ext>".
   slipPath: z.string().regex(/^[0-9a-f-]{36}\.(webp|gif|png|jpg|jpeg)$/i),
+  // Signed hash/QR from that same upload response (see shop-slip-verify.ts) —
+  // optional so an older cached client or a missing/expired token still works,
+  // just via the slower re-download fallback below instead of failing outright.
+  slipMeta: z.string().optional(),
   note: z.string().max(500).optional(),
   // Fulfillment. Recipient fields are required (server-side) only for delivery.
   fulfillment: z.enum(["pickup", "delivery"]).default("pickup"),
@@ -102,6 +108,38 @@ export async function POST(req: Request) {
     const buyerId = session.user.id!;
 
     const data = orderSchema.parse(await req.json());
+
+    // Free, offline slip pre-filter (see shop-slip-verify.ts) — done up front, outside
+    // the transaction below, since it must not hold the variant row locks the
+    // transaction takes. Doesn't block order creation on its own; it only sets a
+    // flag for the admin review queue to surface.
+    //
+    // The hash/QR were already computed once at upload time (POST /api/shop/slip),
+    // signed into data.slipMeta — trust that instead of re-downloading the image
+    // from storage just to recompute the same thing. Only fall back to the
+    // download+recompute path if the token is missing/expired/invalid, so a stale
+    // client or an expired token degrades gracefully rather than failing the order.
+    let slipHash: string;
+    let slipQrPayload: string | null;
+    const carried = verifySlipMeta(data.slipPath, data.slipMeta);
+    if (carried) {
+      ({ slipHash, slipQrPayload } = carried);
+    } else {
+      let slipBuffer: Buffer;
+      try {
+        ({ buffer: slipBuffer } = await downloadSlip(data.slipPath));
+      } catch (e) {
+        console.error("Slip lookup failed for order creation:", e);
+        return NextResponse.json({ error: "Payment slip not found. Please upload it again." }, { status: 400 });
+      }
+      slipHash = hashSlip(slipBuffer);
+      slipQrPayload = await decodeSlipQr(slipBuffer);
+    }
+    const priorSlips = await db
+      .select({ slipHash: shopOrders.slipHash, slipQrPayload: shopOrders.slipQrPayload })
+      .from(shopOrders)
+      .where(ne(shopOrders.status, "rejected"));
+    const slipFlag = classifySlip({ slipHash, slipQrPayload }, priorSlips);
 
     // Consolidate duplicate lines so a variant is checked once with its full qty.
     const qtyByVariant = new Map<string, number>();
@@ -304,6 +342,9 @@ export async function POST(req: Request) {
           buyerId,
           status: "pending",
           slipPath: data.slipPath,
+          slipHash,
+          slipQrPayload,
+          slipFlag,
           totalAmount: total,
           note: data.note ?? null,
           fulfillment: data.fulfillment,

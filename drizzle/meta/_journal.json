@@ -183,6 +183,13 @@
       "when": 1786565389445,
       "tag": "0034_familiar_outlaw_kid",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1787588970572,
+      "tag": "0035_spotty_nuke",
+      "breakpoints": true
     }
   ]
 }

@@ -1367,6 +1367,25 @@ async function migrate() {
   await sql`CREATE INDEX IF NOT EXISTS feedback_complaint_messages_complaint_idx ON feedback_complaint_messages (complaint_id)`;
   console.log("  ✅ feedback_complaint_messages table + complaint_id index");
 
+  // 87. shop_orders slip fraud pre-filter (free/offline, NOT a bank-verified
+  // authenticity check — image hash + QR decode only). slip_hash is the sha256
+  // hex digest of the uploaded slip image bytes, used to catch the same physical
+  // slip photo reused across multiple orders. slip_qr_payload is the raw string
+  // decoded from the QR code embedded in the slip (usually the issuing bank's own
+  // slip-verification URL), letting an admin one-tap open the bank's verification
+  // page instead of re-scanning the photo; NULL if no QR was detected. slip_flag
+  // is NULL when the slip passed the pre-filter, otherwise one of
+  // 'duplicate_image' | 'duplicate_qr' | 'no_qr', set at order-creation time by
+  // comparing against previously submitted slips. Mirrors
+  // drizzle/0035_spotty_nuke.sql exactly. All three columns nullable, two new
+  // indexes for duplicate lookups ⇒ additive, idempotent, non-destructive.
+  await sql`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS slip_hash text`;
+  await sql`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS slip_qr_payload text`;
+  await sql`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS slip_flag text`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_shop_orders_slip_hash ON shop_orders (slip_hash)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_shop_orders_slip_qr ON shop_orders (slip_qr_payload)`;
+  console.log("  ✅ shop_orders.slip_hash / slip_qr_payload / slip_flag + duplicate-lookup indexes");
+
   console.log("✅ Migration complete!");
   await sql.end();
   process.exit(0);

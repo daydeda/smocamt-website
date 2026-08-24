@@ -702,6 +702,19 @@ export const shopOrders = pgTable("shop_orders", {
   // only ever served through the auth-guarded slip endpoint to the buyer or an
   // admin, never linked publicly (PDPA: slips carry names/bank details).
   slipPath: text("slip_path"),
+  // Free/offline slip fraud pre-filter — NOT a bank-verified authenticity check.
+  // sha256 hex digest of the uploaded slip image bytes, used to catch the same
+  // physical slip photo being reused across multiple orders (duplicate-image check).
+  slipHash: text("slip_hash"),
+  // Raw string decoded from the QR code embedded in the slip image (usually the
+  // issuing bank's own slip-verification URL). NULL if no QR code was detected.
+  // Lets an admin one-tap open the bank's verification page instead of physically
+  // re-scanning the photo.
+  slipQrPayload: text("slip_qr_payload"),
+  // NULL when the slip passed the automated pre-filter above, otherwise one of:
+  // 'duplicate_image' | 'duplicate_qr' | 'no_qr'. Set at order-creation time by
+  // comparing this order's slip against previously submitted slips.
+  slipFlag: text("slip_flag"),
   // Snapshot of the order total (฿) at purchase time.
   totalAmount: integer("total_amount").notNull().default(0),
   // Optional buyer note (e.g. name on the slip, pickup preference).
@@ -723,6 +736,8 @@ export const shopOrders = pgTable("shop_orders", {
 }, (table) => ([
   index("idx_shop_orders_buyer").on(table.buyerId),
   index("idx_shop_orders_status").on(table.status),
+  index("idx_shop_orders_slip_hash").on(table.slipHash),
+  index("idx_shop_orders_slip_qr").on(table.slipQrPayload),
 ]));
 
 export const shopOrderItems = pgTable("shop_order_items", {

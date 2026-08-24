@@ -210,6 +210,9 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
   const [customAnswers, setCustomAnswers] = useState<Record<string, string>>({});
   const [step, setStep] = useState<"select" | "pay">("select");
   const [slipPath, setSlipPath] = useState<string | null>(null);
+  // Signed hash/QR from the upload response (see shop-slip-verify.ts) — carried
+  // forward so order creation can trust it without re-downloading the slip.
+  const [slipMeta, setSlipMeta] = useState<string | null>(null);
   const [slipPreview, setSlipPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [note, setNote] = useState("");
@@ -272,6 +275,7 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
         throw new Error(d?.error || (th ? "อัปโหลดไม่สำเร็จ กรุณาลองใหม่" : "Upload failed. Please try again."));
       }
       setSlipPath(d.path);
+      setSlipMeta(d.slipMeta ?? null);
       setSlipPreview(URL.createObjectURL(file));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed");
@@ -291,7 +295,7 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           items: [{ variantId, quantity: qty, customValue: variant?.allowCustom ? customValue.trim() : undefined, custom: customFields.length ? customAnswers : undefined }],
-          slipPath, note: note || undefined,
+          slipPath, slipMeta: slipMeta || undefined, note: note || undefined,
           fulfillment,
           recipientName: fulfillment === "delivery" ? recipientName.trim() : undefined,
           recipientPhone: fulfillment === "delivery" ? recipientPhone.trim() : undefined,

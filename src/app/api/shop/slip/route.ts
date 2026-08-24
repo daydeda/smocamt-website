@@ -1,12 +1,18 @@
 import { auth } from "@/auth";
 import { hardenImageUpload, ImageValidationError } from "@/lib/image-upload";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { decodeSlipQr, hashSlip, signSlipMeta } from "@/lib/shop-slip-verify";
 import { uploadSlip } from "@/lib/shop-storage";
 import { NextResponse } from "next/server";
 
 // POST /api/shop/slip — upload a payment slip to the PRIVATE bucket. Returns the
 // object key ({ path }) which the buyer then submits with their order. The slip is
 // re-encoded (no raw bytes stored) and never exposed by public URL.
+//
+// Also hashes + QR-decodes the slip HERE, while its bytes are already in memory
+// (see shop-slip-verify.ts's "Carrying the hash/QR..." comment), and signs the
+// result into `slipMeta` so order creation can trust it without re-downloading
+// the image from storage just to recompute the same thing.
 export async function POST(req: Request) {
   try {
     const session = await auth();
@@ -34,7 +40,11 @@ export async function POST(req: Request) {
     const { buffer, ext } = await hardenImageUpload(file, { maxBytes: 10 * 1024 * 1024, maxDim: 1600 });
     const path = await uploadSlip(buffer, ext);
 
-    return NextResponse.json({ path });
+    const slipHash = hashSlip(buffer);
+    const slipQrPayload = await decodeSlipQr(buffer);
+    const slipMeta = signSlipMeta(path, slipHash, slipQrPayload);
+
+    return NextResponse.json({ path, slipMeta });
   } catch (error) {
     if (error instanceof ImageValidationError) {
       return NextResponse.json({ error: error.message }, { status: 400 });

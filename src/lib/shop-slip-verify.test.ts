@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { classifySlip, hashSlip, isVerifyUrl } from "./shop-slip-verify";
+import { classifySlip, hashSlip, isVerifyUrl, signSlipMeta, verifySlipMeta } from "./shop-slip-verify";
+
+// signSlipMeta/verifySlipMeta read AUTH_SECRET lazily inside slipMetaSecret(),
+// so setting it here (before any test runs) is enough — no dynamic-import
+// dance needed, unlike qr-token.test.ts's module-level TOTP grid setup.
+process.env.AUTH_SECRET = "test-secret-do-not-use-in-prod";
 
 describe("hashSlip", () => {
   it("is deterministic for identical bytes", () => {
@@ -78,5 +83,41 @@ describe("isVerifyUrl", () => {
     expect(isVerifyUrl(null)).toBe(false);
     expect(isVerifyUrl("not a url")).toBe(false);
     expect(isVerifyUrl("javascript:alert(1)")).toBe(false);
+  });
+});
+
+describe("signSlipMeta / verifySlipMeta", () => {
+  const slipPath = "abc-123-def.webp";
+
+  it("round-trips the hash and QR payload it was signed with", () => {
+    const token = signSlipMeta(slipPath, "hash-abc", "https://bank.example/verify/1");
+    expect(verifySlipMeta(slipPath, token)).toEqual({ slipHash: "hash-abc", slipQrPayload: "https://bank.example/verify/1" });
+  });
+
+  it("round-trips a null QR payload (no QR found on the slip)", () => {
+    const token = signSlipMeta(slipPath, "hash-abc", null);
+    expect(verifySlipMeta(slipPath, token)).toEqual({ slipHash: "hash-abc", slipQrPayload: null });
+  });
+
+  it("rejects a missing token (caller must fall back to re-deriving)", () => {
+    expect(verifySlipMeta(slipPath, null)).toBeNull();
+    expect(verifySlipMeta(slipPath, undefined)).toBeNull();
+    expect(verifySlipMeta(slipPath, "")).toBeNull();
+  });
+
+  it("rejects a token signed for a DIFFERENT slipPath (can't be replayed onto another upload)", () => {
+    const token = signSlipMeta(slipPath, "hash-abc", null);
+    expect(verifySlipMeta("some-other-path.webp", token)).toBeNull();
+  });
+
+  it("rejects a tampered hash even though the signature format still parses", () => {
+    const token = signSlipMeta(slipPath, "hash-abc", null);
+    const forged = token.replace("hash-abc", "hash-evil");
+    expect(verifySlipMeta(slipPath, forged)).toBeNull();
+  });
+
+  it("rejects garbage input", () => {
+    expect(verifySlipMeta(slipPath, "not-a-real-token")).toBeNull();
+    expect(verifySlipMeta(slipPath, "a|b|c")).toBeNull();
   });
 });

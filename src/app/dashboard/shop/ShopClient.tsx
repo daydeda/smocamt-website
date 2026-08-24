@@ -502,7 +502,7 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
               <div style={{ marginBottom: 16 }}>
                 <label style={{ display: "block", fontWeight: 700, fontSize: 13, marginBottom: 8 }}>{th ? "ช่องทางการชำระเงิน" : "How to pay"}</label>
                 {settings.qrImageUrl && (
-                  <img src={settings.qrImageUrl} alt="Payment QR" style={{ width: 200, height: 200, objectFit: "contain", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)", display: "block", margin: "0 auto 12px", background: "#fff" }} />
+                  <img src={settings.qrImageUrl} alt="Payment QR" style={{ width: "100%", maxWidth: 320, aspectRatio: "1 / 1", objectFit: "contain", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)", display: "block", margin: "0 auto 12px", background: "#fff" }} />
                 )}
                 {settings.paymentInfo.trim() !== "" && (
                   <div style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6, textAlign: "center", overflowWrap: "anywhere", wordBreak: "break-word" }} dangerouslySetInnerHTML={{ __html: parseRichText(settings.paymentInfo) }} />

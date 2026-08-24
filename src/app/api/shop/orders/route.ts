@@ -4,6 +4,8 @@ import { shopOrderItems, shopOrders, shopProducts, shopSettings, shopVariants, u
 import { buildViewer, isEligibleFor } from "@/lib/event-access";
 import { validateCustomAnswers } from "@/lib/shop-custom-fields";
 import { computeProductDeliveryFee } from "@/lib/shop-delivery";
+import { classifySlip, decodeSlipQr, hashSlip } from "@/lib/shop-slip-verify";
+import { downloadSlip } from "@/lib/shop-storage";
 import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -102,6 +104,25 @@ export async function POST(req: Request) {
     const buyerId = session.user.id!;
 
     const data = orderSchema.parse(await req.json());
+
+    // Free, offline slip pre-filter (see shop-slip-verify.ts) — done up front, outside
+    // the transaction below, since it's I/O + CPU (download + sharp/jsQR decode) and
+    // must not hold the variant row locks the transaction takes. Doesn't block order
+    // creation on its own; it only sets a flag for the admin review queue to surface.
+    let slipBuffer: Buffer;
+    try {
+      ({ buffer: slipBuffer } = await downloadSlip(data.slipPath));
+    } catch (e) {
+      console.error("Slip lookup failed for order creation:", e);
+      return NextResponse.json({ error: "Payment slip not found. Please upload it again." }, { status: 400 });
+    }
+    const slipHash = hashSlip(slipBuffer);
+    const slipQrPayload = await decodeSlipQr(slipBuffer);
+    const priorSlips = await db
+      .select({ slipHash: shopOrders.slipHash, slipQrPayload: shopOrders.slipQrPayload })
+      .from(shopOrders)
+      .where(ne(shopOrders.status, "rejected"));
+    const slipFlag = classifySlip({ slipHash, slipQrPayload }, priorSlips);
 
     // Consolidate duplicate lines so a variant is checked once with its full qty.
     const qtyByVariant = new Map<string, number>();
@@ -304,6 +325,9 @@ export async function POST(req: Request) {
           buyerId,
           status: "pending",
           slipPath: data.slipPath,
+          slipHash,
+          slipQrPayload,
+          slipFlag,
           totalAmount: total,
           note: data.note ?? null,
           fulfillment: data.fulfillment,

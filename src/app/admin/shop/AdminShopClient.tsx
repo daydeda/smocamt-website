@@ -10,7 +10,43 @@ import {
   ShoppingBag, Package, ReceiptText, Settings as SettingsIcon, Plus, Trash2, Pencil,
   Upload, Loader2, X, CheckCircle2, XCircle, Clock, GripVertical, Save, RotateCcw, Download,
   Check, FileText, Truck, Store, Users, ChevronLeft, ChevronRight, ChevronDown,
+  AlertTriangle, ExternalLink,
 } from "lucide-react";
+
+// True when a decoded slip QR payload is a link the admin can tap to open the
+// issuing bank's own verify page. Deliberately NOT imported from
+// shop-slip-verify.ts — that module pulls in Node's `crypto`, which has no
+// business in a client bundle. Mirrors the check in isVerifyUrl() there.
+const isHttpUrl = (s: string | null): s is string => {
+  if (!s) return false;
+  try {
+    return ["http:", "https:"].includes(new URL(s).protocol);
+  } catch {
+    return false;
+  }
+};
+
+// Copy for the three automated slip pre-filter flags (shop_orders.slip_flag —
+// see shop-slip-verify.ts). Free/offline signals only, not bank confirmation:
+// duplicate_* means this slip (or its QR) was already seen on another order;
+// no_qr means the automated pass couldn't find a QR to cross-check at all.
+const SLIP_FLAG_COPY: Record<string, { th: string; en: string; severity: "high" | "low" }> = {
+  duplicate_image: {
+    th: "สลิปรูปนี้ถูกใช้กับคำสั่งซื้ออื่นมาแล้ว — ตรวจสอบก่อนอนุมัติ",
+    en: "This exact slip image was already used on another order — check before approving.",
+    severity: "high",
+  },
+  duplicate_qr: {
+    th: "QR บนสลิปนี้ตรงกับคำสั่งซื้ออื่น (อาจเป็นสลิปเดิมถ่ายซ้ำ) — ตรวจสอบก่อนอนุมัติ",
+    en: "This slip's QR matches another order's slip (may be the same slip re-photographed) — check before approving.",
+    severity: "high",
+  },
+  no_qr: {
+    th: "ตรวจไม่พบ QR บนสลิปนี้ — ระบบยืนยันอัตโนมัติไม่ได้ กรุณาตรวจสอบด้วยตนเอง",
+    en: "No QR code was found on this slip — the automated check couldn't run. Please review it yourself.",
+    severity: "low",
+  },
+};
 
 const baht = (n: number) => `฿${n.toLocaleString()}`;
 
@@ -69,7 +105,8 @@ function toLocalInput(d?: string | Date | null): string {
 }
 interface AdminOrder {
   id: string; status: string; totalAmount: number; note: string | null; rejectionReason: string | null;
-  hasSlip: boolean; createdAt: string; reviewedAt: string | null;
+  hasSlip: boolean; slipFlag: string | null; slipQrPayload: string | null;
+  createdAt: string; reviewedAt: string | null;
   fulfillment: string; shippingFee: number;
   recipientName: string | null; recipientPhone: string | null; shippingAddress: string | null;
   buyer: { name: string | null; studentId: string | null; nickname: string | null };
@@ -702,6 +739,10 @@ function OrdersTab({ th }: { th: boolean }) {
   const [productFilter, setProductFilter] = useState<string>("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  // Free automated pre-filter (see shop-slip-verify.ts) — narrows to orders whose
+  // slip is a duplicate or has no readable QR, so the review queue doesn't require
+  // opening every slip one by one to find the ones that actually need a look.
+  const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [page, setPage] = useState(1);
   // Tracks the active filter combination so we can reset to page 1 during render
   // when it changes (the effect-free pattern — avoids set-state-in-effect).
@@ -769,19 +810,21 @@ function OrdersTab({ th }: { th: boolean }) {
   // the active product/date filter. Date bounds are inclusive (datetime-local).
   const fromMs = fromDate ? new Date(fromDate).getTime() : null;
   const toMs = toDate ? new Date(toDate).getTime() : null;
-  const base = orders.filter((o) => {
+  const preFlag = orders.filter((o) => {
     if (productFilter !== "all" && !o.items.some((i) => i.productName === productFilter)) return false;
     const created = new Date(o.createdAt).getTime();
     if (fromMs != null && created < fromMs) return false;
     if (toMs != null && created > toMs) return false;
     return true;
   });
+  const flaggedCount = preFlag.filter((o) => o.slipFlag).length;
+  const base = flaggedOnly ? preFlag.filter((o) => o.slipFlag) : preFlag;
   const shown = base.filter((o) => filter === "all" || o.status === filter);
-  const hasExtraFilter = productFilter !== "all" || !!fromDate || !!toDate;
+  const hasExtraFilter = productFilter !== "all" || !!fromDate || !!toDate || flaggedOnly;
 
   // Reset to page 1 whenever the filter combination changes (adjust-state-during-render
   // pattern), then clamp to a derived page so an emptied last page falls back.
-  const curKey = `${filter}|${productFilter}|${fromDate}|${toDate}`;
+  const curKey = `${filter}|${productFilter}|${fromDate}|${toDate}|${flaggedOnly}`;
   let effectivePage = page;
   if (curKey !== filterKey) {
     setFilterKey(curKey);
@@ -809,6 +852,18 @@ function OrdersTab({ th }: { th: boolean }) {
             {" "}({base.filter((o) => f === "all" || o.status === f).length})
           </button>
         ))}
+        <button
+          onClick={() => setFlaggedOnly((v) => !v)}
+          className={flaggedOnly ? "btn btn-primary" : "btn btn-ghost"}
+          style={{
+            fontSize: 13, padding: "6px 14px", display: "inline-flex", alignItems: "center", gap: 6,
+            ...(flaggedOnly ? {} : { color: "#b45309" }),
+          }}
+          title={th ? "คำสั่งซื้อที่สลิปซ้ำหรือไม่พบ QR (ตรวจอัตโนมัติ ฟรี)" : "Orders whose slip is a duplicate or has no readable QR (free automated check)"}
+        >
+          <AlertTriangle size={14} />
+          {th ? "ต้องตรวจสอบ" : "Needs review"} ({flaggedCount})
+        </button>
       </div>
 
       <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap", alignItems: "flex-end" }}>
@@ -978,9 +1033,42 @@ function AdminOrderRow({ order, th, busy, onReview }: { order: AdminOrder; th: b
       {order.note && <p style={{ fontSize: 13, color: "var(--text-secondary)", background: "var(--bg-base)", padding: "8px 12px", borderRadius: 8, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}><FileText size={13} style={{ flexShrink: 0 }} /> {order.note}</p>}
       {order.status === "rejected" && order.rejectionReason && <p style={{ fontSize: 13, color: "#ef4444", marginBottom: 8 }}>{th ? "เหตุผล: " : "Reason: "}{order.rejectionReason}</p>}
 
+      {order.slipFlag && SLIP_FLAG_COPY[order.slipFlag] && (() => {
+        const flag = SLIP_FLAG_COPY[order.slipFlag];
+        const high = flag.severity === "high";
+        return (
+          <p
+            style={{
+              fontSize: 13, marginBottom: 8, padding: "8px 12px", borderRadius: 8,
+              display: "flex", alignItems: "flex-start", gap: 6,
+              background: high ? "rgba(239,68,68,0.1)" : "rgba(245,158,11,0.12)",
+              color: high ? "#dc2626" : "#b45309",
+              border: `1px solid ${high ? "rgba(239,68,68,0.25)" : "rgba(245,158,11,0.25)"}`,
+            }}
+          >
+            <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+            <span>{th ? flag.th : flag.en}</span>
+          </p>
+        );
+      })()}
+
       {order.hasSlip ? (
         <>
-          <button onClick={() => setShowSlip((s) => !s)} className="btn btn-ghost" style={{ fontSize: 13, padding: "6px 12px", marginBottom: showSlip ? 10 : 0 }}>{showSlip ? (th ? "ซ่อนสลิป" : "Hide slip") : (th ? "ดูสลิป" : "View slip")}</button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: showSlip ? 10 : 0 }}>
+            <button onClick={() => setShowSlip((s) => !s)} className="btn btn-ghost" style={{ fontSize: 13, padding: "6px 12px" }}>{showSlip ? (th ? "ซ่อนสลิป" : "Hide slip") : (th ? "ดูสลิป" : "View slip")}</button>
+            {isHttpUrl(order.slipQrPayload) && (
+              <a
+                href={order.slipQrPayload}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-ghost"
+                style={{ fontSize: 13, padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 6, color: "var(--accent-primary)" }}
+                title={th ? "เปิดหน้าตรวจสอบสลิปของธนาคาร (จาก QR บนสลิป)" : "Open the bank's own slip-verify page (from the slip's QR)"}
+              >
+                <ExternalLink size={13} />{th ? "ยืนยันกับธนาคาร" : "Verify with bank"}
+              </a>
+            )}
+          </div>
           {showSlip && <img src={`/api/shop/orders/${order.id}/slip`} alt="slip" style={{ width: "100%", maxHeight: 400, objectFit: "contain", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)", background: "var(--bg-base)", marginBottom: 10 }} />}
         </>
       ) : (

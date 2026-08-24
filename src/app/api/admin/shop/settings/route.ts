@@ -12,7 +12,9 @@ export const dynamic = "force-dynamic";
 const settingsSchema = z.object({
   enabled: z.boolean(),
   paymentInfo: z.string().max(5000),
-  qrImageUrl: z.string().url().nullable().or(z.literal("").transform(() => null)),
+  // Bare string (not .url()): the self-hosted /api/upload returns relative paths
+  // like "/uploads/x.jpg" (see shop-product-schema.ts imageUrls for the same note).
+  qrImageUrl: z.string().nullable().or(z.literal("").transform(() => null)),
   // Delivery config (flat fee). deliveryFee in whole ฿.
   deliveryEnabled: z.boolean().default(false),
   deliveryFee: z.number().int().min(0).max(100000).default(0),

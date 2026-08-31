@@ -282,7 +282,8 @@ function scannerOnlyAllowed(item: AdminNavItem, ctx: AdminNavContext): boolean {
     item.href === "/admin/events" ||
     item.href === "/admin/appeals" ||
     (item.href === "/admin/clubs" && (ctx.roles.includes("club_president") || !!ctx.hasClubPosition)) ||
-    (item.href === "/admin/majors" && ctx.roles.includes("major_president"))
+    (item.href === "/admin/majors" && ctx.roles.includes("major_president")) ||
+    (item.href === "/admin/shop" && (ctx.roles.includes("club_president") || ctx.roles.includes("major_president")))
   );
 }
 

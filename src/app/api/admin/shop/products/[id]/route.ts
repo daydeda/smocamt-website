@@ -2,7 +2,8 @@ import { auth } from "@/auth";
 import { db } from "@/db";
 import { shopProducts, shopVariants } from "@/db/schema";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
-import { isShopAdmin } from "@/lib/shop-auth";
+import { isOwnerAssignmentWithinScope, isProductOwnedByScope } from "@/lib/shop-auth";
+import { resolveShopAccess } from "@/lib/shop-scope";
 import { and, eq, notInArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -16,11 +17,31 @@ export const dynamic = "force-dynamic";
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await auth();
-    if (!isShopAdmin(session)) {
+    const access = await resolveShopAccess(session);
+    if (!access.ok) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const { id } = await params;
     const data = productSchema.parse(await req.json());
+
+    // A scoped president may only touch a product their club/major owns, and may
+    // not re-assign it outside their scope (or make it central).
+    if (!access.unscoped) {
+      const [current] = await db
+        .select({ ownerClubIds: shopProducts.ownerClubIds, ownerMajors: shopProducts.ownerMajors })
+        .from(shopProducts)
+        .where(eq(shopProducts.id, id))
+        .limit(1);
+      if (!current || !isProductOwnedByScope(current, access.scope)) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
+      if (!isOwnerAssignmentWithinScope(data.ownerClubIds, data.ownerMajors, access.scope)) {
+        return NextResponse.json(
+          { error: "You can only assign this product to a club or major you preside over." },
+          { status: 403 }
+        );
+      }
+    }
 
     await db.transaction(async (tx) => {
       const [existing] = await tx.select({ id: shopProducts.id }).from(shopProducts).where(eq(shopProducts.id, id)).limit(1);
@@ -46,6 +67,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           deliveryFee: data.deliveryFee,
           deliveryTiers: data.deliveryTiers,
           sortOrder: data.sortOrder,
+          ownerClubIds: data.ownerClubIds,
+          ownerMajors: data.ownerMajors,
           updatedAt: new Date(),
         })
         .where(eq(shopProducts.id, id));
@@ -72,8 +95,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       }
 
       await AuditService.logActionInternal(tx, {
-        actorId: session!.user!.id!,
-        action: `Updated shop product "${data.name}"`,
+        actorId: access.userId,
+        action: `Updated shop product "${data.name}" (owner clubs: [${data.ownerClubIds.join(", ")}], majors: [${data.ownerMajors.join(", ")}])`,
         ipAddress: getClientIp(req),
       });
     });
@@ -98,20 +121,29 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await auth();
-    if (!isShopAdmin(session)) {
+    const access = await resolveShopAccess(session);
+    if (!access.ok) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const { id } = await params;
 
-    const [product] = await db.select({ name: shopProducts.name }).from(shopProducts).where(eq(shopProducts.id, id)).limit(1);
+    const [product] = await db
+      .select({ name: shopProducts.name, ownerClubIds: shopProducts.ownerClubIds, ownerMajors: shopProducts.ownerMajors })
+      .from(shopProducts)
+      .where(eq(shopProducts.id, id))
+      .limit(1);
     if (!product) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    // A scoped president may only delete a product their club/major owns.
+    if (!access.unscoped && !isProductOwnedByScope(product, access.scope)) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
     await db.transaction(async (tx) => {
       await tx.delete(shopProducts).where(eq(shopProducts.id, id));
       await AuditService.logActionInternal(tx, {
-        actorId: session!.user!.id!,
+        actorId: access.userId,
         action: `Deleted shop product "${product.name}"`,
         ipAddress: getClientIp(req),
       });

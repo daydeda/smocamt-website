@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { shopOrders } from "@/db/schema";
 import { downloadSlip } from "@/lib/shop-storage";
 import { isShopAdmin } from "@/lib/shop-auth";
+import { resolveShopAccess, classifyOrdersByScope } from "@/lib/shop-scope";
 import { eq } from "drizzle-orm";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { NextResponse } from "next/server";
@@ -37,8 +38,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     const isOwner = order.buyerId === session.user.id;
+    let scopedOk = false;
     if (!isOwner && !isShopAdmin(session)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      // A scoped president may view the slip only for an order that is entirely
+      // for products their club/major owns (same rule as reviewing it).
+      const access = await resolveShopAccess(session);
+      if (access.ok && !access.unscoped) {
+        const info = (await classifyOrdersByScope([id], access.scope)).get(id);
+        scopedOk = !!info?.anyOwned && !!info?.fullyOwned;
+      }
+      if (!scopedOk) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
     }
 
     const { buffer, contentType } = await downloadSlip(order.slipPath);

@@ -1,7 +1,8 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { shopOrderItems, shopOrders, shopProducts, users } from "@/db/schema";
-import { isShopAdmin } from "@/lib/shop-auth";
+import { isProductOwnedByScope } from "@/lib/shop-auth";
+import { resolveShopAccess } from "@/lib/shop-scope";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -14,17 +15,22 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await auth();
-    if (!isShopAdmin(session)) {
+    const access = await resolveShopAccess(session);
+    if (!access.ok) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const { id } = await params;
 
     const [product] = await db
-      .select({ name: shopProducts.name })
+      .select({ name: shopProducts.name, ownerClubIds: shopProducts.ownerClubIds, ownerMajors: shopProducts.ownerMajors })
       .from(shopProducts)
       .where(eq(shopProducts.id, id))
       .limit(1);
     if (!product) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    // A scoped president may only export orders for a product their club/major owns.
+    if (!access.unscoped && !isProductOwnedByScope(product, access.scope)) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
@@ -65,7 +71,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     // shipping address for one product. Keep a tamper-evident record of who pulled
     // it (PDPA), mirroring the attendee-XLSX export log.
     await AuditService.logAction({
-      actorId: session!.user!.id!,
+      actorId: access.userId,
       action: `Exported orders for shop product "${product.name}" (${id}) (${rows.length} order lines, included buyer email/phone + shipping address)`,
       ipAddress: getClientIp(req),
     });

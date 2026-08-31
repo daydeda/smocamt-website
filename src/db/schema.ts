@@ -667,6 +667,16 @@ export const shopProducts = pgTable("shop_products", {
   deliveryFee: integer("delivery_fee"),
   deliveryTiers: jsonb("delivery_tiers").$type<ShopDeliveryTier[]>(),
   sortOrder: integer("sort_order").notNull().default(0),
+  // President ownership scope (mirrors events.ownerClubIds/ownerMajors). Answers
+  // "which club/major owns this product" for admin-side scoping only — it does
+  // NOT affect student storefront visibility (that's allowedRoles/allowedMajors
+  // above). A club_president manages a product only if they preside over one of
+  // ownerClubIds; a major_president only if their users.major is in ownerMajors.
+  // Both NULL/[] = "central" product: super_admin/admin only, hidden from every
+  // president. See src/lib/shop-auth.ts (isProductOwnedByScope) and
+  // EventScopeService.getPresidentScope.
+  ownerClubIds: jsonb("owner_club_ids").$type<string[]>(),
+  ownerMajors: jsonb("owner_majors").$type<string[]>(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });

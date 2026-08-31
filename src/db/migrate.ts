@@ -1386,6 +1386,18 @@ async function migrate() {
   await sql`CREATE INDEX IF NOT EXISTS idx_shop_orders_slip_qr ON shop_orders (slip_qr_payload)`;
   console.log("  ✅ shop_orders.slip_hash / slip_qr_payload / slip_flag + duplicate-lookup indexes");
 
+  // 88. shop_products president ownership scope. owner_club_ids / owner_majors are
+  // the product analogue of events.owner_club_ids / owner_majors: they scope
+  // ADMIN-side management (which club_president/major_president may see/edit a
+  // product and review its orders), NOT student storefront visibility. Both
+  // NULL/[] = "central" product, super_admin/admin only. Mirrors
+  // drizzle/0036_groovy_eddie_brock.sql. Both columns nullable ⇒ additive,
+  // idempotent, non-destructive; existing products stay central until an admin
+  // assigns an owner.
+  await sql`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS owner_club_ids jsonb`;
+  await sql`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS owner_majors jsonb`;
+  console.log("  ✅ shop_products.owner_club_ids / owner_majors");
+
   console.log("✅ Migration complete!");
   await sql.end();
   process.exit(0);

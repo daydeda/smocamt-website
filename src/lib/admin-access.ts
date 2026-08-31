@@ -44,7 +44,12 @@ export const SCANNER_HREF = "/admin/scanner";
 // renders the propose-event section scoped to the president's own users.major
 // (see admin/majors/page.tsx); club_president/smo reaching this path get the
 // page's own empty state since they have no major to propose for.
-export const SCANNER_ONLY_PAGES = ["/admin", SCANNER_HREF, "/admin/events", "/admin/clubs", "/admin/majors", "/admin/appeals"] as const;
+// "/admin/shop" is allowed for club_president/major_president — they get a
+// SCOPED shop (products their club/major owns via shop_products.ownerClubIds/
+// ownerMajors, and only orders for those products; see src/lib/shop-auth.ts
+// isShopManager + the /api/admin/shop routes). The page's own isShopManager
+// gate bounces smo (scanner-only, no ownership) back out.
+export const SCANNER_ONLY_PAGES = ["/admin", SCANNER_HREF, "/admin/events", "/admin/clubs", "/admin/majors", "/admin/appeals", "/admin/shop"] as const;
 
 // May a scanner-only role reach this exact (page) path? Used by the proxy to
 // confine these roles. Exact-match only — no /admin/events/* sub-pages exist.

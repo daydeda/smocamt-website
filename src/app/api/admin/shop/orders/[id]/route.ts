@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { db } from "@/db";
 import { shopOrders, shopOrderItems, shopVariants } from "@/db/schema";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
-import { isShopAdmin } from "@/lib/shop-auth";
+import { resolveShopAccess, classifyOrdersByScope } from "@/lib/shop-scope";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -27,7 +27,8 @@ class RevertConflict extends Error {}
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await auth();
-    if (!isShopAdmin(session)) {
+    const access = await resolveShopAccess(session);
+    if (!access.ok) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const { id } = await params;
@@ -36,6 +37,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const [order] = await db.select({ id: shopOrders.id, status: shopOrders.status }).from(shopOrders).where(eq(shopOrders.id, id)).limit(1);
     if (!order) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    // A scoped president may review an order only when EVERY line item is for a
+    // product their club/major owns — approve/reject/revert is order-wide (stock,
+    // status), so a mixed-club order stays super_admin/admin only.
+    if (!access.unscoped) {
+      const info = (await classifyOrdersByScope([id], access.scope)).get(id);
+      if (!info?.anyOwned) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
+      if (!info.fullyOwned) {
+        return NextResponse.json(
+          { error: "This order also contains items managed by another team — a shop admin must review it." },
+          { status: 403 }
+        );
+      }
     }
 
     const newStatus = STATUS_BY_ACTION[data.action];
@@ -97,7 +114,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         .set({
           status: newStatus,
           // Reverting clears the review trail so the order looks freshly pending.
-          reviewedBy: isRevert ? null : session!.user!.id!,
+          reviewedBy: isRevert ? null : access.userId,
           reviewedAt: isRevert ? null : new Date(),
           rejectionReason: data.action === "reject" ? data.rejectionReason ?? null : null,
           updatedAt: new Date(),
@@ -105,7 +122,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         .where(eq(shopOrders.id, id));
 
       await AuditService.logActionInternal(tx, {
-        actorId: session!.user!.id!,
+        actorId: access.userId,
         targetId: id,
         action: `${LABEL_BY_ACTION[data.action]} shop order ${id}`,
         ipAddress: getClientIp(req),

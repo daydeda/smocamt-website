@@ -30,6 +30,12 @@ export const productSchema = z.object({
   deliveryFee: z.number().int().min(0).max(1_000_000).nullable().default(null),
   deliveryTiers: z.array(deliveryTierSchema).max(8).default([]),
   sortOrder: z.number().int().default(0),
+  // President ownership scope (admin-side only — does NOT gate storefront
+  // visibility). Empty both = "central" product (super_admin/admin only). The
+  // route re-validates these against a scoped caller's own club/major before
+  // writing — see src/lib/shop-auth.ts isOwnerAssignmentWithinScope.
+  ownerClubIds: z.array(z.string().uuid()).max(20).default([]),
+  ownerMajors: z.array(z.string().max(40)).max(10).default([]),
   variants: z
     .array(
       z.object({

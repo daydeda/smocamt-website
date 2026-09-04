@@ -30,10 +30,10 @@ if (
   )
 }
 
-// Comma-separated list in the SUPER_ADMIN_EMAILS env var. No hardcoded fallback: a
-// personal address baked into source is a config landmine (and a non-@cmu.ac.th
-// account). Existing super_admins already hold the role in the DB; set this env var
-// (Portainer) to keep auto-promoting official accounts on sign-in.
+// Comma-separated list in the SUPER_ADMIN_EMAILS env var. No hardcoded fallback:
+// a personal address baked into source is a configuration landmine. Existing
+// super_admins already hold the role in the DB; set this env var (Portainer) to
+// keep auto-promoting official accounts on sign-in.
 const SUPER_ADMIN_EMAILS = (process.env.SUPER_ADMIN_EMAILS ?? "")
   .split(",")
   .map((e) => e.trim().toLowerCase())
@@ -273,7 +273,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       : []),
   ],
   callbacks: {
-    // FE-01: Restrict login to @cmu.ac.th email domain only
+    // Google sign-in is intentionally open to Gmail and other Google accounts.
+    // CMU-domain enforcement cannot be enabled until CMU IT supports the setup.
     async signIn({ user }) {
       const email = user.email ?? "";
 
@@ -309,57 +310,57 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.role = user.role;
           token.roles = user.roles;
           const dbUser = await fetchUserDataFromDb(user.id as string);
-          if (dbUser) {
-            token.name = dbUser.name;
-            token.image = dbUser.image;
-            token.email = dbUser.email;
-            token.profileCompleted = dbUser.profileCompleted ?? false;
-            token.houseId = dbUser.houseId ?? null;
-            token.imageTransform = dbUser.imageTransform ?? null;
-            token.qrToken = dbUser.qrToken;
-            token.studentId = dbUser.studentId ?? null;
-            token.majorPosition = dbUser.majorPosition ?? null;
-    token.smoPosition = dbUser.smoPosition ?? null;
-    token.anusmoPosition = dbUser.anusmoPosition ?? null;
-    token.hasClubPosition = dbUser.hasClubPosition;
-    token.hasClubRegistrationPosition = dbUser.hasClubRegistrationPosition;
-    token.hasStaffPosition = !!(dbUser.majorPosition || dbUser.smoPosition || dbUser.anusmoPosition || dbUser.hasClubPosition);
-          }
+          if (!dbUser) return null;
+          token.name = dbUser.name;
+          token.image = dbUser.image;
+          token.email = dbUser.email;
+          token.profileCompleted = dbUser.profileCompleted ?? false;
+          token.houseId = dbUser.houseId ?? null;
+          token.imageTransform = dbUser.imageTransform ?? null;
+          token.qrToken = dbUser.qrToken;
+          token.studentId = dbUser.studentId ?? null;
+          token.majorPosition = dbUser.majorPosition ?? null;
+          token.smoPosition = dbUser.smoPosition ?? null;
+          token.anusmoPosition = dbUser.anusmoPosition ?? null;
+          token.hasClubPosition = dbUser.hasClubPosition;
+          token.hasClubRegistrationPosition = dbUser.hasClubRegistrationPosition;
+          token.hasStaffPosition = !!(dbUser.majorPosition || dbUser.smoPosition || dbUser.anusmoPosition || dbUser.hasClubPosition);
         } else {
           const dbUser = await fetchUserDataFromDb(user.id as string);
-          if (dbUser) await applyDbUserToToken(token, dbUser, user.id as string);
+          if (!dbUser) return null;
+          await applyDbUserToToken(token, dbUser, user.id as string);
         }
         token.lastDbRefresh = Date.now();
         return token;
       }
 
-      const userId = (token.id || token.sub) as string;
+      const userId = (token.id || token.sub) as string | undefined;
+      if (!userId) return null;
       const isBypass = token.isDevBypass;
 
       // On explicit update trigger (e.g. user just completed their profile): force
       // an immediate DB refresh. Persists because we're in the jwt callback.
-      if (trigger === "update" && userId) {
+      if (trigger === "update") {
         token.updateTime = Date.now();
         const dbUser = await fetchUserDataFromDb(userId);
-        if (dbUser) {
-          if (isBypass) {
-            token.name = dbUser.name;
-            token.image = dbUser.image;
-            token.email = dbUser.email;
-            token.profileCompleted = dbUser.profileCompleted ?? false;
-            token.houseId = dbUser.houseId ?? null;
-            token.imageTransform = dbUser.imageTransform ?? null;
-            token.qrToken = dbUser.qrToken;
-            token.studentId = dbUser.studentId ?? null;
-            token.majorPosition = dbUser.majorPosition ?? null;
-    token.smoPosition = dbUser.smoPosition ?? null;
-    token.anusmoPosition = dbUser.anusmoPosition ?? null;
-    token.hasClubPosition = dbUser.hasClubPosition;
-    token.hasClubRegistrationPosition = dbUser.hasClubRegistrationPosition;
-    token.hasStaffPosition = !!(dbUser.majorPosition || dbUser.smoPosition || dbUser.anusmoPosition || dbUser.hasClubPosition);
-          } else {
-            await applyDbUserToToken(token, dbUser, userId);
-          }
+        if (!dbUser) return null;
+        if (isBypass) {
+          token.name = dbUser.name;
+          token.image = dbUser.image;
+          token.email = dbUser.email;
+          token.profileCompleted = dbUser.profileCompleted ?? false;
+          token.houseId = dbUser.houseId ?? null;
+          token.imageTransform = dbUser.imageTransform ?? null;
+          token.qrToken = dbUser.qrToken;
+          token.studentId = dbUser.studentId ?? null;
+          token.majorPosition = dbUser.majorPosition ?? null;
+          token.smoPosition = dbUser.smoPosition ?? null;
+          token.anusmoPosition = dbUser.anusmoPosition ?? null;
+          token.hasClubPosition = dbUser.hasClubPosition;
+          token.hasClubRegistrationPosition = dbUser.hasClubRegistrationPosition;
+          token.hasStaffPosition = !!(dbUser.majorPosition || dbUser.smoPosition || dbUser.anusmoPosition || dbUser.hasClubPosition);
+        } else {
+          await applyDbUserToToken(token, dbUser, userId);
         }
         token.lastDbRefresh = Date.now();
         return token;
@@ -380,27 +381,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const lastRefresh = (token.lastDbRefresh as number) || 0;
       const periodicDue = Date.now() - lastRefresh > DB_REFRESH_INTERVAL_MS;
 
-      if (userId && (profileIncomplete || periodicDue)) {
+      if (profileIncomplete || periodicDue) {
         const dbUser = await fetchUserDataFromDb(userId);
-        if (dbUser) {
-          if (isBypass) {
-            token.name = dbUser.name;
-            token.image = dbUser.image;
-            token.email = dbUser.email;
-            token.profileCompleted = dbUser.profileCompleted ?? false;
-            token.houseId = dbUser.houseId ?? null;
-            token.imageTransform = dbUser.imageTransform ?? null;
-            token.qrToken = dbUser.qrToken;
-            token.studentId = dbUser.studentId ?? null;
-            token.majorPosition = dbUser.majorPosition ?? null;
-    token.smoPosition = dbUser.smoPosition ?? null;
-    token.anusmoPosition = dbUser.anusmoPosition ?? null;
-    token.hasClubPosition = dbUser.hasClubPosition;
-    token.hasClubRegistrationPosition = dbUser.hasClubRegistrationPosition;
-    token.hasStaffPosition = !!(dbUser.majorPosition || dbUser.smoPosition || dbUser.anusmoPosition || dbUser.hasClubPosition);
-          } else {
-            await applyDbUserToToken(token, dbUser, userId);
-          }
+        if (!dbUser) return null;
+        if (isBypass) {
+          token.name = dbUser.name;
+          token.image = dbUser.image;
+          token.email = dbUser.email;
+          token.profileCompleted = dbUser.profileCompleted ?? false;
+          token.houseId = dbUser.houseId ?? null;
+          token.imageTransform = dbUser.imageTransform ?? null;
+          token.qrToken = dbUser.qrToken;
+          token.studentId = dbUser.studentId ?? null;
+          token.majorPosition = dbUser.majorPosition ?? null;
+          token.smoPosition = dbUser.smoPosition ?? null;
+          token.anusmoPosition = dbUser.anusmoPosition ?? null;
+          token.hasClubPosition = dbUser.hasClubPosition;
+          token.hasClubRegistrationPosition = dbUser.hasClubRegistrationPosition;
+          token.hasStaffPosition = !!(dbUser.majorPosition || dbUser.smoPosition || dbUser.anusmoPosition || dbUser.hasClubPosition);
+        } else {
+          await applyDbUserToToken(token, dbUser, userId);
         }
         token.lastDbRefresh = Date.now();
       }

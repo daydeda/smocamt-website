@@ -43,9 +43,9 @@ Per-period release notes (Thai, written for Discord + the team) live in the [`up
 
 ## 🛠️ สถาปัตยกรรมและเทคโนโลยีหลัก (Technical Stack)
 
-* **Core Framework:** Next.js 16.2.4 (App Router) + React 19.2 + TypeScript 5
+* **Core Framework:** Next.js 16.3.4 (App Router) + React 19.2 + TypeScript 5
 * **Styling (CSS):** Tailwind CSS v4 (CSS-first config in `globals.css` via `@tailwindcss/postcss`)
-* **Authentication:** NextAuth v5 (Beta) with `@auth/drizzle-adapter` (Google Provider restricted to `@cmu.ac.th`)
+* **Authentication:** NextAuth v5 (Beta) with `@auth/drizzle-adapter` (Google sign-in currently accepts Gmail and other Google accounts; CMU-domain enforcement is pending CMU IT support)
 * **Database & ORM:** PostgreSQL + Drizzle ORM v0.45 (`drizzle-kit` v0.31)
 * **Form Logic:** `react-hook-form` + `zod` v4 + `@hookform/resolvers`
 * **QR Engine:** `html5-qrcode` (Scanner) + `qrcode.react` (Generator)

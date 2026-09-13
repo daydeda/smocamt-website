@@ -197,6 +197,13 @@
       "when": 1788149790118,
       "tag": "0036_groovy_eddie_brock",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1789289896894,
+      "tag": "0037_event_allowed_years",
+      "breakpoints": true
     }
   ]
 }

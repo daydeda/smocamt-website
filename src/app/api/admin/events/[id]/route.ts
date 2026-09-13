@@ -5,10 +5,11 @@ import { and, count, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
-import { sessionInputSchema, sessionsHaveInvalidSpan } from "@/lib/event-schema";
+import { allowedEventYearsSchema, sessionInputSchema, sessionsHaveInvalidSpan } from "@/lib/event-schema";
 import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/admin-access";
 import { EventScopeService } from "@/modules/events/event-scope.service";
 import { syncEventToSongsue } from "@/lib/songsue-sync";
+import { eventYearFields, getAllowedEventYears } from "@/lib/event-access";
 
 const eventUpdateSchema = z.object({
   title: z.string().min(1).optional(),
@@ -42,7 +43,8 @@ const eventUpdateSchema = z.object({
   // Club-based participant eligibility (SEPARATE from ownerClubIds below, which
   // controls who MANAGES the event) — see events.allowedClubs in schema.ts.
   allowedClubs: z.array(z.string().uuid()).optional().nullable(),
-  // Restrict the event to the current first-year intake (id-prefix derived).
+  allowedYears: allowedEventYearsSchema.optional().nullable(),
+  // Compatibility for older clients and proposals.
   firstYearOnly: z.boolean().optional(),
   // Which president role(s) MANAGE this event — separate from allowedRoles.
   managedByRoles: z.array(z.string()).optional().nullable(),
@@ -94,7 +96,7 @@ const PRESIDENT_EDITABLE_FIELDS = [
   "registrationCloseTime", "quota", "location", "imageUrl", "imageUrls",
   "walkInsEnabled", "walkInsOnly", "quotaWalkIn", "registrationMode",
   "sessions", "targetThai", "targetInternational", "quotaThai",
-  "quotaInternational", "firstYearOnly",
+  "quotaInternational", "firstYearOnly", "allowedYears",
 ] as const;
 type PresidentEditableField = (typeof PRESIDENT_EDITABLE_FIELDS)[number];
 type PendingDetailsPayload = Partial<Pick<EventUpdateData, PresidentEditableField>>;
@@ -156,7 +158,7 @@ function buildEventSetFields(
     ...(data.allowedClubs !== undefined && {
       allowedClubs: data.allowedClubs && data.allowedClubs.length > 0 ? data.allowedClubs : null
     }),
-    ...(data.firstYearOnly !== undefined && { firstYearOnly: data.firstYearOnly }),
+    ...eventYearFields(data),
     ...(data.managedByRoles !== undefined && {
       managedByRoles: data.managedByRoles && data.managedByRoles.length > 0 ? data.managedByRoles : null
     }),
@@ -226,7 +228,8 @@ export async function PUT(
 
     const { id } = await params;
     const body = await req.json().catch(() => null);
-    const data = eventUpdateSchema.parse(body);
+    const parsed = eventUpdateSchema.parse(body);
+    const data = { ...parsed, ...eventYearFields(parsed) };
 
     // Posters normalization from the submitted payload — used both for a
     // direct staff edit and for a president's stored diff, so it only needs
@@ -281,7 +284,7 @@ export async function PUT(
           // merge client-side), so resubmitting it unchanged must read as a
           // no-op too, not as a fresh change every time.
           const existingPending = (current.pendingDetailsChanges as PendingDetailsPayload | null) ?? {};
-          const comparisonBase: Record<string, unknown> = { ...(current as unknown as Record<string, unknown>), ...existingPending };
+          const comparisonBase: Record<string, unknown> = { ...current, allowedYears: getAllowedEventYears(current), ...existingPending, ...eventYearFields(existingPending) };
 
           let sessionsChanged = false;
           if (data.sessions !== undefined) {

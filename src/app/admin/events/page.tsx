@@ -12,7 +12,7 @@ import {
 import { useSession } from "next-auth/react";
 import { NO_SHOW_PENALTY_MAX, NO_SHOW_PENALTY_MIN, NO_SHOW_PENALTY_POINTS, NO_SHOW_STRIKE_THRESHOLD } from "@/lib/strikes";
 import { parseRichText } from "@/lib/rich-text";
-import { currentFirstYearPrefix, yearOfStudy } from "@/lib/event-access";
+import { eventYearFields, getAllowedEventYears, yearOfStudy } from "@/lib/event-access";
 import { sessionSpansTooLong, splitIntoDailySessions } from "@/lib/event-schema";
 import { useLanguage } from "@/lib/LanguageContext";
 import { usePolling } from "@/lib/usePolling";
@@ -44,6 +44,7 @@ interface AdminEvent {
   allowedMajors: string[] | null;
   allowedClubs: string[] | null;
   firstYearOnly: boolean;
+  allowedYears: number[] | null;
   managedByRoles: string[] | null;
   ownerClubIds: string[] | null;
   ownerMajors: string[] | null;
@@ -141,15 +142,17 @@ function formatPendingDetailsDiff(
     { key: "targetInternational", label: t.internationalStudents || "International students", fmt: fmtBool },
     { key: "quotaThai", label: t.thaiStudentQuota || "Thai quota", fmt: fmtNumber },
     { key: "quotaInternational", label: t.intlStudentQuota || "International quota", fmt: fmtNumber },
-    { key: "firstYearOnly", label: t.firstYearOnly || "First-year only", fmt: fmtBool },
+    { key: "allowedYears", label: t.allowedStudentYears, fmt: (v) =>
+      Array.isArray(v) && v.length ? v.map((year) => t.studentYearLabel.replace("{year}", String(year))).join(", ") : t.allStudentYears },
   ];
 
   const rows: PendingDiffRow[] = [];
+  const normalizedPending: Record<string, unknown> = { ...pending, ...eventYearFields(pending) };
   for (const f of fields) {
-    if (!(f.key in pending)) continue;
-    const oldVal = (current as unknown as Record<string, unknown>)[f.key];
+    if (!(f.key in normalizedPending)) continue;
+    const oldVal = f.key === "allowedYears" ? getAllowedEventYears(current) : (current as unknown as Record<string, unknown>)[f.key];
     const oldText = f.fmt(oldVal);
-    const newText = f.fmt(pending[f.key]);
+    const newText = f.fmt(normalizedPending[f.key]);
     if (oldText === newText) continue;
     rows.push({ key: f.key, label: f.label, oldText, newText });
   }
@@ -313,7 +316,7 @@ const EMPTY_FORM = {
   allowedRoles: [] as string[], // empty = all roles allowed
   allowedMajors: [] as string[], // empty = all majors allowed
   allowedClubs: [] as string[], // empty = no club restriction (open to everyone, subject to other filters)
-  firstYearOnly: false, // true = only the current first-year intake may join
+  allowedYears: [] as number[], // Empty = all years; any selected year qualifies
   managedByRoles: [] as string[], // president role(s) that manage this event; empty = none
   ownerClubIds: [] as string[], // WHICH club(s) own this event, when managedByRoles includes club_president
   ownerMajors: [] as string[], // WHICH major(s) own this event, when managedByRoles includes major_president
@@ -708,7 +711,7 @@ export default function AdminEventsPage() {
           targetInternational: proposal.targetInternational ?? true,
           quotaThai: proposal.quotaThai ?? null,
           quotaInternational: proposal.quotaInternational ?? null,
-          firstYearOnly: proposal.firstYearOnly || false,
+          allowedYears: getAllowedEventYears(proposal),
           staffUserIds: proposal.staffUserIds || [],
           // Suggested-access ACL — non-binding, same as every other prefilled
           // field here: staff still explicitly reviews/adjusts before saving.
@@ -1218,7 +1221,7 @@ export default function AdminEventsPage() {
       allowedRoles: evt.allowedRoles || [],
       allowedMajors: evt.allowedMajors || [],
       allowedClubs: evt.allowedClubs || [],
-      firstYearOnly: eff("firstYearOnly", evt.firstYearOnly) || false,
+      allowedYears: getAllowedEventYears({ ...evt, ...eventYearFields(pending) }),
       managedByRoles: evt.managedByRoles || [],
       ownerClubIds: evt.ownerClubIds || [],
       ownerMajors: evt.ownerMajors || [],
@@ -2669,49 +2672,46 @@ export default function AdminEventsPage() {
                   })()}
                 </div>
 
-                {/* First-year-only restriction */}
-                <div className="field" style={{ marginTop: 20 }}>
-                  <div
-                    onClick={() => set("firstYearOnly", !formData.firstYearOnly)}
-                    style={{
-                      minHeight: 48,
-                      background: "var(--bg-elevated)",
-                      borderRadius: 16,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                      padding: "12px 16px",
-                      cursor: "pointer",
-                      border: formData.firstYearOnly ? "1px solid var(--accent-primary)" : "1px solid transparent",
-                      transition: "all 0.2s"
-                    }}
-                  >
-                    <div style={{
-                      width: 24,
-                      height: 24,
-                      flexShrink: 0,
-                      borderRadius: 6,
-                      border: "2px solid var(--border-medium)",
-                      background: formData.firstYearOnly ? "var(--accent-primary)" : "transparent",
-                      borderColor: formData.firstYearOnly ? "var(--accent-primary)" : "var(--border-medium)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      transition: "all 0.1s"
-                    }}>
-                      {formData.firstYearOnly && <CheckCircle2 size={16} color="white" />}
-                    </div>
-                    <GraduationCap size={18} style={{ flexShrink: 0, color: formData.firstYearOnly ? "var(--accent-primary)" : "var(--text-muted)" }} />
-                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: formData.firstYearOnly ? "var(--text-primary)" : "var(--text-secondary)" }}>
-                        {t.firstYearOnly}
-                      </span>
-                      <span style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.4 }}>
-                        {(t.firstYearOnlyHint || "").replace("{prefix}", currentFirstYearPrefix())}
-                      </span>
-                    </div>
+                {/* Student year eligibility: matching any checked year is sufficient. */}
+                <fieldset className="field" style={{ marginTop: 20, padding: 0, border: 0 }}>
+                  <legend className="label" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <GraduationCap size={18} style={{ color: "var(--accent-primary)" }} />
+                    {t.allowedStudentYears}
+                  </legend>
+                  <p id="allowed-years-hint" style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.4, margin: "4px 0 12px" }}>
+                    {t.allowedStudentYearsHint}
+                  </p>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
+                    {[1, 2, 3, 4].map((year) => {
+                      const selected = formData.allowedYears.includes(year);
+                      return (
+                        <label key={year} style={{
+                          minHeight: 48, background: "var(--bg-elevated)", borderRadius: 16,
+                          display: "flex", alignItems: "center", gap: 12, padding: "12px 16px",
+                          cursor: "pointer", border: `1px solid ${selected ? "var(--accent-primary)" : "transparent"}`,
+                          color: selected ? "var(--text-primary)" : "var(--text-secondary)", fontSize: 14, fontWeight: 700,
+                        }}>
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            aria-describedby="allowed-years-hint"
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setFormData((prev) => ({
+                                ...prev,
+                                allowedYears: checked
+                                  ? [...prev.allowedYears, year].sort((a, b) => a - b)
+                                  : prev.allowedYears.filter((value) => value !== year),
+                              }));
+                            }}
+                            style={{ width: 20, height: 20, flexShrink: 0, accentColor: "var(--accent-primary)" }}
+                          />
+                          {t.studentYearLabel.replace("{year}", String(year))}
+                        </label>
+                      );
+                    })}
                   </div>
-                </div>
+                </fieldset>
 
                 {/* Registration mode + Sessions / Days editor */}
                 <div className="field" style={{ marginTop: 4 }}>
@@ -3958,7 +3958,7 @@ export default function AdminEventsPage() {
                           </span>
                         </div>
                       )}
-                      {evt.firstYearOnly && (
+                      {getAllowedEventYears(evt).length > 0 && (
                         <div className="event-card-tag" style={{
                           display: "inline-flex",
                           alignItems: "center",
@@ -3978,7 +3978,7 @@ export default function AdminEventsPage() {
                         }}>
                           <GraduationCap size={10} style={{ flexShrink: 0 }} />
                           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {t.firstYearBadge}
+                            {getAllowedEventYears(evt).map((year) => t.studentYearLabel.replace("{year}", String(year))).join(" • ")}
                           </span>
                         </div>
                       )}

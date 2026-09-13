@@ -22,6 +22,8 @@ export interface EligibilityItem {
   targetInternational?: boolean | null;
   /** When true, only first-year students (current intake prefix) are eligible. */
   firstYearOnly?: boolean | null;
+  /** Any selected year qualifies. Empty = unrestricted; null uses the legacy flag. */
+  allowedYears?: number[] | null;
 }
 
 export interface Viewer {
@@ -33,6 +35,7 @@ export interface Viewer {
   isIntl: boolean;
   /** Whether the viewer's student id belongs to the current first-year intake. */
   isFirstYear: boolean;
+  yearOfStudy: number | null;
   /** Club UUIDs the viewer belongs to (any club_members role) — see ClubsService.getMemberClubIds. */
   clubIds: string[];
 }
@@ -94,6 +97,28 @@ export function yearOfStudy(
   return diff;
 }
 
+export function getAllowedEventYears(item: EligibilityItem): number[] {
+  return item.allowedYears ?? (item.firstYearOnly ? [1] : []);
+}
+
+/** Keep legacy clients/proposals compatible while making allowedYears authoritative. */
+export function eventYearFields(data: Pick<EligibilityItem, "allowedYears" | "firstYearOnly">): {
+  allowedYears?: number[];
+  firstYearOnly?: boolean;
+} {
+  if (data.allowedYears === undefined && data.firstYearOnly === undefined) return {};
+  const selected = data.allowedYears === undefined
+    ? (data.firstYearOnly ? [1] : [])
+    : (data.allowedYears ?? []);
+  const allowedYears = [...new Set(selected)].sort((a, b) => a - b);
+  return { allowedYears, firstYearOnly: allowedYears.length === 1 && allowedYears[0] === 1 };
+}
+
+export function isEligibleForEventYear(item: EligibilityItem, studentYear: number | null): boolean {
+  const years = getAllowedEventYears(item);
+  return years.length === 0 || (studentYear !== null && years.includes(studentYear));
+}
+
 /**
  * Thai vs international is derived from the first of the LAST THREE digits
  * of the student id being "5" — this is nationality, not curriculum track.
@@ -147,6 +172,7 @@ export function buildViewer(opts: {
     isThai,
     isIntl,
     isFirstYear,
+    yearOfStudy: yearOfStudy(opts.studentId),
     clubIds: opts.clubIds ?? [],
   };
 }
@@ -185,9 +211,8 @@ export function isEligibleFor(item: EligibilityItem, viewer: Viewer): boolean {
     if (!inAllowedClub) return false;
   }
 
-  // First-year-only restriction. Admin roles always bypass; everyone whose id
-  // isn't in the current first-year intake is excluded.
-  if (!viewer.isAdminRole && item.firstYearOnly && !viewer.isFirstYear) {
+  // Year restrictions use the same intake calculation as registration.
+  if (!viewer.isAdminRole && !isEligibleForEventYear(item, viewer.yearOfStudy)) {
     return false;
   }
 
@@ -200,8 +225,8 @@ export function isEligibleFor(item: EligibilityItem, viewer: Viewer): boolean {
  * explicitly include "student".
  */
 export function isEligibleForGuest(item: EligibilityItem): boolean {
-  // A guest has no student id, so it can never be a first-year intake member.
-  if (item.firstYearOnly) return false;
+  // A guest has no student id, so cannot qualify for a restricted year.
+  if (getAllowedEventYears(item).length > 0) return false;
   if (item.allowedMajors && item.allowedMajors.length > 0) return false;
   // A guest belongs to no club, so any club restriction excludes them.
   if (item.allowedClubs && item.allowedClubs.length > 0) return false;

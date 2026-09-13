@@ -8,8 +8,9 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { sessionInputSchema, sessionsHaveInvalidSpan } from "@/lib/event-schema";
+import { allowedEventYearsSchema, sessionInputSchema, sessionsHaveInvalidSpan } from "@/lib/event-schema";
 import { syncEventToSongsue } from "@/lib/songsue-sync";
+import { eventYearFields } from "@/lib/event-access";
 
 const eventSchema = z.object({
   title: z.string().min(1),
@@ -42,7 +43,8 @@ const eventSchema = z.object({
   // Club-based participant eligibility (SEPARATE from ownerClubIds below, which
   // controls who MANAGES the event) — see events.allowedClubs in schema.ts.
   allowedClubs: z.array(z.string().uuid()).optional().nullable(),
-  // Restrict the event to the current first-year intake (id-prefix derived).
+  allowedYears: allowedEventYearsSchema.optional().nullable(),
+  // Compatibility for older clients and proposals.
   firstYearOnly: z.boolean().optional(),
   // Which president role(s) MANAGE this event (club_president / major_president).
   // Separate from allowedRoles (participant visibility) — see GET scoping above.
@@ -249,7 +251,7 @@ export async function POST(req: Request) {
           allowedRoles: data.allowedRoles && data.allowedRoles.length > 0 ? data.allowedRoles : null,
           allowedMajors: data.allowedMajors && data.allowedMajors.length > 0 ? data.allowedMajors : null,
           allowedClubs: data.allowedClubs && data.allowedClubs.length > 0 ? data.allowedClubs : null,
-          firstYearOnly: data.firstYearOnly ?? false,
+          ...eventYearFields(data),
           managedByRoles: data.managedByRoles && data.managedByRoles.length > 0 ? data.managedByRoles : null,
           ownerClubIds: data.ownerClubIds && data.ownerClubIds.length > 0 ? data.ownerClubIds : null,
           ownerMajors: data.ownerMajors && data.ownerMajors.length > 0 ? data.ownerMajors : null,

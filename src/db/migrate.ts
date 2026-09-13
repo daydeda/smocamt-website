@@ -1398,6 +1398,10 @@ async function migrate() {
   await sql`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS owner_majors jsonb`;
   console.log("  ✅ shop_products.owner_club_ids / owner_majors");
 
+  // 89. Multi-select student year eligibility; NULL preserves the legacy flag.
+  await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS allowed_years jsonb`;
+  console.log("  ✅ events.allowed_years");
+
   console.log("✅ Migration complete!");
   await sql.end();
   process.exit(0);

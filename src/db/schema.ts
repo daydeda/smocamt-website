@@ -289,6 +289,9 @@ export const events = pgTable("events", {
   // with "69" for the 2026 intake). The current first-year prefix is computed at
   // runtime in src/lib/event-access.ts (currentFirstYearPrefix). Admin roles bypass.
   firstYearOnly: boolean("first_year_only").notNull().default(false),
+  // Selected current study years (1–4). [] = unrestricted; null falls back to
+  // firstYearOnly for existing events and proposal-created events.
+  allowedYears: jsonb("allowed_years").$type<number[]>(),
   // Set once the event-winner house bonus has been awarded. This is the single
   // source of truth for "already processed" — never infer it from score_history,
   // because mid-event individual/milestone/manual rows also carry this eventId.

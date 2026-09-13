@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+export const allowedEventYearsSchema = z.array(z.number().int().min(1).max(4))
+  .transform((years) => [...new Set(years)].sort((a, b) => a - b));
+
 // A single session/day must start and end on the same calendar day. Each
 // session is one check-in window (`idx_attendance_session_student` allows
 // exactly one attendance row per student per session), so a session whose

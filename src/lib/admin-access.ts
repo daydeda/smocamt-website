@@ -4,13 +4,14 @@
 // move together. Pure data/predicates only — safe to import in the edge proxy.
 // Server-side API/route gates remain the source of truth for data access.
 
-// Roles allowed to open the admin area at all. "smo", "club_president" and
-// "major_president" are scanner-only — they can enter, but AdminNav shows just the
-// Scanner and the sensitive APIs still reject them.
-export const ADMIN_ENTRY_ROLES = ["super_admin", "admin", "registration", "organizer", "smo", "club_president", "major_president"] as const;
+// Roles allowed to open the admin area at all. The scoped roles below can enter,
+// but their exact pages remain confined by isScannerOnlyAllowedPath + each
+// page/API's server-side gate.
+export const ADMIN_ENTRY_ROLES = ["super_admin", "admin", "registration", "organizer", "smo", "club_president", "major_president", "shop_seller"] as const;
 
-// Scanner-only roles: allowed into /admin but confined to the QR scanner.
-export const SCANNER_ONLY_ROLES = ["smo", "club_president", "major_president"] as const;
+// Confined roles: allowed into /admin, but only to their explicitly permitted
+// scanner/events/organization/shop surfaces.
+export const SCANNER_ONLY_ROLES = ["smo", "club_president", "major_president", "shop_seller"] as const;
 
 // Roles permitted to award/deduct INDIVIDUAL student points in the scanner.
 // "smo" keeps full scanner (check-in + scoring); the president roles are check-in
@@ -53,7 +54,18 @@ export const SCANNER_ONLY_PAGES = ["/admin", SCANNER_HREF, "/admin/events", "/ad
 
 // May a scanner-only role reach this exact (page) path? Used by the proxy to
 // confine these roles. Exact-match only — no /admin/events/* sub-pages exist.
-export function isScannerOnlyAllowedPath(pathname: string): boolean {
+export function isScannerOnlyAllowedPath(
+  pathname: string,
+  roles?: string[],
+  hasStaffPosition?: boolean,
+): boolean {
+  // A seller capability by itself is confined to the shop. If the same account
+  // also holds an existing scanner/president role, retain that role's normal
+  // confined page set and let each page's server-side gate decide the data scope.
+  const sellerOnly = !!roles?.includes("shop_seller") &&
+    !roles.some((r) => ["smo", "club_president", "major_president"].includes(r)) &&
+    !hasStaffPosition;
+  if (sellerOnly) return pathname === "/admin" || pathname === "/admin/shop";
   return (SCANNER_ONLY_PAGES as readonly string[]).includes(pathname);
 }
 
@@ -126,6 +138,12 @@ export function isGlobalRegistrationPosition(
   );
 }
 
+// SMO Finance is the trusted money/merch reviewer for the marketplace. This is
+// deliberately position-scoped: a plain `smo` role keeps scanner-only breadth.
+export function isShopFinancePosition(roles: string[], smoPosition?: string | null): boolean {
+  return roles.includes("smo") && smoPosition === "finance";
+}
+
 // May any of these roles enter the admin area at all? ANY staff position
 // (src/lib/positions.ts — vice_president, secretary, finance, ..., not just
 // "registration"), in ANY scope (club, major, smo, anusmo), grants at least
@@ -169,5 +187,9 @@ export function adminLandingHrefForRoles(
   smoPosition?: string | null,
   anusmoPosition?: string | null,
 ): string {
+  const sellerOnly = roles.includes("shop_seller") &&
+    !roles.some((r) => ["super_admin", "admin", "registration", "organizer", "smo", "club_president", "major_president"].includes(r)) &&
+    !hasStaffPosition;
+  if (sellerOnly) return "/admin/shop";
   return isScannerOnlyAny(roles, hasStaffPosition, smoPosition, anusmoPosition) ? SCANNER_HREF : "/admin/dashboard";
 }

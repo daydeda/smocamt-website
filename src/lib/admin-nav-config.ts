@@ -28,7 +28,7 @@ import {
   ClipboardList,
   ListChecks,
 } from "lucide-react";
-import { isScannerOnlyAny, isGlobalRegistrationPosition } from "@/lib/admin-access";
+import { isScannerOnlyAny, isGlobalRegistrationPosition, isShopFinancePosition } from "@/lib/admin-access";
 import { REVIEW_PROPOSAL_ROLES } from "@/lib/event-proposals";
 
 export interface AdminNavContext {
@@ -111,6 +111,8 @@ const has = (ctx: AdminNavContext, allowed: string[]) => ctx.roles.some((r) => a
 const canSeeStudents = (ctx: AdminNavContext) => has(ctx, ["super_admin", "admin", "registration"]) || ctx.globalReg;
 const canSeeAudit = (ctx: AdminNavContext) => has(ctx, ["super_admin", "admin"]);
 const canManage = (ctx: AdminNavContext) => has(ctx, ["super_admin", "admin"]);
+const canManageShop = (ctx: AdminNavContext) =>
+  canManage(ctx) || isShopFinancePosition(ctx.roles, ctx.smoPosition);
 const canSeeClubs = (ctx: AdminNavContext) => has(ctx, ["super_admin", "admin"]);
 const canReviewProposals = (ctx: AdminNavContext) => has(ctx, [...REVIEW_PROPOSAL_ROLES]) || ctx.globalReg;
 // Coming-soon placeholders: shown only to the roles who'd eventually manage
@@ -230,7 +232,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     fallback: "Shop",
     icon: ShoppingBag,
     group: "content",
-    allowed: canManage,
+    allowed: canManageShop,
     keywords: ["store", "points", "redeem"],
   },
 
@@ -277,13 +279,22 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
 // says, ported verbatim from itemAllowed's first branch (the nine-condition
 // boolean that the full-admin path below never reaches).
 function scannerOnlyAllowed(item: AdminNavItem, ctx: AdminNavContext): boolean {
+  const sellerOnly = ctx.roles.includes("shop_seller") &&
+    !ctx.roles.some((role) => ["smo", "club_president", "major_president"].includes(role)) &&
+    !ctx.hasStaffPosition;
+  if (sellerOnly) return item.href === "/admin/shop";
   return (
     item.href === "/admin/scanner" ||
     item.href === "/admin/events" ||
     item.href === "/admin/appeals" ||
     (item.href === "/admin/clubs" && (ctx.roles.includes("club_president") || !!ctx.hasClubPosition)) ||
     (item.href === "/admin/majors" && ctx.roles.includes("major_president")) ||
-    (item.href === "/admin/shop" && (ctx.roles.includes("club_president") || ctx.roles.includes("major_president")))
+    (item.href === "/admin/shop" && (
+      ctx.roles.includes("club_president") ||
+      ctx.roles.includes("major_president") ||
+      ctx.roles.includes("shop_seller") ||
+      isShopFinancePosition(ctx.roles, ctx.smoPosition)
+    ))
   );
 }
 

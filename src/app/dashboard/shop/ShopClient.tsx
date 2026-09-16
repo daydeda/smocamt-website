@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { StudentNav } from "@/components/layout/StudentNav";
 import { useLanguage } from "@/lib/LanguageContext";
 import { compressImageFile } from "@/lib/compress-image";
@@ -10,7 +11,7 @@ import type { ShopCustomField, ShopCustomValue } from "@/lib/shop-custom-fields"
 import { computeProductDeliveryFee, type ShopDeliveryTier } from "@/lib/shop-delivery";
 import {
   ShoppingBag, X, ChevronLeft, ChevronRight, ChevronDown, Check, Upload, Loader2, CheckCircle2,
-  Clock, XCircle, Package, Minus, Plus, ReceiptText,
+  Clock, XCircle, Package, Minus, Plus, ReceiptText, Store,
 } from "lucide-react";
 
 interface Variant { id: string; label: string; remaining: number | null; allowCustom?: boolean; priceDelta?: number }
@@ -20,6 +21,10 @@ interface Product {
   opensAt?: string | null; closesAt?: string | null; saleStatus?: "open" | "upcoming" | "closed";
   customFields?: ShopCustomField[];
   deliveryFee?: number | null; deliveryTiers?: ShopDeliveryTier[];
+  seller?: {
+    id: string; displayName: string; paymentInfo: string; qrImageUrl: string | null;
+    deliveryEnabled: boolean; deliveryFee: number; pickupInfo: string;
+  } | null;
 }
 interface ShopData {
   enabled: boolean; paymentInfo: string; qrImageUrl: string | null;
@@ -32,6 +37,11 @@ interface Order {
   rejectionReason: string | null; hasSlip: boolean; createdAt: string; items: OrderItem[];
   fulfillment?: string; shippingFee?: number;
   recipientName?: string | null; recipientPhone?: string | null; shippingAddress?: string | null;
+  sellerName?: string | null;
+}
+interface SellerApplication {
+  id: string; displayName: string; status: "pending" | "approved" | "rejected" | "suspended";
+  reviewNote: string | null; appliedAt: string; reviewedAt: string | null;
 }
 
 const baht = (n: number) => `฿${n.toLocaleString()}`;
@@ -45,14 +55,17 @@ export default function ShopClient() {
   const [tab, setTab] = useState<"shop" | "orders">("shop");
   const [active, setActive] = useState<Product | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [sellerApplication, setSellerApplication] = useState<SellerApplication | null>(null);
 
   const load = useCallback(async () => {
-    const [s, o] = await Promise.all([
+    const [s, o, seller] = await Promise.all([
       fetch("/api/shop").then((r) => r.json()).catch(() => null),
       fetch("/api/shop/orders").then((r) => r.json()).catch(() => []),
+      fetch("/api/shop/seller").then((r) => r.json()).catch(() => null),
     ]);
     if (s && Array.isArray(s.products)) setData(s);
     if (Array.isArray(o)) setOrders(o);
+    setSellerApplication(seller?.seller ?? null);
     setLoading(false);
   }, []);
 
@@ -94,6 +107,14 @@ export default function ShopClient() {
             </button>
           ))}
         </div>
+
+        {!loading && tab === "shop" && (
+          <SellerApplicationCard
+            application={sellerApplication}
+            th={th}
+            onApplied={async () => { await load(); }}
+          />
+        )}
 
         {loading ? (
           <div style={{ display: "flex", justifyContent: "center", padding: 80 }}>
@@ -147,6 +168,98 @@ function EmptyState({ icon, text }: { icon: React.ReactNode; text: string }) {
   );
 }
 
+function SellerApplicationCard({ application, th, onApplied }: {
+  application: SellerApplication | null;
+  th: boolean;
+  onApplied: () => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [displayName, setDisplayName] = useState(application?.displayName ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const apply = async () => {
+    if (displayName.trim().length < 2) {
+      setError(th ? "กรุณากรอกชื่อร้านอย่างน้อย 2 ตัวอักษร" : "Enter a seller name of at least 2 characters.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/shop/seller", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayName: displayName.trim() }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || "Application failed");
+      setOpen(false);
+      await onApplied();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Application failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const statusCopy = application?.status === "pending"
+    ? (th ? "คำขอผู้ขายของคุณกำลังรอตรวจสอบ" : "Your seller application is awaiting review.")
+    : application?.status === "approved"
+      ? (th ? "บัญชีผู้ขายได้รับการอนุมัติแล้ว" : "Your seller account is approved.")
+      : application?.status === "suspended"
+        ? (th ? "บัญชีผู้ขายถูกระงับชั่วคราว" : "Your seller account is suspended.")
+        : application?.status === "rejected"
+          ? (th ? "คำขอผู้ขายยังไม่ได้รับอนุมัติ" : "Your seller application was not approved.")
+          : null;
+
+  return (
+    <div style={{ marginBottom: 22, padding: 16, borderRadius: "var(--radius-lg)", border: "1px solid var(--border-subtle)", background: "var(--bg-surface)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-start", minWidth: 0 }}>
+          <Store size={20} style={{ color: "var(--accent-primary)", flexShrink: 0, marginTop: 2 }} />
+          <div>
+            <p style={{ fontWeight: 800, fontSize: 14 }}>
+              {application?.displayName || (th ? "อยากขายสินค้าของคุณ?" : "Want to sell your own items?")}
+            </p>
+            <p style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 2 }}>
+              {statusCopy || (th
+                ? "บัญชี Google ทุกโดเมนสมัครได้หลังทำ onboarding และต้องผ่านการอนุมัติก่อนลงสินค้า"
+                : "Any Google-account email domain may apply after onboarding; approval is required before listing products.")}
+            </p>
+            {application?.reviewNote && (
+              <p style={{ color: application.status === "rejected" || application.status === "suspended" ? "#dc2626" : "var(--text-muted)", fontSize: 12, marginTop: 4 }}>
+                {th ? "หมายเหตุ: " : "Note: "}{application.reviewNote}
+              </p>
+            )}
+          </div>
+        </div>
+        {application?.status === "approved" ? (
+          <Link href="/admin/shop" className="btn btn-primary" style={{ fontSize: 13 }}>
+            {th ? "จัดการร้านของฉัน" : "Manage my shop"}
+          </Link>
+        ) : application?.status === "pending" || application?.status === "suspended" ? null : (
+          <button onClick={() => setOpen((value) => !value)} className="btn btn-ghost" style={{ fontSize: 13 }}>
+            {application?.status === "rejected" ? (th ? "สมัครใหม่" : "Re-apply") : (th ? "สมัครเป็นผู้ขาย" : "Apply to sell")}
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-end", marginTop: 14, flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 240px" }}>
+            <label htmlFor="seller-display-name" style={{ display: "block", fontWeight: 700, fontSize: 12, marginBottom: 6 }}>{th ? "ชื่อผู้ขาย / ชื่อร้าน" : "Seller / shop name"}</label>
+            <input id="seller-display-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={120} style={customInputStyle} placeholder={th ? "เช่น ชมรมถ่ายภาพ หรือ Jane's Bakery" : "e.g. Photography Club or Jane's Bakery"} />
+          </div>
+          <button onClick={apply} disabled={saving} className="btn btn-primary" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            {saving && <Loader2 size={15} className="animate-spin" />}{th ? "ส่งคำขอ" : "Submit application"}
+          </button>
+          {error && <p style={{ width: "100%", color: "#ef4444", fontSize: 12 }}>{error}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProductCard({ product, th, onOpen }: { product: Product; th: boolean; onOpen: () => void }) {
   const cover = product.imageUrls[0];
   const soldOut = product.variants.length > 0 && product.variants.every((v) => v.remaining != null && v.remaining <= 0);
@@ -176,6 +289,9 @@ function ProductCard({ product, th, onOpen }: { product: Product; th: boolean; o
       </div>
       <div style={{ padding: 14, display: "flex", flexDirection: "column", flex: 1 }}>
         <p style={{ fontWeight: 700, fontSize: 15, marginBottom: 4, lineHeight: 1.3 }}>{product.name}</p>
+        {product.seller?.displayName && (
+          <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 6 }}>{th ? "ผู้ขาย: " : "Seller: "}{product.seller.displayName}</p>
+        )}
         {hasDesc && (
           <>
             <div
@@ -225,6 +341,7 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const variant = product.variants.find((v) => v.id === variantId);
+  const checkoutSettings = product.seller ?? settings;
   const customFields = product.customFields ?? [];
   const missingRequiredCustom = customFields.some((f) => f.required && !(customAnswers[f.key] ?? "").trim());
   const remaining = variant?.remaining ?? null;
@@ -244,7 +361,7 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
   // Per-product delivery fee for the current quantity (tiers can raise it as qty
   // grows). Mirrors the server's authoritative computeProductDeliveryFee. The
   // fee at qty=1 powers the "Delivery (+฿X)" hint on the chooser.
-  const shopWideFee = settings.deliveryFee ?? 0;
+  const shopWideFee = checkoutSettings.deliveryFee ?? 0;
   const deliveryFee = fulfillment === "delivery" ? computeProductDeliveryFee(product, qty, shopWideFee) : 0;
   const deliveryFeeFrom = computeProductDeliveryFee(product, 1, shopWideFee);
   const total = subtotal + deliveryFee;
@@ -480,7 +597,7 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
                 <label style={{ display: "block", fontWeight: 700, fontSize: 13, marginBottom: 8 }}>{th ? "การรับสินค้า" : "Fulfillment"}</label>
                 <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
                   {(["pickup", "delivery"] as const).map((opt) => {
-                    const disabled = opt === "delivery" && !settings.deliveryEnabled;
+                    const disabled = opt === "delivery" && !checkoutSettings.deliveryEnabled;
                     const sel = fulfillment === opt;
                     return (
                       <button key={opt} disabled={disabled} onClick={() => setFulfillment(opt)}
@@ -490,8 +607,8 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
                     );
                   })}
                 </div>
-                {fulfillment === "pickup" && (settings.pickupInfo ?? "").trim() !== "" && (
-                  <div style={{ fontSize: 13, color: "var(--text-secondary)", background: "var(--bg-base)", padding: "8px 12px", borderRadius: "var(--radius-md)", lineHeight: 1.6, overflowWrap: "anywhere", wordBreak: "break-word" }} dangerouslySetInnerHTML={{ __html: parseRichText(settings.pickupInfo ?? "") }} />
+                {fulfillment === "pickup" && (checkoutSettings.pickupInfo ?? "").trim() !== "" && (
+                  <div style={{ fontSize: 13, color: "var(--text-secondary)", background: "var(--bg-base)", padding: "8px 12px", borderRadius: "var(--radius-md)", lineHeight: 1.6, overflowWrap: "anywhere", wordBreak: "break-word" }} dangerouslySetInnerHTML={{ __html: parseRichText(checkoutSettings.pickupInfo ?? "") }} />
                 )}
                 {fulfillment === "delivery" && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -505,11 +622,21 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
               {/* Payment instructions + QR */}
               <div style={{ marginBottom: 16 }}>
                 <label style={{ display: "block", fontWeight: 700, fontSize: 13, marginBottom: 8 }}>{th ? "ช่องทางการชำระเงิน" : "How to pay"}</label>
-                {settings.qrImageUrl && (
-                  <img src={settings.qrImageUrl} alt="Payment QR" style={{ width: "100%", maxWidth: 320, aspectRatio: "1 / 1", objectFit: "contain", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)", display: "block", margin: "0 auto 12px", background: "#fff" }} />
+                {product.seller?.displayName && (
+                  <p style={{ textAlign: "center", fontSize: 13, fontWeight: 800, marginBottom: 8 }}>
+                    {th ? "ชำระโดยตรงให้ " : "Pay directly to "}{product.seller.displayName}
+                  </p>
                 )}
-                {settings.paymentInfo.trim() !== "" && (
-                  <div style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6, textAlign: "center", overflowWrap: "anywhere", wordBreak: "break-word" }} dangerouslySetInnerHTML={{ __html: parseRichText(settings.paymentInfo) }} />
+                {checkoutSettings.qrImageUrl && (
+                  <img src={checkoutSettings.qrImageUrl} alt="Payment QR" style={{ width: "100%", maxWidth: 320, aspectRatio: "1 / 1", objectFit: "contain", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)", display: "block", margin: "0 auto 12px", background: "#fff" }} />
+                )}
+                {checkoutSettings.paymentInfo.trim() !== "" && (
+                  <div style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6, textAlign: "center", overflowWrap: "anywhere", wordBreak: "break-word" }} dangerouslySetInnerHTML={{ __html: parseRichText(checkoutSettings.paymentInfo) }} />
+                )}
+                {product.seller && (
+                  <p style={{ fontSize: 11, color: "var(--text-muted)", textAlign: "center", marginTop: 10 }}>
+                    {th ? "ActiveCAMT ไม่รับหรือถือเงิน การชำระเงินส่งตรงถึงผู้ขาย" : "ActiveCAMT does not receive or hold funds; payment goes directly to the seller."}
+                  </p>
                 )}
               </div>
 
@@ -519,7 +646,7 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
               {slipPreview ? (
                 <div style={{ position: "relative", marginBottom: 16 }}>
                   <img src={slipPreview} alt="slip" style={{ width: "100%", maxHeight: 280, objectFit: "contain", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)", background: "var(--bg-base)" }} />
-                  <button onClick={() => { setSlipPath(null); setSlipPreview(null); fileRef.current && (fileRef.current.value = ""); }} className="btn btn-ghost" style={{ position: "absolute", top: 8, right: 8, padding: 6, background: "var(--bg-surface)" }}><X size={16} /></button>
+                  <button onClick={() => { setSlipPath(null); setSlipPreview(null); if (fileRef.current) fileRef.current.value = ""; }} className="btn btn-ghost" style={{ position: "absolute", top: 8, right: 8, padding: 6, background: "var(--bg-surface)" }} aria-label={th ? "ลบสลิป" : "Remove slip"}><X size={16} /></button>
                 </div>
               ) : (
                 <button onClick={() => fileRef.current?.click()} disabled={uploading} style={{ width: "100%", padding: 24, borderRadius: "var(--radius-md)", border: "2px dashed var(--border-subtle)", background: "var(--bg-base)", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, color: "var(--text-muted)", marginBottom: 16 }}>
@@ -567,6 +694,11 @@ function OrderRow({ order, th }: { order: Order; th: boolean }) {
     <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-lg)", padding: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 10 }}>
         <div style={{ minWidth: 0 }}>
+          {order.sellerName && (
+            <p style={{ fontSize: 12, color: "var(--accent-primary)", fontWeight: 700, marginBottom: 3 }}>
+              {th ? "ผู้ขาย: " : "Seller: "}{order.sellerName}
+            </p>
+          )}
           {order.items.map((i, idx) => (
             <div key={idx}>
               <p style={{ fontSize: 14, fontWeight: 600, overflowWrap: "anywhere", wordBreak: "break-word" }}>{i.productName}{i.variantLabel && i.variantLabel !== "Standard" ? ` · ${i.variantLabel}` : ""} × {i.quantity}</p>

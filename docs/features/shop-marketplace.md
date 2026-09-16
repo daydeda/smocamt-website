@@ -1,9 +1,19 @@
 # Feature Spec — Multi-Seller Shop (ระบบร้านค้าหลายผู้ขาย)
 
-> **STATUS: DESIGN COMPLETE — NOT YET IMPLEMENTED.**
-> Planning doc only — no schema, routes, or UI exist yet. All decisions in §8
-> are signed off; this is ready for a `drizzle-migration-author` +
-> `new-admin-route` implementation pass.
+> **STATUS: CORE MARKETPLACE IMPLEMENTED** (`feat/shop-marketplace-sellers`,
+> 2026-09-16).
+>
+> Implemented: seller applications from the student shop, approval/rejection/
+> suspension by `admin`/`super_admin`/SMO Finance, the additive `shop_seller`
+> capability, seller-owned QR/payment/delivery/pickup settings, mandatory product
+> approval, seller-scoped order/slip access, and storefront hiding while a seller
+> is suspended. Applications remain open to every Google email domain; normal
+> onboarding plus human approval are the trust gates.
+>
+> The current storefront checks out one product at a time, so each order is
+> already single-seller. The API rejects a mixed-seller payload and stores a
+> `checkoutGroupId`; the multi-item cart/split-result UX described in §4 remains
+> future work if a cart is added.
 
 ---
 
@@ -63,12 +73,17 @@ anything or receive a payment QR.
 id            uuid PK
 userId        text FK -> users.id, NOT NULL, unique (one seller identity per account)
 displayName   text NOT NULL         -- shown on product listings, e.g. "SMO Merch", "Jane's Bakery"
-status        text NOT NULL default 'pending'   -- 'pending' | 'approved' | 'suspended'
+status        text NOT NULL default 'pending'   -- 'pending' | 'approved' | 'rejected' | 'suspended'
 paymentInfo   text NOT NULL default ''          -- rich-text instructions, same as today's shopSettings.paymentInfo
 qrImageUrl    text                              -- this seller's own PromptPay/bank QR image
+deliveryEnabled boolean NOT NULL default false
+deliveryFee   integer NOT NULL default 0        -- flat-fee fallback for this seller
+pickupInfo    text NOT NULL default ''          -- where/when self-pickup instructions
+reviewNote    text                              -- rejection/suspension explanation shown to seller
 appliedAt     timestamptz default now()
 reviewedBy    text                              -- admin who approved/suspended, for audit
 reviewedAt    timestamptz
+updatedAt     timestamptz default now()
 ```
 A `suspended` seller's existing products are hidden from the storefront and
 existing pending orders freeze (can't be approved/rejected further) until
@@ -77,7 +92,7 @@ product without deleting its order history.
 
 ### `shop_products` — add
 ```
-sellerId        uuid FK -> shop_sellers.id, NOT NULL
+sellerId        uuid FK -> shop_sellers.id, nullable for legacy central products
 approvalStatus  text NOT NULL default 'approved'  -- 'pending' | 'approved' | 'rejected'
 approvalReason  text                               -- shown to the seller on rejection
 reviewedBy      text                               -- admin/super_admin/smo-finance who decided
@@ -93,16 +108,14 @@ student association" without per-item QR sprawl. A seller who genuinely needs
 two payout accounts is two `shop_sellers` rows (e.g. two contact emails), not a
 new axis on `shop_products`.
 
-Existing rows need a backfill seller during migration: create one
-`shop_sellers` row (`displayName: "SMO / CAMT"`, `status: 'approved'`) owned by
-a designated admin account, and set every current `shop_products.sellerId` to
-it. `shop_settings.paymentInfo`/`qrImageUrl` move onto that row; the singleton
-`shop_settings` table keeps only shop-wide, non-payment config (`enabled`,
-delivery defaults, `pickupInfo`).
+Existing rows deliberately remain `sellerId = NULL`: they are the legacy central
+SMO shop and continue to use `shop_settings`. This avoided inventing a designated
+admin owner or moving live payment settings during an additive migration. New
+seller-owned products always carry a concrete seller id.
 
 ### `shop_orders` — add
 ```
-sellerId          uuid FK -> shop_sellers.id, NOT NULL
+sellerId          uuid FK -> shop_sellers.id, nullable for legacy central orders
 checkoutGroupId   uuid    -- ties together sub-orders created from one checkout
 ```
 An order becomes single-seller. A cart with items from two sellers produces
@@ -114,19 +127,18 @@ independently approved/rejected by their own seller. This directly answers your
 
 ## 4. Checkout flow
 
-1. Buyer's cart can hold items from multiple sellers (current cart UI already
-   just lists variant selections; no seller concept to enforce today).
-2. At checkout, group cart lines by `product.sellerId`. Render **one payment
-   block per seller present** — that seller's QR/instructions, one slip-upload
-   input each.
-3. Submit creates `N` `shop_orders` rows (one per seller group), but **not** as
+1. The current buyer UI checks out one product at a time, so the selected item
+   determines exactly one seller and one payment block.
+2. Checkout renders that product seller's QR/instructions and fulfilment settings
+   (or the legacy central settings for a central product).
+3. A future cart may create `N` `shop_orders` rows (one per seller group), but **not** as
    one all-or-nothing transaction across every seller (decided, §8.3) — each
    seller-group is validated and inserted independently (its own
    transaction/savepoint, same per-order stock/limit/eligibility logic
    `POST /api/shop/orders` already runs today), sharing only the
    `checkoutGroupId`. A stock-out on seller A's item does not block seller B's
    otherwise-valid sub-order.
-4. The response reports success/failure **per seller group** — the buyer sees
+4. That future cart response should report success/failure **per seller group** — the buyer sees
    exactly which seller(s)' items went through and which failed and why (e.g.
    "SMO Merch: ordered ✓ — Jane's Bakery: out of stock ✗"), not one opaque
    whole-cart error.

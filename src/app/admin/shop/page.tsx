@@ -5,9 +5,9 @@ import AdminShopClient from "./AdminShopClient";
 
 export const dynamic = "force-dynamic";
 
-// Defense-in-depth on top of the API gate: super_admin/admin get the full shop,
-// club_president/major_president get a scoped one (own products + their orders).
-// registration/organizer/smo can enter /admin but not touch money/merch.
+// Defense-in-depth on top of the API gate: super_admin/admin and SMO Finance get
+// the full shop; approved sellers and club/major presidents get their scoped shop.
+// Every API still resolves the authoritative DB-backed scope independently.
 export default async function AdminShopPage() {
   const session = await auth();
   if (!isShopManager(session)) {

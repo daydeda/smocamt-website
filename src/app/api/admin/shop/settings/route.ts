@@ -1,8 +1,8 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { shopSettings } from "@/db/schema";
+import { shopSellers, shopSettings } from "@/db/schema";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
-import { isShopAdmin } from "@/lib/shop-auth";
+import { resolveShopAccess } from "@/lib/shop-scope";
 import { desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -25,8 +25,27 @@ const settingsSchema = z.object({
 export async function GET() {
   try {
     const session = await auth();
-    if (!isShopAdmin(session)) {
+    const access = await resolveShopAccess(session);
+    if (!access.ok) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (!access.unscoped) {
+      if (!access.sellerId) {
+        return NextResponse.json({ error: "Seller approval is required before adding payment settings." }, { status: 403 });
+      }
+      const [seller] = await db
+        .select({
+          paymentInfo: shopSellers.paymentInfo,
+          qrImageUrl: shopSellers.qrImageUrl,
+          deliveryEnabled: shopSellers.deliveryEnabled,
+          deliveryFee: shopSellers.deliveryFee,
+          pickupInfo: shopSellers.pickupInfo,
+        })
+        .from(shopSellers)
+        .where(eq(shopSellers.id, access.sellerId))
+        .limit(1);
+      if (!seller) return NextResponse.json({ error: "Not found" }, { status: 404 });
+      return NextResponse.json({ ...seller, enabled: true, mode: "seller" });
     }
     const [row] = await db
       .select({
@@ -40,7 +59,10 @@ export async function GET() {
       .from(shopSettings)
       .orderBy(desc(shopSettings.updatedAt))
       .limit(1);
-    return NextResponse.json(row ?? { enabled: false, paymentInfo: "", qrImageUrl: null, deliveryEnabled: false, deliveryFee: 0, pickupInfo: "" });
+    return NextResponse.json({
+      ...(row ?? { enabled: false, paymentInfo: "", qrImageUrl: null, deliveryEnabled: false, deliveryFee: 0, pickupInfo: "" }),
+      mode: "global",
+    });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
@@ -51,22 +73,52 @@ export async function GET() {
 export async function PUT(req: Request) {
   try {
     const session = await auth();
-    if (!isShopAdmin(session)) {
+    const access = await resolveShopAccess(session);
+    if (!access.ok) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const data = settingsSchema.parse(await req.json());
 
-    await db.transaction(async (tx) => {
-      const [existing] = await tx
-        .select({ id: shopSettings.id })
-        .from(shopSettings)
-        .orderBy(desc(shopSettings.updatedAt))
-        .limit(1);
+    if (!access.unscoped && !access.sellerId) {
+      return NextResponse.json({ error: "Seller approval is required before adding payment settings." }, { status: 403 });
+    }
 
-      if (existing) {
+    await db.transaction(async (tx) => {
+      if (!access.unscoped) {
         await tx
-          .update(shopSettings)
+          .update(shopSellers)
           .set({
+            paymentInfo: data.paymentInfo,
+            qrImageUrl: data.qrImageUrl,
+            deliveryEnabled: data.deliveryEnabled,
+            deliveryFee: data.deliveryFee,
+            pickupInfo: data.pickupInfo,
+            updatedAt: new Date(),
+          })
+          .where(eq(shopSellers.id, access.sellerId!));
+      } else {
+        const [existing] = await tx
+          .select({ id: shopSettings.id })
+          .from(shopSettings)
+          .orderBy(desc(shopSettings.updatedAt))
+          .limit(1);
+
+        if (existing) {
+          await tx
+            .update(shopSettings)
+            .set({
+              enabled: data.enabled,
+              paymentInfo: data.paymentInfo,
+              qrImageUrl: data.qrImageUrl,
+              deliveryEnabled: data.deliveryEnabled,
+              deliveryFee: data.deliveryFee,
+              pickupInfo: data.pickupInfo,
+              updatedBy: session!.user!.id!,
+              updatedAt: new Date(),
+            })
+            .where(eq(shopSettings.id, existing.id));
+        } else {
+          await tx.insert(shopSettings).values({
             enabled: data.enabled,
             paymentInfo: data.paymentInfo,
             qrImageUrl: data.qrImageUrl,
@@ -74,24 +126,15 @@ export async function PUT(req: Request) {
             deliveryFee: data.deliveryFee,
             pickupInfo: data.pickupInfo,
             updatedBy: session!.user!.id!,
-            updatedAt: new Date(),
-          })
-          .where(eq(shopSettings.id, existing.id));
-      } else {
-        await tx.insert(shopSettings).values({
-          enabled: data.enabled,
-          paymentInfo: data.paymentInfo,
-          qrImageUrl: data.qrImageUrl,
-          deliveryEnabled: data.deliveryEnabled,
-          deliveryFee: data.deliveryFee,
-          pickupInfo: data.pickupInfo,
-          updatedBy: session!.user!.id!,
-        });
+          });
+        }
       }
 
       await AuditService.logActionInternal(tx, {
-        actorId: session!.user!.id!,
-        action: `Updated shop settings (enabled: ${data.enabled})`,
+        actorId: access.userId,
+        action: access.unscoped
+          ? `Updated global shop settings (enabled: ${data.enabled})`
+          : `Updated seller payment and fulfilment settings (${access.sellerId})`,
         ipAddress: getClientIp(req),
       });
     });

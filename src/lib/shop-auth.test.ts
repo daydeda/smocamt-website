@@ -18,9 +18,10 @@ describe("isShopAdmin", () => {
     expect(isShopAdmin(sess(["super_admin"]))).toBe(true);
     expect(isShopAdmin(sess(["admin"]))).toBe(true);
     expect(isShopAdmin(sess(["admin", "club_president"]))).toBe(true);
+    expect(isShopAdmin({ user: { roles: ["smo"], smoPosition: "finance" } } as unknown as Session)).toBe(true);
   });
   it("is false for presidents, scanner-only, and non-staff", () => {
-    for (const r of ["club_president", "major_president", "smo", "organizer", "registration", "student"]) {
+    for (const r of ["club_president", "major_president", "shop_seller", "smo", "organizer", "registration", "student"]) {
       expect(isShopAdmin(sess([r]))).toBe(false);
     }
     expect(isShopAdmin(null)).toBe(false);
@@ -29,10 +30,11 @@ describe("isShopAdmin", () => {
 });
 
 describe("isShopManager", () => {
-  it("admits full admins AND club/major presidents", () => {
-    for (const r of ["super_admin", "admin", "club_president", "major_president"]) {
+  it("admits full admins, presidents, and approved-role sellers", () => {
+    for (const r of ["super_admin", "admin", "club_president", "major_president", "shop_seller"]) {
       expect(isShopManager(sess([r]))).toBe(true);
     }
+    expect(isShopManager({ user: { role: "shop_seller", roles: [] } } as unknown as Session)).toBe(true);
   });
   it("rejects smo, organizer, registration, student, and no session", () => {
     for (const r of ["smo", "organizer", "registration", "student", "anusmo"]) {

@@ -626,6 +626,33 @@ export const shopSettings = pgTable("shop_settings", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
+// One approved payout/fulfilment identity per account. Anyone who completed
+// onboarding may apply; approval is what grants the additive `shop_seller`
+// capability. Payment details live here (not on the user row) so products from
+// different sellers never share the global SMO QR/instructions.
+export const shopSellers = pgTable("shop_sellers", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  // Do not cascade-delete an approved payout identity: products and historical
+  // orders must never silently fall back to the central SMO payment settings.
+  userId: text("user_id").references(() => users.id, { onDelete: "restrict" }).notNull(),
+  displayName: text("display_name").notNull(),
+  // 'pending' | 'approved' | 'rejected' | 'suspended'
+  status: text("status").notNull().default("pending"),
+  paymentInfo: text("payment_info").notNull().default(""),
+  qrImageUrl: text("qr_image_url"),
+  deliveryEnabled: boolean("delivery_enabled").notNull().default(false),
+  deliveryFee: integer("delivery_fee").notNull().default(0),
+  pickupInfo: text("pickup_info").notNull().default(""),
+  reviewNote: text("review_note"),
+  appliedAt: timestamp("applied_at", { withTimezone: true }).notNull().defaultNow(),
+  reviewedBy: text("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ([
+  uniqueIndex("shop_sellers_user_unique").on(table.userId),
+  index("shop_sellers_status_idx").on(table.status),
+]));
+
 export const shopProducts = pgTable("shop_products", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(),
@@ -680,9 +707,23 @@ export const shopProducts = pgTable("shop_products", {
   // EventScopeService.getPresidentScope.
   ownerClubIds: jsonb("owner_club_ids").$type<string[]>(),
   ownerMajors: jsonb("owner_majors").$type<string[]>(),
+  // NULL keeps existing SMO/central products on the global shop settings.
+  // Seller-created products always carry the approved seller that owns the
+  // payout details and review queue.
+  sellerId: uuid("seller_id").references(() => shopSellers.id, { onDelete: "restrict" }),
+  // Existing/admin-created products default approved. Products created through
+  // a scoped seller account start pending and stay off the storefront until a
+  // shop reviewer approves them.
+  approvalStatus: text("approval_status").notNull().default("approved"),
+  approvalReason: text("approval_reason"),
+  reviewedBy: text("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-});
+}, (table) => ([
+  index("idx_shop_products_seller").on(table.sellerId),
+  index("idx_shop_products_approval").on(table.approvalStatus),
+]));
 
 // A purchasable option of a product (e.g. size S/M/L). Every product has at least
 // one variant; a simple item carries a single "Standard" variant. Stock lives
@@ -709,6 +750,12 @@ export const shopVariants = pgTable("shop_variants", {
 export const shopOrders = pgTable("shop_orders", {
   id: uuid("id").defaultRandom().primaryKey(),
   buyerId: text("buyer_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  // One order belongs to exactly one payout identity. NULL is the legacy/
+  // central SMO shop. checkoutGroupId is ready for grouping sub-orders when a
+  // cart spans multiple sellers; the current one-product checkout still writes
+  // a fresh group id for every order.
+  sellerId: uuid("seller_id").references(() => shopSellers.id, { onDelete: "set null" }),
+  checkoutGroupId: uuid("checkout_group_id").defaultRandom(),
   // 'pending' (awaiting review) | 'approved' | 'rejected'
   status: text("status").notNull().default("pending"),
   // Object path inside the PRIVATE "slips" bucket — NOT a public URL. The slip is
@@ -751,6 +798,8 @@ export const shopOrders = pgTable("shop_orders", {
   index("idx_shop_orders_status").on(table.status),
   index("idx_shop_orders_slip_hash").on(table.slipHash),
   index("idx_shop_orders_slip_qr").on(table.slipQrPayload),
+  index("idx_shop_orders_seller").on(table.sellerId),
+  index("idx_shop_orders_checkout_group").on(table.checkoutGroupId),
 ]));
 
 export const shopOrderItems = pgTable("shop_order_items", {
@@ -774,8 +823,18 @@ export const shopOrderItems = pgTable("shop_order_items", {
   index("idx_shop_order_items_variant").on(table.variantId),
 ]));
 
-export const shopProductsRelations = relations(shopProducts, ({ many }) => ({
+export const shopProductsRelations = relations(shopProducts, ({ one, many }) => ({
+  seller: one(shopSellers, {
+    fields: [shopProducts.sellerId],
+    references: [shopSellers.id],
+  }),
   variants: many(shopVariants),
+}));
+
+export const shopSellersRelations = relations(shopSellers, ({ one, many }) => ({
+  user: one(users, { fields: [shopSellers.userId], references: [users.id] }),
+  products: many(shopProducts),
+  orders: many(shopOrders),
 }));
 
 export const shopVariantsRelations = relations(shopVariants, ({ one }) => ({
@@ -789,6 +848,10 @@ export const shopOrdersRelations = relations(shopOrders, ({ one, many }) => ({
   buyer: one(users, {
     fields: [shopOrders.buyerId],
     references: [users.id],
+  }),
+  seller: one(shopSellers, {
+    fields: [shopOrders.sellerId],
+    references: [shopSellers.id],
   }),
   items: many(shopOrderItems),
 }));
@@ -1249,4 +1312,3 @@ export const eventProposalsRelations = relations(eventProposals, ({ one }) => ({
   reviewer: one(users, { fields: [eventProposals.reviewedBy], references: [users.id], relationName: "proposalReviewer" }),
   resultingEvent: one(events, { fields: [eventProposals.resultingEventId], references: [events.id] }),
 }));
-

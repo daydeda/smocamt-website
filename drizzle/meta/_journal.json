@@ -204,6 +204,13 @@
       "when": 1789289896894,
       "tag": "0037_event_allowed_years",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1789558270275,
+      "tag": "0038_nice_whizzer",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { clubs, shopOrderItems, shopOrders, shopProducts, shopVariants } from "@/db/schema";
+import { clubs, shopOrderItems, shopOrders, shopProducts, shopSellers, shopVariants } from "@/db/schema";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { filterProductsByScope, isOwnerAssignmentWithinScope } from "@/lib/shop-auth";
 import { resolveShopAccess } from "@/lib/shop-scope";
@@ -34,7 +34,18 @@ export async function GET() {
       .from(shopProducts)
       .orderBy(asc(shopProducts.sortOrder), desc(shopProducts.createdAt));
 
-    const products = access.unscoped ? allProducts : filterProductsByScope(allProducts, access.scope);
+    const products = access.unscoped
+      ? allProducts
+      : filterProductsByScope(allProducts, access.scope, access.sellerId);
+
+    const sellerIds = [...new Set(products.map((p) => p.sellerId).filter((id): id is string => !!id))];
+    const sellers = sellerIds.length
+      ? await db
+          .select({ id: shopSellers.id, displayName: shopSellers.displayName })
+          .from(shopSellers)
+          .where(inArray(shopSellers.id, sellerIds))
+      : [];
+    const sellerNameById = new Map(sellers.map((seller) => [seller.id, seller.displayName]));
 
     const productIds = products.map((p) => p.id);
     const variants = productIds.length
@@ -87,12 +98,21 @@ export async function GET() {
       sortOrder: p.sortOrder,
       ownerClubIds: p.ownerClubIds ?? [],
       ownerMajors: p.ownerMajors ?? [],
+      sellerId: p.sellerId,
+      sellerName: p.sellerId ? sellerNameById.get(p.sellerId) ?? null : null,
+      approvalStatus: p.approvalStatus,
+      approvalReason: p.approvalReason,
       variants: variants
         .filter((v) => v.productId === p.id)
         .map((v) => ({ id: v.id, label: v.label, stock: v.stock, allowCustom: v.allowCustom, priceDelta: v.priceDelta ?? 0, sold: soldByVariant.get(v.id) ?? 0 })),
     }));
 
-    return NextResponse.json({ products: result, scoped: !access.unscoped, ownerOptions });
+    return NextResponse.json({
+      products: result,
+      scoped: !access.unscoped,
+      ownerOptions,
+      canReviewMarketplace: access.unscoped,
+    });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
@@ -111,11 +131,23 @@ export async function POST(req: Request) {
     }
     const data = productSchema.parse(await req.json());
 
-    if (!access.unscoped && !isOwnerAssignmentWithinScope(data.ownerClubIds, data.ownerMajors, access.scope)) {
-      return NextResponse.json(
-        { error: "You can only create products owned by a club or major you preside over." },
-        { status: 403 }
-      );
+    if (!access.unscoped) {
+      if (!access.sellerId) {
+        return NextResponse.json(
+          { error: "Apply for seller access and wait for approval before creating a product." },
+          { status: 403 },
+        );
+      }
+      const hasPresidentScope = access.scope.clubIds.length > 0 || access.scope.majors.length > 0;
+      if (hasPresidentScope && !isOwnerAssignmentWithinScope(data.ownerClubIds, data.ownerMajors, access.scope)) {
+        return NextResponse.json(
+          { error: "You can only create products owned by a club or major you preside over." },
+          { status: 403 },
+        );
+      }
+      if (!hasPresidentScope && (data.ownerClubIds.length > 0 || data.ownerMajors.length > 0)) {
+        return NextResponse.json({ error: "You cannot assign an organization owner." }, { status: 403 });
+      }
     }
 
     const productId = await db.transaction(async (tx) => {
@@ -141,6 +173,9 @@ export async function POST(req: Request) {
           sortOrder: data.sortOrder,
           ownerClubIds: data.ownerClubIds,
           ownerMajors: data.ownerMajors,
+          sellerId: access.unscoped ? null : access.sellerId,
+          approvalStatus: access.unscoped ? "approved" : "pending",
+          approvalReason: null,
         })
         .returning({ id: shopProducts.id });
 
@@ -153,7 +188,7 @@ export async function POST(req: Request) {
         : " (central)";
       await AuditService.logActionInternal(tx, {
         actorId: access.userId,
-        action: `Created shop product "${data.name}"${ownerNote}`,
+        action: `Created shop product "${data.name}"${ownerNote}${access.unscoped ? " (approved)" : " (pending approval)"}`,
         ipAddress: getClientIp(req),
       });
 

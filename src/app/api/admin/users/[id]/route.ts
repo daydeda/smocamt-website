@@ -21,6 +21,7 @@ const ROLE_PRIORITY = [
   "anusmo",
   "club_president",
   "major_president",
+  "shop_seller",
   "staff",
   "professor",
   "officer",

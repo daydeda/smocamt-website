@@ -1,20 +1,21 @@
 import type { Session } from "next-auth";
+import { effectiveRoles, isShopFinancePosition } from "@/lib/admin-access";
 
 // Who may manage the shop UNSCOPED (create central products, set the QR, edit
-// shop settings, see every order). Mirrors the announcement gate: super_admin +
-// admin only — registration/organizer can enter /admin but must not touch
-// money/merch. Checks the full roles array since a user can hold several roles.
+// global shop settings, review sellers/products, see every order): super_admin,
+// admin, or the canonical SMO Finance position. Checks the full roles array
+// since a user can hold several roles.
 export function isShopAdmin(session: Session | null): boolean {
   if (!session?.user) return false;
-  const roles = session.user.roles ?? (session.user.role ? [session.user.role] : []);
-  return roles.some((r) => r === "super_admin" || r === "admin");
+  const roles = effectiveRoles(session.user.role, session.user.roles);
+  return roles.some((r) => r === "super_admin" || r === "admin") ||
+    isShopFinancePosition(roles, session.user.smoPosition);
 }
 
-// Roles that get a SCOPED shop: they manage only products their club/major owns
-// (shop_products.ownerClubIds / ownerMajors) and only review orders for those
-// products. Resolve the concrete club/major scope with
-// EventScopeService.getPresidentScope.
-const SHOP_SCOPED_ROLES = ["club_president", "major_president"] as const;
+// Roles that get a SCOPED shop: presidents keep their club/major ownership axis,
+// while an approved shop_seller is additionally bound to its direct seller id.
+// resolveShopAccess performs the DB-backed approval check before returning data.
+const SHOP_SCOPED_ROLES = ["club_president", "major_president", "shop_seller"] as const;
 
 // Who may enter the shop admin area at all — unscoped admins plus the scoped
 // president roles. The page gate + every /api/admin/shop route uses this, then
@@ -22,27 +23,43 @@ const SHOP_SCOPED_ROLES = ["club_president", "major_president"] as const;
 export function isShopManager(session: Session | null): boolean {
   if (!session?.user) return false;
   if (isShopAdmin(session)) return true;
-  const roles = session.user.roles ?? (session.user.role ? [session.user.role] : []);
+  const roles = effectiveRoles(session.user.role, session.user.roles);
   return roles.some((r) => (SHOP_SCOPED_ROLES as readonly string[]).includes(r));
 }
 
 // A president's resolved ownership scope (from EventScopeService.getPresidentScope).
 export type ShopScope = { clubIds: string[]; majors: string[] };
 
-type OwnedProduct = { ownerClubIds?: string[] | null; ownerMajors?: string[] | null };
+type OwnedProduct = {
+  ownerClubIds?: string[] | null;
+  ownerMajors?: string[] | null;
+  sellerId?: string | null;
+};
 
 // Does this scope own the product? Requires a NON-EMPTY intersection on either
 // axis — a product with no owner assigned (central) is owned by no president and
 // stays admin-only. Mirrors EventScopeService.isEventManagedByScope.
-export function isProductOwnedByScope(product: OwnedProduct, scope: ShopScope): boolean {
+export function isProductOwnedByScope(
+  product: OwnedProduct,
+  scope: ShopScope,
+  sellerId?: string | null,
+): boolean {
+  if (sellerId && product.sellerId === sellerId) return true;
+  // Once a product belongs to another concrete seller, shared club/major
+  // ownership must not let a different president edit that seller's payout item.
+  if (product.sellerId) return false;
   const clubMatch = (product.ownerClubIds ?? []).some((id) => scope.clubIds.includes(id));
   const majorMatch = (product.ownerMajors ?? []).some((m) => scope.majors.includes(m));
   return clubMatch || majorMatch;
 }
 
 // List-filter variant of isProductOwnedByScope.
-export function filterProductsByScope<T extends OwnedProduct>(products: T[], scope: ShopScope): T[] {
-  return products.filter((p) => isProductOwnedByScope(p, scope));
+export function filterProductsByScope<T extends OwnedProduct>(
+  products: T[],
+  scope: ShopScope,
+  sellerId?: string | null,
+): T[] {
+  return products.filter((p) => isProductOwnedByScope(p, scope, sellerId));
 }
 
 // Would the given owner assignment stay entirely within this scope? Used to stop

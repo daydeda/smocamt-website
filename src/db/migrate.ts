@@ -1402,6 +1402,45 @@ async function migrate() {
   await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS allowed_years jsonb`;
   console.log("  ✅ events.allowed_years");
 
+  // 90. Approved multi-seller marketplace. The new seller table owns payout and
+  // fulfilment settings; nullable seller_id columns deliberately preserve every
+  // existing SMO product/order on the legacy global settings. Product approval
+  // defaults to 'approved', so existing listings remain live while products made
+  // by a scoped seller are explicitly inserted as 'pending' by the app. All SQL
+  // is additive and idempotent; there is no data deletion or lossy rewrite.
+  await sql`
+    CREATE TABLE IF NOT EXISTS shop_sellers (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      user_id text NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      display_name text NOT NULL,
+      status text NOT NULL DEFAULT 'pending',
+      payment_info text NOT NULL DEFAULT '',
+      qr_image_url text,
+      delivery_enabled boolean NOT NULL DEFAULT false,
+      delivery_fee integer NOT NULL DEFAULT 0,
+      pickup_info text NOT NULL DEFAULT '',
+      review_note text,
+      applied_at timestamptz NOT NULL DEFAULT now(),
+      reviewed_by text,
+      reviewed_at timestamptz,
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS shop_sellers_user_unique ON shop_sellers (user_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS shop_sellers_status_idx ON shop_sellers (status)`;
+  await sql`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS seller_id uuid REFERENCES shop_sellers(id) ON DELETE SET NULL`;
+  await sql`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS checkout_group_id uuid DEFAULT gen_random_uuid()`;
+  await sql`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS seller_id uuid REFERENCES shop_sellers(id) ON DELETE RESTRICT`;
+  await sql`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS approval_status text NOT NULL DEFAULT 'approved'`;
+  await sql`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS approval_reason text`;
+  await sql`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS reviewed_by text`;
+  await sql`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS reviewed_at timestamptz`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_shop_orders_seller ON shop_orders (seller_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_shop_orders_checkout_group ON shop_orders (checkout_group_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_shop_products_seller ON shop_products (seller_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_shop_products_approval ON shop_products (approval_status)`;
+  console.log("  ✅ shop_sellers + seller/product approval/order grouping columns and indexes");
+
   console.log("✅ Migration complete!");
   await sql.end();
   process.exit(0);

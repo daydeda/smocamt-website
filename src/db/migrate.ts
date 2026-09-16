@@ -1441,6 +1441,33 @@ async function migrate() {
   await sql`CREATE INDEX IF NOT EXISTS idx_shop_products_approval ON shop_products (approval_status)`;
   console.log("  ✅ shop_sellers + seller/product approval/order grouping columns and indexes");
 
+  // 91. Self-submitted evidence check-in (events.checkInMode 'evidence' — a
+  // student self-submits a photo + that day's code word instead of being
+  // scanned; currently dormant/unused by any live event, kept for a future
+  // fully-remote activity). events.check_in_mode defaults to 'qr', preserving
+  // every existing event's current (only) behavior unchanged.
+  // event_sessions.evidence_nonce/evidence_prompt and
+  // attendance.evidence_file_key/evidence_nonce_submitted are all nullable.
+  // Mirrors drizzle/0039_brief_paibok.sql. Additive, idempotent, non-destructive.
+  await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS check_in_mode text NOT NULL DEFAULT 'qr'`;
+  await sql`ALTER TABLE event_sessions ADD COLUMN IF NOT EXISTS evidence_nonce text`;
+  await sql`ALTER TABLE event_sessions ADD COLUMN IF NOT EXISTS evidence_prompt text`;
+  await sql`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS evidence_file_key text`;
+  await sql`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS evidence_nonce_submitted text`;
+  console.log("  ✅ events.check_in_mode + event_sessions.evidence_nonce/evidence_prompt + attendance.evidence_file_key/evidence_nonce_submitted");
+
+  // 92. Two-step QR check-in/check-out (events.requireCheckOut) — staff scans a
+  // student in on arrival (no points yet), then again after reviewing their
+  // evidence in person before confirming check-out, which is what actually
+  // awards points and stamps attendance.check_out_time. events.require_check_out
+  // defaults to false, so every existing event keeps its current one-scan
+  // behavior unchanged; attendance.check_out_time is nullable and reuses the
+  // evidence_file_key column added in step 91 for the kept proof photo. Mirrors
+  // drizzle/0040_skinny_dark_phoenix.sql. Additive, idempotent, non-destructive.
+  await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS require_check_out boolean NOT NULL DEFAULT false`;
+  await sql`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS check_out_time timestamptz`;
+  console.log("  ✅ events.require_check_out + attendance.check_out_time");
+
   console.log("✅ Migration complete!");
   await sql.end();
   process.exit(0);

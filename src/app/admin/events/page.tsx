@@ -7,7 +7,7 @@ import {
   Sparkles, X, ExternalLink,
   ChevronLeft, ChevronRight, AlertCircle, BarChart3, RefreshCw, Zap,
   Activity, Phone, HeartPulse, Info, Trophy, ClipboardList, Download, ShieldCheck,
-  AlertTriangle, GraduationCap, DoorOpen, UserX, Building2, QrCode
+  AlertTriangle, GraduationCap, DoorOpen, UserX, Building2, QrCode, Check
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { NO_SHOW_PENALTY_MAX, NO_SHOW_PENALTY_MIN, NO_SHOW_PENALTY_POINTS, NO_SHOW_STRIKE_THRESHOLD } from "@/lib/strikes";
@@ -2813,14 +2813,34 @@ export default function AdminEventsPage() {
                     <label
                       className="label"
                       style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
-                      onClick={() => set("requireCheckOut", !formData.requireCheckOut)}
                     >
-                      <input
-                        type="checkbox"
-                        checked={formData.requireCheckOut}
-                        onChange={(e) => set("requireCheckOut", e.target.checked)}
-                        style={{ width: 18, height: 18, cursor: "pointer" }}
-                      />
+                      <span
+                        style={{
+                          position: "relative",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: 20,
+                          height: 20,
+                          flexShrink: 0,
+                          borderRadius: 5,
+                          border: `2px solid ${formData.requireCheckOut ? "var(--accent-primary)" : "var(--border-subtle)"}`,
+                          background: formData.requireCheckOut ? "var(--accent-primary)" : "var(--bg-surface)",
+                          transition: "background 0.15s, border-color 0.15s",
+                        }}
+                      >
+                        {/* Real checkbox stays for a11y/form semantics but is visually invisible;
+                            the styled <span> above renders the custom look. Nesting it inside the
+                            <label> (no separate onClick handler) is what makes the whole row
+                            clickable via native label-forwarding, not just the tiny box itself. */}
+                        <input
+                          type="checkbox"
+                          checked={formData.requireCheckOut}
+                          onChange={(e) => set("requireCheckOut", e.target.checked)}
+                          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", margin: 0, opacity: 0, cursor: "pointer" }}
+                        />
+                        {formData.requireCheckOut && <Check size={13} strokeWidth={3} style={{ color: "#fff", pointerEvents: "none" }} />}
+                      </span>
                       <ShieldCheck size={16} style={{ color: "var(--accent-primary)" }} />
                       {lang === "th" ? "ต้องเช็คเอาท์ (สแกน 2 ครั้ง: เข้า + ออกพร้อมหลักฐาน)" : lang === "cn" ? "需要签退（两次扫码：签到 + 附证据签退）" : lang === "mm" ? "checkout လိုအပ်သည် (scan ၂ ကြိမ် - ဝင်ရောက်ခြင်း + သက်သေဖြင့် ထွက်ခွာခြင်း)" : "Require check-out (2 scans: arrival + evidence-reviewed departure)"}
                     </label>

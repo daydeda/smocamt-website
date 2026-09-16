@@ -218,6 +218,14 @@ export const events = pgTable("events", {
   // session (walk-ins re-open each day). Single-session events use 'once' and
   // behave exactly as before. See docs/features/multi-day-checkin-implementation.md.
   registrationMode: text("registration_mode").$type<"once" | "per_session">().notNull().default("once"),
+  // How attendance is captured for this event. 'qr' (default) = the existing
+  // scanner/manual/walk-in flow. 'evidence' = no physical check-in point at
+  // all — a student self-submits proof (photo + that session's code word,
+  // see eventSessions.evidenceNonce) which becomes their check-in directly
+  // (ScannerService.processEvidenceCheckin, method: 'evidence'). Built for
+  // off-site/self-tracked activities (e.g. a multi-day step challenge) where
+  // there's nowhere to scan a QR code. See docs/features/evidence-checkin.md.
+  checkInMode: text("check_in_mode").$type<"qr" | "evidence">().notNull().default("qr"),
   targetThai: boolean("target_thai").default(true),
   targetInternational: boolean("target_international").default(true),
   quotaThai: integer("quota_thai"),
@@ -320,6 +328,17 @@ export const eventSessions = pgTable("event_sessions", {
   endTime: timestamp("end_time", { withTimezone: true }).notNull(),
   sortOrder: integer("sort_order").notNull().default(0),
   quotaWalkIn: integer("quota_walk_in"), // per-session walk-in sub-cap
+  // Only meaningful when the parent event.checkInMode === 'evidence'. The
+  // code word for THIS day, set by the organizer and published out-of-band
+  // (Discord/announcement) — the student must type it back to submit evidence
+  // for this session, which blocks pre/back-dating a submission to a day the
+  // student didn't actually do it on (they can't know tomorrow's word yet).
+  // Case/whitespace-insensitive compare, see src/lib/evidence-checkin.ts.
+  evidenceNonce: text("evidence_nonce"),
+  // Optional per-day instructions shown above the evidence submission form
+  // (e.g. "แนบภาพหน้าจอ Strava ที่แสดงระยะทาง/ก้าวเดินวันนี้"). Null falls
+  // back to a generic prompt in the UI.
+  evidencePrompt: text("evidence_prompt"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 }, (table) => ([
@@ -336,10 +355,20 @@ export const attendance = pgTable("attendance", {
   sessionId: uuid("session_id").references(() => eventSessions.id, { onDelete: "cascade" }).notNull(),
   studentId: text("student_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
   checkInTime: timestamp("check_in_time", { withTimezone: true }),
-  method: text("method"), // 'qr', 'manual', 'walk-in', 'pre-registered'
+  method: text("method"), // 'qr', 'manual', 'walk-in', 'pre-registered', 'evidence'
   status: text("status").default("registered"), // 'registered', 'attended'
   scannedBy: text("scanned_by").references(() => users.id, { onDelete: "set null" }),
   medsCheckOption: text("meds_check_option"),
+  // Set only when method === 'evidence' (see events.checkInMode). Object key
+  // in the same private "form-uploads" bucket as form file answers (never a
+  // public URL) — streamed back via the auth-guarded
+  // /api/attendance/evidence/[attendanceId] route to the submitter or staff
+  // who can view this event's attendance.
+  evidenceFileKey: text("evidence_file_key"),
+  // What the student actually typed for that day's code word (see
+  // eventSessions.evidenceNonce) — kept for audit/dispute resolution even
+  // though the match is already validated server-side at submit time.
+  evidenceNonceSubmitted: text("evidence_nonce_submitted"),
   // Snapshot (at insert time) of whether this student was on the event's
   // staffUserIds list when they registered/checked in — used to exempt staff
   // from quota counts and no-show strikes. Deliberately NOT re-derived later if

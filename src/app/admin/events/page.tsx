@@ -7,7 +7,7 @@ import {
   Sparkles, X, ExternalLink,
   ChevronLeft, ChevronRight, AlertCircle, BarChart3, RefreshCw, Zap,
   Activity, Phone, HeartPulse, Info, Trophy, ClipboardList, Download, ShieldCheck,
-  AlertTriangle, GraduationCap, DoorOpen, UserX, Building2
+  AlertTriangle, GraduationCap, DoorOpen, UserX, Building2, QrCode
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { NO_SHOW_PENALTY_MAX, NO_SHOW_PENALTY_MIN, NO_SHOW_PENALTY_POINTS, NO_SHOW_STRIKE_THRESHOLD } from "@/lib/strikes";
@@ -64,6 +64,9 @@ interface AdminEvent {
   pendingDetailsSubmittedAt?: string | null;
   pendingSubmitter?: { id: string; name: string } | null;
   registrationMode?: "once" | "per_session";
+  // 'qr' (default) = scanner/manual/walk-in. 'evidence' = students self-submit
+  // proof instead of being scanned — see events.checkInMode in schema.ts.
+  checkInMode?: "qr" | "evidence";
   sessions?: EventSession[];
   attendeeCount?: number;
   createdAt?: string;
@@ -80,6 +83,10 @@ interface EventSession {
   endTime: string;
   sortOrder: number;
   quotaWalkIn: number | null;
+  // Only meaningful when the parent event's checkInMode is 'evidence' — see
+  // eventSessions.evidenceNonce/evidencePrompt in schema.ts.
+  evidenceNonce?: string | null;
+  evidencePrompt?: string | null;
 }
 
 // Editable session row held in form state. `id` is present only for sessions
@@ -92,6 +99,8 @@ type SessionRow = {
   startTime: string;
   endTime: string;
   quotaWalkIn: number | null;
+  evidenceNonce: string | null;
+  evidencePrompt: string | null;
 };
 
 // Field -> label/formatter table for the staff pending-changes diff banner
@@ -322,6 +331,7 @@ const EMPTY_FORM = {
   ownerMajors: [] as string[], // WHICH major(s) own this event, when managedByRoles includes major_president
   staffUserIds: [] as string[], // specific people assigned as staff for this event; empty = none
   songsueLinked: false, // staff-only "also count for Songsue" mirror toggle
+  checkInMode: "qr" as "qr" | "evidence", // 'evidence' = students self-submit proof instead of scanning, see events.checkInMode
   // Hold-and-diff for president edits — see events.detailsReviewStatus/
   // pendingDetailsChanges in schema.ts. A brand new event (not yet saved) has
   // no pending edit, so this only matters once an existing event is loaded.
@@ -734,10 +744,10 @@ export default function AdminEventsPage() {
         const suggestedDays: { title: string | null; startTime: string; endTime: string }[] = proposal.sessions || [];
         if (suggestedDays.length > 1) {
           setRegistrationMode("once");
-          setSessions(suggestedDays.map((s) => ({ title: s.title || "", startTime: toLocal(s.startTime), endTime: toLocal(s.endTime), quotaWalkIn: null })));
+          setSessions(suggestedDays.map((s) => ({ title: s.title || "", startTime: toLocal(s.startTime), endTime: toLocal(s.endTime), quotaWalkIn: null, evidenceNonce: null, evidencePrompt: null })));
         } else {
           setRegistrationMode(null);
-          setSessions([{ title: "", startTime: toLocal(proposal.startTime), endTime: toLocal(proposal.endTime), quotaWalkIn: null }]);
+          setSessions([{ title: "", startTime: toLocal(proposal.startTime), endTime: toLocal(proposal.endTime), quotaWalkIn: null, evidenceNonce: null, evidencePrompt: null }]);
         }
         setShowForm(true);
         ensureAssigneeUsersLoaded();
@@ -798,7 +808,7 @@ export default function AdminEventsPage() {
           endTime = new Date(d.getTime() - offset).toISOString().slice(0, 16);
         }
       }
-      return [...prev, { title: "", startTime, endTime, quotaWalkIn: null }];
+      return [...prev, { title: "", startTime, endTime, quotaWalkIn: null, evidenceNonce: null, evidencePrompt: null }];
     });
   };
   const removeSessionRow = (idx: number) => {
@@ -812,7 +822,7 @@ export default function AdminEventsPage() {
       const row = prev[idx];
       const split = splitIntoDailySessions(row.startTime, row.endTime);
       if (split.length <= 1) return prev;
-      const replacement = split.map((d) => ({ title: "", startTime: d.startTime, endTime: d.endTime, quotaWalkIn: row.quotaWalkIn }));
+      const replacement = split.map((d) => ({ title: "", startTime: d.startTime, endTime: d.endTime, quotaWalkIn: row.quotaWalkIn, evidenceNonce: row.evidenceNonce, evidencePrompt: row.evidencePrompt }));
       return [...prev.slice(0, idx), ...replacement, ...prev.slice(idx + 1)];
     });
   };
@@ -1026,6 +1036,8 @@ export default function AdminEventsPage() {
               startTime: new Date(s.startTime).toISOString(),
               endTime: new Date(s.endTime).toISOString(),
               quotaWalkIn: s.quotaWalkIn,
+              evidenceNonce: formData.checkInMode === "evidence" ? s.evidenceNonce : null,
+              evidencePrompt: formData.checkInMode === "evidence" ? s.evidencePrompt : null,
             })),
           // Only on a fresh create sourced from a proposal (never on an edit) —
           // flips the proposal to 'approved' in the same transaction server-side.
@@ -1227,13 +1239,16 @@ export default function AdminEventsPage() {
       ownerMajors: evt.ownerMajors || [],
       staffUserIds: evt.staffUserIds || [],
       songsueLinked: evt.songsueLinked || false,
+      // Staff-only, like the fields above — never read from a president's
+      // pending payload (it can't contain it, see PRESIDENT_EDITABLE_FIELDS).
+      checkInMode: evt.checkInMode || "qr",
       detailsReviewStatus: evt.detailsReviewStatus || "pending",
       detailsReviewedAt: evt.detailsReviewedAt || null,
     });
     // Load the people directory once for the Event Staff picker (best-effort).
     ensureAssigneeUsersLoaded();
     const pendingSessions = eff<
-      { id?: string; title?: string | null; startTime: string; endTime: string; quotaWalkIn?: number | null }[] | undefined
+      { id?: string; title?: string | null; startTime: string; endTime: string; quotaWalkIn?: number | null; evidenceNonce?: string | null; evidencePrompt?: string | null }[] | undefined
     >("sessions", undefined);
     const registrationModeEff = eff<"once" | "per_session" | undefined>("registrationMode", evt.registrationMode);
     // Only pre-select a mode (which reveals the Days editor) when the event is
@@ -1255,6 +1270,8 @@ export default function AdminEventsPage() {
           startTime: toLocal(s.startTime),
           endTime: toLocal(s.endTime),
           quotaWalkIn: s.quotaWalkIn ?? null,
+          evidenceNonce: s.evidenceNonce ?? null,
+          evidencePrompt: s.evidencePrompt ?? null,
         }))
       : (evt.sessions && evt.sessions.length > 0)
       ? [...evt.sessions]
@@ -1265,8 +1282,10 @@ export default function AdminEventsPage() {
             startTime: toLocal(s.startTime),
             endTime: toLocal(s.endTime),
             quotaWalkIn: s.quotaWalkIn,
+            evidenceNonce: s.evidenceNonce ?? null,
+            evidencePrompt: s.evidencePrompt ?? null,
           }))
-      : [{ title: "", startTime: toLocal(evt.startTime), endTime: toLocal(evt.endTime), quotaWalkIn: null }];
+      : [{ title: "", startTime: toLocal(evt.startTime), endTime: toLocal(evt.endTime), quotaWalkIn: null, evidenceNonce: null, evidencePrompt: null }];
     setSessions(evtSessions);
     setEditingId(evt.id);
     setShowForm(true);
@@ -2023,7 +2042,7 @@ export default function AdminEventsPage() {
                 setRegistrationMode(null);
                 // Seed one empty session row so a single-day event still submits
                 // a valid session; it stays in sync with start/end below.
-                setSessions([{ title: "", startTime: "", endTime: "", quotaWalkIn: null }]);
+                setSessions([{ title: "", startTime: "", endTime: "", quotaWalkIn: null, evidenceNonce: null, evidencePrompt: null }]);
                 setShowForm(true);
                 ensureAssigneeUsersLoaded();
               }
@@ -2321,7 +2340,7 @@ export default function AdminEventsPage() {
                           const split = splitIntoDailySessions(formData.startTime, formData.endTime);
                           if (split.length > 1) {
                             setRegistrationMode("once");
-                            setSessions(split.map((d) => ({ title: "", startTime: d.startTime, endTime: d.endTime, quotaWalkIn: null })));
+                            setSessions(split.map((d) => ({ title: "", startTime: d.startTime, endTime: d.endTime, quotaWalkIn: null, evidenceNonce: null, evidencePrompt: null })));
                           }
                         }}
                         className="btn btn-ghost"
@@ -2713,6 +2732,75 @@ export default function AdminEventsPage() {
                   </div>
                 </fieldset>
 
+                {/* Check-in mode: QR/scanner (default) vs self-submitted evidence —
+                    see events.checkInMode in schema.ts. Evidence mode is for
+                    off-site/self-tracked activities with nowhere to scan a QR
+                    (e.g. a multi-day step challenge); each session below then
+                    gets its own code word instead of being a scan point. */}
+                <div className="field" style={{ marginTop: 4 }}>
+                  <label className="label" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <QrCode size={16} style={{ color: "var(--accent-primary)" }} />
+                    {lang === "th" ? "วิธีเช็คอิน" : lang === "cn" ? "签到方式" : lang === "mm" ? "checkin နည်းလမ်း" : "Check-in method"}
+                  </label>
+                  <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 10px", lineHeight: 1.45 }}>
+                    {lang === "th"
+                      ? "เลือก \"หลักฐานด้วยตนเอง\" สำหรับกิจกรรมที่ไม่มีจุดสแกน QR (เช่น ภารกิจนับก้าวหลายวัน) — ผู้เข้าร่วมจะส่งรูปหลักฐาน + รหัสประจำวันแทนการสแกน"
+                      : lang === "cn" ? "对于没有二维码扫描点的活动（如多日步数挑战），选择\"自行提交证据\"——参与者将上传证据照片和当日代码词，而不是被扫码签到。"
+                      : lang === "mm" ? "QR scan point မရှိသော activity (ဥပမာ - ရက်များစွာကြာ လမ်းလျှောက်စိန်ခေါ်မှု) အတွက် \"မိမိကိုယ်တိုင် သက်သေတင်ခြင်း\" ကို ရွေးပါ — scan မလုပ်ဘဲ ဓာတ်ပုံနှင့် နေ့စဉ်ကုဒ်ကို တင်သွင်းမည်။"
+                      : "Pick \"Self-submitted evidence\" for activities with nowhere to scan a QR (e.g. a multi-day step challenge) — participants upload a proof photo + that day's code word instead of being scanned."}
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {([
+                      {
+                        value: "qr" as const,
+                        label: lang === "th" ? "สแกน QR / เจ้าหน้าที่เช็คอิน" : lang === "cn" ? "扫码 / 工作人员签到" : lang === "mm" ? "QR scan / ဝန်ထမ်း checkin" : "QR / staff scanner",
+                        desc: lang === "th" ? "วิธีเดิม — เช็คอินด้วยการสแกนหรือเจ้าหน้าที่กดยืนยัน" : lang === "cn" ? "默认方式——通过扫码或工作人员确认签到" : lang === "mm" ? "မူလနည်းလမ်း — scan (သို့) ဝန်ထမ်းအတည်ပြုချက်ဖြင့် checkin" : "The existing flow — scanned or manually confirmed by staff.",
+                      },
+                      {
+                        value: "evidence" as const,
+                        label: lang === "th" ? "หลักฐานด้วยตนเอง (ไม่ต้องสแกน)" : lang === "cn" ? "自行提交证据（无需扫码）" : lang === "mm" ? "မိမိကိုယ်တိုင် သက်သေတင်ခြင်း (scan မလို)" : "Self-submitted evidence (no scan)",
+                        desc: lang === "th" ? "ผู้เข้าร่วมส่งรูป + รหัสประจำวันด้วยตนเองในแดชบอร์ด" : lang === "cn" ? "参与者在仪表盘中自行上传照片和当日代码词" : lang === "mm" ? "dashboard တွင် ဓာတ်ပုံ + နေ့စဉ်ကုဒ်ကို မိမိကိုယ်တိုင် တင်သွင်းမည်" : "Participants submit a photo + code word themselves from the dashboard.",
+                      },
+                    ]).map((opt) => {
+                      const active = formData.checkInMode === opt.value;
+                      return (
+                        <div
+                          key={opt.value}
+                          onClick={() => set("checkInMode", opt.value)}
+                          style={{
+                            minHeight: 48,
+                            background: "var(--bg-elevated)",
+                            borderRadius: 16,
+                            display: "flex",
+                            alignItems: "flex-start",
+                            gap: 12,
+                            padding: "12px 16px",
+                            cursor: "pointer",
+                            border: active ? "1px solid var(--accent-primary)" : "1px solid transparent",
+                            transition: "all 0.2s",
+                          }}
+                        >
+                          <div style={{
+                            width: 22, height: 22, flexShrink: 0, marginTop: 1, borderRadius: "50%",
+                            border: active ? "2px solid var(--accent-primary)" : "2px solid var(--border-medium)",
+                            display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.1s",
+                          }}>
+                            {active && <div style={{ width: 10, height: 10, borderRadius: "50%", background: "var(--accent-primary)" }} />}
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                            <span style={{ fontSize: 14, fontWeight: 700, color: active ? "var(--text-primary)" : "var(--text-secondary)", lineHeight: 1.35 }}>
+                              {opt.label}
+                            </span>
+                            <span style={{ fontSize: 12, fontWeight: 500, color: "var(--text-muted)", lineHeight: 1.4 }}>
+                              {opt.desc}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 {/* Registration mode + Sessions / Days editor */}
                 <div className="field" style={{ marginTop: 4 }}>
                   <label className="label" style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -2757,7 +2845,7 @@ export default function AdminEventsPage() {
                               // the registrationMode === null convention used above.
                               const first = sessions[0];
                               setRegistrationMode(null);
-                              setSessions([{ title: first?.title ?? "", startTime: formData.startTime, endTime: formData.endTime, quotaWalkIn: first?.quotaWalkIn ?? null }]);
+                              setSessions([{ title: first?.title ?? "", startTime: formData.startTime, endTime: formData.endTime, quotaWalkIn: first?.quotaWalkIn ?? null, evidenceNonce: first?.evidenceNonce ?? null, evidencePrompt: first?.evidencePrompt ?? null }]);
                             } else {
                               setRegistrationMode(opt.value);
                               // The sole row still mirrors the main start/end. If that
@@ -2769,7 +2857,7 @@ export default function AdminEventsPage() {
                               if (first?.startTime && first?.endTime) {
                                 const split = splitIntoDailySessions(first.startTime, first.endTime);
                                 if (split.length > 1) {
-                                  setSessions(split.map((d) => ({ title: "", startTime: d.startTime, endTime: d.endTime, quotaWalkIn: first.quotaWalkIn ?? null })));
+                                  setSessions(split.map((d) => ({ title: "", startTime: d.startTime, endTime: d.endTime, quotaWalkIn: first.quotaWalkIn ?? null, evidenceNonce: first.evidenceNonce ?? null, evidencePrompt: first.evidencePrompt ?? null })));
                                 }
                               }
                             }
@@ -2960,6 +3048,38 @@ export default function AdminEventsPage() {
                                 onChange={(e) => updateSessionRow(idx, { quotaWalkIn: e.target.value ? Number(e.target.value) : null })}
                                 placeholder={t.unlimitedIfEmpty}
                                 style={{ paddingLeft: 40 }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                        {formData.checkInMode === "evidence" && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3" style={{
+                            background: "color-mix(in srgb, var(--accent-primary) 5%, transparent)",
+                            border: "1px solid color-mix(in srgb, var(--accent-primary) 20%, transparent)",
+                            borderRadius: 12, padding: 12,
+                          }}>
+                            <div className="field" style={{ marginBottom: 0 }}>
+                              <label className="label" style={{ fontSize: 12 }}>
+                                {lang === "th" ? "รหัสประจำวันนี้ *" : lang === "cn" ? "当日代码词 *" : lang === "mm" ? "ယနေ့ ကုဒ် *" : "This day's code word *"}
+                              </label>
+                              <input
+                                className="input"
+                                type="text"
+                                value={s.evidenceNonce ?? ""}
+                                onChange={(e) => updateSessionRow(idx, { evidenceNonce: e.target.value || null })}
+                                placeholder={lang === "th" ? "เช่น สบาย (ประกาศวันนี้)" : lang === "cn" ? "例如：sabai（当天公布）" : lang === "mm" ? "ဥပမာ - sabai (ယနေ့ကြေညာ)" : "e.g. sabai — announced that day"}
+                              />
+                            </div>
+                            <div className="field" style={{ marginBottom: 0 }}>
+                              <label className="label" style={{ fontSize: 12 }}>
+                                {lang === "th" ? "คำแนะนำสำหรับวันนี้ (ไม่บังคับ)" : lang === "cn" ? "当日提示（可选）" : lang === "mm" ? "ယနေ့ညွှန်ကြားချက် (ရွေးချယ်နိုင်)" : "Prompt for this day (optional)"}
+                              </label>
+                              <input
+                                className="input"
+                                type="text"
+                                value={s.evidencePrompt ?? ""}
+                                onChange={(e) => updateSessionRow(idx, { evidencePrompt: e.target.value || null })}
+                                placeholder={lang === "th" ? "เช่น แนบภาพหน้าจอ Strava ที่แสดงระยะทางวันนี้" : lang === "cn" ? "例如：附上显示今日里程的 Strava 截图" : lang === "mm" ? "ဥပမာ - ယနေ့အကွာအဝေး ပြသော Strava screenshot ပူးတွဲပါ" : "e.g. Attach today's Strava distance screenshot"}
                               />
                             </div>
                           </div>
@@ -3839,7 +3959,7 @@ export default function AdminEventsPage() {
           </div>
           {!isAttendanceOnly && (
             <button className="btn btn-primary" onClick={() => {
-              setEditingId(null); setFormData(EMPTY_FORM); setSourceProposalId(null); setRegistrationMode(null); setSessions([{ title: "", startTime: "", endTime: "", quotaWalkIn: null }]); setShowForm(true);
+              setEditingId(null); setFormData(EMPTY_FORM); setSourceProposalId(null); setRegistrationMode(null); setSessions([{ title: "", startTime: "", endTime: "", quotaWalkIn: null, evidenceNonce: null, evidencePrompt: null }]); setShowForm(true);
               ensureAssigneeUsersLoaded();
             }}>+ {t.addEventBtn}</button>
           )}

@@ -27,13 +27,46 @@ export async function resolveShopAccess(session: Session | null): Promise<ShopAc
   const userId = session!.user!.id!;
   if (isShopAdmin(session)) return { ok: true, unscoped: true, userId };
   const roles = effectiveRoles(session!.user!.role, session!.user!.roles);
-  const [seller] = await db
+  const isPresident = roles.some((role) => role === "club_president" || role === "major_president");
+
+  let [seller] = await db
     .select({ id: shopSellers.id, status: shopSellers.status, displayName: shopSellers.displayName })
     .from(shopSellers)
     .where(eq(shopSellers.userId, userId))
     .limit(1);
+
+  // A club/major president is already vetted through their club_members/major
+  // assignment (an admin action), so the generic "apply and wait for review"
+  // trust gate a walk-in Google account goes through doesn't apply to them —
+  // auto-provision (or promote a pending row left over from before this
+  // existed) an approved seller identity so they can manage products and
+  // their own payout/fulfilment settings immediately. An explicit
+  // rejection/suspension on their row is still an admin override and is left
+  // untouched here.
+  if (isPresident && !seller) {
+    const [inserted] = await db
+      .insert(shopSellers)
+      .values({
+        userId,
+        displayName: session!.user!.name?.trim() || "President store",
+        status: "approved",
+        reviewedAt: new Date(),
+      })
+      .onConflictDoNothing({ target: shopSellers.userId })
+      .returning({ id: shopSellers.id, status: shopSellers.status, displayName: shopSellers.displayName });
+    [seller] = inserted
+      ? [inserted]
+      : await db
+          .select({ id: shopSellers.id, status: shopSellers.status, displayName: shopSellers.displayName })
+          .from(shopSellers)
+          .where(eq(shopSellers.userId, userId))
+          .limit(1);
+  } else if (isPresident && seller && seller.status === "pending") {
+    await db.update(shopSellers).set({ status: "approved", reviewedAt: new Date() }).where(eq(shopSellers.id, seller.id));
+    seller = { ...seller, status: "approved" };
+  }
+
   const approvedSeller = seller?.status === "approved" ? seller : null;
-  const isPresident = roles.some((role) => role === "club_president" || role === "major_president");
   // `shop_seller` is an additive DB-backed capability. A stale JWT role never
   // grants access after rejection/suspension; the approved seller row is required.
   if (!isPresident && !approvedSeller) return { ok: false };

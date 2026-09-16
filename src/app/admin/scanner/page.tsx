@@ -24,11 +24,15 @@ import {
   UserX,
   Award,
   Plus,
-  Minus
+  Minus,
+  Camera,
+  Paperclip,
+  X
 } from "lucide-react";
 import { useLanguage } from "@/lib/LanguageContext";
 import { useSession } from "next-auth/react";
 import { canGiveIndividualScoreAny, effectiveRoles } from "@/lib/admin-access";
+import { compressImageFile } from "@/lib/compress-image";
 import { usePolling } from "@/lib/usePolling";
 import dynamic from "next/dynamic";
 
@@ -41,7 +45,7 @@ const QRCodeCanvas = dynamic(() => import("qrcode.react").then((mod) => mod.QRCo
   ssr: false,
 });
 
-type ScanStatus = "success" | "success_walk_in" | "pending_confirmation" | "already_checked_in" | "walk_ins_disabled" | "not_found" | "quota_full" | "found" | "not_registered" | "error";
+type ScanStatus = "success" | "success_walk_in" | "pending_confirmation" | "pending_checkout" | "already_checked_in" | "walk_ins_disabled" | "not_found" | "quota_full" | "found" | "not_registered" | "error";
 
 type ScanResult = {
   status: ScanStatus;
@@ -81,7 +85,7 @@ type EventSession = {
   endTime: string;
   sortOrder: number;
 };
-type Event = { id: string; title: string; startTime: string; endTime: string; sessions?: EventSession[]; songsueLinked?: boolean };
+type Event = { id: string; title: string; startTime: string; endTime: string; sessions?: EventSession[]; songsueLinked?: boolean; requireCheckOut?: boolean };
 
 // Sessions sorted into display order ("Day 1", "Day 2", …).
 function sortedSessions(sessions?: EventSession[]): EventSession[] {
@@ -196,6 +200,13 @@ export default function QRScannerPage() {
   const [checkingIn, setCheckingIn] = useState<string | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
   const [medsCheckOption, setMedsCheckOption] = useState<string | null>(null);
+  // Check-out evidence (events.requireCheckOut) — the proof photo staff
+  // attaches before confirming a returning student's check-out.
+  const [checkoutFileKey, setCheckoutFileKey] = useState<string | null>(null);
+  const [checkoutFileName, setCheckoutFileName] = useState<string | null>(null);
+  const [uploadingCheckoutFile, setUploadingCheckoutFile] = useState(false);
+  const [checkoutFileError, setCheckoutFileError] = useState<string | null>(null);
+  const [isConfirmingCheckout, setIsConfirmingCheckout] = useState(false);
   const [scanMode, setScanMode] = useState<"checkin" | "score">("checkin");
   const [scoreInput, setScoreInput] = useState<string>("");
   const [scoreSign, setScoreSign] = useState<1 | -1>(1);
@@ -557,6 +568,15 @@ export default function QRScannerPage() {
         setMedsCheckOption(null);
         setScoreInput("");
         setScoreSign(1);
+        // A checkout photo not yet confirmed is an orphaned upload — reclaim it
+        // (best-effort, mirrors the same cleanup pattern used for form-file
+        // "file" answers abandoned mid-form).
+        if (checkoutFileKey) {
+          fetch(`/api/forms/upload?key=${encodeURIComponent(checkoutFileKey)}`, { method: "DELETE" }).catch(() => {});
+        }
+        setCheckoutFileKey(null);
+        setCheckoutFileName(null);
+        setCheckoutFileError(null);
       }
     }, 300);
   };
@@ -590,6 +610,84 @@ export default function QRScannerPage() {
     } finally {
       if (isMountedRef.current) {
         setIsConfirming(false);
+      }
+    }
+  };
+
+  // Attach the check-out proof photo (events.requireCheckOut). Reuses the same
+  // private-bucket upload endpoint as form file answers / the (dormant)
+  // self-service evidence flow — see src/lib/form-file-storage.ts.
+  const uploadCheckoutEvidence = async (file: File) => {
+    setCheckoutFileError(null);
+    setUploadingCheckoutFile(true);
+    try {
+      const upload = await compressImageFile(file, { maxDim: 1600 });
+      const body = new FormData();
+      body.append("file", upload);
+      const res = await fetch("/api/forms/upload", { method: "POST", body });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        const tooBig = res.status === 413;
+        setCheckoutFileError((tooBig ? null : data?.error) ||
+          (lang === "th" ? (tooBig ? "ไฟล์ใหญ่เกินไป" : "อัปโหลดไฟล์ไม่สำเร็จ")
+            : lang === "cn" ? (tooBig ? "文件太大" : "文件上传失败")
+            : lang === "mm" ? (tooBig ? "ဖိုင်အရွယ်အစား ကြီးလွန်းသည်" : "ဖိုင်တင်ခြင်း မအောင်မြင်ပါ")
+            : (tooBig ? "File is too large." : "File upload failed.")));
+        return;
+      }
+      setCheckoutFileKey(data.key);
+      setCheckoutFileName(file.name);
+    } catch {
+      setCheckoutFileError(lang === "th" ? "อัปโหลดไฟล์ไม่สำเร็จ" : lang === "cn" ? "文件上传失败" : lang === "mm" ? "ဖိုင်တင်ခြင်း မအောင်မြင်ပါ" : "File upload failed.");
+    } finally {
+      setUploadingCheckoutFile(false);
+    }
+  };
+
+  const removeCheckoutEvidence = () => {
+    if (checkoutFileKey) {
+      fetch(`/api/forms/upload?key=${encodeURIComponent(checkoutFileKey)}`, { method: "DELETE" }).catch(() => {});
+    }
+    setCheckoutFileKey(null);
+    setCheckoutFileName(null);
+  };
+
+  // Confirms the check-OUT half of a requireCheckOut event — staff has
+  // already looked at the evidence in person; this just records the kept
+  // photo and awards that day's points (see ScannerService.confirmCheckout).
+  const confirmCheckout = async (token: string) => {
+    if (!checkoutFileKey) return;
+    setIsConfirmingCheckout(true);
+    try {
+      const res = await fetch("/api/admin/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          qrToken: token,
+          eventId,
+          sessionId: sessionId || undefined,
+          action: "confirm_checkout",
+          evidenceFileKey: checkoutFileKey,
+        }),
+      });
+      const data = await res.json();
+      if (isMountedRef.current) {
+        setScanResult({ status: data.status ?? (res.ok ? "success" : "error"), ...data, rawToken: token });
+      }
+      if (res.ok) refreshCheckedInCount();
+      if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
+      // Consumed by a successful confirm — nothing left to clean up on close.
+      if (res.ok) {
+        setCheckoutFileKey(null);
+        setCheckoutFileName(null);
+      }
+    } catch {
+      if (isMountedRef.current) {
+        setScanResult({ status: "error", error: "Connection error" });
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setIsConfirmingCheckout(false);
       }
     }
   };
@@ -715,12 +813,19 @@ export default function QRScannerPage() {
       desc: t.scanSuccess,
       bg: "rgba(16, 185, 129, 0.1)"
     },
-    pending_confirmation: { 
-      color: "#6366f1", 
-      icon: AlertCircle, 
-      title: t.manualCheckinTitle, 
+    pending_confirmation: {
+      color: "#6366f1",
+      icon: AlertCircle,
+      title: t.manualCheckinTitle,
       desc: t.manualSearchPlaceholder,
       bg: "rgba(99, 102, 241, 0.1)"
+    },
+    pending_checkout: {
+      color: "#f59e0b",
+      icon: Camera,
+      title: lang === "th" ? "รอเช็คเอาท์" : lang === "cn" ? "待签退" : lang === "mm" ? "checkout စောင့်ဆိုင်းနေသည်" : "Pending check-out",
+      desc: lang === "th" ? "แนบรูปหลักฐานเพื่อยืนยันเช็คเอาท์" : lang === "cn" ? "附上证据照片以确认签退" : lang === "mm" ? "checkout အတည်ပြုရန် သက်သေပုံ ပူးတွဲပါ" : "Attach a proof photo to confirm check-out",
+      bg: "rgba(245, 158, 11, 0.1)"
     },
     already_checked_in: { 
       color: "#ef4444", 
@@ -1696,8 +1801,76 @@ export default function QRScannerPage() {
                     cursor: (scanResult?.student?.hasMedicalCondition && !medsCheckOption) ? "not-allowed" : "pointer"
                   }}
                 >
-                  {isConfirming ? (lang === "th" ? "กำลังดำเนินการ..." : lang === "cn" ? "处理中..." : lang === "mm" ? "လုပ်ဆောင်နေသည်..." : "Processing...") : (scanResult?.isWalkIn ? (lang === "th" ? "ยืนยันการเช็คอินแบบ Walk-in" : lang === "cn" ? "确认现场签到" : lang === "mm" ? "Walk-in ချက်အင်ဝင်ခြင်းကို อတည်ပြုရန်" : "Confirm Walk-in Presence") : (lang === "th" ? "ยืนยันการเข้าร่วมกิจกรรม" : lang === "cn" ? "确认到场签到" : lang === "mm" ? "ကိုယ်ตိုင်ตက်ရောက်မှုကို อတည်ပြုရန်" : "Confirm Physical Presence"))}
+                  {isConfirming
+                    ? (lang === "th" ? "กำลังดำเนินการ..." : lang === "cn" ? "处理中..." : lang === "mm" ? "လုပ်ဆောင်နေသည်..." : "Processing...")
+                    : selectedEvent?.requireCheckOut
+                    // requireCheckOut events: this confirm is arrival-only — no
+                    // points yet, so the label says so instead of implying done.
+                    ? (lang === "th" ? "ยืนยันเช็คอิน (ยังไม่ได้คะแนน)" : lang === "cn" ? "确认签到（尚未获得积分）" : lang === "mm" ? "checkin အတည်ပြုပါ (မှတ်မရသေးပါ)" : "Confirm Check-in (no points yet)")
+                    : (scanResult?.isWalkIn ? (lang === "th" ? "ยืนยันการเช็คอินแบบ Walk-in" : lang === "cn" ? "确认现场签到" : lang === "mm" ? "Walk-in ချက်အင်ဝင်ခြင်းကို อတည်ပြုရน်" : "Confirm Walk-in Presence") : (lang === "th" ? "ยืนยันการเข้าร่วมกิจกรรม" : lang === "cn" ? "确认到场签到" : lang === "mm" ? "ကိုယ်ตိုင်ตက်ရောက်မှုကို อတည်ပြုရန်" : "Confirm Physical Presence"))}
                 </button>
+              )}
+
+              {/* Check-OUT (events.requireCheckOut): staff has already looked at
+                  the student's evidence in person — attach the kept photo, then
+                  confirm to award this day's points. See docs/features/evidence-checkin.md. */}
+              {scanMode === "checkin" && scanResult?.status === "pending_checkout" && scanResult.rawToken && (
+                <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 12 }}>
+                  <p style={{ fontSize: 13, color: "var(--text-secondary)", textAlign: "center", lineHeight: 1.5 }}>
+                    {lang === "th" ? "ตรวจสอบหลักฐาน (เช่น Strava) กับนักศึกษาแล้ว ให้แนบรูปเพื่อบันทึกไว้ก่อนยืนยันเช็คเอาท์" : lang === "cn" ? "已当面核实证据（如 Strava）后，请附上照片留存记录，然后确认签退。" : lang === "mm" ? "သက်သေ (ဥပမာ Strava) ကို ကိုယ်တိုင်စစ်ဆေးပြီးနောက် မှတ်တမ်းအတွက် ပုံကို ပူးတွဲပြီး checkout ကို အတည်ပြုပါ။" : "After verifying their evidence (e.g. Strava) in person, attach a photo for the record, then confirm check-out."}
+                  </p>
+
+                  {checkoutFileName ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--bg-elevated)", borderRadius: 12, padding: "10px 14px" }}>
+                      <Paperclip size={16} style={{ flexShrink: 0, color: "var(--text-muted)" }} />
+                      <span style={{ fontSize: 13, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{checkoutFileName}</span>
+                      <button type="button" onClick={removeCheckoutEvidence} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}>
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="btn btn-ghost btn-full" style={{ borderRadius: 12, cursor: uploadingCheckoutFile ? "wait" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                      {uploadingCheckoutFile ? (
+                        <div className="spinner" style={{ width: 16, height: 16 }} />
+                      ) : (
+                        <><Camera size={16} /> {lang === "th" ? "แนบรูปหลักฐาน" : lang === "cn" ? "附上证据照片" : lang === "mm" ? "သက်သေပုံ ပူးတွဲပါ" : "Attach proof photo"}</>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        style={{ display: "none" }}
+                        disabled={uploadingCheckoutFile}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) uploadCheckoutEvidence(file);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                  )}
+
+                  {checkoutFileError && <p style={{ fontSize: 12.5, color: "#ef4444", textAlign: "center" }}>{checkoutFileError}</p>}
+
+                  <button
+                    className="btn btn-primary btn-full"
+                    onClick={() => confirmCheckout(scanResult.rawToken!)}
+                    disabled={isConfirmingCheckout || !checkoutFileKey}
+                    style={{
+                      background: !checkoutFileKey ? "var(--bg-elevated)" : "#f59e0b",
+                      color: !checkoutFileKey ? "var(--text-muted)" : "white",
+                      minHeight: 56,
+                      borderRadius: 16,
+                      fontSize: 16,
+                      fontWeight: 700,
+                      opacity: !checkoutFileKey ? 0.7 : 1,
+                      cursor: !checkoutFileKey ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {isConfirmingCheckout
+                      ? (lang === "th" ? "กำลังดำเนินการ..." : lang === "cn" ? "处理中..." : lang === "mm" ? "လုပ်ဆောင်နေသည်..." : "Processing...")
+                      : (lang === "th" ? "ยืนยันเช็คเอาท์" : lang === "cn" ? "确认签退" : lang === "mm" ? "checkout ကို အတည်ပြုပါ" : "Confirm Check-out")}
+                  </button>
+                </div>
               )}
 
               {scanMode === "checkin" && (scanResult?.status === "success" || scanResult?.status === "success_walk_in" || scanResult?.status === "already_checked_in") && (

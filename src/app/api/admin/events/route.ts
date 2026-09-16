@@ -34,6 +34,8 @@ const eventSchema = z.object({
   // 'qr' (default) = scanner/manual/walk-in check-in. 'evidence' = students
   // self-submit proof instead — see events.checkInMode in schema.ts.
   checkInMode: z.enum(["qr", "evidence"]).optional(),
+  // Two-step QR check-in/check-out — see events.requireCheckOut in schema.ts.
+  requireCheckOut: z.boolean().optional(),
   // Multi-day sessions. Omitted/empty → one default session mirroring the
   // event's own start/end is auto-created so every event has ≥1 session.
   sessions: z.array(sessionInputSchema).optional(),
@@ -257,6 +259,7 @@ export async function POST(req: Request) {
           quotaWalkIn: data.quotaWalkIn,
           registrationMode: data.registrationMode ?? "once",
           checkInMode: data.checkInMode ?? "qr",
+          requireCheckOut: data.requireCheckOut ?? false,
           targetThai: data.targetThai ?? true,
           targetInternational: data.targetInternational ?? true,
           quotaThai: data.quotaThai,

@@ -67,6 +67,8 @@ interface AdminEvent {
   // 'qr' (default) = scanner/manual/walk-in. 'evidence' = students self-submit
   // proof instead of being scanned — see events.checkInMode in schema.ts.
   checkInMode?: "qr" | "evidence";
+  // Two-step QR check-in/check-out — see events.requireCheckOut in schema.ts.
+  requireCheckOut?: boolean;
   sessions?: EventSession[];
   attendeeCount?: number;
   createdAt?: string;
@@ -332,6 +334,7 @@ const EMPTY_FORM = {
   staffUserIds: [] as string[], // specific people assigned as staff for this event; empty = none
   songsueLinked: false, // staff-only "also count for Songsue" mirror toggle
   checkInMode: "qr" as "qr" | "evidence", // 'evidence' = students self-submit proof instead of scanning, see events.checkInMode
+  requireCheckOut: false, // two-step QR check-in/check-out, see events.requireCheckOut
   // Hold-and-diff for president edits — see events.detailsReviewStatus/
   // pendingDetailsChanges in schema.ts. A brand new event (not yet saved) has
   // no pending edit, so this only matters once an existing event is loaded.
@@ -1242,6 +1245,7 @@ export default function AdminEventsPage() {
       // Staff-only, like the fields above — never read from a president's
       // pending payload (it can't contain it, see PRESIDENT_EDITABLE_FIELDS).
       checkInMode: evt.checkInMode || "qr",
+      requireCheckOut: evt.requireCheckOut || false,
       detailsReviewStatus: evt.detailsReviewStatus || "pending",
       detailsReviewedAt: evt.detailsReviewedAt || null,
     });
@@ -2800,6 +2804,35 @@ export default function AdminEventsPage() {
                     })}
                   </div>
                 </div>
+
+                {/* Two-step check-in/check-out — only meaningful for QR mode
+                    (self-submitted evidence events have no staff-scanned
+                    checkout at all). See events.requireCheckOut in schema.ts. */}
+                {formData.checkInMode === "qr" && (
+                  <div className="field" style={{ marginTop: 4 }}>
+                    <label
+                      className="label"
+                      style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
+                      onClick={() => set("requireCheckOut", !formData.requireCheckOut)}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={formData.requireCheckOut}
+                        onChange={(e) => set("requireCheckOut", e.target.checked)}
+                        style={{ width: 18, height: 18, cursor: "pointer" }}
+                      />
+                      <ShieldCheck size={16} style={{ color: "var(--accent-primary)" }} />
+                      {lang === "th" ? "ต้องเช็คเอาท์ (สแกน 2 ครั้ง: เข้า + ออกพร้อมหลักฐาน)" : lang === "cn" ? "需要签退（两次扫码：签到 + 附证据签退）" : lang === "mm" ? "checkout လိုအပ်သည် (scan ၂ ကြိမ် - ဝင်ရောက်ခြင်း + သက်သေဖြင့် ထွက်ခွာခြင်း)" : "Require check-out (2 scans: arrival + evidence-reviewed departure)"}
+                    </label>
+                    <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "6px 0 0", lineHeight: 1.45 }}>
+                      {lang === "th"
+                        ? "การสแกนครั้งแรกจะบันทึกแค่การมาถึง (ไม่ได้คะแนน) สแกนซ้ำครั้งที่สองจะให้เจ้าหน้าที่แนบรูปหลักฐานก่อนยืนยันเช็คเอาท์ ซึ่งตอนนั้นจึงจะได้คะแนน"
+                        : lang === "cn" ? "第一次扫码只记录到场（不给积分）；第二次扫码时工作人员需先附上证据照片才能确认签退，此时才发放积分。"
+                        : lang === "mm" ? "ပထမဆုံး scan သည် ရောက်ရှိမှုကိုသာ မှတ်တမ်းတင်မည် (မှတ်မရသေးပါ) — ဒုတိယ scan တွင် ဝန်ထမ်းသည် checkout အတည်ပြုမီ သက်သေပုံကို ပူးတွဲရမည်၊ ထိုအချိန်၌သာ မှတ်များ ရရှိမည်။"
+                        : "The first scan only records arrival (no points yet). A second scan of the same student lets staff attach a proof photo before confirming check-out — that's when points are actually awarded."}
+                    </p>
+                  </div>
+                )}
 
                 {/* Registration mode + Sessions / Days editor */}
                 <div className="field" style={{ marginTop: 4 }}>

@@ -14,7 +14,7 @@ type ResolvedStudent = NonNullable<Awaited<ReturnType<typeof UsersService.resolv
 type DBTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export interface ScanResult {
-  status: "success" | "success_walk_in" | "pending_confirmation" | "already_checked_in" | "not_found" | "quota_full" | "walk_ins_disabled" | "found" | "not_registered" | "error";
+  status: "success" | "success_walk_in" | "pending_confirmation" | "pending_checkout" | "already_checked_in" | "not_found" | "quota_full" | "walk_ins_disabled" | "found" | "not_registered" | "error";
   student: {
     name: string;
     nickname: string | null;
@@ -63,15 +63,18 @@ export class ScannerService {
     // Which session (day) the check-in is recorded against. Resolved/defaulted by
     // the API to the "current" session; always belongs to eventId.
     sessionId: string;
-    action: "scan" | "confirm" | "score" | "lookup";
+    action: "scan" | "confirm" | "confirm_checkout" | "score" | "lookup";
     medsCheckOption?: string | null;
     score?: number;
     reason?: string;
+    // Only used by action "confirm_checkout" (events.requireCheckOut) — the
+    // kept proof photo's storage key, see attendance.evidenceFileKey.
+    evidenceFileKey?: string;
     actorId: string;
     actorRole: string;
     ipAddress: string;
   }): Promise<ScanResult> {
-    const { qrToken, eventId, sessionId, action, medsCheckOption, actorId, actorRole, ipAddress } = params;
+    const { qrToken, eventId, sessionId, action, medsCheckOption, evidenceFileKey, actorId, actorRole, ipAddress } = params;
 
     const [student, event, session] = await Promise.all([
       UsersService.resolveStudentByToken(qrToken, ipAddress),
@@ -285,6 +288,21 @@ export class ScannerService {
 
     if (record) {
       if (record.status === "attended") {
+        // requireCheckOut events (see events.requireCheckOut): "attended" only
+        // means "arrived" until checkOutTime is also set — a returning scan
+        // before that is a check-OUT attempt, not a duplicate. Ordinary events
+        // never set requireCheckOut, so this branch never fires for them.
+        if (event.requireCheckOut && !record.checkOutTime) {
+          if (action === "confirm_checkout") {
+            return await this.confirmCheckout({
+              record, student, event, sessionLabel, individualPoints,
+              evidenceFileKey, actorId, ipAddress, studentWithMedical,
+            });
+          }
+          // Scan-only — surface the pending check-out state so the UI can
+          // prompt staff to attach the reviewed evidence photo before confirming.
+          return { status: "pending_checkout", student: baseStudentInfo, checkedInAt: record.checkInTime };
+        }
         // Already done — return base info only (no reason to re-expose medical data)
         return { status: "already_checked_in", student: baseStudentInfo, checkedInAt: record.checkInTime };
       }
@@ -311,15 +329,19 @@ export class ScannerService {
 
           if (rows.length > 0) {
             await this.maybeAutoAssignStaff(tx, event, actorId, student.id);
-            await this.awardAttendanceIndividualPoints(tx, {
-              studentId: student.id,
-              studentName: student.name,
-              houseId: student.houseId,
-              eventId,
-              eventTitle: event.title,
-              points: individualPoints,
-              sessionLabel,
-            });
+            // requireCheckOut events defer the points award to the check-OUT
+            // step (confirmCheckout above) — this confirm only records arrival.
+            if (!event.requireCheckOut) {
+              await this.awardAttendanceIndividualPoints(tx, {
+                studentId: student.id,
+                studentName: student.name,
+                houseId: student.houseId,
+                eventId,
+                eventTitle: event.title,
+                points: individualPoints,
+                sessionLabel,
+              });
+            }
             await AuditService.logActionInternal(tx, {
               actorId,
               targetId: student.id,
@@ -393,15 +415,19 @@ export class ScannerService {
 
             if (rows.length > 0) {
               await this.maybeAutoAssignStaff(tx, event, actorId, student.id);
-              await this.awardAttendanceIndividualPoints(tx, {
-                studentId: student.id,
-                studentName: student.name,
-                houseId: student.houseId,
-                eventId,
-                eventTitle: event.title,
-                points: individualPoints,
-                sessionLabel,
-              });
+              // requireCheckOut events defer the points award to the check-OUT
+              // step (confirmCheckout above) — this confirm only records arrival.
+              if (!event.requireCheckOut) {
+                await this.awardAttendanceIndividualPoints(tx, {
+                  studentId: student.id,
+                  studentName: student.name,
+                  houseId: student.houseId,
+                  eventId,
+                  eventTitle: event.title,
+                  points: individualPoints,
+                  sessionLabel,
+                });
+              }
               await AuditService.logActionInternal(tx, {
                 actorId,
                 targetId: student.id,
@@ -518,15 +544,19 @@ export class ScannerService {
           if (inserted.length === 0) throw new Error("ALREADY_CHECKED_IN");
 
           await this.maybeAutoAssignStaff(tx, event, actorId, student.id);
-          await this.awardAttendanceIndividualPoints(tx, {
-            studentId: student.id,
-            studentName: student.name,
-            houseId: student.houseId,
-            eventId,
-            eventTitle: event.title,
-            points: individualPoints,
-            sessionLabel,
-          });
+          // requireCheckOut events defer the points award to the check-OUT
+          // step (confirmCheckout above) — this confirm only records arrival.
+          if (!event.requireCheckOut) {
+            await this.awardAttendanceIndividualPoints(tx, {
+              studentId: student.id,
+              studentName: student.name,
+              houseId: student.houseId,
+              eventId,
+              eventTitle: event.title,
+              points: individualPoints,
+              sessionLabel,
+            });
+          }
           await AuditService.logActionInternal(tx, {
             actorId,
             targetId: student.id,
@@ -759,6 +789,74 @@ export class ScannerService {
       reason: `Awarded ${points} individual points to ${studentName} for attending "${eventTitle}" (${sessionLabel})`,
       activityLabel: eventTitle,
     });
+  }
+
+  // A stored evidence key is always "<uuid>.<ext>" (see uploadFormFile in
+  // src/lib/form-file-storage.ts, reused as-is here) — same pattern the forms
+  // upload/serving routes validate against.
+  private static readonly EVIDENCE_KEY_PATTERN = /^[0-9a-f-]{36}\.[a-z0-9]+$/i;
+
+  /**
+   * The check-OUT half of a requireCheckOut event (see events.requireCheckOut
+   * in schema.ts). Called once staff has looked at the student's evidence in
+   * person and decided it's legit — attaches the kept photo, stamps
+   * checkOutTime, and (only now) awards that day's individual points. A race
+   * where two staff confirm the same check-out concurrently is closed by the
+   * `isNull(checkOutTime)` guard on the update: the loser's update affects 0
+   * rows and reads back as already_checked_in instead of double-awarding.
+   */
+  private static async confirmCheckout(params: {
+    record: NonNullable<Awaited<ReturnType<typeof db.query.attendance.findFirst>>>;
+    student: ResolvedStudent;
+    event: NonNullable<Awaited<ReturnType<typeof EventsService.getEventById>>>;
+    sessionLabel: string;
+    individualPoints: number;
+    evidenceFileKey: string | undefined;
+    actorId: string;
+    ipAddress: string;
+    studentWithMedical: NonNullable<ScanResult["student"]>;
+  }): Promise<ScanResult> {
+    const { record, student, event, sessionLabel, individualPoints, evidenceFileKey, actorId, ipAddress, studentWithMedical } = params;
+
+    if (!evidenceFileKey || !this.EVIDENCE_KEY_PATTERN.test(evidenceFileKey)) {
+      return {
+        status: "error",
+        student: null,
+        error: "A proof photo is required to confirm check-out.",
+      };
+    }
+
+    const updated = await db.transaction(async (tx) => {
+      const rows = await tx
+        .update(attendance)
+        .set({ checkOutTime: new Date(), evidenceFileKey })
+        .where(and(eq(attendance.id, record.id), isNull(attendance.checkOutTime)))
+        .returning({ id: attendance.id });
+
+      if (rows.length > 0) {
+        await this.awardAttendanceIndividualPoints(tx, {
+          studentId: student.id,
+          studentName: student.name,
+          houseId: student.houseId,
+          eventId: event.id,
+          eventTitle: event.title,
+          points: individualPoints,
+          sessionLabel,
+        });
+        await AuditService.logActionInternal(tx, {
+          actorId,
+          targetId: student.id,
+          action: `Confirmed check-out with evidence for event: ${event.title} (${sessionLabel})`,
+          ipAddress,
+        });
+      }
+      return rows;
+    });
+
+    if (updated.length === 0) {
+      return { status: "already_checked_in", student: null, checkedInAt: record.checkInTime };
+    }
+    return { status: "success", student: studentWithMedical, checkedInAt: record.checkInTime };
   }
 
   /**

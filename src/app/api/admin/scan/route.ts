@@ -16,17 +16,24 @@ import { revalidateLeaderboards } from "@/lib/leaderboard-cache";
 // Scanning must stay responsive during the event even under load.
 export const maxDuration = 20;
 
+// A stored evidence key is always "<uuid>.<ext>" — see uploadFormFile in
+// src/lib/form-file-storage.ts (reused as-is for the check-out photo).
+const EVIDENCE_KEY_PATTERN = /^[0-9a-f-]{36}\.[a-z0-9]+$/i;
+
 const scanSchema = z.object({
   qrToken: z.string(), // Allows fallback IDs as well
   eventId: z.string().uuid(),
   // Which session (day) the check-in counts for. Optional so legacy clients still
   // work — when omitted the server resolves the "current" session for the event.
   sessionId: z.string().uuid().optional(),
-  action: z.enum(["scan", "confirm", "score", "lookup"]).default("scan"),
+  action: z.enum(["scan", "confirm", "confirm_checkout", "score", "lookup"]).default("scan"),
   medsCheckOption: z.string().nullish(),
   // Allow negatives so admins can deduct points (penalties/corrections); 0 is meaningless.
   score: z.number().int().gte(-500).lte(500).refine((n) => n !== 0, "Score cannot be zero").optional(),
   reason: z.string().optional(),
+  // Only for action "confirm_checkout" (events.requireCheckOut) — the kept
+  // proof photo's storage key, uploaded beforehand via /api/forms/upload.
+  evidenceFileKey: z.string().regex(EVIDENCE_KEY_PATTERN).optional(),
 });
 
 export async function POST(req: Request) {
@@ -63,7 +70,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { qrToken, eventId, sessionId, action, medsCheckOption, score, reason } = scanSchema.parse(body);
+    const { qrToken, eventId, sessionId, action, medsCheckOption, score, reason, evidenceFileKey } = scanSchema.parse(body);
 
     // President roles, and a club/major-scoped registration position, may only
     // scan events they OWN (ownerClubIds/ownerMajors), mirroring the
@@ -119,6 +126,7 @@ export async function POST(req: Request) {
       medsCheckOption,
       score,
       reason,
+      evidenceFileKey,
       actorId: session.user.id!,
       actorRole: session.user.role || "",
       ipAddress: ip,

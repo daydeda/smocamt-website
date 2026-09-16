@@ -30,6 +30,11 @@ const eventUpdateSchema = z.object({
   walkInsOnly: z.boolean().optional(),
   quotaWalkIn: z.number().int().min(0).optional().nullable(),
   registrationMode: z.enum(["once", "per_session"]).optional(),
+  // 'qr' (default) = scanner/manual/walk-in check-in. 'evidence' = students
+  // self-submit proof instead — see events.checkInMode in schema.ts.
+  checkInMode: z.enum(["qr", "evidence"]).optional(),
+  // Two-step QR check-in/check-out — see events.requireCheckOut in schema.ts.
+  requireCheckOut: z.boolean().optional(),
   // When provided, the full desired set of sessions. Existing sessions are
   // matched by id (updated), new ones inserted, dropped ones removed — except a
   // session that already has attendance is never deleted (non-destructive).
@@ -80,6 +85,16 @@ const eventUpdateSchema = z.object({
     // several days on purpose. See sessionsHaveInvalidSpan.
     message: "Each day in a per-day schedule must start and end on the same calendar day — add each additional day as its own session instead of stretching one across several dates",
     path: ["endTime"],
+  },
+).refine(
+  // Only enforced when BOTH are explicitly present in this request (the
+  // normal case: the editor sends checkInMode and its sessions together) —
+  // a partial update that touches neither, or only one, is left alone rather
+  // than chasing whatever the live/pending state already has.
+  (d) => d.checkInMode !== "evidence" || !d.sessions || d.sessions.every((s) => !!s.evidenceNonce),
+  {
+    message: "Every session needs a code word (evidenceNonce) when check-in mode is 'evidence'.",
+    path: ["sessions"],
   },
 );
 
@@ -145,6 +160,8 @@ function buildEventSetFields(
       : (data.walkInsEnabled !== undefined && { walkInsEnabled: data.walkInsEnabled })),
     ...(data.quotaWalkIn !== undefined && { quotaWalkIn: data.quotaWalkIn }),
     ...(data.registrationMode !== undefined && { registrationMode: data.registrationMode }),
+    ...(data.checkInMode !== undefined && { checkInMode: data.checkInMode }),
+    ...(data.requireCheckOut !== undefined && { requireCheckOut: data.requireCheckOut }),
     ...(data.targetThai !== undefined && { targetThai: data.targetThai }),
     ...(data.targetInternational !== undefined && { targetInternational: data.targetInternational }),
     ...(data.quotaThai !== undefined && { quotaThai: data.quotaThai }),
@@ -501,6 +518,8 @@ export async function PUT(
               endTime: new Date(s.endTime),
               sortOrder: i,
               quotaWalkIn: s.quotaWalkIn ?? null,
+              evidenceNonce: s.evidenceNonce ?? null,
+              evidencePrompt: s.evidencePrompt?.trim() ? s.evidencePrompt.trim() : null,
             };
             if (s.id && existingIds.has(s.id)) {
               await tx.update(eventSessions)

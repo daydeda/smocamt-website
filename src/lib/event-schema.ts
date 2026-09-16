@@ -45,6 +45,11 @@ export const sessionInputSchema = z.object({
   startTime: z.string().datetime(),
   endTime: z.string().datetime(),
   quotaWalkIn: z.number().int().min(0).optional().nullable(),
+  // Only meaningful when the parent event's checkInMode is 'evidence' — see
+  // eventSessions.evidenceNonce/evidencePrompt in schema.ts. Trimmed to null
+  // when blank so an empty string never satisfies the "has a code word" check.
+  evidenceNonce: z.string().trim().min(1).optional().nullable(),
+  evidencePrompt: z.string().optional().nullable(),
 });
 
 export type SessionInput = z.infer<typeof sessionInputSchema>;

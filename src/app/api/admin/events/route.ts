@@ -31,6 +31,11 @@ const eventSchema = z.object({
   walkInsOnly: z.boolean().optional(),
   quotaWalkIn: z.number().int().min(0).optional().nullable(),
   registrationMode: z.enum(["once", "per_session"]).optional(),
+  // 'qr' (default) = scanner/manual/walk-in check-in. 'evidence' = students
+  // self-submit proof instead — see events.checkInMode in schema.ts.
+  checkInMode: z.enum(["qr", "evidence"]).optional(),
+  // Two-step QR check-in/check-out — see events.requireCheckOut in schema.ts.
+  requireCheckOut: z.boolean().optional(),
   // Multi-day sessions. Omitted/empty → one default session mirroring the
   // event's own start/end is auto-created so every event has ≥1 session.
   sessions: z.array(sessionInputSchema).optional(),
@@ -78,6 +83,15 @@ const eventSchema = z.object({
     // check-in for the whole event. See sessionsHaveInvalidSpan.
     message: "Each day in a per-day schedule must start and end on the same calendar day — add each additional day as its own session instead of stretching one across several dates",
     path: ["endTime"],
+  },
+).refine(
+  // Evidence mode is meaningless without a code word to validate against —
+  // catch a half-configured event here rather than letting students hit a
+  // form with no way to ever pass the nonce check.
+  (d) => d.checkInMode !== "evidence" || !d.sessions || d.sessions.every((s) => !!s.evidenceNonce),
+  {
+    message: "Every session needs a code word (evidenceNonce) when check-in mode is 'evidence'.",
+    path: ["sessions"],
   },
 );
 
@@ -244,6 +258,8 @@ export async function POST(req: Request) {
           walkInsOnly: data.walkInsOnly ?? false,
           quotaWalkIn: data.quotaWalkIn,
           registrationMode: data.registrationMode ?? "once",
+          checkInMode: data.checkInMode ?? "qr",
+          requireCheckOut: data.requireCheckOut ?? false,
           targetThai: data.targetThai ?? true,
           targetInternational: data.targetInternational ?? true,
           quotaThai: data.quotaThai,
@@ -277,6 +293,8 @@ export async function POST(req: Request) {
           endTime: new Date(s.endTime),
           sortOrder: i,
           quotaWalkIn: s.quotaWalkIn ?? null,
+          evidenceNonce: s.evidenceNonce ?? null,
+          evidencePrompt: s.evidencePrompt?.trim() ? s.evidencePrompt.trim() : null,
         }))
       );
 

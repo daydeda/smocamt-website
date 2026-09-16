@@ -50,7 +50,8 @@ import {
   DoorOpen,
   Share2,
   Check,
-  CalendarX2
+  CalendarX2,
+  Camera
 } from "lucide-react";
 import { parseRichText } from "@/lib/rich-text";
 import { useLanguage } from "@/lib/LanguageContext";
@@ -91,6 +92,9 @@ type Event = {
   // Walk-ins-only: no pre-registration accepted, see api/events/[id]/register.
   walkInsOnly?: boolean;
   quotaWalkIn?: number | null;
+  // 'evidence' = no registration/scan at all — the event card's action links
+  // straight to the evidence submission page instead. See events.checkInMode.
+  checkInMode?: "qr" | "evidence";
   isRegistered?: boolean;
   attendanceStatus?: string | null;
   imageUrl?: string;
@@ -2441,6 +2445,23 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                   {lang === "th" ? "ปิด" : "Close"}
                 </button>
 
+                {liveEvent.checkInMode === "evidence" ? (
+                  // Evidence-mode events have no registration step at all — the
+                  // "action" is going to submit that day's proof, not a seat sign-up.
+                  // See events.checkInMode in schema.ts.
+                  <Link
+                    href={`/dashboard/events/${liveEvent.id}/evidence`}
+                    className="btn btn-primary"
+                    style={{
+                      borderRadius: 16, height: 48, padding: "0 24px", fontWeight: 800,
+                      boxShadow: "0 10px 25px var(--accent-glow)",
+                      display: "flex", alignItems: "center", gap: 8, textDecoration: "none",
+                    }}
+                  >
+                    <Camera size={18} />
+                    {lang === "th" ? "ส่งหลักฐานวันนี้" : lang === "cn" ? "提交今日证据" : lang === "mm" ? "ယနေ့ သက်သေတင်ရန်" : "Submit today's evidence"}
+                  </Link>
+                ) : (
                 <button
                   disabled={isDisabled}
                   onClick={() => promptRegister(liveEvent.id, !!liveEvent.isRegistered, liveEvent.title)}
@@ -2481,6 +2502,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                     t.registerNow || "Register Now"
                   )}
                 </button>
+                )}
               </div>
             </div>
           </div>

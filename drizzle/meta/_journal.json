@@ -211,6 +211,20 @@
       "when": 1789558270275,
       "tag": "0038_nice_whizzer",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1789573239542,
+      "tag": "0039_brief_paibok",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1789576553721,
+      "tag": "0040_skinny_dark_phoenix",
+      "breakpoints": true
     }
   ]
 }

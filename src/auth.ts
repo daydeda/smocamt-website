@@ -38,7 +38,7 @@ const SUPER_ADMIN_EMAILS = (process.env.SUPER_ADMIN_EMAILS ?? "")
   .split(",")
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean);
-const ROLE_PRIORITY = ["super_admin", "admin", "registration", "organizer", "smo", "anusmo", "club_president", "major_president", "staff", "professor", "officer", "student"];
+const ROLE_PRIORITY = ["super_admin", "admin", "registration", "organizer", "smo", "anusmo", "club_president", "major_president", "shop_seller", "staff", "professor", "officer", "student"];
 // Sign-ins by these roles are audit-logged. Students are deliberately NOT
 // logged — hundreds of sign-ins a day would just flood the audit table.
 const AUDITED_SIGNIN_ROLES = ["super_admin", "admin", "registration", "organizer"];
@@ -217,7 +217,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               }
 
               const role = credentials?.role as string || "super_admin";
-              const DEV_ROLE_ALLOWLIST = ["student", "smo", "club_president", "admin", "super_admin"];
+              const DEV_ROLE_ALLOWLIST = ["student", "smo", "club_president", "shop_seller", "admin", "super_admin"];
               if (!DEV_ROLE_ALLOWLIST.includes(role)) {
                 console.warn(`⛔ Refusing Dev Bypass Login: Role "${role}" is not in the allowlist.`);
                 return null;

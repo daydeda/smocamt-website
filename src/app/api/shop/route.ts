@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { shopOrderItems, shopOrders, shopProducts, shopSettings, shopVariants, users } from "@/db/schema";
+import { shopOrderItems, shopOrders, shopProducts, shopSellers, shopSettings, shopVariants, users } from "@/db/schema";
 import { buildViewer, isEligibleFor } from "@/lib/event-access";
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -43,12 +43,31 @@ export async function GET() {
     const activeProducts = await db
       .select()
       .from(shopProducts)
-      .where(eq(shopProducts.isActive, true))
+      .where(and(eq(shopProducts.isActive, true), eq(shopProducts.approvalStatus, "approved")))
       .orderBy(asc(shopProducts.sortOrder), desc(shopProducts.createdAt));
+
+    const sellerIds = [...new Set(activeProducts.map((p) => p.sellerId).filter((id): id is string => !!id))];
+    const approvedSellers = sellerIds.length
+      ? await db
+          .select({
+            id: shopSellers.id,
+            displayName: shopSellers.displayName,
+            paymentInfo: shopSellers.paymentInfo,
+            qrImageUrl: shopSellers.qrImageUrl,
+            deliveryEnabled: shopSellers.deliveryEnabled,
+            deliveryFee: shopSellers.deliveryFee,
+            pickupInfo: shopSellers.pickupInfo,
+          })
+          .from(shopSellers)
+          .where(and(inArray(shopSellers.id, sellerIds), eq(shopSellers.status, "approved")))
+      : [];
+    const sellerById = new Map(approvedSellers.map((seller) => [seller.id, seller]));
 
     // Hide products this buyer isn't in the audience for (role / major / Thai-intl).
     // Admin-role viewers get the predicate's built-in bypass (they see everything).
-    const products = activeProducts.filter((p) => isEligibleFor(p, viewer));
+    const products = activeProducts.filter((p) =>
+      isEligibleFor(p, viewer) && (!p.sellerId || sellerById.has(p.sellerId))
+    );
 
     const productIds = products.map((p) => p.id);
     const variants = productIds.length
@@ -91,6 +110,7 @@ export async function GET() {
       // Per-product delivery pricing (null fee = falls back to shop-wide deliveryFee).
       deliveryFee: p.deliveryFee ?? null,
       deliveryTiers: p.deliveryTiers ?? [],
+      seller: p.sellerId ? sellerById.get(p.sellerId) ?? null : null,
       variants: variants
         .filter((v) => v.productId === p.id)
         .map((v) => ({

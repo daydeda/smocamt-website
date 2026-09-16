@@ -35,8 +35,10 @@ const REGISTRATION = ctx({ roles: ["registration"] });
 const ORGANIZER = ctx({ roles: ["organizer"] });
 const SMO_SCANNER_ONLY = ctx({ roles: ["smo"], hasStaffPosition: true });
 const SMO_GLOBAL_REGISTRATION = ctx({ roles: ["smo"], hasStaffPosition: true, smoPosition: "registration" });
+const SMO_FINANCE = ctx({ roles: ["smo"], hasStaffPosition: true, smoPosition: "finance" });
 const CLUB_PRESIDENT = ctx({ roles: ["club_president"], hasClubPosition: true, hasStaffPosition: true });
 const MAJOR_PRESIDENT = ctx({ roles: ["major_president"], hasStaffPosition: true });
+const SHOP_SELLER = ctx({ roles: ["student", "shop_seller"] });
 
 describe("admin-nav-config: every item has a unique id and a group that exists", () => {
   it("ids are unique", () => {
@@ -117,6 +119,17 @@ describe("admin-nav-config: scanner-only confinement (smo, club_president, major
     expect(hrefs).toContain("/admin/dashboard");
   });
 
+  it("SMO Finance sees the shop while remaining confined from unrelated admin pages", () => {
+    const hrefs = visibleHrefs(SMO_FINANCE);
+    expect(hrefs).toContain("/admin/shop");
+    expect(hrefs).not.toContain("/admin/students");
+    expect(hrefs).not.toContain("/admin/announcement");
+  });
+
+  it("shop_seller sees only the shop link", () => {
+    expect(visibleHrefs(SHOP_SELLER)).toEqual(["/admin/shop"]);
+  });
+
   it("club_president (scanner-only) additionally sees /admin/clubs", () => {
     expect(visibleHrefs(CLUB_PRESIDENT)).toEqual(
       expect.arrayContaining(["/admin/scanner", "/admin/events", "/admin/appeals", "/admin/clubs"])
@@ -131,7 +144,7 @@ describe("admin-nav-config: scanner-only confinement (smo, club_president, major
   });
 
   it("scanner-only contexts never see the roadmap placeholders", () => {
-    for (const c of [SMO_SCANNER_ONLY, CLUB_PRESIDENT, MAJOR_PRESIDENT]) {
+    for (const c of [SMO_SCANNER_ONLY, CLUB_PRESIDENT, MAJOR_PRESIDENT, SHOP_SELLER]) {
       expect(getVisibleAdminItems(c).some((i) => i.comingSoon)).toBe(false);
     }
   });

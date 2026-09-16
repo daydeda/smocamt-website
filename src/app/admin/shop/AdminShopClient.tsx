@@ -93,13 +93,28 @@ interface AdminProduct {
   // President ownership scope (admin-side only). Empty both = "central" (SMO)
   // product. Drives which club_president/major_president may manage it + its orders.
   ownerClubIds: string[]; ownerMajors: string[];
+  sellerId: string | null; sellerName: string | null;
+  approvalStatus: "pending" | "approved" | "rejected";
+  approvalReason: string | null;
 }
 
 // Which club(s)/major(s) the current shop-admin may assign as a product owner
 // (all of them for a full admin; just their own for a president). From
 // GET /api/admin/shop/context and the products list response.
 type OwnerOptions = { clubs: { id: string; name: string }[]; majors: string[] };
-interface ShopContext { scoped: boolean; ownerOptions: OwnerOptions }
+interface ShopContext {
+  scoped: boolean;
+  ownerOptions: OwnerOptions;
+  canEditSettings: boolean;
+  canReviewMarketplace: boolean;
+  requiresOwner: boolean;
+  seller: { id: string; displayName: string; status: string } | null;
+}
+interface SellerReviewRow {
+  id: string; userId: string; displayName: string; status: string;
+  reviewNote: string | null; appliedAt: string; reviewedAt: string | null;
+  accountName: string; accountEmail: string;
+}
 
 // Editor row for one custom field (key is assigned at save time, by index).
 interface FieldDraft {
@@ -133,6 +148,7 @@ interface AdminOrder {
   createdAt: string; reviewedAt: string | null;
   fulfillment: string; shippingFee: number;
   recipientName: string | null; recipientPhone: string | null; shippingAddress: string | null;
+  sellerId?: string | null; sellerName?: string | null;
   // False (scoped president only) when the order also contains another team's
   // items — the president may see it but not approve/reject it.
   fullyInScope?: boolean;
@@ -260,7 +276,7 @@ async function exportProductXlsx(p: AdminProduct) {
 export default function AdminShopClient() {
   const { lang } = useLanguage();
   const th = lang === "th";
-  const [tab, setTab] = useState<"products" | "orders" | "settings">("products");
+  const [tab, setTab] = useState<"products" | "orders" | "settings" | "sellers">("products");
   // null until the context loads. A scoped president (club/major) never sees the
   // Settings tab — shop settings (QR, payment info, delivery) stay admin-only.
   const [ctx, setCtx] = useState<ShopContext | null>(null);
@@ -273,12 +289,15 @@ export default function AdminShopClient() {
   }, []);
 
   const scoped = ctx?.scoped ?? false;
+  const canEditSettings = ctx?.canEditSettings ?? false;
+  const canReviewMarketplace = ctx?.canReviewMarketplace ?? false;
   const tabs = ([
     ["products", Package, th ? "สินค้า" : "Products"],
     ["orders", ReceiptText, th ? "คำสั่งซื้อ" : "Orders"],
-    ...(scoped ? [] : [["settings", SettingsIcon, th ? "ตั้งค่า" : "Settings"] as const]),
+    ...(canReviewMarketplace ? [["sellers", Users, th ? "ผู้ขาย" : "Sellers"] as const] : []),
+    ...(canEditSettings ? [["settings", SettingsIcon, th ? "ตั้งค่า" : "Settings"] as const] : []),
   ] as const);
-  const activeTab = tab === "settings" && scoped ? "products" : tab;
+  const activeTab = (tab === "settings" && !canEditSettings) || (tab === "sellers" && !canReviewMarketplace) ? "products" : tab;
 
   return (
     <div className="pb-20">
@@ -288,11 +307,16 @@ export default function AdminShopClient() {
       </div>
 
       {scoped && (
-        <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16, fontWeight: 600 }}>
-          {th
-            ? "คุณเห็นเฉพาะสินค้าและคำสั่งซื้อของชมรม/สาขาที่คุณดูแล"
-            : "You're seeing only the products and orders your club / major owns."}
-        </p>
+        <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16, fontWeight: 600 }}>
+          <p>{th
+            ? "คุณเห็นเฉพาะสินค้าและคำสั่งซื้อของผู้ขาย/ชมรม/สาขาที่คุณดูแล"
+            : "You're seeing only the products and orders owned by you or your club / major."}</p>
+          {ctx?.seller?.status !== "approved" && (
+            <p style={{ marginTop: 4, color: "#b45309" }}>
+              {th ? "สมัครเป็นผู้ขายจากหน้าร้านค้าและรออนุมัติก่อนเพิ่มสินค้า/ตั้งค่าการรับเงิน" : "Apply to become a seller from the storefront and wait for approval before adding products or payout settings."}
+            </p>
+          )}
+        </div>
       )}
 
       <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
@@ -305,7 +329,8 @@ export default function AdminShopClient() {
 
       {activeTab === "products" && <ProductsTab th={th} ctx={ctx} />}
       {activeTab === "orders" && <OrdersTab th={th} ctx={ctx} />}
-      {activeTab === "settings" && !scoped && <SettingsTab th={th} />}
+      {activeTab === "sellers" && canReviewMarketplace && <SellersTab th={th} />}
+      {activeTab === "settings" && canEditSettings && <SettingsTab th={th} />}
     </div>
   );
 }
@@ -325,6 +350,8 @@ function ProductsTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
   const [editing, setEditing] = useState<AdminProduct | "new" | null>(null);
   const [exportingId, setExportingId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [approvalFilter, setApprovalFilter] = useState<"all" | "pending">("all");
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
 
   const exportProduct = async (p: AdminProduct) => {
     setExportingId(p.id);
@@ -358,11 +385,36 @@ function ProductsTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
     load();
   };
 
+  const reviewProduct = async (p: AdminProduct, action: "approve" | "reject") => {
+    const reason = action === "reject"
+      ? prompt(th ? "เหตุผลที่ปฏิเสธ (ผู้ขายจะเห็น)" : "Rejection reason (shown to seller)")
+      : undefined;
+    if (action === "reject" && !reason?.trim()) return;
+    setReviewingId(p.id);
+    try {
+      const res = await fetch(`/api/admin/shop/products/${p.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, reason: reason?.trim() }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "Review failed");
+      }
+      await load();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Review failed");
+    } finally {
+      setReviewingId(null);
+    }
+  };
+
   // Page the list (10/page). Clamp to a derived page so deleting the last row on the
   // final page falls back to a valid page instead of showing an empty one.
-  const totalPages = Math.max(1, Math.ceil(products.length / PAGE_SIZE));
+  const visibleProducts = approvalFilter === "pending" ? products.filter((p) => p.approvalStatus === "pending") : products;
+  const totalPages = Math.max(1, Math.ceil(visibleProducts.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
-  const pageProducts = products.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const pageProducts = visibleProducts.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   if (loading) return <Spinner />;
   if (loadError) return (
@@ -374,11 +426,27 @@ function ProductsTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
 
   return (
     <div>
-      <button onClick={() => setEditing("new")} className="btn btn-primary" style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
+      <button
+        onClick={() => setEditing("new")}
+        disabled={!ctx || Boolean(ctx.scoped && ctx.seller?.status !== "approved")}
+        className="btn btn-primary"
+        style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 20 }}
+      >
         <Plus size={18} />{th ? "เพิ่มสินค้า" : "New product"}
       </button>
 
-      {products.length === 0 ? (
+      {ctx?.canReviewMarketplace && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+          <button onClick={() => { setApprovalFilter("all"); setPage(1); }} className={approvalFilter === "all" ? "btn btn-primary" : "btn btn-ghost"} style={{ fontSize: 13, padding: "6px 12px" }}>
+            {th ? "สินค้าทั้งหมด" : "All products"} ({products.length})
+          </button>
+          <button onClick={() => { setApprovalFilter("pending"); setPage(1); }} className={approvalFilter === "pending" ? "btn btn-primary" : "btn btn-ghost"} style={{ fontSize: 13, padding: "6px 12px" }}>
+            {th ? "รออนุมัติ" : "Pending approval"} ({products.filter((p) => p.approvalStatus === "pending").length})
+          </button>
+        </div>
+      )}
+
+      {visibleProducts.length === 0 ? (
         <p style={{ color: "var(--text-muted)" }}>{th ? "ยังไม่มีสินค้า" : "No products yet."}</p>
       ) : (
         <div style={{ display: "grid", gap: 12 }}>
@@ -388,17 +456,29 @@ function ProductsTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
                 {p.imageUrls[0] ? <img src={p.imageUrls[0]} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--text-muted)" }}><Package size={20} /></div>}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontWeight: 700, fontSize: 15, overflowWrap: "anywhere", wordBreak: "break-word" }}>{p.name} {!p.isActive && <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>({th ? "ซ่อน" : "hidden"})</span>}{isAudienceLimited(p) && <span title={th ? "จำกัดผู้เห็น (บทบาท/สาขา/นักศึกษา)" : "Limited audience (roles/majors/students)"} style={{ fontSize: 11, color: "var(--accent-primary)", fontWeight: 700 }}> · {th ? "จำกัดผู้เห็น" : "limited"}</span>}<span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700 }}> · {ownerLabel(p, ownerOptions, th)}</span></p>
+                <p style={{ fontWeight: 700, fontSize: 15, overflowWrap: "anywhere", wordBreak: "break-word" }}>{p.name} {!p.isActive && <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>({th ? "ซ่อน" : "hidden"})</span>}{isAudienceLimited(p) && <span title={th ? "จำกัดผู้เห็น (บทบาท/สาขา/นักศึกษา)" : "Limited audience (roles/majors/students)"} style={{ fontSize: 11, color: "var(--accent-primary)", fontWeight: 700 }}> · {th ? "จำกัดผู้เห็น" : "limited"}</span>}<span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700 }}> · {p.sellerName || ownerLabel(p, ownerOptions, th)}</span></p>
                 <p style={{ fontSize: 13, color: "var(--text-muted)", overflowWrap: "anywhere", wordBreak: "break-word" }}>
                   {baht(p.price)} · {p.variants.map((v) => `${v.label}${v.stock != null ? ` ${Math.max(0, v.stock - (v.sold ?? 0))}/${v.stock}` : ""}`).join(", ")}
                   {p.maxPerOrder != null ? ` · ${th ? "จำกัด" : "max"} ${p.maxPerOrder}/${th ? "คน" : "person"}` : ""}
                 </p>
+                {p.sellerId && (
+                  <p style={{ fontSize: 12, marginTop: 3, color: p.approvalStatus === "approved" ? "#15803d" : p.approvalStatus === "rejected" ? "#dc2626" : "#b45309", fontWeight: 700 }}>
+                    {p.approvalStatus === "approved" ? (th ? "อนุมัติแล้ว" : "Approved") : p.approvalStatus === "rejected" ? (th ? "ถูกปฏิเสธ" : "Rejected") : (th ? "รออนุมัติ" : "Pending approval")}
+                    {p.approvalReason ? ` · ${p.approvalReason}` : ""}
+                  </p>
+                )}
                 {(p.opensAt || p.closesAt) && (
                   <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2, display: "inline-flex", alignItems: "center", gap: 4 }}>
                     <Clock size={12} style={{ flexShrink: 0 }} /> {p.opensAt ? new Date(p.opensAt).toLocaleString(th ? "th-TH" : "en-GB", { dateStyle: "medium", timeStyle: "short" }) : (th ? "เปิดอยู่" : "now")} → {p.closesAt ? new Date(p.closesAt).toLocaleString(th ? "th-TH" : "en-GB", { dateStyle: "medium", timeStyle: "short" }) : (th ? "ไม่กำหนด" : "open-ended")}
                   </p>
                 )}
               </div>
+              {ctx?.canReviewMarketplace && p.sellerId && p.approvalStatus !== "approved" && (
+                <div style={{ display: "flex", gap: 4 }}>
+                  <button onClick={() => reviewProduct(p, "reject")} disabled={reviewingId === p.id} className="btn btn-ghost" style={{ padding: 8, color: "#dc2626" }} title={th ? "ปฏิเสธ" : "Reject"} aria-label={th ? `ปฏิเสธ ${p.name}` : `Reject ${p.name}`}><XCircle size={16} /></button>
+                  <button onClick={() => reviewProduct(p, "approve")} disabled={reviewingId === p.id} className="btn btn-ghost" style={{ padding: 8, color: "#15803d" }} title={th ? "อนุมัติ" : "Approve"} aria-label={th ? `อนุมัติ ${p.name}` : `Approve ${p.name}`}>{reviewingId === p.id ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}</button>
+                </div>
+              )}
               <button onClick={() => exportProduct(p)} disabled={exportingId === p.id} className="btn btn-ghost" style={{ padding: 8 }} title={th ? "ส่งออกคำสั่งซื้อเป็น .xlsx" : "Export orders to .xlsx"}>
                 {exportingId === p.id ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
               </button>
@@ -409,7 +489,7 @@ function ProductsTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
         </div>
       )}
 
-      <Pagination th={th} page={safePage} total={products.length} onPage={setPage} />
+      <Pagination th={th} page={safePage} total={visibleProducts.length} onPage={setPage} />
 
       {editing && (
         <ProductForm
@@ -417,6 +497,7 @@ function ProductsTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
           product={editing === "new" ? null : editing}
           ownerOptions={ownerOptions}
           scoped={ctx?.scoped ?? false}
+          requiresOwner={ctx?.requiresOwner ?? false}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); load(); }}
         />
@@ -425,7 +506,7 @@ function ProductsTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
   );
 }
 
-function ProductForm({ th, product, ownerOptions, scoped, onClose, onSaved }: { th: boolean; product: AdminProduct | null; ownerOptions: OwnerOptions | null; scoped: boolean; onClose: () => void; onSaved: () => void }) {
+function ProductForm({ th, product, ownerOptions, scoped, requiresOwner, onClose, onSaved }: { th: boolean; product: AdminProduct | null; ownerOptions: OwnerOptions | null; scoped: boolean; requiresOwner: boolean; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState(product?.name ?? "");
   const [price, setPrice] = useState(product?.price ?? 0);
   const [description, setDescription] = useState(product?.description ?? "");
@@ -453,10 +534,10 @@ function ProductForm({ th, product, ownerOptions, scoped, onClose, onSaved }: { 
   // defaults to owning it with every club/major they lead; a full admin starts
   // blank (central).
   const [ownerClubIds, setOwnerClubIds] = useState<string[]>(
-    product?.ownerClubIds ?? (scoped ? (ownerOptions?.clubs.map((c) => c.id) ?? []) : [])
+    product?.ownerClubIds ?? (requiresOwner ? (ownerOptions?.clubs.map((c) => c.id) ?? []) : [])
   );
   const [ownerMajors, setOwnerMajors] = useState<string[]>(
-    product?.ownerMajors ?? (scoped ? (ownerOptions?.majors ?? []) : [])
+    product?.ownerMajors ?? (requiresOwner ? (ownerOptions?.majors ?? []) : [])
   );
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -488,7 +569,7 @@ function ProductForm({ th, product, ownerOptions, scoped, onClose, onSaved }: { 
     if (customFields.some((f) => !f.label.trim())) { setError(th ? "ช่องกรอกเองทุกช่องต้องมีชื่อ" : "Every custom field needs a label"); return; }
     if (customFields.some((f) => f.type === "select" && f.options.filter((o) => o.trim()).length === 0)) { setError(th ? "ช่องแบบตัวเลือกต้องมีอย่างน้อย 1 ตัวเลือก" : "A select field needs at least one option"); return; }
     if (customFields.some((f) => f.type === "select" && f.options.some((o) => o.trim().length > 1000))) { setError(th ? "แต่ละตัวเลือกต้องไม่เกิน 1000 ตัวอักษร" : "Each option must be 1000 characters or fewer"); return; }
-    if (scoped && ownerClubIds.length === 0 && ownerMajors.length === 0) { setError(th ? "เลือกชมรมหรือสาขาที่เป็นเจ้าของสินค้านี้" : "Pick the club or major that owns this product"); return; }
+    if (requiresOwner && ownerClubIds.length === 0 && ownerMajors.length === 0) { setError(th ? "เลือกชมรมหรือสาขาที่เป็นเจ้าของสินค้านี้" : "Pick the club or major that owns this product"); return; }
     setSaving(true);
     try {
       const body = {
@@ -586,11 +667,11 @@ function ProductForm({ th, product, ownerOptions, scoped, onClose, onSaved }: { 
           {/* Owner — which club/major manages this product + its orders. Does NOT
               affect who can buy it (that's the Audience section). Blank = central
               (SMO), which only super_admin/admin can manage. */}
-          {ownerOptions && (
+          {ownerOptions && (!scoped || requiresOwner) && (
             <Field
               label={th ? "ผู้ดูแลสินค้า (ชมรม/สาขา)" : "Managed by (club / major)"}
-              required={scoped}
-              hint={scoped
+              required={requiresOwner}
+              hint={requiresOwner
                 ? (th ? "เลือกได้เฉพาะที่คุณดูแล" : "Only the club/major you preside over")
                 : (th ? "เว้นว่าง = ส่วนกลาง (SMO)" : "Blank = central (SMO)")}
             >
@@ -1116,6 +1197,7 @@ function AdminOrderRow({ order, th, busy, scoped, onReview }: { order: AdminOrde
     <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-lg)", padding: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
         <div>
+          {order.sellerName && <p style={{ fontSize: 12, color: "var(--accent-primary)", fontWeight: 700, marginBottom: 2 }}>{th ? "ผู้ขาย: " : "Seller: "}{order.sellerName}</p>}
           <p style={{ fontWeight: 700, fontSize: 15 }}>{order.buyer.name ?? "—"} {order.buyer.nickname ? <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>({order.buyer.nickname})</span> : null}</p>
           <p style={{ fontSize: 12, color: "var(--text-muted)" }}>{order.buyer.studentId ?? ""} · {new Date(order.createdAt).toLocaleString(th ? "th-TH" : "en-GB")}</p>
         </div>
@@ -1237,9 +1319,111 @@ function AdminOrderRow({ order, th, busy, scoped, onReview }: { order: AdminOrde
   );
 }
 
+/* ------------------------------- Sellers -------------------------------- */
+
+function SellersTab({ th }: { th: boolean }) {
+  const [sellers, setSellers] = useState<SellerReviewRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/shop/sellers");
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !Array.isArray(body)) throw new Error(body?.error || "Couldn't load sellers");
+      setSellers(body);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't load sellers");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => { load(); }, 0);
+    return () => clearTimeout(timer);
+  }, [load]);
+
+  const review = async (seller: SellerReviewRow, action: "approve" | "reject" | "suspend") => {
+    const note = action === "approve" ? undefined : prompt(
+      action === "reject"
+        ? (th ? "เหตุผลที่ปฏิเสธ (ผู้สมัครจะเห็น)" : "Rejection reason (shown to applicant)")
+        : (th ? "เหตุผลที่ระงับ (ผู้ขายจะเห็น)" : "Suspension reason (shown to seller)"),
+    );
+    if (action === "reject" && !note?.trim()) return;
+    if (action === "suspend" && note === null) return;
+    setBusy(seller.id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/shop/sellers/${seller.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, note: note?.trim() || undefined }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || "Review failed");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Review failed");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (loading) return <Spinner />;
+  return (
+    <div>
+      <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16 }}>
+        {th
+          ? "ผู้สมัครต้องทำ onboarding แล้ว บัญชี Google ทุกโดเมนสมัครได้ การอนุมัติก่อนขายจึงเป็นด่านความไว้วางใจสำหรับการรับเงินและข้อมูลผู้ซื้อ"
+          : "Applicants must complete onboarding. Every Google email domain may apply, so approval is the trust gate for receiving payments and buyer data."}
+      </p>
+      {error && <p style={{ color: "#ef4444", fontSize: 13, marginBottom: 12 }}>{error}</p>}
+      {sellers.length === 0 ? (
+        <p style={{ color: "var(--text-muted)" }}>{th ? "ยังไม่มีคำขอผู้ขาย" : "No seller applications yet."}</p>
+      ) : (
+        <div style={{ display: "grid", gap: 12 }}>
+          {sellers.map((seller) => {
+            const pending = seller.status === "pending";
+            const approved = seller.status === "approved";
+            const color = approved ? "#15803d" : seller.status === "rejected" ? "#dc2626" : "#b45309";
+            return (
+              <div key={seller.id} style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-lg)", padding: 16, display: "flex", justifyContent: "space-between", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ fontWeight: 800, fontSize: 15 }}>{seller.displayName}</p>
+                  <p style={{ fontSize: 12, color: "var(--text-muted)", overflowWrap: "anywhere" }}>{seller.accountName} · {seller.accountEmail}</p>
+                  <p style={{ fontSize: 12, color, fontWeight: 700, marginTop: 3 }}>{seller.status}</p>
+                  {seller.reviewNote && <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3 }}>{seller.reviewNote}</p>}
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {approved ? (
+                    <button onClick={() => review(seller, "suspend")} disabled={busy === seller.id} className="btn btn-ghost" style={{ color: "#b45309", fontSize: 13 }}>
+                      {busy === seller.id && <Loader2 size={14} className="animate-spin" />} {th ? "ระงับ" : "Suspend"}
+                    </button>
+                  ) : (
+                    <>
+                      {pending && <button onClick={() => review(seller, "reject")} disabled={busy === seller.id} className="btn btn-ghost" style={{ color: "#dc2626", fontSize: 13 }}>{th ? "ปฏิเสธ" : "Reject"}</button>}
+                      <button onClick={() => review(seller, "approve")} disabled={busy === seller.id} className="btn btn-primary" style={{ fontSize: 13, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                        {busy === seller.id && <Loader2 size={14} className="animate-spin" />}{seller.status === "suspended" ? (th ? "คืนสถานะ" : "Restore") : (th ? "อนุมัติ" : "Approve")}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ------------------------------- Settings ------------------------------- */
 
 function SettingsTab({ th }: { th: boolean }) {
+  const [mode, setMode] = useState<"global" | "seller">("global");
   const [enabled, setEnabled] = useState(false);
   const [paymentInfo, setPaymentInfo] = useState("");
   const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
@@ -1256,6 +1440,7 @@ function SettingsTab({ th }: { th: boolean }) {
   useEffect(() => {
     fetch("/api/admin/shop/settings").then((r) => r.json()).then((d) => {
       if (d) {
+        setMode(d.mode === "seller" ? "seller" : "global");
         setEnabled(!!d.enabled); setPaymentInfo(d.paymentInfo ?? ""); setQrImageUrl(d.qrImageUrl ?? null);
         setDeliveryEnabled(!!d.deliveryEnabled); setDeliveryFee(String(d.deliveryFee ?? 0)); setPickupInfo(d.pickupInfo ?? "");
       }
@@ -1285,10 +1470,16 @@ function SettingsTab({ th }: { th: boolean }) {
 
   return (
     <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-lg)", padding: 24, maxWidth: 640, display: "flex", flexDirection: "column", gap: 20 }}>
-      <label style={{ display: "inline-flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
-        <span style={{ fontWeight: 700, fontSize: 15 }}>{th ? "เปิดร้านค้า" : "Shop open"}</span>
-      </label>
+      {mode === "global" ? (
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+          <span style={{ fontWeight: 700, fontSize: 15 }}>{th ? "เปิดร้านค้า" : "Shop open"}</span>
+        </label>
+      ) : (
+        <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>
+          {th ? "ข้อมูลด้านล่างใช้เฉพาะสินค้าของคุณ และผู้ซื้อจะชำระเงินถึงคุณโดยตรง" : "These details apply only to your products; buyers pay you directly."}
+        </p>
+      )}
 
       <Field label={th ? "QR พร้อมเพย์ / บัญชีธนาคาร" : "PromptPay / bank QR"}>
         {qrImageUrl ? (

@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { shopOrders, shopOrderItems, shopVariants } from "@/db/schema";
+import { shopOrders, shopOrderItems, shopSellers, shopVariants } from "@/db/schema";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { resolveShopAccess, classifyOrdersByScope } from "@/lib/shop-scope";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
@@ -20,6 +20,7 @@ const LABEL_BY_ACTION = { approve: "Approved", reject: "Rejected", revert: "Reve
 
 // Thrown inside the PATCH transaction when a "revert" would oversell stock.
 class RevertConflict extends Error {}
+class SellerInactive extends Error {}
 
 // PATCH /api/admin/shop/orders/[id] — approve or reject an order after viewing the
 // slip. Rejecting frees the reserved stock automatically (the sold/owned queries
@@ -34,16 +35,20 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const { id } = await params;
     const data = reviewSchema.parse(await req.json());
 
-    const [order] = await db.select({ id: shopOrders.id, status: shopOrders.status }).from(shopOrders).where(eq(shopOrders.id, id)).limit(1);
+    const [order] = await db
+      .select({ id: shopOrders.id })
+      .from(shopOrders)
+      .where(eq(shopOrders.id, id))
+      .limit(1);
     if (!order) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
     // A scoped president may review an order only when EVERY line item is for a
     // product their club/major owns — approve/reject/revert is order-wide (stock,
-    // status), so a mixed-club order stays super_admin/admin only.
+    // status), so a mixed-club order stays with an unscoped shop reviewer.
     if (!access.unscoped) {
-      const info = (await classifyOrdersByScope([id], access.scope)).get(id);
+      const info = (await classifyOrdersByScope([id], access.scope, access.sellerId)).get(id);
       if (!info?.anyOwned) {
         return NextResponse.json({ error: "Not found" }, { status: 404 });
       }
@@ -59,6 +64,25 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const isRevert = data.action === "revert";
 
     await db.transaction(async (tx) => {
+      // Lock the order and seller status for the whole review transaction.
+      // Seller approval/suspension takes FOR UPDATE on the same seller row, so
+      // neither operation can race past the other's decision.
+      const [lockedOrder] = await tx
+        .select({ sellerId: shopOrders.sellerId })
+        .from(shopOrders)
+        .where(eq(shopOrders.id, id))
+        .limit(1)
+        .for("update");
+      if (lockedOrder?.sellerId) {
+        const [seller] = await tx
+          .select({ status: shopSellers.status })
+          .from(shopSellers)
+          .where(eq(shopSellers.id, lockedOrder.sellerId))
+          .limit(1)
+          .for("share");
+        if (seller?.status !== "approved") throw new SellerInactive();
+      }
+
       // Reverting a rejected order back to 'pending' RE-COMMITS its reserved units.
       // Stock = variant.stock − Σ(qty of non-rejected orders); this order is still
       // 'rejected' here (excluded from that sum), so without a re-check the revert
@@ -131,6 +155,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     return NextResponse.json({ success: true, status: newStatus });
   } catch (error) {
+    if (error instanceof SellerInactive) {
+      return NextResponse.json({ error: "This seller is not active; order review is temporarily frozen." }, { status: 409 });
+    }
     if (error instanceof RevertConflict) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }

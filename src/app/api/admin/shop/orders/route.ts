@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { shopOrderItems, shopOrders, users } from "@/db/schema";
+import { shopOrderItems, shopOrders, shopSellers, users } from "@/db/schema";
 import { resolveShopAccess, classifyOrdersByScope } from "@/lib/shop-scope";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { desc, eq, inArray } from "drizzle-orm";
@@ -41,18 +41,21 @@ export async function GET(req: Request) {
         recipientName: shopOrders.recipientName,
         recipientPhone: shopOrders.recipientPhone,
         shippingAddress: shopOrders.shippingAddress,
+        sellerId: shopOrders.sellerId,
+        sellerName: shopSellers.displayName,
         buyerName: users.name,
         buyerStudentId: users.studentId,
         buyerNickname: users.nickname,
       })
       .from(shopOrders)
       .leftJoin(users, eq(shopOrders.buyerId, users.id))
+      .leftJoin(shopSellers, eq(shopOrders.sellerId, shopSellers.id))
       .orderBy(desc(shopOrders.createdAt));
 
     // For a scoped president, keep only orders with a line item they own.
     const scopeInfo = access.unscoped
       ? null
-      : await classifyOrdersByScope(allOrders.map((o) => o.id), access.scope);
+      : await classifyOrdersByScope(allOrders.map((o) => o.id), access.scope, access.sellerId);
     const orders = scopeInfo ? allOrders.filter((o) => scopeInfo.get(o.id)?.anyOwned) : allOrders;
 
     // Bulk PII read — the review queue exposes every buyer/recipient name, phone
@@ -87,13 +90,16 @@ export async function GET(req: Request) {
         recipientName: o.recipientName,
         recipientPhone: o.recipientPhone,
         shippingAddress: o.shippingAddress,
+        sellerId: o.sellerId,
+        sellerName: o.sellerName,
         // A scoped president may only review an order that is entirely theirs.
         fullyInScope: info ? info.fullyOwned : true,
         buyer: { name: o.buyerName, studentId: o.buyerStudentId, nickname: o.buyerNickname },
         items: items
           .filter((i) => i.orderId === o.id)
-          // Strip line items for products outside a president's scope.
-          .filter((i) => !info || (i.productId != null && info.ownedProductIds.has(i.productId)))
+          // A direct seller owns the order snapshot even if a product was later
+          // deleted; legacy president scope still requires a live owned product.
+          .filter((i) => !info || info.directSellerOrder || (i.productId != null && info.ownedProductIds.has(i.productId)))
           .map((i) => ({ productName: i.productName, variantLabel: i.variantLabel, customValues: i.customValues ?? null, unitPrice: i.unitPrice, quantity: i.quantity })),
       };
     });

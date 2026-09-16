@@ -2,11 +2,11 @@
 
 **Status: IMPLEMENTED** (`feat/shop-president-scope`).
 
-Not to be confused with `shop-marketplace.md` — that's a separate, larger
-"multi-seller with per-seller payout QR" design that is still unbuilt. This
-change is the small version: the existing single-shop model gains a per-product
-*owner* so `club_president` / `major_president` can manage their own club/major's
-merch without seeing everyone else's.
+This ownership scope now composes with the implemented marketplace in
+`shop-marketplace.md`: a club/major president first applies for seller approval,
+then receives a seller-owned payout/fulfilment profile while the existing
+club/major owner fields continue to constrain which organization the product is
+listed for.
 
 ## Problem
 
@@ -24,11 +24,11 @@ management only**; they do NOT affect storefront visibility (that's still
 `super_admin`/`admin` only, hidden from every president. Existing products are
 all central until an admin assigns an owner.
 
-- `isShopAdmin(session)` — unchanged: `super_admin`/`admin`. The *unscoped* gate
-  (shop settings, "see everything").
-- `isShopManager(session)` — new: `isShopAdmin` **or** `club_president` /
-  `major_president`. The "may enter the shop admin area" gate — used by the page
-  and every `/api/admin/shop` route, which then branch on `isShopAdmin`.
+- `isShopAdmin(session)` — `super_admin`/`admin` plus SMO Finance. The *unscoped*
+  gate (global settings, seller/product review, "see everything").
+- `isShopManager(session)` — `isShopAdmin`, `club_president`,
+  `major_president`, or the additive `shop_seller` capability. The page gate and
+  every `/api/admin/shop` route then resolve a DB-backed seller/organization scope.
 - Scope resolution reuses `EventScopeService.getPresidentScope(userId, roles)` →
   `{ clubIds, majors }`. `resolveShopAccess(session)` (`src/lib/shop-scope.ts`)
   returns `{ unscoped: true }` or `{ unscoped: false, scope }`.
@@ -45,7 +45,8 @@ all central until an admin assigns an owner.
 | Per-product `.xlsx` export | Only for a product they own. |
 | Orders review queue | Only orders with ≥1 line item for a product they own. Other teams' line items in a mixed order are **stripped** from the response. Buyer contact/shipping shown (needed for fulfilment) and audit-logged. |
 | Approve / reject / revert + view slip | Only for an order where **every** line item is theirs (`fullyInScope`). A mixed-club order is read-only for them — a shop admin reviews it. |
-| Shop settings (QR, payment info, delivery) | No access — stays `isShopAdmin`. Settings tab hidden in the UI. |
+| Shop settings (QR, payment info, flat-fee delivery, pickup instructions) | Available after the president's seller application is approved; stored on that seller identity, never in the global SMO settings. |
+| Product publication | A president-created product starts `pending`; `admin`/`super_admin`/SMO Finance must approve it before the storefront exposes it. |
 
 The accountability mechanism for the broadened access is the audit log (same
 posture as the club/major-president medical-detail tier in `CLAUDE.md`).

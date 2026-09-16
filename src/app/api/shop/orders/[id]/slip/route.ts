@@ -44,7 +44,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       // for products their club/major owns (same rule as reviewing it).
       const access = await resolveShopAccess(session);
       if (access.ok && !access.unscoped) {
-        const info = (await classifyOrdersByScope([id], access.scope)).get(id);
+        const info = (await classifyOrdersByScope([id], access.scope, access.sellerId)).get(id);
         scopedOk = !!info?.anyOwned && !!info?.fullyOwned;
       }
       if (!scopedOk) {

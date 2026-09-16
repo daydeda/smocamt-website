@@ -10,6 +10,8 @@ import {
   isScannerOnlyRole,
   canGiveIndividualScore,
   adminLandingHref,
+  adminLandingHrefForRoles,
+  isShopFinancePosition,
 } from "@/lib/admin-access";
 
 // Every role the live model defines (users.role / users.roles[]), per CLAUDE.md +
@@ -26,14 +28,15 @@ const ALL_ROLES = [
   "super_admin",
   "club_president",
   "major_president",
+  "shop_seller",
 ] as const;
 
 // Non-role inputs the predicates must treat as "no access".
 const NON_ROLES: (string | null | undefined)[] = [undefined, null, "", "Admin", "SUPER_ADMIN", "guest", "root"];
 
 describe("admin-access constants (source of truth)", () => {
-  it("scanner-only roles are exactly smo, club_president, major_president", () => {
-    expect([...SCANNER_ONLY_ROLES].sort()).toEqual(["club_president", "major_president", "smo"]);
+  it("scanner-only roles include the shop-confined seller capability", () => {
+    expect([...SCANNER_ONLY_ROLES].sort()).toEqual(["club_president", "major_president", "shop_seller", "smo"]);
   });
 
   it("every scanner-only role is also an admin-entry role", () => {
@@ -98,6 +101,7 @@ describe("isScannerOnlyRole", () => {
     expect(isScannerOnlyRole("smo")).toBe(true);
     expect(isScannerOnlyRole("club_president")).toBe(true);
     expect(isScannerOnlyRole("major_president")).toBe(true);
+    expect(isScannerOnlyRole("shop_seller")).toBe(true);
   });
 
   it("full admin roles are NOT scanner-only", () => {
@@ -147,6 +151,7 @@ describe("adminLandingHref", () => {
     expect(adminLandingHref("smo")).toBe(SCANNER_HREF);
     expect(adminLandingHref("club_president")).toBe(SCANNER_HREF);
     expect(adminLandingHref("major_president")).toBe(SCANNER_HREF);
+    expect(adminLandingHref("shop_seller")).toBe(SCANNER_HREF);
   });
 
   it("full admin roles land on the dashboard", () => {
@@ -187,5 +192,26 @@ describe("isScannerOnlyAllowedPath", () => {
     expect(isScannerOnlyAllowedPath("/admin/events/123")).toBe(false);
     expect(isScannerOnlyAllowedPath("/admin/scanner/extra")).toBe(false);
     expect(isScannerOnlyAllowedPath("/admin/")).toBe(false);
+  });
+
+  it("confines a seller-only role to /admin/shop", () => {
+    expect(isScannerOnlyAllowedPath("/admin/shop", ["student", "shop_seller"])).toBe(true);
+    expect(isScannerOnlyAllowedPath("/admin/events", ["student", "shop_seller"])).toBe(false);
+    expect(isScannerOnlyAllowedPath("/admin/scanner", ["student", "shop_seller"])).toBe(false);
+    expect(adminLandingHrefForRoles(["student", "shop_seller"])).toBe("/admin/shop");
+  });
+
+  it("preserves the existing confined pages when a seller also holds a staff position", () => {
+    expect(isScannerOnlyAllowedPath("/admin/events", ["student", "shop_seller"], true)).toBe(true);
+    expect(isScannerOnlyAllowedPath("/admin/shop", ["student", "shop_seller"], true)).toBe(true);
+  });
+});
+
+describe("isShopFinancePosition", () => {
+  it("grants marketplace review only to an SMO finance holder", () => {
+    expect(isShopFinancePosition(["smo"], "finance")).toBe(true);
+    expect(isShopFinancePosition(["anusmo"], "finance")).toBe(false);
+    expect(isShopFinancePosition(["smo"], "registration")).toBe(false);
+    expect(isShopFinancePosition(["student"], "finance")).toBe(false);
   });
 });

@@ -140,7 +140,7 @@ export function AdminLayoutWrapper({
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-[var(--text-primary)] truncate">{user.name}</p>
               <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
-                {user.role === "super_admin" ? "Super Admin" : user.role === "registration" ? "Registration" : user.role === "organizer" ? "Organizer" : user.role === "smo" ? "SMO" : user.role === "club_president" ? "Club President" : user.role === "major_president" ? "Major President" : "Administrator"}
+                {user.role === "super_admin" ? "Super Admin" : user.role === "registration" ? "Registration" : user.role === "organizer" ? "Organizer" : user.role === "smo" ? "SMO" : user.role === "club_president" ? "Club President" : user.role === "major_president" ? "Major President" : user.role === "shop_seller" ? "Seller" : "Administrator"}
               </p>
             </div>
           </div>

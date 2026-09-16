@@ -22,7 +22,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const { id } = await params;
 
     const [product] = await db
-      .select({ name: shopProducts.name, ownerClubIds: shopProducts.ownerClubIds, ownerMajors: shopProducts.ownerMajors })
+      .select({ name: shopProducts.name, sellerId: shopProducts.sellerId, ownerClubIds: shopProducts.ownerClubIds, ownerMajors: shopProducts.ownerMajors })
       .from(shopProducts)
       .where(eq(shopProducts.id, id))
       .limit(1);
@@ -30,7 +30,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
     // A scoped president may only export orders for a product their club/major owns.
-    if (!access.unscoped && !isProductOwnedByScope(product, access.scope)) {
+    if (!access.unscoped && !isProductOwnedByScope(product, access.scope, access.sellerId)) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 

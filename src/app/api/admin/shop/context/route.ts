@@ -36,7 +36,16 @@ export async function GET() {
           majors: ALL_MAJORS.filter((m) => access.scope.majors.includes(m)),
         };
 
-    return NextResponse.json({ scoped: !access.unscoped, ownerOptions });
+    return NextResponse.json({
+      scoped: !access.unscoped,
+      ownerOptions,
+      // Unscoped reviewers edit the central SMO settings. A scoped account may
+      // edit its own payout/fulfilment settings only after seller approval.
+      canEditSettings: access.unscoped || Boolean(access.sellerId),
+      canReviewMarketplace: access.unscoped,
+      requiresOwner: !access.unscoped && (access.scope.clubIds.length > 0 || access.scope.majors.length > 0),
+      seller: access.unscoped ? null : access.seller,
+    });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

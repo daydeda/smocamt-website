@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { shopOrderItems, shopOrders, shopProducts, shopSettings, shopVariants, users } from "@/db/schema";
+import { shopOrderItems, shopOrders, shopProducts, shopSellers, shopSettings, shopVariants, users } from "@/db/schema";
 import { buildViewer, isEligibleFor } from "@/lib/event-access";
 import { validateCustomAnswers } from "@/lib/shop-custom-fields";
 import { computeProductDeliveryFee } from "@/lib/shop-delivery";
@@ -61,6 +61,14 @@ export async function GET() {
       .orderBy(desc(shopOrders.createdAt));
 
     const orderIds = orders.map((o) => o.id);
+    const sellerIds = [...new Set(orders.map((o) => o.sellerId).filter((id): id is string => !!id))];
+    const sellers = sellerIds.length
+      ? await db
+          .select({ id: shopSellers.id, displayName: shopSellers.displayName })
+          .from(shopSellers)
+          .where(inArray(shopSellers.id, sellerIds))
+      : [];
+    const sellerNameById = new Map(sellers.map((seller) => [seller.id, seller.displayName]));
     const items = orderIds.length
       ? await db.select().from(shopOrderItems).where(inArray(shopOrderItems.orderId, orderIds))
       : [];
@@ -78,6 +86,7 @@ export async function GET() {
       recipientName: o.recipientName,
       recipientPhone: o.recipientPhone,
       shippingAddress: o.shippingAddress,
+      sellerName: o.sellerId ? sellerNameById.get(o.sellerId) ?? null : "SMO / CAMT",
       items: items
         .filter((i) => i.orderId === o.id)
         .map((i) => ({
@@ -202,6 +211,29 @@ export async function POST(req: Request) {
         .where(inArray(shopProducts.id, productIds));
       const productById = new Map(products.map((p) => [p.id, p]));
 
+      const sellerKeys = new Set(products.map((product) => product.sellerId ?? "central"));
+      if (sellerKeys.size !== 1) {
+        return { error: "Items from different sellers must be placed as separate orders.", status: 400 as const };
+      }
+      const sellerId = products[0]?.sellerId ?? null;
+      const [seller] = sellerId
+        ? await tx
+            .select({
+              status: shopSellers.status,
+              deliveryEnabled: shopSellers.deliveryEnabled,
+              deliveryFee: shopSellers.deliveryFee,
+            })
+            .from(shopSellers)
+            .where(eq(shopSellers.id, sellerId))
+            .limit(1)
+            // Serialize against approve/reject/suspend, which takes FOR UPDATE
+            // on this seller row, so an order cannot race through suspension.
+            .for("share")
+        : [null];
+      if (sellerId && seller?.status !== "approved") {
+        return { error: "This seller is not accepting orders right now.", status: 403 as const };
+      }
+
       // Units already committed (non-rejected) per variant, for the stock check.
       const soldRows = await tx
         .select({
@@ -238,7 +270,7 @@ export async function POST(req: Request) {
 
       for (const v of variants) {
         const product = productById.get(v.productId);
-        if (!product || !product.isActive || !isEligibleFor(product, viewer)) {
+        if (!product || !product.isActive || product.approvalStatus !== "approved" || !isEligibleFor(product, viewer)) {
           return { error: `"${product?.name ?? "An item"}" is no longer available.`, status: 400 as const };
         }
         // Sale window (server-authoritative — the client also hides it, but never trust that).
@@ -318,7 +350,9 @@ export async function POST(req: Request) {
       let recipientPhone: string | null = null;
       let shippingAddress: string | null = null;
       if (data.fulfillment === "delivery") {
-        if (!settings.deliveryEnabled) {
+        const deliveryEnabled = sellerId ? seller!.deliveryEnabled : settings.deliveryEnabled;
+        const defaultDeliveryFee = sellerId ? seller!.deliveryFee : settings.deliveryFee;
+        if (!deliveryEnabled) {
           return { error: "Delivery isn't available right now.", status: 403 as const };
         }
         recipientName = data.recipientName?.trim() || "";
@@ -331,7 +365,7 @@ export async function POST(req: Request) {
         // quantity (highest applicable tier wins), falling back to the shop-wide fee.
         for (const pid of productIds) {
           const product = productById.get(pid)!;
-          shippingFee += computeProductDeliveryFee(product, requestedByProduct.get(pid) ?? 0, settings.deliveryFee);
+          shippingFee += computeProductDeliveryFee(product, requestedByProduct.get(pid) ?? 0, defaultDeliveryFee);
         }
       }
       total += shippingFee;
@@ -340,6 +374,7 @@ export async function POST(req: Request) {
         .insert(shopOrders)
         .values({
           buyerId,
+          sellerId,
           status: "pending",
           slipPath: data.slipPath,
           slipHash,

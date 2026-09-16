@@ -88,7 +88,7 @@ export async function proxy(req: NextRequest) {
   if (
     isScannerOnly &&
     pathname.startsWith("/admin") &&
-    !isScannerOnlyAllowedPath(pathname)
+    !isScannerOnlyAllowedPath(pathname, roles, user.hasStaffPosition)
   ) {
     return NextResponse.redirect(new URL(SCANNER_HREF, req.url));
   }

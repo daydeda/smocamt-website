@@ -8,7 +8,9 @@ import { ClubsService } from "@/modules/clubs/clubs.service";
 import { EventProposalsService } from "@/modules/events/event-proposals.service";
 import { MajorsService } from "@/modules/majors/majors.service";
 import { majorsForFaculty, DEFAULT_FACULTY } from "@/lib/faculties";
-import { NextResponse } from "next/server";
+import { getProposalReviewerUserIds } from "@/modules/notifications/push-audience";
+import { PushService } from "@/modules/notifications/push.service";
+import { after, NextResponse } from "next/server";
 import { z } from "zod";
 import { sessionsHaveInvalidSpan } from "@/lib/event-schema";
 
@@ -235,6 +237,18 @@ export async function POST(req: Request) {
       });
 
       return proposal;
+    });
+
+    // Runs after the response is sent — a push send must never add latency to
+    // (or fail) the proposal submission itself.
+    after(async () => {
+      const reviewerIds = await getProposalReviewerUserIds();
+      await PushService.sendToUserIds(reviewerIds, {
+        title: "New event proposal",
+        body: `"${created.title}" is waiting for review.`,
+        url: "/admin/proposals",
+        tag: `proposal:${created.id}`,
+      });
     });
 
     return NextResponse.json({ success: true, proposal: created }, { status: 201 });

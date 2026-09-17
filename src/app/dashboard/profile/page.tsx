@@ -13,6 +13,7 @@ import { compressImageFile } from "@/lib/compress-image";
 import { useRouter } from "next/navigation";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { FACULTIES, majorsForFaculty, facultyFromStudentId } from "@/lib/faculties";
+import { PushNotificationToggle } from "@/components/PushNotificationToggle";
 
 // Rich CAMT major labels; other faculties show their bare code.
 const MAJOR_LABELS: Record<string, string> = {
@@ -403,6 +404,8 @@ export default function ProfilePage() {
           </div>
           <LanguageSwitcher variant="segmented" />
         </div>
+
+        <PushNotificationToggle />
 
         <form onSubmit={handleSubmit} className="animate-fade-in-up">
           <div className="form-container">

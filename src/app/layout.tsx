@@ -50,6 +50,14 @@ export const metadata: Metadata = {
   keywords: ["CAMT", "CMU", "student activities", "house points", "attendance"],
   icons: {
     icon: "/smocamt-logo-icon.png",
+    apple: "/apple-icon.png",
+  },
+  // iOS ignores the web manifest for standalone-launch metadata, so it needs
+  // its own tags to open in a chromeless window from the home screen icon.
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "ActiveCAMT",
   },
 };
 
@@ -60,6 +68,7 @@ export const metadata: Metadata = {
 // inverted, or staff can't scan it.
 export const viewport: Viewport = {
   colorScheme: "light",
+  themeColor: "#ff6b00",
 };
 
 import { SessionProvider } from "@/components/providers/SessionProvider";
@@ -69,6 +78,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { MovedNotice } from "@/components/MovedNotice";
 import { isSiteMoved } from "@/lib/site-moved";
+import { PWARegister } from "@/components/PWARegister";
 
 // The app is now self-hosted at activecamt.camt.cmu.ac.th. The retired Vercel
 // deployment points at a separate, now-stale Supabase DB — so on Vercel we replace
@@ -92,6 +102,7 @@ export default function RootLayout({
             <LanguageWrapper>
               <SessionProvider>
                 {children}
+                <PWARegister />
                 <Analytics />
                 <SpeedInsights />
               </SessionProvider>

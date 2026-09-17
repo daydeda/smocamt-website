@@ -15,6 +15,7 @@ import { useLanguage } from "@/lib/LanguageContext";
 import { canEnterAdminAny, effectiveRoles } from "@/lib/admin-access";
 import { canAccessBattle } from "@/lib/battle-access";
 import { getPinnedItems, resolveHref, type NavContext } from "@/lib/nav-config";
+import { unsubscribePushBeforeSignOut } from "@/lib/push-client";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { ServicesLauncher } from "@/components/layout/ServicesLauncher";
 import { useState, useRef, useEffect } from "react";
@@ -646,7 +647,13 @@ return (
         {t.adminPanel}
       </Link>
     )}
-    <button className="dropdown-item text-danger" onClick={() => signOut({ callbackUrl: "/" })}>
+    <button
+      className="dropdown-item text-danger"
+      onClick={async () => {
+        await unsubscribePushBeforeSignOut();
+        signOut({ callbackUrl: "/" });
+      }}
+    >
       <LogOut size={16} />
       {t.signOut}
     </button>

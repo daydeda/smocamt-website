@@ -39,7 +39,11 @@ export async function proxy(req: NextRequest) {
     pathname.startsWith("/favicon.ico") ||
     pathname.startsWith("/smocamt-logo.png") ||
     pathname.startsWith("/smocamt-logo-icon.png") ||
-    pathname.startsWith("/icon.png");
+    pathname.startsWith("/icon.png") ||
+    pathname.startsWith("/apple-icon.png") ||
+    pathname === "/manifest.webmanifest" ||
+    pathname === "/sw.js" ||
+    pathname.startsWith("/icons/");
 
   if (isPublicPath) {
     return NextResponse.next();
@@ -124,5 +128,5 @@ export const config = {
   // and gating them sent <img> requests to /login, rendering as broken images.
   // Supabase-backed deploys serve these from a cross-origin URL the proxy never
   // sees, so this only affects the self-hosted (local-disk) deploy.
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|smocamt-logo.png|smocamt-logo-icon.png|icon.png|uploads).*)"],
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|smocamt-logo.png|smocamt-logo-icon.png|icon.png|apple-icon.png|manifest.webmanifest|sw.js|icons|uploads).*)"],
 };

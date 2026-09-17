@@ -50,8 +50,16 @@ jobs:
           # URL), so a repo Variable, not a Secret: Settings → Secrets and
           # variables → Actions → Variables → NEXT_PUBLIC_SONGSUE_DASHBOARD_URL
           # (e.g. https://songsue.vercel.app/dashboard).
+          #
+          # NEXT_PUBLIC_VAPID_PUBLIC_KEY: the Web Push VAPID public key (see
+          # docs/features/push-notifications.md). Also a repo Variable, not a
+          # Secret — it's designed to reach the browser. Generate the pair
+          # once with `npx web-push generate-vapid-keys`; the matching
+          # VAPID_PRIVATE_KEY + VAPID_SUBJECT are runtime env vars in
+          # docker-stack.yml instead (server-only, never here).
           build-args: |
             NEXT_PUBLIC_SONGSUE_DASHBOARD_URL=${{ vars.NEXT_PUBLIC_SONGSUE_DASHBOARD_URL }}
+            NEXT_PUBLIC_VAPID_PUBLIC_KEY=${{ vars.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
 
       # Auto-deploy: tell Portainer to re-pull the new image and redeploy the
       # stack. Runs only once PORTAINER_WEBHOOK_URL is set as a repo secret (until

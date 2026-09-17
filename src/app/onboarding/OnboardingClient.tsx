@@ -8,6 +8,7 @@ import { useLanguage } from "@/lib/LanguageContext";
 import { compressImageFile } from "@/lib/compress-image";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { FACULTIES, majorsForFaculty, facultyFromStudentId } from "@/lib/faculties";
+import { unsubscribePushBeforeSignOut } from "@/lib/push-client";
 
 // Rich CAMT major labels; other faculties show their bare code (or no Major
 // dropdown at all until their major lists are provided).
@@ -803,8 +804,9 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
         {/* Footer Actions */}
         <div style={{ marginTop: "auto", paddingTop: 16, borderTop: "1px solid var(--border-subtle)", display: "flex", flexDirection: "column", gap: 12 }}>
           <button
-            onClick={() => {
+            onClick={async () => {
               setDrawerOpen(false);
+              await unsubscribePushBeforeSignOut();
               signOut({ callbackUrl: "/" });
             }}
             className="btn btn-ghost btn-sm"
@@ -902,7 +904,10 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
             <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 12, paddingTop: 24 }}>
               <LanguageSwitcher variant="segmented" fullWidth />
               <button
-                onClick={() => signOut({ callbackUrl: "/" })}
+                onClick={async () => {
+                  await unsubscribePushBeforeSignOut();
+                  signOut({ callbackUrl: "/" });
+                }}
                 className="btn btn-ghost btn-sm"
                 style={{ gap: 8, justifyContent: "flex-start", color: "var(--text-muted)", fontSize: 13 }}
               >

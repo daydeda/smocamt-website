@@ -5,8 +5,9 @@ import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { resolveShopAccess, classifyOrdersByScope } from "@/lib/shop-scope";
 import { validateCustomAnswers } from "@/lib/shop-custom-fields";
 import { computeProductDeliveryFee } from "@/lib/shop-delivery";
+import { PushService } from "@/modules/notifications/push.service";
 import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -180,6 +181,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         ipAddress: getClientIp(req),
       });
     });
+
+    // "revert" just re-opens the order for review — nothing new to tell the buyer.
+    if (data.action !== "revert") {
+      after(async () => {
+        const [buyer] = await db.select({ buyerId: shopOrders.buyerId }).from(shopOrders).where(eq(shopOrders.id, id)).limit(1);
+        if (!buyer) return;
+        await PushService.sendToUserIds([buyer.buyerId], {
+          title: data.action === "approve" ? "Order approved" : "Order rejected",
+          // Deliberately never includes staff free-text (rejectionReason) in a
+          // push body — it renders on a lock screen. Full detail stays in-app.
+          body: data.action === "approve" ? "Your shop order was approved." : "Your shop order was rejected. Open the app for details.",
+          url: "/dashboard/shop",
+          tag: `shop-order-decision:${id}`,
+        });
+      });
+    }
 
     return NextResponse.json({ success: true, status: newStatus });
   } catch (error) {

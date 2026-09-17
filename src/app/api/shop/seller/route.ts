@@ -2,8 +2,10 @@ import { auth } from "@/auth";
 import { db } from "@/db";
 import { shopSellers } from "@/db/schema";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
+import { getShopAdminUserIds } from "@/modules/notifications/push-audience";
+import { PushService } from "@/modules/notifications/push.service";
 import { eq } from "drizzle-orm";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -98,6 +100,17 @@ export async function POST(req: Request) {
     if ("conflict" in result) {
       return NextResponse.json({ error: result.conflict }, { status: 409 });
     }
+
+    after(async () => {
+      const adminIds = await getShopAdminUserIds();
+      await PushService.sendToUserIds(adminIds, {
+        title: "New shop seller application",
+        body: `${data.displayName} applied to sell in the shop.`,
+        url: "/admin/shop",
+        tag: `seller-application:${session.user!.id}`,
+      });
+    });
+
     return NextResponse.json({ success: true }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {

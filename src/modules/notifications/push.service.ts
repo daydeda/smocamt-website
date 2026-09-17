@@ -130,8 +130,18 @@ export class PushService {
         .set({ lastSuccessAt: new Date(), failureCount: 0 })
         .where(eq(pushSubscriptions.id, sub.id));
     } catch (error) {
-      const statusCode = (error as { statusCode?: number } | null)?.statusCode;
+      const webPushError = error as { statusCode?: number; body?: string; message?: string } | null;
+      const statusCode = webPushError?.statusCode;
       const newFailureCount = sub.failureCount + 1;
+      // Logged (not swallowed) — a wrong VAPID key, malformed subject, or a
+      // push-service-side rejection otherwise fails with zero trace anywhere,
+      // making it undiagnosable without direct DB access. sub.id + statusCode
+      // + the push service's own error body is enough to pinpoint the cause
+      // without dumping the full subscription endpoint URL into logs.
+      console.error(
+        `Push send failed for subscription ${sub.id} (status ${statusCode ?? "n/a"}, failure #${newFailureCount}):`,
+        webPushError?.body || webPushError?.message || error,
+      );
       if (shouldPruneAfterFailure(statusCode, newFailureCount)) {
         await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, sub.id));
       } else {

@@ -1323,7 +1323,7 @@ function AdminOrderRow({ order, th, busy, scoped, onReview, onEdit }: { order: A
           disabled={busy}
           className="btn btn-ghost"
           style={{ fontSize: 13, padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10 }}
-          title={th ? "แก้ไขตัวเลือก/ช่องกรอก/ที่อยู่จัดส่งของคำสั่งซื้อนี้" : "Fix this order's option, personalization fields, or delivery details"}
+          title={th ? "แก้ไขตัวเลือก/จำนวน/ช่องกรอก/ที่อยู่จัดส่งของคำสั่งซื้อนี้" : "Fix this order's option, quantity, personalization fields, or delivery details"}
         >
           <Pencil size={14} />{th ? "แก้ไขรายละเอียด" : "Edit details"}
         </button>
@@ -1365,7 +1365,7 @@ function AdminOrderRow({ order, th, busy, scoped, onReview, onEdit }: { order: A
 // Per-item edit draft. `custom` is keyed by the product's custom-field `key`
 // (not label — labels are display text, keys are what the API/order-placement
 // flow use to address a field).
-interface ItemDraft { itemId: string; productId: string | null; variantId: string; customValue: string; custom: Record<string, string> }
+interface ItemDraft { itemId: string; productId: string | null; variantId: string; quantity: string; customValue: string; custom: Record<string, string> }
 
 // Rebuild an editable draft for one order line from its current snapshot +
 // live product config: resolve the variant (falling back to the product's
@@ -1387,15 +1387,16 @@ function initialDraftFor(item: AdminOrderItem, product: AdminProduct | undefined
     const key = labelToKey.get(cv.label);
     if (key) custom[key] = cv.value;
   }
-  return { itemId: item.id, productId: item.productId, variantId, customValue, custom };
+  return { itemId: item.id, productId: item.productId, variantId, quantity: String(item.quantity), customValue, custom };
 }
 
 // Lets a shop admin/owner correct an order AFTER it was placed — the buyer
-// picked the wrong size, skipped a personalization field, or the delivery
-// address has a typo. Works at any order status. Scoped deliberately: only the
-// VARIANT (never the product or quantity) and personalization/delivery text
-// are editable, so stock/shipping accounting stays simple — see the PUT
-// handler in api/admin/shop/orders/[id]/route.ts.
+// picked the wrong size, ordered the wrong number of units, skipped a
+// personalization field, or the delivery address has a typo. Works at any
+// order status. Scoped deliberately: only the VARIANT (never the product
+// itself, and never adding/removing a line item), quantity, and
+// personalization/delivery text are editable, so stock/shipping accounting
+// stays simple — see the PUT handler in api/admin/shop/orders/[id]/route.ts.
 function EditOrderModal({ th, order, productById, productsLoaded, onClose, onSaved }: {
   th: boolean; order: AdminOrder; productById: Map<string, AdminProduct>; productsLoaded: boolean;
   onClose: () => void; onSaved: () => void;
@@ -1418,6 +1419,11 @@ function EditOrderModal({ th, order, productById, productsLoaded, onClose, onSav
     for (const d of drafts) {
       if (!d.productId) { setError(th ? "สินค้าบางรายการถูกลบไปแล้ว แก้ไขไม่ได้" : "One item's product no longer exists and can't be edited."); return; }
       if (!d.variantId) { setError(th ? "กรุณาเลือกตัวเลือกให้ครบทุกรายการ" : "Please choose an option for every item."); return; }
+      const qty = Number(d.quantity);
+      if (!Number.isInteger(qty) || qty < 1 || qty > 99) {
+        setError(th ? "จำนวนต้องเป็นจำนวนเต็มระหว่าง 1-99" : "Quantity must be a whole number between 1 and 99.");
+        return;
+      }
       const variant = productById.get(d.productId)?.variants.find((v) => v.id === d.variantId);
       if (variant?.allowCustom && !d.customValue.trim()) {
         setError(th ? `กรุณาระบุรายละเอียดสำหรับ "${variant.label}"` : `Please specify a value for "${variant.label}".`);
@@ -1432,7 +1438,7 @@ function EditOrderModal({ th, order, productById, productsLoaded, onClose, onSav
         body: JSON.stringify({
           note,
           ...(order.fulfillment === "delivery" ? { recipientName, recipientPhone, shippingAddress } : {}),
-          items: drafts.map((d) => ({ id: d.itemId, variantId: d.variantId, customValue: d.customValue.trim() || undefined, custom: d.custom })),
+          items: drafts.map((d) => ({ id: d.itemId, variantId: d.variantId, quantity: Number(d.quantity), customValue: d.customValue.trim() || undefined, custom: d.custom })),
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -1447,7 +1453,7 @@ function EditOrderModal({ th, order, productById, productsLoaded, onClose, onSav
 
   return (
     <div onClick={saving ? undefined : onClose} style={{ position: "fixed", inset: 0, zIndex: 2500, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg-surface)", borderRadius: "var(--radius-lg)", width: "100%", maxWidth: 520, maxHeight: "90vh", border: "1px solid var(--border-subtle)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg-surface)", borderRadius: "var(--radius-lg)", width: "100%", maxWidth: 640, maxHeight: "94vh", border: "1px solid var(--border-subtle)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: "1px solid var(--border-subtle)" }}>
           <p style={{ fontWeight: 800, fontSize: 16, display: "inline-flex", alignItems: "center", gap: 8 }}>
             <Pencil size={18} />{th ? "แก้ไขรายละเอียดคำสั่งซื้อ" : "Edit order details"}
@@ -1461,8 +1467,8 @@ function EditOrderModal({ th, order, productById, productsLoaded, onClose, onSav
           <div style={{ padding: 16, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
             <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>
               {th
-                ? "แก้ตัวเลือก/ช่องกรอกที่ผู้ซื้อเลือกผิดหรือลืมกรอก — ไม่เปลี่ยนสินค้าหรือจำนวนเดิม (ราคาจะคำนวณใหม่ตามตัวเลือกที่เลือก)"
-                : "Correct an option or personalization field the buyer got wrong or skipped. Product and quantity stay the same; price recalculates for the option you pick."}
+                ? "แก้ตัวเลือก/จำนวน/ช่องกรอกที่ผู้ซื้อเลือกผิดหรือลืมกรอก — สินค้ายังเป็นตัวเดิม เปลี่ยนได้แค่ตัวเลือกในตัวสินค้านั้น (ราคาจะคำนวณใหม่เฉพาะเมื่อเปลี่ยนตัวเลือก ไม่ใช่แค่เปลี่ยนจำนวน)"
+                : "Correct an option, quantity, or personalization field the buyer got wrong or skipped. The product itself stays the same; only its own options are swappable. Price only recalculates when the option actually changes, not just the quantity."}
             </p>
 
             {order.items.map((item, idx) => {
@@ -1479,7 +1485,17 @@ function EditOrderModal({ th, order, productById, productsLoaded, onClose, onSav
               const variant = product.variants.find((v) => v.id === draft.variantId);
               return (
                 <div key={item.id} style={{ border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", padding: 10, display: "flex", flexDirection: "column", gap: 10, background: "var(--bg-base)" }}>
-                  <p style={{ fontWeight: 700, fontSize: 14 }}>{product.name} × {item.quantity}</p>
+                  <p style={{ fontWeight: 700, fontSize: 14 }}>{product.name}</p>
+                  <Field label={th ? "จำนวน" : "Quantity"}>
+                    <input
+                      type="number"
+                      min={1}
+                      max={99}
+                      value={draft.quantity}
+                      onChange={(e) => setDraft(item.id, { quantity: e.target.value })}
+                      style={{ ...inputStyle, width: 100 }}
+                    />
+                  </Field>
                   {product.variants.length > 1 && (
                     <Field label={th ? "ตัวเลือก / ไซส์" : "Option / Size"}>
                       <FilterDropdown

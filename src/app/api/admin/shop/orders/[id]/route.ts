@@ -1,10 +1,11 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { shopOrders, shopOrderItems, shopProducts, shopSellers, shopVariants } from "@/db/schema";
+import { shopOrders, shopOrderItems, shopProducts, shopSellers, shopSettings, shopVariants } from "@/db/schema";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { resolveShopAccess, classifyOrdersByScope } from "@/lib/shop-scope";
 import { validateCustomAnswers } from "@/lib/shop-custom-fields";
-import { and, eq, inArray, ne, sql } from "drizzle-orm";
+import { computeProductDeliveryFee } from "@/lib/shop-delivery";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -39,6 +40,7 @@ const editSchema = z.object({
         // Swapping the variant is scoped to "pick the right option" — the new
         // variant must belong to the SAME product as the item being edited.
         variantId: z.string().uuid(),
+        quantity: z.number().int().min(1).max(99),
         // Required only when the chosen variant is an "Other (specify)" option.
         customValue: z.string().max(120).optional(),
         custom: z.record(z.string().max(40), z.string().max(500)).optional(),
@@ -199,15 +201,27 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 }
 
 // PUT /api/admin/shop/orders/[id] — let a shop admin/owner correct an order's
-// details after the fact (e.g. a buyer forgot to pick the right size, or typo'd
-// a jersey name). Editable at ANY status (pending/approved/rejected), because
-// the whole point is fixing a mistake that's already been reviewed. Scoped to:
-//   - per item: swap the VARIANT (must stay on the same product) + its
-//     "Other (specify)" text / custom-field answers — never the product itself
-//     or the quantity, to keep stock/shipping accounting simple and correct.
+// details after the fact (e.g. a buyer forgot to pick the right size, ordered
+// the wrong number of units, or typo'd a jersey name). Editable at ANY status
+// (pending/approved/rejected), because the whole point is fixing a mistake
+// that's already been reviewed. Scoped to:
+//   - per item: swap the VARIANT (must stay on the same product), its
+//     quantity, and its "Other (specify)" text / custom-field answers — never
+//     the product itself, and never adding/removing a line item, to keep
+//     stock/shipping accounting simple and correct.
 //   - order-level: note, and (delivery orders only) recipient name/phone/address.
-// A variant swap is re-priced (unitPrice = product.price + variant.priceDelta)
-// and re-validated against stock — same FOR UPDATE + oversell guard as revert.
+// A variant swap re-prices the line off the LIVE product price
+// (unitPrice = product.price + variant.priceDelta); a pure quantity change on
+// an otherwise-untouched line keeps its original (historical) unitPrice, only
+// the extended total moves. Either way, stock is re-validated for the new
+// (variant, quantity) pair — same FOR UPDATE + oversell guard as revert. A
+// quantity change on a delivery order also re-runs the per-product tiered
+// delivery fee (computeProductDeliveryFee) for the order's new quantities,
+// same as at checkout — but ONLY when a quantity actually changed, so an
+// unrelated edit can't silently move a historically-snapshotted shippingFee.
+// Deliberately does NOT re-check shop_products.maxPerOrder (the buyer-facing
+// per-product cap) — this is an explicit admin correction, not a buyer
+// self-service purchase, so that cap isn't re-enforced here.
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await auth();
@@ -359,8 +373,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         for (const item of existingItems) {
           const edit = editByItemId.get(item.id);
           const targetVariantId = edit ? edit.variantId : item.variantId;
+          const targetQty = edit ? edit.quantity : item.quantity;
           if (!targetVariantId) continue;
-          wantByVariant.set(targetVariantId, (wantByVariant.get(targetVariantId) ?? 0) + item.quantity);
+          wantByVariant.set(targetVariantId, (wantByVariant.get(targetVariantId) ?? 0) + targetQty);
         }
         for (const vid of variantIds) {
           const variant = variantById.get(vid)!;
@@ -381,7 +396,49 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         return av.length === bv.length && av.every((x, i) => x.label === bv[i]?.label && x.value === bv[i]?.value);
       };
 
-      let newTotal = lockedOrder.shippingFee;
+      // A per-product delivery fee can be quantity-tiered, so a quantity edit
+      // can change what's owed for shipping — but ONLY recompute it when a
+      // quantity actually changed. Otherwise, if the product's delivery
+      // config has since drifted, an edit that never touched quantity (e.g.
+      // just fixing the note) would silently move a historically-snapshotted
+      // shippingFee, the same snapshot-fidelity concern as unitPrice above.
+      let shippingFee = lockedOrder.shippingFee;
+      const anyQuantityChanged = existingItems.some((item) => {
+        const edit = editByItemId.get(item.id);
+        return edit && edit.quantity !== item.quantity;
+      });
+      if (anyQuantityChanged && lockedOrder.fulfillment === "delivery") {
+        const qtyByProduct = new Map<string, number>();
+        for (const item of existingItems) {
+          if (!item.productId) continue;
+          const edit = editByItemId.get(item.id);
+          const qty = edit ? edit.quantity : item.quantity;
+          qtyByProduct.set(item.productId, (qtyByProduct.get(item.productId) ?? 0) + qty);
+        }
+        const missingProductIds = [...qtyByProduct.keys()].filter((pid) => !productById.has(pid));
+        if (missingProductIds.length) {
+          const extraProducts = await tx.select().from(shopProducts).where(inArray(shopProducts.id, missingProductIds));
+          for (const p of extraProducts) productById.set(p.id, p);
+        }
+
+        let fallbackFee = 0;
+        if (lockedOrder.sellerId) {
+          const [seller] = await tx.select({ deliveryFee: shopSellers.deliveryFee }).from(shopSellers).where(eq(shopSellers.id, lockedOrder.sellerId)).limit(1);
+          fallbackFee = seller?.deliveryFee ?? 0;
+        } else {
+          const [settings] = await tx.select({ deliveryFee: shopSettings.deliveryFee }).from(shopSettings).orderBy(desc(shopSettings.updatedAt)).limit(1);
+          fallbackFee = settings?.deliveryFee ?? 0;
+        }
+
+        shippingFee = 0;
+        for (const [pid, qty] of qtyByProduct) {
+          const product = productById.get(pid);
+          if (!product) continue; // product since deleted — can't recompute its share, leave uncharged
+          shippingFee += computeProductDeliveryFee(product, qty, fallbackFee);
+        }
+      }
+
+      let newTotal = shippingFee;
       for (const item of existingItems) {
         const edit = editByItemId.get(item.id);
         if (!edit) {
@@ -402,23 +459,26 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         if (!customResult.ok) throw new EditValidation(customResult.error);
         const newCustomValues = customResult.snapshot.length ? customResult.snapshot : null;
 
-        // Only actually touch (and re-price off the LIVE product price) a line
-        // whose option/answers genuinely changed. Otherwise an admin who opens
-        // this just to fix the note/delivery address would silently reprice
-        // every untouched line to today's product price if it moved since the
-        // buyer paid — the snapshot posture (see productName/variantLabel
-        // comments in schema.ts) is "what was actually bought", not "what it
-        // costs today".
-        const unchanged = edit.variantId === item.variantId
-          && variantLabel === item.variantLabel
-          && customValuesEqual(item.customValues, newCustomValues);
-        if (unchanged) {
+        // Only re-price off the LIVE product price when the option/answers
+        // genuinely changed. Otherwise an admin who opens this just to fix the
+        // quantity or the delivery address would silently reprice every
+        // untouched line to today's product price if it moved since the buyer
+        // paid — the snapshot posture (see productName/variantLabel comments
+        // in schema.ts) is "what was actually bought", not "what it costs
+        // today". A pure quantity change keeps the line's historical unitPrice
+        // and only moves the extended total.
+        const optionChanged = edit.variantId !== item.variantId
+          || variantLabel !== item.variantLabel
+          || !customValuesEqual(item.customValues, newCustomValues);
+        const quantityChanged = edit.quantity !== item.quantity;
+
+        if (!optionChanged && !quantityChanged) {
           newTotal += item.unitPrice * item.quantity;
           continue;
         }
 
-        const unitPrice = product.price + (variant.priceDelta ?? 0);
-        newTotal += unitPrice * item.quantity;
+        const unitPrice = optionChanged ? product.price + (variant.priceDelta ?? 0) : item.unitPrice;
+        newTotal += unitPrice * edit.quantity;
 
         await tx
           .update(shopOrderItems)
@@ -427,11 +487,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
             variantLabel,
             customValues: newCustomValues,
             unitPrice,
+            quantity: edit.quantity,
           })
           .where(eq(shopOrderItems.id, item.id));
       }
 
-      const orderPatch: Partial<typeof shopOrders.$inferInsert> = { totalAmount: newTotal, updatedAt: new Date() };
+      const orderPatch: Partial<typeof shopOrders.$inferInsert> = { totalAmount: newTotal, shippingFee, updatedAt: new Date() };
       if (data.note !== undefined) orderPatch.note = data.note.trim() || null;
       if (lockedOrder.fulfillment === "delivery") {
         if (data.recipientName !== undefined) orderPatch.recipientName = data.recipientName.trim();
@@ -443,7 +504,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       await AuditService.logActionInternal(tx, {
         actorId: access.userId,
         targetId: id,
-        action: `Edited shop order ${id} (corrected option/personalization/delivery details)`,
+        action: `Edited shop order ${id} (corrected option/quantity/personalization/delivery details)`,
         ipAddress: getClientIp(req),
       });
     });

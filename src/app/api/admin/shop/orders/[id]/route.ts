@@ -1,8 +1,9 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { shopOrders, shopOrderItems, shopSellers, shopVariants } from "@/db/schema";
+import { shopOrders, shopOrderItems, shopProducts, shopSellers, shopVariants } from "@/db/schema";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { resolveShopAccess, classifyOrdersByScope } from "@/lib/shop-scope";
+import { validateCustomAnswers } from "@/lib/shop-custom-fields";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -21,6 +22,31 @@ const LABEL_BY_ACTION = { approve: "Approved", reject: "Rejected", revert: "Reve
 // Thrown inside the PATCH transaction when a "revert" would oversell stock.
 class RevertConflict extends Error {}
 class SellerInactive extends Error {}
+// Thrown inside the PUT (edit) transaction for a client-facing validation error.
+class EditValidation extends Error {}
+// Thrown inside the PUT (edit) transaction when a variant swap would oversell stock.
+class EditConflict extends Error {}
+
+const editSchema = z.object({
+  note: z.string().max(500).optional(),
+  recipientName: z.string().max(120).optional(),
+  recipientPhone: z.string().max(40).optional(),
+  shippingAddress: z.string().max(1000).optional(),
+  items: z
+    .array(
+      z.object({
+        id: z.string().uuid(),
+        // Swapping the variant is scoped to "pick the right option" — the new
+        // variant must belong to the SAME product as the item being edited.
+        variantId: z.string().uuid(),
+        // Required only when the chosen variant is an "Other (specify)" option.
+        customValue: z.string().max(120).optional(),
+        custom: z.record(z.string().max(40), z.string().max(500)).optional(),
+      })
+    )
+    .min(1)
+    .max(20),
+});
 
 // PATCH /api/admin/shop/orders/[id] — approve or reject an order after viewing the
 // slip. Rejecting frees the reserved stock automatically (the sold/owned queries
@@ -160,6 +186,278 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
     if (error instanceof RevertConflict) {
       return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: error.issues.map((e) => `${e.path.join(".")}: ${e.message}`).join(", ") },
+        { status: 400 }
+      );
+    }
+    console.error(error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  }
+}
+
+// PUT /api/admin/shop/orders/[id] — let a shop admin/owner correct an order's
+// details after the fact (e.g. a buyer forgot to pick the right size, or typo'd
+// a jersey name). Editable at ANY status (pending/approved/rejected), because
+// the whole point is fixing a mistake that's already been reviewed. Scoped to:
+//   - per item: swap the VARIANT (must stay on the same product) + its
+//     "Other (specify)" text / custom-field answers — never the product itself
+//     or the quantity, to keep stock/shipping accounting simple and correct.
+//   - order-level: note, and (delivery orders only) recipient name/phone/address.
+// A variant swap is re-priced (unitPrice = product.price + variant.priceDelta)
+// and re-validated against stock — same FOR UPDATE + oversell guard as revert.
+export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await auth();
+    const access = await resolveShopAccess(session);
+    if (!access.ok) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const { id } = await params;
+    const data = editSchema.parse(await req.json());
+
+    const [order] = await db
+      .select({ id: shopOrders.id })
+      .from(shopOrders)
+      .where(eq(shopOrders.id, id))
+      .limit(1);
+    if (!order) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    // Same scoping rule as review: a president may edit an order only when
+    // EVERY line item is for a product their club/major owns.
+    if (!access.unscoped) {
+      const info = (await classifyOrdersByScope([id], access.scope, access.sellerId)).get(id);
+      if (!info?.anyOwned) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
+      if (!info.fullyOwned) {
+        return NextResponse.json(
+          { error: "This order also contains items managed by another team — a shop admin must edit it." },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Cheap pre-check outside the transaction, purely for a nicer error before
+    // taking any locks — the transaction below re-reads the authoritative copy
+    // under FOR UPDATE and is what every decision actually uses.
+    const precheckItems = await db
+      .select({ id: shopOrderItems.id, productId: shopOrderItems.productId })
+      .from(shopOrderItems)
+      .where(eq(shopOrderItems.orderId, id));
+    for (const edit of data.items) {
+      const cur = precheckItems.find((i) => i.id === edit.id);
+      if (!cur) {
+        return NextResponse.json({ error: "One of the order items was not found." }, { status: 404 });
+      }
+      if (!cur.productId) {
+        return NextResponse.json(
+          { error: "This line's product no longer exists, so its option can't be edited." },
+          { status: 400 }
+        );
+      }
+    }
+
+    await db.transaction(async (tx) => {
+      // Lock the order + seller status for the whole edit (mirrors the review
+      // transaction), so a suspension — or a second concurrent edit — can't
+      // race an in-flight correction.
+      const [lockedOrder] = await tx
+        .select({ sellerId: shopOrders.sellerId, status: shopOrders.status, fulfillment: shopOrders.fulfillment, shippingFee: shopOrders.shippingFee })
+        .from(shopOrders)
+        .where(eq(shopOrders.id, id))
+        .limit(1)
+        .for("update");
+      if (!lockedOrder) throw new EditValidation("Not found");
+      if (lockedOrder.sellerId) {
+        const [seller] = await tx
+          .select({ status: shopSellers.status })
+          .from(shopSellers)
+          .where(eq(shopSellers.id, lockedOrder.sellerId))
+          .limit(1)
+          .for("share");
+        if (seller?.status !== "approved") throw new SellerInactive();
+      }
+
+      // Re-read the items under the lock just taken above — NOT the pre-check
+      // copy from before the transaction — so a concurrent edit/purchase can't
+      // make this transaction compute totals/stock from stale data.
+      const existingItems = await tx
+        .select({
+          id: shopOrderItems.id,
+          productId: shopOrderItems.productId,
+          variantId: shopOrderItems.variantId,
+          variantLabel: shopOrderItems.variantLabel,
+          customValues: shopOrderItems.customValues,
+          quantity: shopOrderItems.quantity,
+          unitPrice: shopOrderItems.unitPrice,
+        })
+        .from(shopOrderItems)
+        .where(eq(shopOrderItems.orderId, id))
+        .for("update");
+      const editByItemId = new Map(data.items.map((e) => [e.id, e]));
+      for (const edit of data.items) {
+        const cur = existingItems.find((i) => i.id === edit.id);
+        if (!cur) throw new EditValidation("One of the order items was not found.");
+        if (!cur.productId) throw new EditValidation("This line's product no longer exists, so its option can't be edited.");
+      }
+
+      if (lockedOrder.fulfillment === "delivery") {
+        for (const [field, value] of [
+          ["recipientName", data.recipientName],
+          ["recipientPhone", data.recipientPhone],
+          ["shippingAddress", data.shippingAddress],
+        ] as const) {
+          if (value !== undefined && value.trim() === "") {
+            throw new EditValidation(`"${field}" can't be left blank on a delivery order.`);
+          }
+        }
+      }
+
+      const variantIds = [...new Set(data.items.map((e) => e.variantId))];
+      const variants = variantIds.length
+        ? await tx.select().from(shopVariants).where(inArray(shopVariants.id, variantIds)).for("update")
+        : [];
+      const variantById = new Map(variants.map((v) => [v.id, v]));
+
+      const productIds = [...new Set(variants.map((v) => v.productId))];
+      const products = productIds.length
+        ? await tx.select().from(shopProducts).where(inArray(shopProducts.id, productIds))
+        : [];
+      const productById = new Map(products.map((p) => [p.id, p]));
+
+      // A swap must stay within the same product as the item being edited.
+      for (const edit of data.items) {
+        const cur = existingItems.find((i) => i.id === edit.id)!;
+        const variant = variantById.get(edit.variantId);
+        if (!variant || variant.productId !== cur.productId) {
+          throw new EditValidation("The new option must belong to the same product.");
+        }
+      }
+
+      // Re-validate stock for every distinct target variant, the same way a
+      // revert does: units already committed by OTHER orders (or other items
+      // within this order) must not exceed the variant's cap. Rejected orders
+      // don't count toward stock at all, so skip the check entirely for one.
+      if (lockedOrder.status !== "rejected" && variantIds.length) {
+        const soldRows = await tx
+          .select({
+            variantId: shopOrderItems.variantId,
+            sold: sql<number>`coalesce(sum(${shopOrderItems.quantity}), 0)`,
+          })
+          .from(shopOrderItems)
+          .innerJoin(shopOrders, eq(shopOrderItems.orderId, shopOrders.id))
+          .where(and(inArray(shopOrderItems.variantId, variantIds), ne(shopOrders.status, "rejected"), ne(shopOrderItems.orderId, id)))
+          .groupBy(shopOrderItems.variantId);
+        const soldByVariant = new Map(soldRows.map((r) => [r.variantId, Number(r.sold)]));
+
+        const wantByVariant = new Map<string, number>();
+        for (const item of existingItems) {
+          const edit = editByItemId.get(item.id);
+          const targetVariantId = edit ? edit.variantId : item.variantId;
+          if (!targetVariantId) continue;
+          wantByVariant.set(targetVariantId, (wantByVariant.get(targetVariantId) ?? 0) + item.quantity);
+        }
+        for (const vid of variantIds) {
+          const variant = variantById.get(vid)!;
+          if (variant.stock == null) continue;
+          const sold = soldByVariant.get(vid) ?? 0;
+          const want = wantByVariant.get(vid) ?? 0;
+          if (sold + want > variant.stock) {
+            throw new EditConflict(
+              `Cannot switch to "${variant.label}": only ${Math.max(0, variant.stock - sold)} left, but this order needs ${want}.`
+            );
+          }
+        }
+      }
+
+      const customValuesEqual = (a: { label: string; value: string }[] | null, b: { label: string; value: string }[] | null) => {
+        const av = a ?? [];
+        const bv = b ?? [];
+        return av.length === bv.length && av.every((x, i) => x.label === bv[i]?.label && x.value === bv[i]?.value);
+      };
+
+      let newTotal = lockedOrder.shippingFee;
+      for (const item of existingItems) {
+        const edit = editByItemId.get(item.id);
+        if (!edit) {
+          newTotal += item.unitPrice * item.quantity;
+          continue;
+        }
+        const variant = variantById.get(edit.variantId)!;
+        const product = productById.get(variant.productId)!;
+
+        let variantLabel = variant.label;
+        if (variant.allowCustom) {
+          const custom = (edit.customValue ?? "").trim();
+          if (!custom) throw new EditValidation(`Please specify a value for "${variant.label}" on ${product.name}.`);
+          variantLabel = `${variant.label}: ${custom}`;
+        }
+
+        const customResult = validateCustomAnswers(product.customFields, edit.custom, product.name);
+        if (!customResult.ok) throw new EditValidation(customResult.error);
+        const newCustomValues = customResult.snapshot.length ? customResult.snapshot : null;
+
+        // Only actually touch (and re-price off the LIVE product price) a line
+        // whose option/answers genuinely changed. Otherwise an admin who opens
+        // this just to fix the note/delivery address would silently reprice
+        // every untouched line to today's product price if it moved since the
+        // buyer paid — the snapshot posture (see productName/variantLabel
+        // comments in schema.ts) is "what was actually bought", not "what it
+        // costs today".
+        const unchanged = edit.variantId === item.variantId
+          && variantLabel === item.variantLabel
+          && customValuesEqual(item.customValues, newCustomValues);
+        if (unchanged) {
+          newTotal += item.unitPrice * item.quantity;
+          continue;
+        }
+
+        const unitPrice = product.price + (variant.priceDelta ?? 0);
+        newTotal += unitPrice * item.quantity;
+
+        await tx
+          .update(shopOrderItems)
+          .set({
+            variantId: variant.id,
+            variantLabel,
+            customValues: newCustomValues,
+            unitPrice,
+          })
+          .where(eq(shopOrderItems.id, item.id));
+      }
+
+      const orderPatch: Partial<typeof shopOrders.$inferInsert> = { totalAmount: newTotal, updatedAt: new Date() };
+      if (data.note !== undefined) orderPatch.note = data.note.trim() || null;
+      if (lockedOrder.fulfillment === "delivery") {
+        if (data.recipientName !== undefined) orderPatch.recipientName = data.recipientName.trim();
+        if (data.recipientPhone !== undefined) orderPatch.recipientPhone = data.recipientPhone.trim();
+        if (data.shippingAddress !== undefined) orderPatch.shippingAddress = data.shippingAddress.trim();
+      }
+      await tx.update(shopOrders).set(orderPatch).where(eq(shopOrders.id, id));
+
+      await AuditService.logActionInternal(tx, {
+        actorId: access.userId,
+        targetId: id,
+        action: `Edited shop order ${id} (corrected option/personalization/delivery details)`,
+        ipAddress: getClientIp(req),
+      });
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    if (error instanceof SellerInactive) {
+      return NextResponse.json({ error: "This seller is not active; order edits are temporarily frozen." }, { status: 409 });
+    }
+    if (error instanceof EditConflict) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+    if (error instanceof EditValidation) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
     if (error instanceof z.ZodError) {
       return NextResponse.json(

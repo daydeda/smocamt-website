@@ -1,10 +1,10 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { shopProducts, shopVariants } from "@/db/schema";
+import { shopOrderItems, shopProducts, shopVariants } from "@/db/schema";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { isOwnerAssignmentWithinScope, isProductOwnedByScope, isShopAdmin } from "@/lib/shop-auth";
 import { resolveShopAccess } from "@/lib/shop-scope";
-import { and, eq, notInArray } from "drizzle-orm";
+import { and, eq, notInArray, or, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { productSchema } from "@/lib/shop-product-schema";
@@ -74,8 +74,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     await db.transaction(async (tx) => {
-      const [existing] = await tx.select({ id: shopProducts.id }).from(shopProducts).where(eq(shopProducts.id, id)).limit(1);
+      const [existing] = await tx.select({ id: shopProducts.id, name: shopProducts.name }).from(shopProducts).where(eq(shopProducts.id, id)).limit(1);
       if (!existing) throw new z.ZodError([{ code: "custom", message: "Product not found", path: ["id"] }]);
+      // Snapshot current variant labels before the upsert loop below overwrites
+      // them, so a rename can be propagated to existing order lines afterward.
+      const priorVariants = await tx.select({ id: shopVariants.id, label: shopVariants.label }).from(shopVariants).where(eq(shopVariants.productId, id));
+      const priorLabelById = new Map(priorVariants.map((v) => [v.id, v.label]));
 
       await tx
         .update(shopProducts)
@@ -107,6 +111,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         })
         .where(eq(shopProducts.id, id));
 
+      // Order lines snapshot productName/variantLabel at checkout so past orders
+      // read as what was actually bought — but a rename (fixing a typo, or just
+      // renaming "Pre-order" -> "Pre-order2") otherwise splits an order's history
+      // across two names in every admin list/filter/export that groups by them.
+      // Propagate a rename to EVERY existing order line for this product
+      // (regardless of status), so they stay one consistent group.
+      if (existing.name !== data.name) {
+        await tx.update(shopOrderItems).set({ productName: data.name }).where(eq(shopOrderItems.productId, id));
+      }
+
       const keepIds = data.variants.map((v) => v.id).filter((v): v is string => Boolean(v));
       // Delete variants the admin removed.
       if (keepIds.length) {
@@ -123,6 +137,32 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
             .update(shopVariants)
             .set({ label: v.label, stock: v.stock, allowCustom: v.allowCustom, priceDelta: v.priceDelta, sortOrder: i })
             .where(and(eq(shopVariants.id, v.id), eq(shopVariants.productId, id)));
+
+          // Same propagation as the product name, for the variant label. A line's
+          // snapshot is either the bare label ("M") or, for an "Other (specify)"
+          // option, "M: <what the buyer typed>" — only replace the label PREFIX so
+          // the buyer's typed text survives. Matched with exact string ops
+          // (left()/char_length()), never LIKE, so a label containing a literal
+          // "%" or "_" (both SQL wildcards) can't widen the match; char_length()
+          // (not JS .length) keeps the cut point correct for multi-byte text.
+          // Guarded so a rename from "S" doesn't accidentally match a line
+          // snapshotted as "Small".
+          const priorLabel = priorLabelById.get(v.id);
+          if (priorLabel != null && priorLabel !== v.label) {
+            const prefixWithColon = `${priorLabel}: `;
+            await tx
+              .update(shopOrderItems)
+              .set({ variantLabel: sql`${v.label} || substring(${shopOrderItems.variantLabel} from char_length(${priorLabel}) + 1)` })
+              .where(
+                and(
+                  eq(shopOrderItems.variantId, v.id),
+                  or(
+                    eq(shopOrderItems.variantLabel, priorLabel),
+                    sql`left(${shopOrderItems.variantLabel}, char_length(${prefixWithColon})) = ${prefixWithColon}`
+                  )
+                )
+              );
+          }
         } else {
           await tx.insert(shopVariants).values({ productId: id, label: v.label, stock: v.stock, allowCustom: v.allowCustom, priceDelta: v.priceDelta, sortOrder: i });
         }

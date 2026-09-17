@@ -100,7 +100,16 @@ export async function GET(req: Request) {
           // A direct seller owns the order snapshot even if a product was later
           // deleted; legacy president scope still requires a live owned product.
           .filter((i) => !info || info.directSellerOrder || (i.productId != null && info.ownedProductIds.has(i.productId)))
-          .map((i) => ({ productName: i.productName, variantLabel: i.variantLabel, customValues: i.customValues ?? null, unitPrice: i.unitPrice, quantity: i.quantity })),
+          .map((i) => ({
+            id: i.id,
+            productId: i.productId,
+            variantId: i.variantId,
+            productName: i.productName,
+            variantLabel: i.variantLabel,
+            customValues: i.customValues ?? null,
+            unitPrice: i.unitPrice,
+            quantity: i.quantity,
+          })),
       };
     });
 

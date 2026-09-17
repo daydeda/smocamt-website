@@ -153,7 +153,12 @@ interface AdminOrder {
   // items — the president may see it but not approve/reject it.
   fullyInScope?: boolean;
   buyer: { name: string | null; studentId: string | null; nickname: string | null };
-  items: { productName: string; variantLabel: string; customValues: ShopCustomValue[] | null; unitPrice: number; quantity: number }[];
+  items: AdminOrderItem[];
+}
+interface AdminOrderItem {
+  id: string; productId: string | null; variantId: string | null;
+  productName: string; variantLabel: string; customValues: ShopCustomValue[] | null;
+  unitPrice: number; quantity: number;
 }
 
 async function uploadImage(file: File): Promise<string> {
@@ -939,6 +944,10 @@ function ProductForm({ th, product, ownerOptions, scoped, requiresOwner, onClose
 
 function OrdersTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
+  // Product configs (variants + personalization fields), fetched once so the
+  // edit-order modal can offer the right option list / custom fields per item.
+  const [products, setProducts] = useState<AdminProduct[]>([]);
+  const [productsLoaded, setProductsLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("pending");
   // Extra filters layered on top of status: by product (an order matches if any of
@@ -961,6 +970,9 @@ function OrdersTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
   const [actionError, setActionError] = useState<string | null>(null);
   // Reject/revert open a custom modal instead of the browser prompt/confirm.
   const [pending, setPending] = useState<{ order: AdminOrder; action: "reject" | "revert" } | null>(null);
+  // The order currently open in the "edit details" modal (admin/owner
+  // correcting a buyer's option/personalization/delivery mistake).
+  const [editing, setEditing] = useState<AdminOrder | null>(null);
 
   const load = useCallback(async () => {
     setLoadError(false);
@@ -979,6 +991,14 @@ function OrdersTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
     const t = setTimeout(() => { load(); }, 0);
     return () => clearTimeout(t);
   }, [load]);
+  useEffect(() => {
+    fetch("/api/admin/shop/products")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.products) setProducts(d.products); })
+      .catch(() => {})
+      .finally(() => setProductsLoaded(true));
+  }, []);
+  const productById = new Map(products.map((p) => [p.id, p]));
 
   // Approve runs immediately; reject/revert defer to the modal which calls submit().
   const review = (o: AdminOrder, action: "approve" | "reject" | "revert") => {
@@ -1102,7 +1122,7 @@ function OrdersTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
       ) : (
         <>
           <div style={{ display: "grid", gap: 14 }}>
-            {pageOrders.map((o) => <AdminOrderRow key={o.id} order={o} th={th} busy={busy === o.id} scoped={ctx?.scoped ?? false} onReview={review} />)}
+            {pageOrders.map((o) => <AdminOrderRow key={o.id} order={o} th={th} busy={busy === o.id} scoped={ctx?.scoped ?? false} onReview={review} onEdit={() => setEditing(o)} />)}
           </div>
           <Pagination th={th} page={safePage} total={shown.length} onPage={setPage} />
         </>
@@ -1116,6 +1136,17 @@ function OrdersTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
           busy={busy === pending.order.id}
           onCancel={() => setPending(null)}
           onConfirm={(reason) => submit(pending.order, pending.action, reason)}
+        />
+      )}
+
+      {editing && (
+        <EditOrderModal
+          th={th}
+          order={editing}
+          productById={productById}
+          productsLoaded={productsLoaded}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); load(); }}
         />
       )}
     </div>
@@ -1187,7 +1218,7 @@ function ReviewModal({ th, order, action, busy, onCancel, onConfirm }: {
   );
 }
 
-function AdminOrderRow({ order, th, busy, scoped, onReview }: { order: AdminOrder; th: boolean; busy: boolean; scoped: boolean; onReview: (o: AdminOrder, a: "approve" | "reject" | "revert") => void }) {
+function AdminOrderRow({ order, th, busy, scoped, onReview, onEdit }: { order: AdminOrder; th: boolean; busy: boolean; scoped: boolean; onReview: (o: AdminOrder, a: "approve" | "reject" | "revert") => void; onEdit: () => void }) {
   const [showSlip, setShowSlip] = useState(order.status === "pending");
   const badge = ORDER_BADGE[order.status] ?? ORDER_BADGE.pending;
   // A scoped president may only review an order that is entirely theirs — a mixed
@@ -1286,6 +1317,18 @@ function AdminOrderRow({ order, th, busy, scoped, onReview }: { order: AdminOrde
         <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 8 }}>{th ? "ไม่มีสลิป" : "No slip uploaded"}</p>
       )}
 
+      {!reviewLocked && (
+        <button
+          onClick={onEdit}
+          disabled={busy}
+          className="btn btn-ghost"
+          style={{ fontSize: 13, padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10 }}
+          title={th ? "แก้ไขตัวเลือก/ช่องกรอก/ที่อยู่จัดส่งของคำสั่งซื้อนี้" : "Fix this order's option, personalization fields, or delivery details"}
+        >
+          <Pencil size={14} />{th ? "แก้ไขรายละเอียด" : "Edit details"}
+        </button>
+      )}
+
       {reviewLocked ? (
         <p style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 600, marginTop: 10, display: "inline-flex", alignItems: "center", gap: 6 }}>
           <AlertTriangle size={14} style={{ flexShrink: 0 }} />
@@ -1315,6 +1358,197 @@ function AdminOrderRow({ order, th, busy, scoped, onReview }: { order: AdminOrde
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// Per-item edit draft. `custom` is keyed by the product's custom-field `key`
+// (not label — labels are display text, keys are what the API/order-placement
+// flow use to address a field).
+interface ItemDraft { itemId: string; productId: string | null; variantId: string; customValue: string; custom: Record<string, string> }
+
+// Rebuild an editable draft for one order line from its current snapshot +
+// live product config: resolve the variant (falling back to the product's
+// first variant if the original was deleted or is otherwise stale), prefill
+// the "Other (specify)" text by stripping it back out of the snapshotted
+// "Label: text" variantLabel, and map customValues [{label,value}] back to
+// {key: value} by matching against the product's current field labels.
+function initialDraftFor(item: AdminOrderItem, product: AdminProduct | undefined): ItemDraft {
+  const variantExists = product?.variants.some((v) => v.id === item.variantId);
+  const variantId = variantExists ? (item.variantId as string) : (product?.variants[0]?.id ?? "");
+  const variant = product?.variants.find((v) => v.id === variantId);
+  let customValue = "";
+  if (variant?.allowCustom && item.variantLabel.startsWith(`${variant.label}: `)) {
+    customValue = item.variantLabel.slice(variant.label.length + 2);
+  }
+  const labelToKey = new Map((product?.customFields ?? []).map((f) => [f.label, f.key]));
+  const custom: Record<string, string> = {};
+  for (const cv of item.customValues ?? []) {
+    const key = labelToKey.get(cv.label);
+    if (key) custom[key] = cv.value;
+  }
+  return { itemId: item.id, productId: item.productId, variantId, customValue, custom };
+}
+
+// Lets a shop admin/owner correct an order AFTER it was placed — the buyer
+// picked the wrong size, skipped a personalization field, or the delivery
+// address has a typo. Works at any order status. Scoped deliberately: only the
+// VARIANT (never the product or quantity) and personalization/delivery text
+// are editable, so stock/shipping accounting stays simple — see the PUT
+// handler in api/admin/shop/orders/[id]/route.ts.
+function EditOrderModal({ th, order, productById, productsLoaded, onClose, onSaved }: {
+  th: boolean; order: AdminOrder; productById: Map<string, AdminProduct>; productsLoaded: boolean;
+  onClose: () => void; onSaved: () => void;
+}) {
+  const [drafts, setDrafts] = useState<ItemDraft[]>(() =>
+    order.items.map((i) => initialDraftFor(i, i.productId ? productById.get(i.productId) : undefined))
+  );
+  const [note, setNote] = useState(order.note ?? "");
+  const [recipientName, setRecipientName] = useState(order.recipientName ?? "");
+  const [recipientPhone, setRecipientPhone] = useState(order.recipientPhone ?? "");
+  const [shippingAddress, setShippingAddress] = useState(order.shippingAddress ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const setDraft = (itemId: string, patch: Partial<ItemDraft>) =>
+    setDrafts((ds) => ds.map((d) => (d.itemId === itemId ? { ...d, ...patch } : d)));
+
+  const save = async () => {
+    setError(null);
+    for (const d of drafts) {
+      if (!d.productId) { setError(th ? "สินค้าบางรายการถูกลบไปแล้ว แก้ไขไม่ได้" : "One item's product no longer exists and can't be edited."); return; }
+      if (!d.variantId) { setError(th ? "กรุณาเลือกตัวเลือกให้ครบทุกรายการ" : "Please choose an option for every item."); return; }
+      const variant = productById.get(d.productId)?.variants.find((v) => v.id === d.variantId);
+      if (variant?.allowCustom && !d.customValue.trim()) {
+        setError(th ? `กรุณาระบุรายละเอียดสำหรับ "${variant.label}"` : `Please specify a value for "${variant.label}".`);
+        return;
+      }
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/shop/orders/${order.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          note,
+          ...(order.fulfillment === "delivery" ? { recipientName, recipientPhone, shippingAddress } : {}),
+          items: drafts.map((d) => ({ id: d.itemId, variantId: d.variantId, customValue: d.customValue.trim() || undefined, custom: d.custom })),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || (th ? "บันทึกไม่สำเร็จ" : "Save failed"));
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : (th ? "บันทึกไม่สำเร็จ" : "Save failed"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div onClick={saving ? undefined : onClose} style={{ position: "fixed", inset: 0, zIndex: 2500, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg-surface)", borderRadius: "var(--radius-lg)", width: "100%", maxWidth: 520, maxHeight: "90vh", border: "1px solid var(--border-subtle)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: "1px solid var(--border-subtle)" }}>
+          <p style={{ fontWeight: 800, fontSize: 16, display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <Pencil size={18} />{th ? "แก้ไขรายละเอียดคำสั่งซื้อ" : "Edit order details"}
+          </p>
+          <button onClick={onClose} disabled={saving} className="btn btn-ghost" style={{ padding: 6 }}><X size={20} /></button>
+        </div>
+
+        {!productsLoaded ? (
+          <div style={{ padding: 40 }}><Spinner /></div>
+        ) : (
+          <div style={{ padding: 16, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
+            <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>
+              {th
+                ? "แก้ตัวเลือก/ช่องกรอกที่ผู้ซื้อเลือกผิดหรือลืมกรอก — ไม่เปลี่ยนสินค้าหรือจำนวนเดิม (ราคาจะคำนวณใหม่ตามตัวเลือกที่เลือก)"
+                : "Correct an option or personalization field the buyer got wrong or skipped. Product and quantity stay the same; price recalculates for the option you pick."}
+            </p>
+
+            {order.items.map((item, idx) => {
+              const draft = drafts[idx];
+              const product = item.productId ? productById.get(item.productId) : undefined;
+              if (!product) {
+                return (
+                  <div key={item.id} style={{ border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", padding: 10 }}>
+                    <p style={{ fontWeight: 700, fontSize: 14 }}>{item.productName}</p>
+                    <p style={{ fontSize: 12, color: "#ef4444", marginTop: 4 }}>{th ? "สินค้านี้ถูกลบไปแล้ว แก้ไขไม่ได้" : "This product no longer exists and can't be edited."}</p>
+                  </div>
+                );
+              }
+              const variant = product.variants.find((v) => v.id === draft.variantId);
+              return (
+                <div key={item.id} style={{ border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", padding: 10, display: "flex", flexDirection: "column", gap: 10, background: "var(--bg-base)" }}>
+                  <p style={{ fontWeight: 700, fontSize: 14 }}>{product.name} × {item.quantity}</p>
+                  {product.variants.length > 1 && (
+                    <Field label={th ? "ตัวเลือก / ไซส์" : "Option / Size"}>
+                      <FilterDropdown
+                        value={draft.variantId}
+                        onChange={(v) => setDraft(item.id, { variantId: v, customValue: "" })}
+                        options={product.variants.map((v) => ({ value: v.id ?? "", label: v.priceDelta ? `${v.label}  +${baht(v.priceDelta)}` : v.label }))}
+                      />
+                    </Field>
+                  )}
+                  {variant?.allowCustom && (
+                    <Field label={th ? "ระบุรายละเอียด *" : "Please specify *"}>
+                      <input value={draft.customValue} maxLength={120} onChange={(e) => setDraft(item.id, { customValue: e.target.value })} style={inputStyle} />
+                    </Field>
+                  )}
+                  {product.customFields.map((f) => (
+                    <Field key={f.key} label={`${f.label}${f.required ? " *" : ""}`}>
+                      {f.type === "select" ? (
+                        <FilterDropdown
+                          value={draft.custom[f.key] ?? ""}
+                          onChange={(v) => setDraft(item.id, { custom: { ...draft.custom, [f.key]: v } })}
+                          options={(f.options ?? []).map((o) => ({ value: o, label: o }))}
+                        />
+                      ) : (
+                        <input
+                          type={f.type === "number" ? "number" : "text"}
+                          value={draft.custom[f.key] ?? ""}
+                          onChange={(e) => setDraft(item.id, { custom: { ...draft.custom, [f.key]: e.target.value } })}
+                          maxLength={f.type === "text" ? (f.maxLength ?? undefined) : undefined}
+                          min={f.type === "number" ? (f.min ?? undefined) : undefined}
+                          max={f.type === "number" ? (f.max ?? undefined) : undefined}
+                          style={inputStyle}
+                        />
+                      )}
+                    </Field>
+                  ))}
+                </div>
+              );
+            })}
+
+            <Field label={th ? "หมายเหตุ" : "Note"}>
+              <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={500} style={{ ...inputStyle, resize: "vertical" }} />
+            </Field>
+
+            {order.fulfillment === "delivery" && (
+              <>
+                <Field label={th ? "ชื่อผู้รับ" : "Recipient name"}>
+                  <input value={recipientName} maxLength={120} onChange={(e) => setRecipientName(e.target.value)} style={inputStyle} />
+                </Field>
+                <Field label={th ? "เบอร์โทรผู้รับ" : "Recipient phone"}>
+                  <input value={recipientPhone} maxLength={40} onChange={(e) => setRecipientPhone(e.target.value)} style={inputStyle} />
+                </Field>
+                <Field label={th ? "ที่อยู่จัดส่ง" : "Shipping address"}>
+                  <textarea value={shippingAddress} onChange={(e) => setShippingAddress(e.target.value)} rows={3} maxLength={1000} style={{ ...inputStyle, resize: "vertical" }} />
+                </Field>
+              </>
+            )}
+          </div>
+        )}
+
+        <div style={{ flexShrink: 0, borderTop: "1px solid var(--border-subtle)", padding: "12px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+          {error && <p style={{ color: "#ef4444", fontSize: 13, margin: 0 }}>{error}</p>}
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={onClose} disabled={saving} className="btn btn-ghost" style={{ flex: 1 }}>{th ? "ยกเลิก" : "Cancel"}</button>
+            <button onClick={save} disabled={saving || !productsLoaded} className="btn btn-primary" style={{ flex: 2, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              {saving && <Loader2 size={16} className="animate-spin" />}<Save size={16} />{th ? "บันทึก" : "Save"}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

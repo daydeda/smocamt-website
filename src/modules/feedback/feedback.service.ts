@@ -16,6 +16,19 @@ import {
   type FeedbackStatus,
 } from "@/lib/feedback-token";
 import { notifyComplaintResolved, notifyNewComplaint, notifyStaffMessage, notifySubmitterMessage } from "@/lib/feedback-notify";
+import { getFeedbackManagerUserIds } from "@/modules/notifications/push-audience";
+import { PushService } from "@/modules/notifications/push.service";
+
+// Push to feedback managers (super_admin/admin) alongside the existing staff-inbox
+// email in feedback-notify.ts — ADDED, not a replacement (see
+// docs/features/push-notifications.md "existing precedent to fold into"): during
+// rollout push coverage is partial, so the email stays as a guaranteed fallback.
+// Never includes the complaint body — see the plan doc's payload content policy.
+function notifyFeedbackManagersPush(title: string, body: string, complaintId: string) {
+  void getFeedbackManagerUserIds()
+    .then((ids) => PushService.sendToUserIds(ids, { title, body, url: "/admin/feedback", tag: `feedback:${complaintId}` }))
+    .catch(() => {});
+}
 
 export interface CreateComplaintInput {
   /** The logged-in user's own id. Used ONLY to derive submitterRef via HMAC —
@@ -103,6 +116,7 @@ export class FeedbackService {
     // Fire-and-forget: notification failures must never fail the submission
     // (feedback-notify.ts is itself fail-open, this is belt-and-suspenders).
     void notifyNewComplaint(row).catch(() => {});
+    notifyFeedbackManagersPush("New feedback submitted", `A new ${row.category} report was submitted.`, row.id);
 
     return { id: row.id };
   }
@@ -202,6 +216,7 @@ export class FeedbackService {
     }
 
     void notifySubmitterMessage(complaint).catch(() => {});
+    notifyFeedbackManagersPush("New feedback reply", "A submitter replied on a feedback thread.", complaint.id);
 
     return msg;
   }

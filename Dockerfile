@@ -31,6 +31,15 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ARG NEXT_PUBLIC_SONGSUE_DASHBOARD_URL
 ENV NEXT_PUBLIC_SONGSUE_DASHBOARD_URL=$NEXT_PUBLIC_SONGSUE_DASHBOARD_URL
 
+# Same build-time-only constraint as above. This is the VAPID PUBLIC key (see
+# src/modules/notifications/push.service.ts) — meant to reach the browser, not
+# a secret; the matching VAPID_PRIVATE_KEY stays a runtime-only env var in
+# docker-stack.yml, never here. Unset = GET /api/notifications/push/vapid-key
+# 503s and the profile toggle surfaces a generic error on tap — push sends
+# server-side no-op the same way (PushService checks all three VAPID vars).
+ARG NEXT_PUBLIC_VAPID_PUBLIC_KEY
+ENV NEXT_PUBLIC_VAPID_PUBLIC_KEY=$NEXT_PUBLIC_VAPID_PUBLIC_KEY
+
 RUN npm run build
 
 # Production image, copy all the files and run next

@@ -1,8 +1,10 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { attendance, noShowAppeals, users } from "@/db/schema";
+import { attendance, events, noShowAppeals, users } from "@/db/schema";
+import { getAppealAudienceUserIds } from "@/modules/notifications/push-audience";
+import { PushService } from "@/modules/notifications/push.service";
 import { and, desc, eq } from "drizzle-orm";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { z } from "zod";
 
 const appealSchema = z.object({
@@ -129,6 +131,20 @@ export async function POST(req: Request) {
         noShowCountAtAppeal: student.noShowCount,
       })
       .returning({ id: noShowAppeals.id, status: noShowAppeals.status, createdAt: noShowAppeals.createdAt });
+
+    after(async () => {
+      const event = await db.query.events.findFirst({
+        where: eq(events.id, data.eventId),
+        columns: { title: true, ownerClubIds: true, ownerMajors: true },
+      });
+      const audience = await getAppealAudienceUserIds(event ?? null);
+      await PushService.sendToUserIds(audience, {
+        title: "New no-show appeal",
+        body: event ? `An appeal was submitted for "${event.title}".` : "A new no-show appeal was submitted.",
+        url: "/admin/appeals",
+        tag: `appeal:${appeal.id}`,
+      });
+    });
 
     return NextResponse.json({ appeal });
   } catch (error) {

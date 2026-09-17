@@ -5,8 +5,9 @@ import { effectiveRoles } from "@/lib/admin-access";
 import { NO_SHOW_STRIKE_THRESHOLD, RESOLVE_APPEALS_ROLES } from "@/lib/strikes";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { EventScopeService } from "@/modules/events/event-scope.service";
+import { PushService } from "@/modules/notifications/push.service";
 import { and, eq } from "drizzle-orm";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { z } from "zod";
 
 const resolveSchema = z.object({
@@ -54,7 +55,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const appeal = await db.query.noShowAppeals.findFirst({
       where: eq(noShowAppeals.id, id),
       columns: { id: true, userId: true, eventId: true, status: true, noShowCountAtAppeal: true },
-      with: { event: { columns: { ownerClubIds: true, ownerMajors: true } } },
+      with: { event: { columns: { title: true, ownerClubIds: true, ownerMajors: true } } },
     });
     if (!appeal) {
       return NextResponse.json({ error: "Appeal not found" }, { status: 404 });
@@ -137,6 +138,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         targetId: appeal.userId,
         action,
         ipAddress: getClientIp(req),
+      });
+    });
+
+    after(async () => {
+      await PushService.sendToUserIds([appeal.userId], {
+        title: newStatus === "approved" ? "Your appeal was approved" : "Your appeal was rejected",
+        body: appeal.event
+          ? `Your no-show appeal for "${appeal.event.title}" was ${newStatus}.`
+          : `Your no-show appeal was ${newStatus}.`,
+        url: "/dashboard",
+        tag: `appeal-decision:${id}`,
       });
     });
 

@@ -2,8 +2,9 @@ import { auth } from "@/auth";
 import { db } from "@/db";
 import { announcements } from "@/db/schema";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
+import { PushService } from "@/modules/notifications/push.service";
 import { desc, eq } from "drizzle-orm";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import type { Session } from "next-auth";
 import { z } from "zod";
 
@@ -54,10 +55,10 @@ export async function PUT(req: Request) {
 
     const data = announcementSchema.parse(await req.json());
 
-    await db.transaction(async (tx) => {
+    const wasChanged = await db.transaction(async (tx) => {
       // Singleton: update the most-recently-updated row, or insert the first one.
       const [existing] = await tx
-        .select({ id: announcements.id })
+        .select({ id: announcements.id, body: announcements.body })
         .from(announcements)
         .orderBy(desc(announcements.updatedAt))
         .limit(1);
@@ -85,7 +86,24 @@ export async function PUT(req: Request) {
         action: `Updated dashboard announcement (enabled: ${data.enabled})`,
         ipAddress: getClientIp(req),
       });
+
+      return !existing || existing.body !== data.body;
     });
+
+    // Broadcast only on a real content change while enabled — skip a toggle-off
+    // (nothing new to say) and a save that only fixed a typo without changing
+    // meaning would still re-push here; that tradeoff is deliberate (see
+    // docs/features/push-notifications.md "Broadcast — announcements").
+    if (data.enabled && wasChanged) {
+      after(async () => {
+        await PushService.sendToAll({
+          title: "New announcement",
+          body: data.body.slice(0, 150),
+          url: "/dashboard",
+          tag: "announcement",
+        });
+      });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

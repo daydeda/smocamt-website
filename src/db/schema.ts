@@ -991,6 +991,34 @@ export const calendarFeedTokensRelations = relations(calendarFeedTokens, ({ one 
 }));
 
 // ============================================================================
+// PUSH SUBSCRIPTIONS
+// Web Push endpoints for a device to receive notifications when the app is
+// closed. `endpoint` is unique globally (not per-user) so a shared device
+// transfers to whoever subscribed most recently instead of leaving a stale
+// row — see docs/features/push-notifications.md.
+// ============================================================================
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+  failureCount: integer("failure_count").notNull().default(0),
+}, (table) => ([
+  index("idx_push_subscriptions_user_id").on(table.userId),
+]));
+
+export const pushSubscriptionsRelations = relations(pushSubscriptions, ({ one }) => ({
+  user: one(users, {
+    fields: [pushSubscriptions.userId],
+    references: [users.id],
+  }),
+}));
+
+// ============================================================================
 // RATE LIMIT
 // Durable, Postgres-backed rate limiter — replaces an in-memory Map that reset
 // on every deploy and didn't share state across instances. One row per limiter

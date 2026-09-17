@@ -6,8 +6,10 @@ import { validateCustomAnswers } from "@/lib/shop-custom-fields";
 import { computeProductDeliveryFee } from "@/lib/shop-delivery";
 import { classifySlip, decodeSlipQr, hashSlip, verifySlipMeta } from "@/lib/shop-slip-verify";
 import { downloadSlip } from "@/lib/shop-storage";
+import { getShopOrderAudienceUserIds } from "@/modules/notifications/push-audience";
+import { PushService } from "@/modules/notifications/push.service";
 import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -392,12 +394,23 @@ export async function POST(req: Request) {
 
       await tx.insert(shopOrderItems).values(lines.map((l) => ({ ...l, orderId: order.id })));
 
-      return { orderId: order.id, status: 201 as const };
+      return { orderId: order.id, status: 201 as const, productIds, sellerId };
     });
 
     if ("error" in created) {
       return NextResponse.json({ error: created.error }, { status: created.status });
     }
+
+    after(async () => {
+      const audienceIds = await getShopOrderAudienceUserIds(created.productIds, created.sellerId);
+      await PushService.sendToUserIds(audienceIds, {
+        title: "New shop order",
+        body: "A new order is waiting for review.",
+        url: "/admin/shop",
+        tag: `shop-order:${created.orderId}`,
+      });
+    });
+
     return NextResponse.json({ success: true, orderId: created.orderId }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {

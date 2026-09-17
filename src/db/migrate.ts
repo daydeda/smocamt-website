@@ -1468,6 +1468,29 @@ async function migrate() {
   await sql`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS check_out_time timestamptz`;
   console.log("  ✅ events.require_check_out + attendance.check_out_time");
 
+  // 93. Web Push subscriptions (docs/features/push-notifications.md). endpoint
+  // is UNIQUE GLOBALLY, not per-user — a shared device re-subscribing under a
+  // different account must transfer the row, not accumulate a stale duplicate
+  // that keeps notifying whoever subscribed first. user_id is nullable (matches
+  // schema.ts's generated column) since it's only ever populated by app code,
+  // never required at the DB layer. Mirrors drizzle/0041_silent_eddie_brock.sql.
+  // New table + CREATE INDEX IF NOT EXISTS ⇒ additive, idempotent, non-destructive.
+  await sql`
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      user_id text REFERENCES users(id) ON DELETE CASCADE,
+      endpoint text NOT NULL UNIQUE,
+      p256dh text NOT NULL,
+      auth text NOT NULL,
+      user_agent text,
+      created_at timestamptz DEFAULT now(),
+      last_success_at timestamptz,
+      failure_count integer NOT NULL DEFAULT 0
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON push_subscriptions (user_id)`;
+  console.log("  ✅ push_subscriptions table + user_id index");
+
   console.log("✅ Migration complete!");
   await sql.end();
   process.exit(0);

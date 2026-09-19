@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLanguage } from "@/lib/LanguageContext";
 import { compressImageFile } from "@/lib/compress-image";
+import { uploadFormViaXHR } from "@/lib/xhr-upload";
 import { Calendar, History, Trophy, Sparkles, ArrowRight, ArrowLeft, X, Star, CheckCircle2, ClipboardList, Lock, Save, AlertTriangle, Paperclip } from "lucide-react";
 import { StudentNav } from "@/components/layout/StudentNav";
 import Link from "next/link";
@@ -300,21 +301,25 @@ export default function HistoryPage() {
       // the reverse proxy's body cap (a 413 before the app). PDFs pass through
       // untouched — they can't be canvas-compressed, so a large PDF may still 413.
       const upload = await compressImageFile(file, { maxDim: 1600 });
-      const body = new FormData();
-      body.append("file", upload);
-      const res = await fetch("/api/forms/upload", { method: "POST", body });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        const tooBig = res.status === 413;
+      if (upload.size === 0) throw new Error("empty file");
+      const form = new FormData();
+      // Append a plain Blob (via slice()), not the File object compressImageFile
+      // returns — see src/lib/xhr-upload.ts for why (WebKit FormData/Blob bug).
+      const blob = upload.slice(0, upload.size, upload.type);
+      form.append("file", blob, upload.name);
+      const up = await uploadFormViaXHR("/api/forms/upload", form);
+      const data = up.body as { key?: string; error?: string };
+      if (!up.ok) {
+        const tooBig = up.status === 413;
         setFileErrors((e) => ({
           ...e,
           [qId]: (tooBig ? null : data?.error) || (lang === "th" ? (tooBig ? "ไฟล์ใหญ่เกินไป" : "อัปโหลดไฟล์ไม่สำเร็จ") : lang === "cn" ? (tooBig ? "文件太大" : "文件上传失败") : lang === "mm" ? (tooBig ? "ဖိုင်အရွယ်အစား ကြီးလွန်းသည်" : "ဖိုင်တင်ခြင်း မအောင်မြင်ပါ") : (tooBig ? "File is too large." : "File upload failed.")),
         }));
         return;
       }
-      setAnswers((prev) => ({ ...prev, [qId]: data.key }));
+      setAnswers((prev) => ({ ...prev, [qId]: data.key as string }));
       // Track as un-committed so it's cleaned up if the student abandons the form.
-      pendingFileKeysRef.current.add(data.key);
+      pendingFileKeysRef.current.add(data.key as string);
       if (formErrors[qId]) { const u = { ...formErrors }; delete u[qId]; setFormErrors(u); }
     } catch {
       setFileErrors((e) => ({

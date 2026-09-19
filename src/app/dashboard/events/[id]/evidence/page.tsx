@@ -6,6 +6,7 @@ import Link from "next/link";
 import { StudentNav } from "@/components/layout/StudentNav";
 import { useLanguage } from "@/lib/LanguageContext";
 import { compressImageFile } from "@/lib/compress-image";
+import { uploadFormViaXHR } from "@/lib/xhr-upload";
 import {
   ArrowLeft, Camera, CheckCircle2, Clock, Lock, Paperclip, ShieldAlert, Upload, X,
 } from "lucide-react";
@@ -89,12 +90,16 @@ export default function EvidenceCheckinPage() {
     setUploading((s) => ({ ...s, [sessionId]: true }));
     try {
       const upload = await compressImageFile(file, { maxDim: 1600 });
-      const body = new FormData();
-      body.append("file", upload);
-      const res = await fetch("/api/forms/upload", { method: "POST", body });
-      const result = await res.json().catch(() => null);
-      if (!res.ok) {
-        const tooBig = res.status === 413;
+      if (upload.size === 0) throw new Error("empty file");
+      const form = new FormData();
+      // Append a plain Blob (via slice()), not the File object compressImageFile
+      // returns — see src/lib/xhr-upload.ts for why (WebKit FormData/Blob bug).
+      const blob = upload.slice(0, upload.size, upload.type);
+      form.append("file", blob, upload.name);
+      const up = await uploadFormViaXHR("/api/forms/upload", form);
+      const result = up.body as { key?: string; error?: string };
+      if (!up.ok) {
+        const tooBig = up.status === 413;
         setErrors((e) => ({
           ...e,
           [sessionId]: (tooBig ? null : result?.error) ||
@@ -105,7 +110,7 @@ export default function EvidenceCheckinPage() {
         }));
         return;
       }
-      setFileKeys((prev) => ({ ...prev, [sessionId]: result.key }));
+      setFileKeys((prev) => ({ ...prev, [sessionId]: result.key as string }));
       setFileNames((prev) => ({ ...prev, [sessionId]: file.name }));
     } catch {
       setErrors((e) => ({

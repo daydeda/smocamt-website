@@ -29,6 +29,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
+    "exceljs": "^4.4.0",
     "framer-motion": "^12.42.2",
     "googleapis": "^173.0.0",
     "html5-qrcode": "^2.3.8",

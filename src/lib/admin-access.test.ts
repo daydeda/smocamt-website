@@ -9,6 +9,10 @@ import {
   canEnterAdmin,
   isScannerOnlyRole,
   canGiveIndividualScore,
+  canAwardPrizes,
+  canManagePrizes,
+  canExportPrizeReport,
+  PRIZES_HREF,
   adminLandingHref,
   adminLandingHrefForRoles,
   isShopFinancePosition,
@@ -213,5 +217,67 @@ describe("isShopFinancePosition", () => {
     expect(isShopFinancePosition(["anusmo"], "finance")).toBe(false);
     expect(isShopFinancePosition(["smo"], "registration")).toBe(false);
     expect(isShopFinancePosition(["student"], "finance")).toBe(false);
+  });
+});
+
+describe("prize claim predicates", () => {
+  it("lets smo award a prize", () => {
+    // Deliberate: the prize table is staffed like the scanner, and awarding is
+    // one student at a time with that student standing there.
+    expect(canAwardPrizes(["smo"])).toBe(true);
+  });
+
+  it("does NOT let smo configure a prize or pull the dean report", () => {
+    // The report is every winner's name + รหัสนักศึกษา + face photo in one
+    // forwardable file — same "ask an admin for the file" split the event
+    // export already applies to smo.
+    expect(canManagePrizes(["smo"])).toBe(false);
+    expect(canExportPrizeReport(["smo"])).toBe(false);
+  });
+
+  it("lets the full admin roles do everything", () => {
+    for (const role of ["super_admin", "admin", "organizer"]) {
+      expect(canAwardPrizes([role])).toBe(true);
+      expect(canManagePrizes([role])).toBe(true);
+      expect(canExportPrizeReport([role])).toBe(true);
+    }
+  });
+
+  it("lets club/major presidents award and manage (scoped server-side)", () => {
+    for (const role of ["club_president", "major_president"]) {
+      expect(canAwardPrizes([role])).toBe(true);
+      expect(canManagePrizes([role])).toBe(true);
+    }
+  });
+
+  it("keeps plain students and shop sellers out entirely", () => {
+    for (const role of ["student", "anusmo", "shop_seller"]) {
+      expect(canAwardPrizes([role])).toBe(false);
+      expect(canManagePrizes([role])).toBe(false);
+    }
+  });
+
+  it("honours a secondary role from roles[]", () => {
+    // A president whose PRIMARY role resolves to anusmo must still be able to
+    // award — the whole reason these predicates take the role SET.
+    expect(canAwardPrizes(["anusmo", "club_president"])).toBe(true);
+  });
+
+  it("admits scanner-only roles to the prizes page", () => {
+    expect(isScannerOnlyAllowedPath(PRIZES_HREF, ["smo"])).toBe(true);
+    expect((SCANNER_ONLY_PAGES as readonly string[])).toContain(PRIZES_HREF);
+  });
+
+  it("still keeps a seller-only account out of the prizes page", () => {
+    // shop_seller is confined to /admin/shop; a prize is not a shop item.
+    expect(isScannerOnlyAllowedPath(PRIZES_HREF, ["shop_seller"])).toBe(false);
+  });
+
+  it("never lets someone export who cannot manage", () => {
+    // The two are the same set TODAY and kept as separate predicates so they can
+    // diverge. Export must never be the WIDER of the two.
+    for (const roles of [["smo"], ["student"], ["admin"], ["club_president"], ["shop_seller"]]) {
+      if (canExportPrizeReport(roles)) expect(canManagePrizes(roles)).toBe(true);
+    }
   });
 });

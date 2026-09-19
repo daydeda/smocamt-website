@@ -232,6 +232,13 @@
       "when": 1789649785481,
       "tag": "0041_silent_eddie_brock",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1789790685461,
+      "tag": "0042_careless_wendell_vaughn",
+      "breakpoints": true
     }
   ]
 }

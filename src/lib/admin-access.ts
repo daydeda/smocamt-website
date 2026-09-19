@@ -23,6 +23,31 @@ export const SCORING_ROLES = ["super_admin", "admin", "registration", "organizer
 // Canonical scanner path — also the landing for scanner-only roles.
 export const SCANNER_HREF = "/admin/scanner";
 
+// Prize claim (การรับรางวัล). A prize is NOT owned by an event, so its surface is
+// a top-level admin tab rather than a pane under /admin/events.
+export const PRIZES_HREF = "/admin/prizes";
+
+// Roles that may AWARD a prize: scan a student, confirm, attach the photo.
+// Includes "smo" — the prize table is staffed the same way the scanner is, and
+// awarding is one student at a time, in person, with that student present.
+// Includes "registration": in practice the registration desk is already sitting
+// at the table where prizes get handed out, so excluding it would just mean an
+// organizer has to be fetched for every claim.
+export const PRIZE_AWARD_ROLES = ["super_admin", "admin", "registration", "organizer", "smo", "club_president", "major_president"] as const;
+
+// Roles that may CREATE/CONFIGURE/CLOSE a prize, see the full claim list, and
+// pull the dean report (.xlsx + the PDF print page).
+//
+// Deliberately NARROWER than PRIZE_AWARD_ROLES by exactly "smo": awarding is one
+// student at a time, but the report is every winner's name + รหัสนักศึกษา + face
+// photo in one forwardable file. That is the same "ask an admin for the file"
+// split the event export already applies to smo (see
+// api/admin/events/[id]/export, where smo gets a thin roster).
+// club_president/major_president pass here but are EVENT-SCOPED server-side via
+// EventScopeService — this predicate answers "may this role at all", never
+// "which prizes".
+export const PRIZE_MANAGE_ROLES = ["super_admin", "admin", "registration", "organizer", "club_president", "major_president"] as const;
+
 // Pages a scanner-only role (smo, club_president, major_president) may open.
 // Besides the scanner they may now reach the events page for a widening set of
 // thin, role-specific views — never the full staff controls (see admin/events
@@ -50,7 +75,13 @@ export const SCANNER_HREF = "/admin/scanner";
 // ownerMajors, and only orders for those products; see src/lib/shop-auth.ts
 // isShopManager + the /api/admin/shop routes). The page's own isShopManager
 // gate bounces smo (scanner-only, no ownership) back out.
-export const SCANNER_ONLY_PAGES = ["/admin", SCANNER_HREF, "/admin/events", "/admin/clubs", "/admin/majors", "/admin/appeals", "/admin/shop"] as const;
+// "/admin/prizes" is allowed for smo/club_president/major_president: handing a
+// prize to a student who is standing in front of you is scanner-shaped work and
+// smo is exactly who staffs the prize table (see docs/features/prize-claim.md).
+// They may AWARD there but not create/configure a prize and not pull the report
+// — that split is canAwardPrizes vs canManagePrizes below, enforced by the
+// route gates, not by this path list.
+export const SCANNER_ONLY_PAGES = ["/admin", SCANNER_HREF, "/admin/events", "/admin/clubs", "/admin/majors", "/admin/appeals", "/admin/shop", PRIZES_HREF] as const;
 
 // May a scanner-only role reach this exact (page) path? Used by the proxy to
 // confine these roles. Exact-match only — no /admin/events/* sub-pages exist.
@@ -178,6 +209,26 @@ export function isScannerOnlyAny(
 // not) never gets individual scoring, matching club_president/major_president.
 export function canGiveIndividualScoreAny(roles: string[]): boolean {
   return roles.some(canGiveIndividualScore);
+}
+
+// May any of these roles award a prize (scan + confirm + photo)? Includes smo.
+export function canAwardPrizes(roles: string[]): boolean {
+  return roles.some((r) => (PRIZE_AWARD_ROLES as readonly string[]).includes(r));
+}
+
+// May any of these roles create/configure a prize and see its full claim list?
+// Excludes smo. Presidents still get event-scoped server-side.
+export function canManagePrizes(roles: string[]): boolean {
+  return roles.some((r) => (PRIZE_MANAGE_ROLES as readonly string[]).includes(r));
+}
+
+// May any of these roles generate the dean report (.xlsx export / PDF print
+// page)? Identical to canManagePrizes TODAY, kept as its own predicate because
+// "may configure a giveaway" and "may download every winner's face photo" are
+// different questions that will likely diverge — collapsing them means a future
+// change to one silently changes the other.
+export function canExportPrizeReport(roles: string[]): boolean {
+  return canManagePrizes(roles);
 }
 
 // Landing href for a role set (scanner-only → scanner, else dashboard).

@@ -1491,6 +1491,75 @@ async function migrate() {
   await sql`CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON push_subscriptions (user_id)`;
   console.log("  ✅ push_subscriptions table + user_id index");
 
+  // 94. Prize claim (การรับรางวัล, docs/features/prize-claim.md). `prizes` is a
+  // FIRST-CLASS entity that may optionally reference an event (event_id, set
+  // null on delete) rather than being owned by one — a giveaway like แจกแก้ว is
+  // handed out at the event AND at a counter days later, and anchoring "one per
+  // student" to the event instead of the prize would let a second pickup round
+  // become a second prize row, letting a student collect twice.
+  // `eligibility_event_id` is DELIBERATELY separate from event_id: "which event
+  // must you have attended to be eligible" is a different question from "which
+  // event does this prize belong to".
+  // prizes MUST be created before prize_claims (FK). Mirrors
+  // drizzle/0042_careless_wendell_vaughn.sql. New tables + CREATE INDEX IF NOT
+  // EXISTS ⇒ additive, idempotent, non-destructive.
+  await sql`
+    CREATE TABLE IF NOT EXISTS prizes (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      name text NOT NULL,
+      description text,
+      event_id uuid REFERENCES events(id) ON DELETE SET NULL,
+      rank integer,
+      quantity integer,
+      one_per_student boolean NOT NULL DEFAULT true,
+      require_check_in boolean NOT NULL DEFAULT false,
+      eligibility_event_id uuid REFERENCES events(id) ON DELETE SET NULL,
+      status text NOT NULL DEFAULT 'open',
+      sort_order integer NOT NULL DEFAULT 0,
+      created_by text REFERENCES users(id) ON DELETE SET NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_prizes_event ON prizes (event_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_prizes_eligibility_event ON prizes (eligibility_event_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_prizes_status ON prizes (status)`;
+  console.log("  ✅ prizes table + event/eligibility_event/status indexes");
+
+  // one_per_student is denormalized onto the CLAIM (copied from prizes at
+  // insert) purely so the partial unique index below can enforce "one per
+  // student" in Postgres itself — a service-level check-then-insert loses the
+  // race when two staffers scan the same student on two phones in the same
+  // second; letting the insert fail on this index and translating the unique
+  // violation is the actual guarantee (see PrizeService.claim). prize_name is a
+  // SNAPSHOT (shop_order_items.product_name pattern) so renaming/deleting the
+  // prize later never rewrites a report already sent to คณบดี.
+  await sql`
+    CREATE TABLE IF NOT EXISTS prize_claims (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      prize_id uuid NOT NULL REFERENCES prizes(id) ON DELETE CASCADE,
+      student_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      prize_name text NOT NULL,
+      event_id uuid REFERENCES events(id) ON DELETE SET NULL,
+      claimed_at timestamptz NOT NULL DEFAULT now(),
+      claimed_by text REFERENCES users(id) ON DELETE SET NULL,
+      method text NOT NULL DEFAULT 'qr',
+      photo_key text,
+      note text,
+      one_per_student boolean NOT NULL DEFAULT true,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+  // THE anti-duplicate guarantee. Partial: a prize that may legitimately repeat
+  // (one_per_student = false) is exempt.
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_prize_claims_once ON prize_claims (prize_id, student_id) WHERE one_per_student`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_prize_claims_prize ON prize_claims (prize_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_prize_claims_student ON prize_claims (student_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_prize_claims_event ON prize_claims (event_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_prize_claims_claimed_at ON prize_claims (claimed_at)`;
+  console.log("  ✅ prize_claims table + partial unique(prize_id, student_id) + prize/student/event/claimed_at indexes");
+
   console.log("✅ Migration complete!");
   await sql.end();
   process.exit(0);

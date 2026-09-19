@@ -1390,3 +1390,116 @@ export const eventProposalsRelations = relations(eventProposals, ({ one }) => ({
   reviewer: one(users, { fields: [eventProposals.reviewedBy], references: [users.id], relationName: "proposalReviewer" }),
   resultingEvent: one(events, { fields: [eventProposals.resultingEventId], references: [events.id] }),
 }));
+
+// ============================================================================
+// PRIZES (การรับรางวัล / การรับของ)
+// A prize is a FIRST-CLASS entity that may optionally reference an event — it is
+// deliberately NOT a child of one. The giveaway outlives the occasion: แจกแก้ว is
+// handed out at the event AND at a counter days later, and if each pickup round
+// were its own event-owned prize row the "one per student" unique index below
+// would not fire across them and a student could collect twice. Anchoring
+// uniqueness to the PRIZE, not the event/session, is the whole anti-duplicate
+// guarantee. See docs/features/prize-claim.md.
+//
+// Hard wall, same as calendar_entries: nothing here is ever read by the
+// attendance, points, quota or strike paths. Claiming a prize must never create
+// or imply an attendance row.
+// ============================================================================
+export const prizes = pgTable("prizes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  // Optional CONTEXT ("this prize came from that event"), never ownership —
+  // hence "set null": deleting an event must not delete the record that แก้ว was
+  // handed to 200 students.
+  eventId: uuid("event_id").references(() => events.id, { onDelete: "set null" }),
+  // Report ordering (1 = รางวัลที่ 1). NULL = unranked, e.g. ลุ้นโชค/ของที่ระลึก.
+  rank: integer("rank"),
+  // SOFT target, not a limit: the UI warns past it, the server still allows the
+  // claim. Real events over-award (a tie, an extra sponsor prize) and a hard
+  // block at the booth means staff stop RECORDING rather than stop awarding —
+  // which would also switch off the duplicate check.
+  quantity: integer("quantity"),
+  // The แจกแก้ว rule. Denormalized onto prize_claims at insert so the partial
+  // unique index there can enforce it in Postgres rather than in app code.
+  onePerStudent: boolean("one_per_student").notNull().default(true),
+  // "แล้วแต่กิจกรรม": when true, a claim is refused unless the student has an
+  // attendance row with status 'attended' for eligibilityEventId.
+  requireCheckIn: boolean("require_check_in").notNull().default(false),
+  // DELIBERATELY separate from eventId above: "which event you must have
+  // attended to be eligible" is a different question from "which event this
+  // prize belongs to". แจกแก้ว is exactly that split — eligibility comes from the
+  // event, collection happens weeks later at a counter.
+  eligibilityEventId: uuid("eligibility_event_id").references(() => events.id, { onDelete: "set null" }),
+  // 'open' | 'closed' — stop accepting new claims without deleting anything.
+  status: text("status").$type<"open" | "closed">().notNull().default("open"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ([
+  index("idx_prizes_event").on(table.eventId),
+  index("idx_prizes_eligibility_event").on(table.eligibilityEventId),
+  index("idx_prizes_status").on(table.status),
+]));
+
+// One row per physical handover.
+export const prizeClaims = pgTable("prize_claims", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  prizeId: uuid("prize_id").references(() => prizes.id, { onDelete: "cascade" }).notNull(),
+  studentId: text("student_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  // Snapshot at claim time (the shop_order_items.productName pattern): renaming
+  // or deleting a prize later must never rewrite a report already sent to คณบดี.
+  prizeName: text("prize_name").notNull(),
+  // Where it was physically handed over, when that was at an event at all.
+  // Independent of prizes.eventId — a counter pickup carries NULL here.
+  eventId: uuid("event_id").references(() => events.id, { onDelete: "set null" }),
+  // วันที่ได้รับของ — NOT the event date, which is read from attendance/events
+  // for the report. A prize can be collected days after the event.
+  claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull().defaultNow(),
+  // The staff member who handed it over ("ใครเป็นคนแจก" accountability).
+  claimedBy: text("claimed_by").references(() => users.id, { onDelete: "set null" }),
+  method: text("method").$type<"qr" | "manual">().notNull().default("qr"),
+  // Proof photo (student holding the item), for the report to คณบดี. Object key
+  // in the same PRIVATE "form-uploads" bucket as attendance.evidenceFileKey and
+  // form file answers — never a public URL; streamed back only through the
+  // auth-guarded claim-photo route, and every third-party view is audit-logged.
+  // NULL = รอรูป: the claim is deliberately committed BEFORE the photo, so a dead
+  // venue wifi can't stop staff recording handovers (which would also switch off
+  // the duplicate check). Deleted by super_admin only, by nulling this column and
+  // removing the object — the CLAIM ROW stays, otherwise the duplicate check
+  // forgets the student and they can collect a second one.
+  photoKey: text("photo_key"),
+  note: text("note"),
+  // Copied from prizes.onePerStudent at insert. Denormalized purely so the
+  // partial unique index below can exist: enforcing "one per student" in service
+  // code loses the race when two staffers scan the same student on two phones in
+  // the same second. Postgres does not.
+  onePerStudent: boolean("one_per_student").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ([
+  // THE anti-duplicate guarantee. Partial: a prize that can legitimately repeat
+  // (onePerStudent false) is exempt.
+  uniqueIndex("idx_prize_claims_once")
+    .on(table.prizeId, table.studentId)
+    .where(sql`${table.onePerStudent}`),
+  index("idx_prize_claims_prize").on(table.prizeId),
+  index("idx_prize_claims_student").on(table.studentId),
+  index("idx_prize_claims_event").on(table.eventId),
+  index("idx_prize_claims_claimed_at").on(table.claimedAt),
+]));
+
+export const prizesRelations = relations(prizes, ({ one, many }) => ({
+  event: one(events, { fields: [prizes.eventId], references: [events.id], relationName: "prizeEvent" }),
+  eligibilityEvent: one(events, { fields: [prizes.eligibilityEventId], references: [events.id], relationName: "prizeEligibilityEvent" }),
+  creator: one(users, { fields: [prizes.createdBy], references: [users.id], relationName: "prizeCreator" }),
+  claims: many(prizeClaims),
+}));
+
+export const prizeClaimsRelations = relations(prizeClaims, ({ one }) => ({
+  prize: one(prizes, { fields: [prizeClaims.prizeId], references: [prizes.id] }),
+  student: one(users, { fields: [prizeClaims.studentId], references: [users.id], relationName: "prizeClaimStudent" }),
+  event: one(events, { fields: [prizeClaims.eventId], references: [events.id], relationName: "prizeClaimEvent" }),
+  awardedBy: one(users, { fields: [prizeClaims.claimedBy], references: [users.id], relationName: "prizeClaimAwardedBy" }),
+}));

@@ -216,11 +216,27 @@ export default function PrizeAwardPanel({
     setPhotoErrorMessage(null);
     try {
       const compressed = await compressImageFile(file);
+      // Confirmed on iOS: the server sometimes receives a well-formed
+      // multipart Content-Type but Content-Length: 0 — the body never
+      // arrives, with BOTH fetch() and XHR (ruling out a transport-specific
+      // bug). This check tells us, from what's on the STAFF'S OWN SCREEN,
+      // whether the blob was already empty before we even touch the network
+      // — no server-log spelunking needed to isolate which half is broken.
+      if (compressed.size === 0) {
+        throw new Error(
+          "Photo data was empty before upload (0 bytes) — this looks like a camera/browser issue. Try picking an existing photo from your library instead of taking a new one.",
+        );
+      }
       const form = new FormData();
-      form.append("file", compressed);
-      // XHR, not fetch: see src/lib/xhr-upload.ts — fetch() has a WebKit bug
-      // that drops the body of a FormData/Blob upload on iOS Safari, exactly
-      // the "take a photo" path this screen exists for.
+      // Append a plain Blob (via slice()), not the File object
+      // compressImageFile returns. `new File([blob], ...)` is the other prime
+      // suspect for this: WebKit has known bugs serializing a FormData entry
+      // that's a synthesized File rather than a native input-derived one or a
+      // plain Blob. slice() hands back a genuine Blob over the same bytes,
+      // and the explicit 3rd arg keeps the filename FormData would otherwise
+      // have taken from the File's own .name.
+      const blob = compressed.slice(0, compressed.size, compressed.type);
+      form.append("file", blob, compressed.name);
       const up = await uploadFormViaXHR("/api/forms/upload", form);
       if (!up.ok) throw new Error((up.body.error as string) || "upload failed");
       const { key } = up.body as { key: string };

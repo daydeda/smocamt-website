@@ -27,8 +27,9 @@ import {
   BookOpen,
   ClipboardList,
   ListChecks,
+  Gift,
 } from "lucide-react";
-import { isScannerOnlyAny, isGlobalRegistrationPosition, isShopFinancePosition } from "@/lib/admin-access";
+import { isScannerOnlyAny, isGlobalRegistrationPosition, isShopFinancePosition, canAwardPrizes, canManagePrizes, PRIZES_HREF } from "@/lib/admin-access";
 import { REVIEW_PROPOSAL_ROLES } from "@/lib/event-proposals";
 
 export interface AdminNavContext {
@@ -123,6 +124,7 @@ const canReviewProposals = (ctx: AdminNavContext) => has(ctx, [...REVIEW_PROPOSA
 // no explicit scannerOnly check is needed here. Revisit once VOC/Study land
 // for real and pick up their own scoping.
 const canSeeRoadmap = (ctx: AdminNavContext) => has(ctx, ["super_admin", "admin"]);
+const canSeePrizes = (ctx: AdminNavContext) => canManagePrizes(ctx.roles);
 
 export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   {
@@ -182,6 +184,21 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     icon: MessageSquareWarning,
     group: "events",
     allowed: canManage,
+  },
+
+  {
+    id: "managePrizes",
+    href: PRIZES_HREF,
+    i18nKey: "managePrizes",
+    fallback: "Prizes",
+    icon: Gift,
+    group: "events",
+    // canManagePrizes, NOT canAwardPrizes: the scanner-only roles that may only
+    // AWARD (smo, club/major president) never reach `allowed` — isAdminItemVisible
+    // short-circuits them to scannerOnlyAllowed below, which admits them to the
+    // same page. Using the wider predicate here would be harmless today and
+    // wrong the moment a non-scanner-only role gets award-only rights.
+    allowed: canSeePrizes,
   },
 
   // Community group.
@@ -294,7 +311,11 @@ function scannerOnlyAllowed(item: AdminNavItem, ctx: AdminNavContext): boolean {
       ctx.roles.includes("major_president") ||
       ctx.roles.includes("shop_seller") ||
       isShopFinancePosition(ctx.roles, ctx.smoPosition)
-    ))
+    )) ||
+    // smo/club_president/major_president staff the prize table, so they get the
+    // link even though they can't configure a prize or pull the report — the
+    // page's own gates narrow what they see once they're there.
+    (item.href === PRIZES_HREF && canAwardPrizes(ctx.roles))
   );
 }
 

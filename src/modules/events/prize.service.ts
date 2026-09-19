@@ -258,6 +258,10 @@ export class PrizeService {
       .select({
         studentId: attendance.studentId,
         firstCheckIn: sql<Date | null>`min(${attendance.checkInTime})`.as("first_check_in"),
+        // Multi-day events check in per SESSION, so "วันที่เข้าร่วมกิจกรรม" alone
+        // under-reports a student who came all three days. Count the sessions so
+        // the report can say "3 วัน" beside the first date.
+        daysAttended: sql<number>`count(distinct ${attendance.sessionId})::int`.as("days_attended"),
       })
       .from(attendance)
       .where(
@@ -284,6 +288,7 @@ export class PrizeService {
         // they attended it. Null otherwise — the renderer falls back to the
         // event's startTime, then to blank.
         attendedAt: attended.firstCheckIn,
+        daysAttended: attended.daysAttended,
       })
       .from(prizeClaims)
       .innerJoin(users, eq(users.id, prizeClaims.studentId))

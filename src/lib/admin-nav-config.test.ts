@@ -106,9 +106,13 @@ describe("admin-nav-config: registration/organizer are barred from admin/student
 });
 
 describe("admin-nav-config: scanner-only confinement (smo, club_president, major_president)", () => {
-  it("smo (scanner-only) sees exactly scanner + events + appeals, nothing else", () => {
+  it("smo (scanner-only) sees exactly scanner + events + appeals + prizes, nothing else", () => {
+    // /admin/prizes was added deliberately (2026-09-19): smo staffs the prize
+    // table, and awarding is scanner-shaped work. They can AWARD there but not
+    // configure a prize or pull the dean report — that narrowing is
+    // canManagePrizes, enforced by the route gates, not by this list.
     expect(visibleHrefs(SMO_SCANNER_ONLY).sort()).toEqual(
-      ["/admin/appeals", "/admin/events", "/admin/scanner"].sort()
+      ["/admin/appeals", "/admin/events", "/admin/scanner", "/admin/prizes"].sort()
     );
   });
 

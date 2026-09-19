@@ -30,9 +30,10 @@ export const PRIZES_HREF = "/admin/prizes";
 // Roles that may AWARD a prize: scan a student, confirm, attach the photo.
 // Includes "smo" — the prize table is staffed the same way the scanner is, and
 // awarding is one student at a time, in person, with that student present.
-// Excludes "registration" only because the prize table is run by the organizing
-// side; add it here if a registration desk ends up handing prizes out.
-export const PRIZE_AWARD_ROLES = ["super_admin", "admin", "organizer", "smo", "club_president", "major_president"] as const;
+// Includes "registration": in practice the registration desk is already sitting
+// at the table where prizes get handed out, so excluding it would just mean an
+// organizer has to be fetched for every claim.
+export const PRIZE_AWARD_ROLES = ["super_admin", "admin", "registration", "organizer", "smo", "club_president", "major_president"] as const;
 
 // Roles that may CREATE/CONFIGURE/CLOSE a prize, see the full claim list, and
 // pull the dean report (.xlsx + the PDF print page).
@@ -45,7 +46,7 @@ export const PRIZE_AWARD_ROLES = ["super_admin", "admin", "organizer", "smo", "c
 // club_president/major_president pass here but are EVENT-SCOPED server-side via
 // EventScopeService — this predicate answers "may this role at all", never
 // "which prizes".
-export const PRIZE_MANAGE_ROLES = ["super_admin", "admin", "organizer", "club_president", "major_president"] as const;
+export const PRIZE_MANAGE_ROLES = ["super_admin", "admin", "registration", "organizer", "club_president", "major_president"] as const;
 
 // Pages a scanner-only role (smo, club_president, major_president) may open.
 // Besides the scanner they may now reach the events page for a widening set of

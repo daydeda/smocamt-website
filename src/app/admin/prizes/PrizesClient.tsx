@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import PrizeAwardPanel from "./PrizeAwardPanel";
 import { Gift, Plus, QrCode, FileSpreadsheet, Printer, Loader2, ImageOff, Lock, X, PackageOpen } from "lucide-react";
+import { useLanguage } from "@/lib/LanguageContext";
 
 // /admin/prizes — the top-level prize tab.
 //
@@ -38,6 +39,7 @@ interface EventOption {
 }
 
 export default function PrizesClient({ canAward, canManage }: { canAward: boolean; canManage: boolean }) {
+  const { t } = useLanguage();
   const [prizes, setPrizes] = useState<PrizeRow[]>([]);
   const [events, setEvents] = useState<EventOption[]>([]);
   const [canExport, setCanExport] = useState(false);
@@ -86,22 +88,28 @@ export default function PrizesClient({ canAward, canManage }: { canAward: boolea
   }, [canManage]);
 
   return (
-    <div style={{ maxWidth: 880, margin: "0 auto", padding: "24px 20px 56px" }}>
-      <header style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 24 }}>
-        <div style={{ minWidth: 0 }}>
-          <h1 style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "clamp(22px, 4vw, 26px)", fontWeight: 900, color: "var(--text-primary)" }}>
-            <Gift size={26} style={{ color: "var(--accent-primary)", flexShrink: 0 }} /> การรับรางวัล
+    <div className="pb-20">
+      {/* Header matches admin/appeals and admin/reviews: no extra max-width/
+          padding wrapper (admin-main in AdminLayoutWrapper already provides
+          that), same clamp() h1 size + 32px accent icon + optional subtitle,
+          same flex row for the primary action (mirrors admin/clubs' "New
+          Club" placement). */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4" style={{ marginBottom: 24 }}>
+        <div>
+          <h1 style={{ fontSize: "clamp(28px,5vw,42px)", fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1.3, display: "flex", alignItems: "center", gap: 12 }}>
+            <Gift size={32} strokeWidth={2.5} style={{ color: "var(--accent-primary)" }} />
+            {t.adminPrizesTitle}
           </h1>
-          <p style={{ marginTop: 6, fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.5 }}>
-            บันทึกการแจกของรางวัลพร้อมรูปหลักฐาน ใช้ได้ทั้งแจกในงานและแจกนอกรอบ
+          <p style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 6 }}>
+            {t.adminPrizesSubtitle}
           </p>
         </div>
         {canManage && (
-          <button className="btn btn-primary btn-lg" onClick={() => setCreating(true)} style={{ flexShrink: 0 }}>
-            <Plus size={18} /> สร้างรางวัล
+          <button className="btn btn-primary" onClick={() => setCreating(true)}>
+            <Plus size={18} /> {t.adminPrizesCreate}
           </button>
         )}
-      </header>
+      </div>
 
       {!canManage && (
         <div
@@ -120,20 +128,20 @@ export default function PrizesClient({ canAward, canManage }: { canAward: boolea
           }}
         >
           <Lock size={16} style={{ marginTop: 2, flexShrink: 0, color: "var(--text-muted)" }} />
-          คุณมีสิทธิ์แจกรางวัลและถ่ายรูปเท่านั้น การสร้างรางวัลและการออกรายงานต้องใช้สิทธิ์ผู้ดูแล
+          {t.adminPrizesAwardOnlyNotice}
         </div>
       )}
 
       {loading ? (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "48px 0", color: "var(--text-muted)", fontSize: 14 }}>
-          <Loader2 size={18} className="animate-spin" /> กำลังโหลด…
+          <Loader2 size={18} className="animate-spin" /> {t.adminPrizesLoading}
         </div>
       ) : prizes.length === 0 ? (
         <div className="stat-card" style={{ textAlign: "center", padding: "56px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
           <PackageOpen size={40} style={{ color: "var(--text-muted)" }} />
-          <p style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)" }}>ยังไม่มีรางวัล</p>
+          <p style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)" }}>{t.adminPrizesEmptyTitle}</p>
           <p style={{ fontSize: 13, color: "var(--text-muted)", maxWidth: 320, lineHeight: 1.5 }}>
-            {canManage ? "กด \"สร้างรางวัล\" ด้านบนเพื่อเริ่มบันทึกการแจก" : "รอแอดมินสร้างรางวัลก่อน ถึงจะเริ่มแจกได้"}
+            {canManage ? t.adminPrizesEmptyHintManage : t.adminPrizesEmptyHintAward}
           </p>
         </div>
       ) : (
@@ -148,24 +156,25 @@ export default function PrizesClient({ canAward, canManage }: { canAward: boolea
                       <h2 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)" }}>{p.name}</h2>
                       {p.status === "closed" && (
                         <span className="badge" style={{ background: "var(--bg-elevated)", color: "var(--text-muted)", border: "1px solid var(--border-subtle)" }}>
-                          ปิดรับ
+                          {t.adminPrizesClosedBadge}
                         </span>
                       )}
-                      {p.onePerStudent && <span className="badge badge-blue">1 คน / 1 ชิ้น</span>}
-                      {p.requireCheckIn && <span className="badge badge-purple">ต้องเช็คอินก่อน</span>}
+                      {p.onePerStudent && <span className="badge badge-blue">{t.adminPrizesOnePerStudentBadge}</span>}
+                      {p.requireCheckIn && <span className="badge badge-purple">{t.adminPrizesRequireCheckInBadge}</span>}
                     </div>
 
                     {canManage && (
                       <p style={{ marginTop: 6, fontSize: 13, color: "var(--text-secondary)" }}>
-                        แจกแล้ว {p.claimCount ?? 0}
-                        {p.quantity !== null ? ` / ${p.quantity}` : ""} ชิ้น
+                        {p.quantity !== null
+                          ? t.adminPrizesAwardedCountWithTarget.replace("{count}", String(p.claimCount ?? 0)).replace("{target}", String(p.quantity))
+                          : t.adminPrizesAwardedCount.replace("{count}", String(p.claimCount ?? 0))}
                         {/* Over-quantity is a WARNING, never a block: real events
                             over-award, and blocking at the booth makes staff stop
                             RECORDING rather than stop awarding. */}
-                        {overQuantity && <span style={{ marginLeft: 8, fontWeight: 700, color: "#b45309" }}>เกินจำนวนที่ตั้งไว้</span>}
+                        {overQuantity && <span style={{ marginLeft: 8, fontWeight: 700, color: "#b45309" }}>{t.adminPrizesOverQuantity}</span>}
                         {!!p.awaitingPhotoCount && (
                           <span style={{ marginLeft: 8, display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 700, color: "#b45309" }}>
-                            <ImageOff size={13} /> รอรูป {p.awaitingPhotoCount}
+                            <ImageOff size={13} /> {t.adminPrizesAwaitingPhoto.replace("{count}", String(p.awaitingPhotoCount))}
                           </span>
                         )}
                       </p>
@@ -175,7 +184,7 @@ export default function PrizesClient({ canAward, canManage }: { canAward: boolea
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                     {canAward && p.status === "open" && (
                       <button className="btn btn-success-solid" onClick={() => setAwarding(p)}>
-                        <QrCode size={16} /> แจกรางวัล
+                        <QrCode size={16} /> {t.adminPrizesAwardBtn}
                       </button>
                     )}
                     {canExport && (
@@ -228,6 +237,7 @@ function CreatePrizeDialog({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const { t } = useLanguage();
   const [name, setName] = useState("");
   const [eventId, setEventId] = useState("");
   const [quantity, setQuantity] = useState("");
@@ -257,7 +267,7 @@ function CreatePrizeDialog({
       if (!res.ok) throw new Error();
       onCreated();
     } catch {
-      setError("บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง");
+      setError(t.adminPrizesSaveError);
     } finally {
       setSaving(false);
     }
@@ -301,29 +311,29 @@ function CreatePrizeDialog({
         }}
       >
         <div style={{ padding: "22px 28px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-          <h2 style={{ fontSize: 19, fontWeight: 800, color: "var(--text-primary)" }}>สร้างรางวัล</h2>
-          <button className="btn btn-ghost" style={{ borderRadius: "50%", width: 36, height: 36, padding: 0 }} onClick={onClose} disabled={saving} aria-label="ปิด">
+          <h2 style={{ fontSize: 19, fontWeight: 800, color: "var(--text-primary)" }}>{t.adminPrizesCreate}</h2>
+          <button className="btn btn-ghost" style={{ borderRadius: "50%", width: 36, height: 36, padding: 0 }} onClick={onClose} disabled={saving} aria-label={t.adminPrizesCloseLabel}>
             <X size={16} />
           </button>
         </div>
 
         <div style={{ padding: "24px 28px", display: "flex", flexDirection: "column", gap: 18, overflowY: "auto", flex: 1 }}>
           <div className="field">
-            <label className="label">ชื่อรางวัล *</label>
+            <label className="label">{t.adminPrizesFieldName}</label>
             <input
               className="input"
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="เช่น แก้ว CAMT, รางวัลที่ 1"
+              placeholder={t.adminPrizesFieldNamePlaceholder}
               style={{ fontSize: 15, padding: "12px 14px" }}
             />
           </div>
 
           <div className="field">
-            <label className="label">ผูกกับกิจกรรม (ไม่บังคับ)</label>
+            <label className="label">{t.adminPrizesFieldEvent}</label>
             <select className="input" value={eventId} onChange={(e) => setEventId(e.target.value)}>
-              <option value="">— ไม่ผูก (แจกนอกรอบ) —</option>
+              <option value="">{t.adminPrizesFieldEventNone}</option>
               {events.map((e) => (
                 <option key={e.id} value={e.id}>{e.title}</option>
               ))}
@@ -331,7 +341,7 @@ function CreatePrizeDialog({
           </div>
 
           <div className="field">
-            <label className="label">จำนวนที่เตรียมไว้ (ไม่บังคับ)</label>
+            <label className="label">{t.adminPrizesFieldQuantity}</label>
             <input
               className="input"
               type="number"
@@ -340,35 +350,35 @@ function CreatePrizeDialog({
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
             />
-            <p style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.4 }}>ใช้เตือนเมื่อแจกเกิน ไม่ได้บล็อกการแจก</p>
+            <p style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.4 }}>{t.adminPrizesFieldQuantityHint}</p>
           </div>
 
-          <p className="section-title" style={{ margin: "4px 0 -6px" }}>การตั้งค่าการแจก</p>
+          <p className="section-title" style={{ margin: "4px 0 -6px" }}>{t.adminPrizesSettingsSection}</p>
 
           <ToggleRow
             checked={onePerStudent}
             onChange={setOnePerStudent}
-            title="1 คนรับได้ครั้งเดียว"
-            hint="ระบบจะกันรับซ้ำให้ที่ระดับฐานข้อมูล ไม่ว่าจะรับที่งานหรือมารับทีหลัง"
+            title={t.adminPrizesOnePerStudentTitle}
+            hint={t.adminPrizesOnePerStudentHint}
           />
 
           <ToggleRow
             checked={requireCheckIn}
             onChange={setRequireCheckIn}
-            title="ต้องเช็คอินกิจกรรมก่อนถึงมีสิทธิ์รับ"
+            title={t.adminPrizesRequireCheckInTitle}
           />
 
           {requireCheckIn && (
             <div className="field" style={{ marginLeft: 4, paddingLeft: 14, borderLeft: "2px solid var(--border-subtle)" }}>
-              <label className="label">ต้องเช็คอินกิจกรรมไหน</label>
+              <label className="label">{t.adminPrizesEligibilityLabel}</label>
               <select className="input" value={eligibilityEventId} onChange={(e) => setEligibilityEventId(e.target.value)}>
-                <option value="">— เลือกกิจกรรม —</option>
+                <option value="">{t.adminPrizesSelectEvent}</option>
                 {events.map((e) => (
                   <option key={e.id} value={e.id}>{e.title}</option>
                 ))}
               </select>
               <p style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.4 }}>
-                แยกจาก &quot;ผูกกับกิจกรรม&quot; ด้านบน สิทธิ์มาจากกิจกรรมนี้ แต่จะมารับวันไหนที่ไหนก็ได้
+                {t.adminPrizesEligibilityHint}
               </p>
             </div>
           )}
@@ -377,9 +387,9 @@ function CreatePrizeDialog({
         </div>
 
         <div style={{ padding: "18px 28px", background: "var(--bg-elevated)", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "flex-end", gap: 12, flexShrink: 0 }}>
-          <button className="btn btn-ghost" onClick={onClose} disabled={saving}>ยกเลิก</button>
+          <button className="btn btn-ghost" onClick={onClose} disabled={saving}>{t.cancel}</button>
           <button className="btn btn-primary" onClick={submit} disabled={saving || !name.trim()}>
-            {saving ? "กำลังบันทึก…" : "สร้าง"}
+            {saving ? t.saving : t.adminPrizesSubmit}
           </button>
         </div>
       </div>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Html5Qrcode } from "html5-qrcode";
 import { compressImageFile } from "@/lib/compress-image";
+import { uploadFormViaXHR } from "@/lib/xhr-upload";
 import { useLanguage } from "@/lib/LanguageContext";
 import { Camera, Check, X, AlertTriangle, Loader2, Search } from "lucide-react";
 
@@ -217,10 +218,12 @@ export default function PrizeAwardPanel({
       const compressed = await compressImageFile(file);
       const form = new FormData();
       form.append("file", compressed);
-      const up = await fetch("/api/forms/upload", { method: "POST", body: form });
-      const upBody = await up.json().catch(() => ({}));
-      if (!up.ok) throw new Error(upBody.error || "upload failed");
-      const { key } = upBody;
+      // XHR, not fetch: see src/lib/xhr-upload.ts — fetch() has a WebKit bug
+      // that drops the body of a FormData/Blob upload on iOS Safari, exactly
+      // the "take a photo" path this screen exists for.
+      const up = await uploadFormViaXHR("/api/forms/upload", form);
+      if (!up.ok) throw new Error((up.body.error as string) || "upload failed");
+      const { key } = up.body as { key: string };
 
       const attach = await fetch(`/api/admin/prizes/claims/${committed.claimId}/photo`, {
         method: "POST",

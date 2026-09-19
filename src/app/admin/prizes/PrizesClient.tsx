@@ -6,6 +6,7 @@ import PrizeAwardPanel from "./PrizeAwardPanel";
 import { Gift, Plus, QrCode, FileSpreadsheet, Printer, Loader2, ImageOff, Lock, X, PackageOpen, Pencil, Camera, Check } from "lucide-react";
 import { useLanguage } from "@/lib/LanguageContext";
 import { compressImageFile } from "@/lib/compress-image";
+import { uploadFormViaXHR } from "@/lib/xhr-upload";
 
 // /admin/prizes — the top-level prize tab.
 //
@@ -518,14 +519,15 @@ function AwaitingPhotoDialog({
       const compressed = await compressImageFile(file);
       const form = new FormData();
       form.append("file", compressed);
-      const up = await fetch("/api/forms/upload", { method: "POST", body: form });
-      const upBody = await up.json().catch(() => ({}));
-      if (!up.ok) throw new Error(upBody.error || t.adminPrizesConnectionError);
+      // XHR, not fetch: see src/lib/xhr-upload.ts — fetch() has a WebKit bug
+      // that drops the body of a FormData/Blob upload on iOS Safari.
+      const up = await uploadFormViaXHR("/api/forms/upload", form);
+      if (!up.ok) throw new Error((up.body.error as string) || t.adminPrizesConnectionError);
 
       const attachRes = await fetch(`/api/admin/prizes/claims/${claimId}/photo`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ photoKey: upBody.key }),
+        body: JSON.stringify({ photoKey: up.body.key }),
       });
       if (!attachRes.ok) throw new Error(t.adminPrizesConnectionError);
 

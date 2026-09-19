@@ -404,7 +404,24 @@ export default function PrizeAwardPanel({
                   position: "relative",
                 }}
               >
-                <div id="prize-qr-reader" style={{ width: "100%", height: "100%" }} />
+                <div
+                  id="prize-qr-reader"
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    // html5-qrcode sizes the <video> it inserts here to the
+                    // container's width and leaves height auto, so if the
+                    // camera doesn't actually deliver a square stream (many
+                    // webcams ignore the requested aspectRatio and fall back
+                    // to their native ratio) the video renders shorter or
+                    // taller than this square box. Centering it here keeps
+                    // the reticle looking centered in the visible black
+                    // frame instead of pinned to the top.
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                />
               </div>
               {cameraError && (
                 <p style={{ borderRadius: 12, padding: "10px 14px", fontSize: 12.5, background: "rgba(245,158,11,0.1)", color: "#b45309", lineHeight: 1.5 }}>

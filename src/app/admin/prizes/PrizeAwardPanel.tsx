@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Html5Qrcode } from "html5-qrcode";
 import { compressImageFile } from "@/lib/compress-image";
 import { Camera, Check, X, AlertTriangle, Loader2, Search } from "lucide-react";
@@ -15,6 +16,12 @@ import { Camera, Check, X, AlertTriangle, Loader2, Search } from "lucide-react";
 //  2. The claim is committed BEFORE the photo. If the venue wifi dies during
 //     the upload we still have the handover on record — otherwise the duplicate
 //     check silently switches off for everyone behind them in the queue.
+//
+// UI note: no `dark:` Tailwind classes here — this app is light-only by design
+// (see the note at the top of PrizesClient.tsx). Styling mirrors
+// admin/scanner/page.tsx (the same booth-camera screen for check-in) so staff
+// get one consistent visual language: black camera box, big legible result
+// state, large touch targets for a phone held at arm's length.
 
 interface ClaimStudent {
   id: string;
@@ -248,181 +255,241 @@ export default function PrizeAwardPanel({
     setScanning(true);
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center">
-      <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-4 shadow-xl sm:rounded-2xl dark:bg-neutral-900">
-        <div className="mb-3 flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-neutral-500">แจกรางวัล</p>
-            <h2 className="text-lg font-semibold">{prizeName}</h2>
+  return createPortal(
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.5)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+        display: "flex",
+        alignItems: "flex-end",
+        justifyContent: "center",
+        zIndex: 1100,
+      }}
+      onClick={onClose}
+    >
+      <div
+        className="animate-fade-in-up"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "var(--bg-surface)",
+          width: "100%",
+          maxWidth: 480,
+          maxHeight: "92vh",
+          display: "flex",
+          flexDirection: "column",
+          borderRadius: "24px 24px 0 0",
+          overflow: "hidden",
+          boxShadow: "0 -20px 60px rgba(0,0,0,0.25)",
+        }}
+      >
+        <div style={{ padding: "18px 22px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexShrink: 0 }}>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>แจกรางวัล</p>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", overflowWrap: "break-word" }}>{prizeName}</h2>
           </div>
-          <button onClick={onClose} aria-label="Close" className="rounded-full p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800">
-            <X className="h-5 w-5" />
+          <button className="btn btn-ghost" style={{ borderRadius: "50%", width: 36, height: 36, padding: 0, flexShrink: 0 }} onClick={onClose} aria-label="ปิด">
+            <X size={16} />
           </button>
         </div>
 
-        {/* ---- Committed: the handover is recorded; now the photo ---- */}
-        {committed ? (
-          <div className="space-y-4">
-            <div className="rounded-xl border border-green-300 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950">
-              <div className="flex items-center gap-2 font-semibold text-green-800 dark:text-green-300">
-                <Check className="h-5 w-5" /> บันทึกการรับรางวัลแล้ว
-              </div>
-              <p className="mt-1 text-sm">
-                {committed.student.name}
-                {committed.student.studentId ? ` · ${committed.student.studentId}` : ""}
-              </p>
-            </div>
-
-            <div className="rounded-xl border p-4 dark:border-neutral-700">
-              <p className="text-sm font-medium">ถ่ายรูปนักศึกษาถือของรางวัล</p>
-              <p className="mt-1 text-xs text-neutral-500">
-                รูปนี้จะถูกเก็บเป็นหลักฐานและใช้ในรายงานที่ส่งคณบดี เก็บแบบไม่เปิดเผยต่อสาธารณะ
-                และการเปิดดูทุกครั้งจะถูกบันทึกไว้
-              </p>
-
-              {photoState === "done" ? (
-                <p className="mt-3 flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-400">
-                  <Check className="h-4 w-4" /> แนบรูปแล้ว
+        <div style={{ padding: 20, overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
+          {committed ? (
+            /* ---- Committed: the handover is recorded; now the photo ---- */
+            <>
+              <div style={{ borderRadius: 16, padding: 16, background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, color: "#0d9488", fontSize: 15 }}>
+                  <Check size={20} /> บันทึกการรับรางวัลแล้ว
+                </div>
+                <p style={{ marginTop: 4, fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>
+                  {committed.student.name}
+                  {committed.student.studentId ? ` · ${committed.student.studentId}` : ""}
                 </p>
-              ) : (
-                <>
-                  <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-neutral-900 px-4 py-3 text-sm font-medium text-white dark:bg-white dark:text-neutral-900">
-                    {photoState === "uploading" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-                    {photoState === "uploading" ? "กำลังอัปโหลด…" : "ถ่ายรูป / เลือกรูป"}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      disabled={photoState === "uploading"}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) void uploadPhoto(f);
-                      }}
-                    />
-                  </label>
-                  {photoState === "failed" && (
-                    <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
-                      อัปโหลดรูปไม่สำเร็จ — <strong>การรับรางวัลถูกบันทึกไว้แล้ว</strong> ไม่ต้องแจกซ้ำ
-                      ลองแนบรูปใหม่ภายหลังจากรายการ &quot;รอรูป&quot;
-                    </p>
-                  )}
-                </>
-              )}
-            </div>
-
-            <button
-              onClick={resetForNext}
-              className="w-full rounded-lg border px-4 py-3 text-sm font-medium dark:border-neutral-700"
-            >
-              คนถัดไป
-            </button>
-          </div>
-        ) : preview ? (
-          /* ---- Preview: who it is, and whether they may have it ---- */
-          <div className="space-y-4">
-            <PreviewCard result={preview} />
-            <div className="flex gap-2">
-              <button
-                onClick={resetForNext}
-                className="flex-1 rounded-lg border px-4 py-3 text-sm font-medium dark:border-neutral-700"
-              >
-                สแกนใหม่
-              </button>
-              {preview.status === "success" && preview.student && (
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    confirmClaim(
-                      preview.rawToken ? { qrToken: preview.rawToken } : { studentUserId: preview.student!.id },
-                    )
-                  }
-                  className="flex-1 rounded-lg bg-green-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
-                >
-                  {busy ? "กำลังบันทึก…" : "ยืนยันการรับ"}
-                </button>
-              )}
-            </div>
-          </div>
-        ) : (
-          /* ---- Scanning ---- */
-          <div className="space-y-4">
-            <div id="prize-qr-reader" className="overflow-hidden rounded-xl bg-black" />
-            {cameraError && (
-              <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                {cameraError}
-              </p>
-            )}
-            {busy && (
-              <p className="flex items-center justify-center gap-2 text-sm text-neutral-500">
-                <Loader2 className="h-4 w-4 animate-spin" /> กำลังตรวจสอบ…
-              </p>
-            )}
-
-            <details className="rounded-xl border p-3 dark:border-neutral-700">
-              <summary className="cursor-pointer text-sm font-medium">สแกนไม่ได้? ค้นหาด้วยชื่อ/รหัส</summary>
-              <div className="mt-3 flex gap-2">
-                <input
-                  value={manualQuery}
-                  onChange={(e) => setManualQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && runManualSearch()}
-                  placeholder="ชื่อ หรือ รหัสนักศึกษา"
-                  className="flex-1 rounded-lg border px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
-                />
-                <button onClick={runManualSearch} className="rounded-lg border px-3 dark:border-neutral-700">
-                  <Search className="h-4 w-4" />
-                </button>
               </div>
-              {/* No free-text entry: every option here is a real users row. */}
-              <ul className="mt-2 divide-y dark:divide-neutral-700">
-                {manualResults.map((s) => (
-                  <li key={s.id}>
-                    <button
-                      onClick={() => {
-                        setPreview({ status: "success", student: s });
-                      }}
-                      className="w-full py-2 text-left text-sm hover:opacity-70"
+
+              <div style={{ borderRadius: 16, padding: 16, background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)" }}>
+                <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>ถ่ายรูปนักศึกษาถือของรางวัล</p>
+                <p style={{ marginTop: 4, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
+                  รูปนี้จะถูกเก็บเป็นหลักฐานและใช้ในรายงานที่ส่งคณบดี เก็บแบบไม่เปิดเผยต่อสาธารณะ
+                  และการเปิดดูทุกครั้งจะถูกบันทึกไว้
+                </p>
+
+                {photoState === "done" ? (
+                  <p style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 700, color: "#0d9488" }}>
+                    <Check size={16} /> แนบรูปแล้ว
+                  </p>
+                ) : (
+                  <>
+                    <label
+                      className="btn btn-primary btn-lg btn-full"
+                      style={{ marginTop: 14, cursor: photoState === "uploading" ? "not-allowed" : "pointer" }}
                     >
-                      {s.name}
-                      {s.studentId ? <span className="text-neutral-500"> · {s.studentId}</span> : null}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </details>
-          </div>
-        )}
+                      {photoState === "uploading" ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
+                      {photoState === "uploading" ? "กำลังอัปโหลด…" : "ถ่ายรูป / เลือกรูป"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        style={{ display: "none" }}
+                        disabled={photoState === "uploading"}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) void uploadPhoto(f);
+                        }}
+                      />
+                    </label>
+                    {photoState === "failed" && (
+                      <p style={{ marginTop: 10, fontSize: 12.5, color: "#b45309", lineHeight: 1.5 }}>
+                        อัปโหลดรูปไม่สำเร็จ <strong>การรับรางวัลถูกบันทึกไว้แล้ว ไม่ต้องแจกซ้ำ</strong>{" "}
+                        ลองแนบรูปใหม่ภายหลังจากรายการ &quot;รอรูป&quot;
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <button className="btn btn-ghost btn-lg btn-full" onClick={resetForNext}>
+                คนถัดไป
+              </button>
+            </>
+          ) : preview ? (
+            /* ---- Preview: who it is, and whether they may have it ---- */
+            <>
+              <PreviewCard result={preview} />
+              <div style={{ display: "flex", gap: 10 }}>
+                <button className="btn btn-ghost btn-lg" style={{ flex: 1 }} onClick={resetForNext}>
+                  สแกนใหม่
+                </button>
+                {preview.status === "success" && preview.student && (
+                  <button
+                    className="btn btn-success-solid btn-lg"
+                    style={{ flex: 1 }}
+                    disabled={busy}
+                    onClick={() =>
+                      confirmClaim(
+                        preview.rawToken ? { qrToken: preview.rawToken } : { studentUserId: preview.student!.id },
+                      )
+                    }
+                  >
+                    {busy ? "กำลังบันทึก…" : "ยืนยันการรับ"}
+                  </button>
+                )}
+              </div>
+            </>
+          ) : (
+            /* ---- Scanning ---- */
+            <>
+              <div
+                style={{
+                  background: "#000",
+                  borderRadius: "var(--radius-xl)",
+                  overflow: "hidden",
+                  border: "6px solid var(--bg-elevated)",
+                  minHeight: 260,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  position: "relative",
+                }}
+              >
+                <div id="prize-qr-reader" style={{ width: "100%" }} />
+              </div>
+              {cameraError && (
+                <p style={{ borderRadius: 12, padding: "10px 14px", fontSize: 12.5, background: "rgba(245,158,11,0.1)", color: "#b45309", lineHeight: 1.5 }}>
+                  {cameraError}
+                </p>
+              )}
+              {busy && (
+                <p style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 14, color: "var(--text-muted)" }}>
+                  <Loader2 size={16} className="animate-spin" /> กำลังตรวจสอบ…
+                </p>
+              )}
+
+              <details style={{ borderRadius: 16, border: "1px solid var(--border-subtle)", padding: 14 }}>
+                <summary style={{ cursor: "pointer", fontSize: 13.5, fontWeight: 700, color: "var(--text-secondary)" }}>
+                  สแกนไม่ได้? ค้นหาด้วยชื่อ/รหัส
+                </summary>
+                <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+                  <input
+                    className="input"
+                    value={manualQuery}
+                    onChange={(e) => setManualQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && runManualSearch()}
+                    placeholder="ชื่อ หรือ รหัสนักศึกษา"
+                    style={{ flex: 1 }}
+                  />
+                  <button className="btn btn-ghost" onClick={runManualSearch} aria-label="ค้นหา">
+                    <Search size={16} />
+                  </button>
+                </div>
+                {/* No free-text entry: every option here is a real users row. */}
+                {manualResults.length > 0 && (
+                  <ul style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 2 }}>
+                    {manualResults.map((s) => (
+                      <li key={s.id}>
+                        <button
+                          onClick={() => setPreview({ status: "success", student: s })}
+                          style={{
+                            width: "100%",
+                            textAlign: "left",
+                            padding: "10px 10px",
+                            borderRadius: 10,
+                            border: "none",
+                            background: "transparent",
+                            cursor: "pointer",
+                            fontSize: 14,
+                            color: "var(--text-primary)",
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-elevated)"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                        >
+                          {s.name}
+                          {s.studentId ? <span style={{ color: "var(--text-muted)" }}> · {s.studentId}</span> : null}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </details>
+            </>
+          )}
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
+// Color tokens match the app's .badge-* families (green/yellow/red in
+// globals.css) so a "duplicate" or "not eligible" refusal reads with the same
+// visual weight staff already recognize from badges elsewhere in admin.
 function PreviewCard({ result }: { result: ClaimResult }) {
   const student = result.student;
 
   if (result.status === "success" && student) {
     return (
-      <div className="rounded-xl border border-green-300 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950">
-        <p className="text-lg font-semibold">{student.name}</p>
-        <p className="text-sm text-neutral-600 dark:text-neutral-300">
+      <div style={{ borderRadius: 16, padding: 18, background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)" }}>
+        <p style={{ fontSize: 20, fontWeight: 800, color: "var(--text-primary)" }}>{student.name}</p>
+        <p style={{ marginTop: 2, fontSize: 14, fontWeight: 600, color: "var(--text-secondary)" }}>
           {student.studentId ?? "ไม่มีรหัสนักศึกษาในระบบ"}
           {student.nickname ? ` · ${student.nickname}` : ""}
         </p>
-        <p className="mt-2 text-sm text-green-800 dark:text-green-300">มีสิทธิ์รับรางวัลนี้</p>
+        <p style={{ marginTop: 10, fontSize: 14, fontWeight: 700, color: "#0d9488" }}>มีสิทธิ์รับรางวัลนี้</p>
       </div>
     );
   }
 
   const tone =
     result.status === "already_claimed"
-      ? "border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950"
-      : "border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950";
+      ? { bg: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.3)", color: "#b45309" }
+      : { bg: "rgba(239,68,68,0.1)", border: "rgba(239,68,68,0.3)", color: "#dc2626" };
 
   return (
-    <div className={`rounded-xl border p-4 ${tone}`}>
-      <div className="flex items-center gap-2 font-semibold">
-        <AlertTriangle className="h-5 w-5" />
+    <div style={{ borderRadius: 16, padding: 18, background: tone.bg, border: `1px solid ${tone.border}` }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, fontSize: 15, color: tone.color }}>
+        <AlertTriangle size={20} />
         {result.status === "already_claimed" && "รับรางวัลนี้ไปแล้ว"}
         {result.status === "not_eligible" && "ยังไม่มีสิทธิ์รับ"}
         {result.status === "prize_closed" && "รางวัลนี้ปิดรับแล้ว"}
@@ -430,7 +497,7 @@ function PreviewCard({ result }: { result: ClaimResult }) {
         {result.status === "error" && "เกิดข้อผิดพลาด"}
       </div>
       {student && (
-        <p className="mt-1 text-sm">
+        <p style={{ marginTop: 6, fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>
           {student.name}
           {student.studentId ? ` · ${student.studentId}` : ""}
         </p>
@@ -438,16 +505,18 @@ function PreviewCard({ result }: { result: ClaimResult }) {
       {/* The "why" matters more than the refusal: staff has a queue and needs to
           tell the student what to do next. */}
       {result.existingClaim && (
-        <p className="mt-2 text-sm">
+        <p style={{ marginTop: 8, fontSize: 13, color: "var(--text-secondary)" }}>
           รับไปแล้วเมื่อ {new Date(result.existingClaim.claimedAt).toLocaleString("th-TH")}
           {result.existingClaim.claimedByName ? ` โดย ${result.existingClaim.claimedByName}` : ""}
         </p>
       )}
       {result.status === "not_eligible" && result.requiredEventTitle && (
-        <p className="mt-2 text-sm">ต้องเช็คอินกิจกรรม &quot;{result.requiredEventTitle}&quot; ก่อน</p>
+        <p style={{ marginTop: 8, fontSize: 13, color: "var(--text-secondary)" }}>
+          ต้องเช็คอินกิจกรรม &quot;{result.requiredEventTitle}&quot; ก่อน
+        </p>
       )}
       {result.error && !result.existingClaim && result.status !== "not_eligible" && (
-        <p className="mt-2 text-sm">{result.error}</p>
+        <p style={{ marginTop: 8, fontSize: 13, color: "var(--text-secondary)" }}>{result.error}</p>
       )}
     </div>
   );

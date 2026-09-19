@@ -17,6 +17,12 @@ import path from "path";
 const BUCKET = "form-uploads";
 const DEV_DIR = path.join(process.cwd(), ".uploads-private", BUCKET);
 
+// A storage-layer failure (Supabase upload rejected, disk write failed, ...).
+// Distinct from a generic Error so callers (the upload route) can surface this
+// specific, pre-written message instead of a bare "Internal Server Error" —
+// it never wraps a raw driver exception/stack, just a safe fixed string.
+export class StorageError extends Error {}
+
 function hasSupabase(): boolean {
   return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
@@ -52,13 +58,23 @@ export async function uploadFormFile(buffer: Buffer, ext: string): Promise<strin
     }
     if (result.error) {
       console.error("Form file upload error:", result.error);
-      throw new Error("Failed to store the uploaded file.");
+      throw new StorageError("Failed to store the uploaded file.");
     }
     return key;
   }
 
-  await mkdir(DEV_DIR, { recursive: true });
-  await writeFile(path.join(DEV_DIR, key), buffer);
+  try {
+    await mkdir(DEV_DIR, { recursive: true });
+    await writeFile(path.join(DEV_DIR, key), buffer);
+  } catch (e) {
+    // Surface the real fs error (e.g. EACCES, ENOSPC) rather than a generic
+    // "Internal Server Error" — this is the active path on the self-hosted
+    // deploy (SUPABASE_* is intentionally unset there, see docker-stack.yml),
+    // and a bare "Internal Server Error" gave staff nothing to act on.
+    console.error("Form file local-disk write error:", e);
+    const detail = e instanceof Error ? e.message : String(e);
+    throw new StorageError(`Failed to store the uploaded file (${detail}).`);
+  }
   return key;
 }
 

@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { hardenImageUpload, ImageValidationError } from "@/lib/image-upload";
-import { uploadFormFile, deleteFormFile } from "@/lib/form-file-storage";
+import { uploadFormFile, deleteFormFile, StorageError } from "@/lib/form-file-storage";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 
@@ -85,6 +85,12 @@ export async function POST(req: Request) {
   } catch (error) {
     if (error instanceof ImageValidationError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    // StorageError carries a safe, pre-written message (never a raw driver
+    // exception) — surface it instead of the opaque generic string below, so
+    // staff/admins actually see WHY storage failed (see form-file-storage.ts).
+    if (error instanceof StorageError) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
     console.error("Form file upload error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

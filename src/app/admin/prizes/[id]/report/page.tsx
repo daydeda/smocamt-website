@@ -25,6 +25,12 @@ export const dynamic = "force-dynamic";
 const fmt = (d: Date | string | null | undefined) =>
   d ? new Date(d).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" }) : "—";
 
+// Guards the id before it reaches a query, matching the .xlsx sibling. A
+// missing/malformed id passed straight into a lookup is sent to Postgres as a
+// bound parameter, which fails as an opaque driver-level error instead of a
+// clean 404.
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export default async function PrizeReportPage({ params }: { params: Promise<{ id: string }> }) {
   const access = await resolvePrizeAccess();
   // Same gate as the .xlsx: awarding is one student at a time in person, but
@@ -32,6 +38,7 @@ export default async function PrizeReportPage({ params }: { params: Promise<{ id
   if (!access?.canExport) redirect("/admin/dashboard");
 
   const { id } = await params;
+  if (!id || !UUID_PATTERN.test(id)) notFound();
   const data = await PrizeService.getClaimsForReport(id);
   if (!data) notFound();
   if (!(await canReachPrize(access, data.prize))) redirect("/admin/dashboard");

@@ -29,6 +29,11 @@ const patchSchema = z.object({
   sortOrder: z.number().int().min(0).max(9999).optional(),
 });
 
+// Guards every id before it reaches a query. A missing/malformed id passed
+// straight to eq(prizes.id, id) is sent to Postgres as a bound parameter,
+// which fails as an opaque driver-level error instead of a clean 400.
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const access = await resolvePrizeAccess();
@@ -38,6 +43,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     if (!access.canManage) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const { id } = await params;
+    if (!id || !UUID_PATTERN.test(id)) {
+      return NextResponse.json({ error: "Invalid prize id" }, { status: 400 });
+    }
     const data = await PrizeService.getClaimsForReport(id);
     if (!data) return NextResponse.json({ error: "Prize not found" }, { status: 404 });
     if (!(await canReachPrize(access, data.prize))) {
@@ -66,6 +74,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (!access.canManage) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const { id } = await params;
+    if (!id || !UUID_PATTERN.test(id)) {
+      return NextResponse.json({ error: "Invalid prize id" }, { status: 400 });
+    }
     const existing = await db.query.prizes.findFirst({ where: eq(prizes.id, id) });
     if (!existing) return NextResponse.json({ error: "Prize not found" }, { status: 404 });
     if (!(await canReachPrize(access, existing))) {
@@ -120,6 +131,9 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     if (!access.isSuperAdmin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const { id } = await params;
+    if (!id || !UUID_PATTERN.test(id)) {
+      return NextResponse.json({ error: "Invalid prize id" }, { status: 400 });
+    }
     const existing = await db.query.prizes.findFirst({ where: eq(prizes.id, id) });
     if (!existing) return NextResponse.json({ error: "Prize not found" }, { status: 404 });
 

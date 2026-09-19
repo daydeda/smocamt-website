@@ -34,6 +34,14 @@ const schema = z.object({
   message: "qrToken or studentUserId is required",
 });
 
+// Mirrors the guard in api/attendance/evidence/[attendanceId] and the prize
+// photo route: reject a missing/malformed id BEFORE it reaches the query
+// builder. Passing undefined or a non-UUID string straight to eq(prizes.id,
+// id) sends it to Postgres as a bound parameter, which fails with an opaque
+// driver-level error (or, for undefined specifically, "params: undefined")
+// instead of a clean 400 — this is that guard.
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const ip = getClientIp(req);
   // Same shape as the scanner: one handover is 2 requests (preview + confirm),
@@ -52,6 +60,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!access.canAward) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const { id } = await params;
+    if (!id || !UUID_PATTERN.test(id)) {
+      return NextResponse.json({ error: "Invalid prize id" }, { status: 400 });
+    }
     const prize = await db.query.prizes.findFirst({
       where: eq(prizes.id, id),
       columns: { id: true, eventId: true, eligibilityEventId: true },

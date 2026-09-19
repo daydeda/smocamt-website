@@ -38,6 +38,11 @@ const PHOTO_ROW_HEIGHT = 130;
 // claims: every photo is fetched and resized in memory.
 const MAX_ROWS = 1000;
 
+// Guards the id before it reaches a query. A missing/malformed id passed
+// straight into a lookup is sent to Postgres as a bound parameter, which
+// fails as an opaque driver-level error instead of a clean 400.
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const access = await resolvePrizeAccess();
@@ -47,6 +52,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (!access.canExport) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const { id } = await params;
+    if (!id || !UUID_PATTERN.test(id)) {
+      return NextResponse.json({ error: "Invalid prize id" }, { status: 400 });
+    }
     const data = await PrizeService.getClaimsForReport(id);
     if (!data) return NextResponse.json({ error: "Prize not found" }, { status: 404 });
     if (!(await canReachPrize(access, data.prize))) {

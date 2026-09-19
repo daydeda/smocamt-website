@@ -180,11 +180,13 @@ export async function POST(req: Request) {
       );
     }
 
-    // "success"/"success_walk_in" cover both a confirmed check-in (which may award
-    // per-attendee points) and the "score" action — bust the cached leaderboard so
-    // it reflects the change on the next poll instead of waiting out the cache TTL.
-    // "pending_confirmation" hasn't mutated anything yet, so it's excluded.
-    if (result.status === "success" || result.status === "success_walk_in") {
+    // "success"/"success_walk_in"/"success_checkout" cover a confirmed check-in
+    // (which may award per-attendee points), a confirmed check-out (requireCheckOut
+    // events defer the award to this step), and the "score" action — bust the
+    // cached leaderboard so it reflects the change on the next poll instead of
+    // waiting out the cache TTL. "pending_confirmation"/"pending_checkout" haven't
+    // mutated anything yet, so they're excluded.
+    if (result.status === "success" || result.status === "success_walk_in" || result.status === "success_checkout") {
       revalidateLeaderboards();
     }
 

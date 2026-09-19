@@ -33,6 +33,7 @@ import { useLanguage } from "@/lib/LanguageContext";
 import { useSession } from "next-auth/react";
 import { canGiveIndividualScoreAny, effectiveRoles } from "@/lib/admin-access";
 import { compressImageFile } from "@/lib/compress-image";
+import { uploadFormViaXHR } from "@/lib/xhr-upload";
 import { usePolling } from "@/lib/usePolling";
 import dynamic from "next/dynamic";
 
@@ -622,12 +623,16 @@ export default function QRScannerPage() {
     setUploadingCheckoutFile(true);
     try {
       const upload = await compressImageFile(file, { maxDim: 1600 });
-      const body = new FormData();
-      body.append("file", upload);
-      const res = await fetch("/api/forms/upload", { method: "POST", body });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        const tooBig = res.status === 413;
+      if (upload.size === 0) throw new Error("empty file");
+      const form = new FormData();
+      // Append a plain Blob (via slice()), not the File object compressImageFile
+      // returns — see src/lib/xhr-upload.ts for why (WebKit FormData/Blob bug).
+      const blob = upload.slice(0, upload.size, upload.type);
+      form.append("file", blob, upload.name);
+      const up = await uploadFormViaXHR("/api/forms/upload", form);
+      const data = up.body as { key?: string; error?: string };
+      if (!up.ok) {
+        const tooBig = up.status === 413;
         setCheckoutFileError((tooBig ? null : data?.error) ||
           (lang === "th" ? (tooBig ? "ไฟล์ใหญ่เกินไป" : "อัปโหลดไฟล์ไม่สำเร็จ")
             : lang === "cn" ? (tooBig ? "文件太大" : "文件上传失败")
@@ -635,7 +640,7 @@ export default function QRScannerPage() {
             : (tooBig ? "File is too large." : "File upload failed.")));
         return;
       }
-      setCheckoutFileKey(data.key);
+      setCheckoutFileKey(data.key as string);
       setCheckoutFileName(file.name);
     } catch {
       setCheckoutFileError(lang === "th" ? "อัปโหลดไฟล์ไม่สำเร็จ" : lang === "cn" ? "文件上传失败" : lang === "mm" ? "ဖိုင်တင်ခြင်း မအောင်မြင်ပါ" : "File upload failed.");

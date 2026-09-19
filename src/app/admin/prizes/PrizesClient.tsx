@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import PrizeAwardPanel from "./PrizeAwardPanel";
-import { Gift, Plus, QrCode, FileSpreadsheet, Printer, Loader2, ImageOff, Lock, X, PackageOpen } from "lucide-react";
+import { Gift, Plus, QrCode, FileSpreadsheet, Printer, Loader2, ImageOff, Lock, X, PackageOpen, Pencil } from "lucide-react";
 import { useLanguage } from "@/lib/LanguageContext";
 
 // /admin/prizes — the top-level prize tab.
@@ -46,6 +46,7 @@ export default function PrizesClient({ canAward, canManage }: { canAward: boolea
   const [loading, setLoading] = useState(true);
   const [awarding, setAwarding] = useState<PrizeRow | null>(null);
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<PrizeRow | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -187,6 +188,11 @@ export default function PrizesClient({ canAward, canManage }: { canAward: boolea
                         <QrCode size={16} /> {t.adminPrizesAwardBtn}
                       </button>
                     )}
+                    {canManage && (
+                      <button className="btn btn-ghost" onClick={() => setEditing(p)}>
+                        <Pencil size={16} /> {t.edit}
+                      </button>
+                    )}
                     {canExport && (
                       <>
                         <a href={`/api/admin/prizes/${p.id}/export`} className="btn btn-ghost">
@@ -215,11 +221,23 @@ export default function PrizesClient({ canAward, canManage }: { canAward: boolea
       )}
 
       {creating && (
-        <CreatePrizeDialog
+        <PrizeFormDialog
           events={events}
           onClose={() => setCreating(false)}
-          onCreated={() => {
+          onSaved={() => {
             setCreating(false);
+            void load();
+          }}
+        />
+      )}
+
+      {editing && (
+        <PrizeFormDialog
+          prize={editing}
+          events={events}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
             void load();
           }}
         />
@@ -228,22 +246,26 @@ export default function PrizesClient({ canAward, canManage }: { canAward: boolea
   );
 }
 
-function CreatePrizeDialog({
+function PrizeFormDialog({
+  prize,
   events,
   onClose,
-  onCreated,
+  onSaved,
 }: {
+  prize?: PrizeRow;
   events: EventOption[];
   onClose: () => void;
-  onCreated: () => void;
+  onSaved: () => void;
 }) {
   const { t } = useLanguage();
-  const [name, setName] = useState("");
-  const [eventId, setEventId] = useState("");
-  const [quantity, setQuantity] = useState("");
-  const [onePerStudent, setOnePerStudent] = useState(true);
-  const [requireCheckIn, setRequireCheckIn] = useState(false);
-  const [eligibilityEventId, setEligibilityEventId] = useState("");
+  const isEdit = !!prize;
+  const [name, setName] = useState(prize?.name ?? "");
+  const [eventId, setEventId] = useState(prize?.eventId ?? "");
+  const [quantity, setQuantity] = useState(prize?.quantity != null ? String(prize.quantity) : "");
+  const [onePerStudent, setOnePerStudent] = useState(prize?.onePerStudent ?? true);
+  const [requireCheckIn, setRequireCheckIn] = useState(prize?.requireCheckIn ?? false);
+  const [eligibilityEventId, setEligibilityEventId] = useState(prize?.eligibilityEventId ?? "");
+  const [status, setStatus] = useState<"open" | "closed">(prize?.status ?? "open");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -252,8 +274,8 @@ function CreatePrizeDialog({
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/prizes", {
-        method: "POST",
+      const res = await fetch(isEdit ? `/api/admin/prizes/${prize!.id}` : "/api/admin/prizes", {
+        method: isEdit ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
@@ -262,10 +284,11 @@ function CreatePrizeDialog({
           onePerStudent,
           requireCheckIn,
           eligibilityEventId: requireCheckIn ? eligibilityEventId || null : null,
+          ...(isEdit ? { status } : {}),
         }),
       });
       if (!res.ok) throw new Error();
-      onCreated();
+      onSaved();
     } catch {
       setError(t.adminPrizesSaveError);
     } finally {
@@ -311,7 +334,7 @@ function CreatePrizeDialog({
         }}
       >
         <div style={{ padding: "22px 28px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-          <h2 style={{ fontSize: 19, fontWeight: 800, color: "var(--text-primary)" }}>{t.adminPrizesCreate}</h2>
+          <h2 style={{ fontSize: 19, fontWeight: 800, color: "var(--text-primary)" }}>{isEdit ? t.adminPrizesEditTitle : t.adminPrizesCreate}</h2>
           <button className="btn btn-ghost" style={{ borderRadius: "50%", width: 36, height: 36, padding: 0 }} onClick={onClose} disabled={saving} aria-label={t.adminPrizesCloseLabel}>
             <X size={16} />
           </button>
@@ -383,13 +406,23 @@ function CreatePrizeDialog({
             </div>
           )}
 
+          {isEdit && (
+            <div className="field">
+              <label className="label">{t.adminPrizesStatusField}</label>
+              <select className="input" value={status} onChange={(e) => setStatus(e.target.value as "open" | "closed")}>
+                <option value="open">{t.adminPrizesStatusOptionOpen}</option>
+                <option value="closed">{t.adminPrizesStatusOptionClosed}</option>
+              </select>
+            </div>
+          )}
+
           {error && <p style={{ color: "#dc2626", fontWeight: 600, fontSize: 13 }}>{error}</p>}
         </div>
 
         <div style={{ padding: "18px 28px", background: "var(--bg-elevated)", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "flex-end", gap: 12, flexShrink: 0 }}>
           <button className="btn btn-ghost" onClick={onClose} disabled={saving}>{t.cancel}</button>
           <button className="btn btn-primary" onClick={submit} disabled={saving || !name.trim()}>
-            {saving ? t.saving : t.adminPrizesSubmit}
+            {saving ? t.saving : isEdit ? t.saveChanges : t.adminPrizesSubmit}
           </button>
         </div>
       </div>

@@ -147,7 +147,7 @@ export default function PrizeAwardPanel({
           // reticle centered within it — end up much taller than the qrbox,
           // reading as "off-center" even though it's centered in that tall
           // frame. Square keeps the visible frame close to the qrbox itself.
-          { fps: 10, qrbox: { width: 240, height: 240 }, aspectRatio: 1 },
+          { fps: 10, qrbox: { width: 280, height: 280 }, aspectRatio: 1 },
           async (decodedText) => {
             // Ignore repeats of the token already on screen: the camera fires
             // many times a second and the student keeps holding their phone up.
@@ -395,7 +395,8 @@ export default function PrizeAwardPanel({
                   background: "#000",
                   borderRadius: "var(--radius-xl)",
                   overflow: "hidden",
-                  border: "6px solid var(--bg-elevated)",
+                  border: "8px solid var(--bg-surface)",
+                  boxShadow: "0 40px 80px rgba(0,0,0,0.15)",
                   // Square, matching the aspectRatio:1 requested from the
                   // camera above — bounds the box instead of letting it grow
                   // to a webcam's native (often tall-portrait) resolution.

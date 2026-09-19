@@ -89,10 +89,13 @@ changelog entry.
      says so or it's a breaking change. When unsure, default to a patch/minor
      bump matching the size of what just shipped; don't ask unless it's
      genuinely ambiguous.
-   - **No em dashes (—) anywhere in the tag message or release notes.** Write
-     natural, human sentences (Thai and English) instead of dash-stitched
-     fragments. Join clauses with "เพราะ"/"ซึ่ง"/"โดย", a comma, or split into
-     two sentences, whichever reads most naturally.
+   - **The tag message and GitHub release notes are English only, never Thai.**
+     This is the opposite language choice from the `updates/` changelog entry
+     in step 8, which stays Thai — don't let that house style bleed into the
+     tag/release. **No em dashes (—) anywhere in them either.** Write natural,
+     human sentences instead of dash-stitched fragments; join clauses with
+     "and"/"since"/"which", a comma, or split into two sentences, whichever
+     reads most naturally.
    - **Write the tag message.** Follow the existing style: `Release vX.Y.Z:
      <short description>` (same format for a date-range cycle too, just a
      colon, not a dash), then a blank line and a few bullet highlights pulled

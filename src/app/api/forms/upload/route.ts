@@ -49,7 +49,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const formData = await req.formData();
+    let formData: FormData;
+    try {
+      formData = await req.formData();
+    } catch (e) {
+      // Seen in prod as "TypeError: Failed to parse body as FormData." with no
+      // deeper detail from undici — the multipart body never even reached the
+      // point of extracting a file. Log the headers Next saw so a reverse-proxy
+      // issue (stripped Content-Length, mangled boundary, request buffering)
+      // can actually be diagnosed instead of guessed at.
+      console.error("Form file upload: failed to parse multipart body", {
+        error: e,
+        contentType: req.headers.get("content-type"),
+        contentLength: req.headers.get("content-length"),
+      });
+      return NextResponse.json(
+        { error: "Could not read the uploaded file. Please check your connection and try again." },
+        { status: 400 },
+      );
+    }
     const file = formData.get("file");
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });

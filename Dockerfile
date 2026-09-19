@@ -72,7 +72,12 @@ COPY --from=builder /app/next.config.ts ./next.config.ts
 # next build writes to .next by default; the .next.nosync distDir in
 # next.config.ts only kicks in on the iCloud-synced local path, never in CI / the
 # container (path has no "CloudDocs"/"Mobile Documents"), so copy .next.
-COPY --from=builder /app/.next ./.next
+# --chown: this COPY runs before `USER nextjs` below, so without it the whole
+# tree lands owned by root — and the app then can't write to
+# .next/cache/fetch-cache at runtime (EACCES), which silently disables Next's
+# fetch/data cache writes (fetch-cache misses/never-revalidates) and floods the
+# logs with "Failed to update prerender cache" on every request.
+COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
 
 # Source + maintenance scripts needed to run migrations/seed/elevate/file-import
 # from the Portainer web console (there is no host shell on the swarm). These read

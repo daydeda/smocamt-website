@@ -130,11 +130,22 @@ export async function GET(
 
     const event = await db.query.events.findFirst({
       where: eq(events.id, eventId),
-      columns: { id: true, title: true, managedByRoles: true, ownerClubIds: true, ownerMajors: true, staffUserIds: true },
+      columns: { id: true, title: true, managedByRoles: true, ownerClubIds: true, ownerMajors: true, staffUserIds: true, requireCheckOut: true },
     });
     if (!event) {
       return NextResponse.json({ error: "Event not found" }, { status: 404 });
     }
+
+    // Check-out/evidence columns only make sense on a requireCheckOut event
+    // (see events.requireCheckOut) — everyone else's checkOutTime/evidenceFileKey
+    // are always null. The evidence photo link goes further: it's gated to the
+    // same roles ADMIN_ROLES in /api/attendance/evidence/[attendanceId] actually
+    // allows through (super_admin/admin/registration/organizer) — smo and
+    // club/major presidents can export this file but would get a 403 clicking
+    // the link, so they don't get the column at all rather than a dead link.
+    const showCheckoutColumns = !!event.requireCheckOut;
+    const includeEvidenceLink = showCheckoutColumns && (isStaffRole || isRegOrgExportRole);
+    const evidenceBaseUrl = `${new URL(req.url).origin}/api/attendance/evidence`;
 
     // Event scoping for president roles (mirrors the attendance API): club_president
     // / major_president may only export events they OWN (ownerClubIds/ownerMajors
@@ -348,6 +359,12 @@ export async function GET(
         "Check-in (Bangkok)": fmtTime(m.checkInTime),
         "Method": m.method || "",
       };
+      if (showCheckoutColumns) {
+        base["Check-out (Bangkok)"] = fmtTime(m.checkOutTime ?? null);
+        if (includeEvidenceLink) {
+          base["Evidence Photo"] = m.evidenceFileKey ? `${evidenceBaseUrl}/${m.id}` : "";
+        }
+      }
       // Thin-roster exporters (smo) get identity + check-in only — no email,
       // phone, contact channels, or meds-check status (the latter would reveal
       // a medical condition). Mirrors THIN_USER_COLUMNS in the sibling
@@ -385,7 +402,10 @@ export async function GET(
       ...(includeFullContactColumns ? ["Email"] : []),
       ...(!isThinRoster ? ["Phone"] : []),
       ...(includeFullContactColumns ? ["Contact Channels"] : []),
-      "Major", "Role", "House", "Staff", "Status", "Check-in (Bangkok)", "Method",
+      "Major", "Role", "House", "Staff", "Status", "Check-in (Bangkok)",
+      ...(showCheckoutColumns ? ["Check-out (Bangkok)"] : []),
+      ...(includeEvidenceLink ? ["Evidence Photo"] : []),
+      "Method",
       ...(includeMedsCheckColumn ? ["Meds Check"] : []),
       ...(includeMedicalColumns
         ? [

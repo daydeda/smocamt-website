@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Html5Qrcode } from "html5-qrcode";
 import { compressImageFile } from "@/lib/compress-image";
+import { useLanguage } from "@/lib/LanguageContext";
 import { Camera, Check, X, AlertTriangle, Loader2, Search } from "lucide-react";
 
 // The booth screen: scan → see who it is and whether they may have it → confirm
@@ -50,6 +51,7 @@ export default function PrizeAwardPanel({
   onClaimed: () => void;
   onClose: () => void;
 }) {
+  const { t } = useLanguage();
   const [scanning, setScanning] = useState(true);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [preview, setPreview] = useState<(ClaimResult & { rawToken?: string }) | null>(null);
@@ -103,11 +105,11 @@ export default function PrizeAwardPanel({
       setPreview({ ...data, rawToken: qrToken });
       if ("vibrate" in navigator) navigator.vibrate(data.status === "success" ? [90, 40, 90] : 200);
     } catch {
-      if (mountedRef.current) setPreview({ status: "error", student: null, error: "Connection error" });
+      if (mountedRef.current) setPreview({ status: "error", student: null, error: t.adminPrizesConnectionError });
     } finally {
       if (mountedRef.current) setBusy(false);
     }
-  }, [prizeId]);
+  }, [prizeId, t.adminPrizesConnectionError]);
 
   useEffect(() => {
     if (!scanning) {
@@ -123,8 +125,8 @@ export default function PrizeAwardPanel({
       if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
         setCameraError(
           typeof window !== "undefined" && window.isSecureContext === false
-            ? "Camera blocked: open this site over its https:// address (or localhost)."
-            : "This browser/device does not expose a camera API.",
+            ? t.adminPrizesCameraBlockedHttps
+            : t.adminPrizesCameraNoApi,
         );
         return;
       }
@@ -139,7 +141,13 @@ export default function PrizeAwardPanel({
       try {
         await scanner.start(
           { facingMode: "environment" },
-          { fps: 10, qrbox: { width: 260, height: 260 } },
+          // aspectRatio: 1 requests a roughly square camera stream. Without
+          // it, a webcam's native (often tall-portrait, e.g. a laptop selfie
+          // cam) resolution is used unmodified, so the video — and the
+          // reticle centered within it — end up much taller than the qrbox,
+          // reading as "off-center" even though it's centered in that tall
+          // frame. Square keeps the visible frame close to the qrbox itself.
+          { fps: 10, qrbox: { width: 240, height: 240 }, aspectRatio: 1 },
           async (decodedText) => {
             // Ignore repeats of the token already on screen: the camera fires
             // many times a second and the student keeps holding their phone up.
@@ -163,14 +171,14 @@ export default function PrizeAwardPanel({
           // view is still usable.
         }
       } catch {
-        if (mountedRef.current) setCameraError("Could not start the camera. Check the permission and try again.");
+        if (mountedRef.current) setCameraError(t.adminPrizesCameraStartError);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [scanning, stopCamera, runPreview]);
+  }, [scanning, stopCamera, runPreview, t.adminPrizesCameraBlockedHttps, t.adminPrizesCameraNoApi, t.adminPrizesCameraStartError]);
 
   async function confirmClaim(body: { qrToken?: string; studentUserId?: string }) {
     setBusy(true);
@@ -194,7 +202,7 @@ export default function PrizeAwardPanel({
         setPreview({ ...data, rawToken: body.qrToken });
       }
     } catch {
-      if (mountedRef.current) setPreview({ status: "error", student: null, error: "Connection error" });
+      if (mountedRef.current) setPreview({ status: "error", student: null, error: t.adminPrizesConnectionError });
     } finally {
       if (mountedRef.current) setBusy(false);
     }
@@ -287,10 +295,10 @@ export default function PrizeAwardPanel({
       >
         <div style={{ padding: "18px 22px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexShrink: 0 }}>
           <div style={{ minWidth: 0 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>แจกรางวัล</p>
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>{t.adminPrizesAwardBtn}</p>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", overflowWrap: "break-word" }}>{prizeName}</h2>
           </div>
-          <button className="btn btn-ghost" style={{ borderRadius: "50%", width: 36, height: 36, padding: 0, flexShrink: 0 }} onClick={onClose} aria-label="ปิด">
+          <button className="btn btn-ghost" style={{ borderRadius: "50%", width: 36, height: 36, padding: 0, flexShrink: 0 }} onClick={onClose} aria-label={t.adminPrizesCloseLabel}>
             <X size={16} />
           </button>
         </div>
@@ -301,7 +309,7 @@ export default function PrizeAwardPanel({
             <>
               <div style={{ borderRadius: 16, padding: 16, background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, color: "#0d9488", fontSize: 15 }}>
-                  <Check size={20} /> บันทึกการรับรางวัลแล้ว
+                  <Check size={20} /> {t.adminPrizesCommittedTitle}
                 </div>
                 <p style={{ marginTop: 4, fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>
                   {committed.student.name}
@@ -310,15 +318,14 @@ export default function PrizeAwardPanel({
               </div>
 
               <div style={{ borderRadius: 16, padding: 16, background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)" }}>
-                <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>ถ่ายรูปนักศึกษาถือของรางวัล</p>
+                <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{t.adminPrizesPhotoCardTitle}</p>
                 <p style={{ marginTop: 4, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
-                  รูปนี้จะถูกเก็บเป็นหลักฐานและใช้ในรายงานที่ส่งคณบดี เก็บแบบไม่เปิดเผยต่อสาธารณะ
-                  และการเปิดดูทุกครั้งจะถูกบันทึกไว้
+                  {t.adminPrizesPhotoCardHint}
                 </p>
 
                 {photoState === "done" ? (
                   <p style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 700, color: "#0d9488" }}>
-                    <Check size={16} /> แนบรูปแล้ว
+                    <Check size={16} /> {t.adminPrizesPhotoAttached}
                   </p>
                 ) : (
                   <>
@@ -327,7 +334,7 @@ export default function PrizeAwardPanel({
                       style={{ marginTop: 14, cursor: photoState === "uploading" ? "not-allowed" : "pointer" }}
                     >
                       {photoState === "uploading" ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
-                      {photoState === "uploading" ? "กำลังอัปโหลด…" : "ถ่ายรูป / เลือกรูป"}
+                      {photoState === "uploading" ? t.adminPrizesPhotoUploading : t.adminPrizesPhotoCta}
                       <input
                         type="file"
                         accept="image/*"
@@ -342,8 +349,8 @@ export default function PrizeAwardPanel({
                     </label>
                     {photoState === "failed" && (
                       <p style={{ marginTop: 10, fontSize: 12.5, color: "#b45309", lineHeight: 1.5 }}>
-                        อัปโหลดรูปไม่สำเร็จ <strong>การรับรางวัลถูกบันทึกไว้แล้ว ไม่ต้องแจกซ้ำ</strong>{" "}
-                        ลองแนบรูปใหม่ภายหลังจากรายการ &quot;รอรูป&quot;
+                        {t.adminPrizesPhotoFailedNotice} <strong>{t.adminPrizesPhotoFailedEmphasis}</strong>{" "}
+                        {t.adminPrizesPhotoFailedRetry}
                       </p>
                     )}
                   </>
@@ -351,7 +358,7 @@ export default function PrizeAwardPanel({
               </div>
 
               <button className="btn btn-ghost btn-lg btn-full" onClick={resetForNext}>
-                คนถัดไป
+                {t.adminPrizesNextPerson}
               </button>
             </>
           ) : preview ? (
@@ -360,7 +367,7 @@ export default function PrizeAwardPanel({
               <PreviewCard result={preview} />
               <div style={{ display: "flex", gap: 10 }}>
                 <button className="btn btn-ghost btn-lg" style={{ flex: 1 }} onClick={resetForNext}>
-                  สแกนใหม่
+                  {t.adminPrizesRescan}
                 </button>
                 {preview.status === "success" && preview.student && (
                   <button
@@ -373,7 +380,7 @@ export default function PrizeAwardPanel({
                       )
                     }
                   >
-                    {busy ? "กำลังบันทึก…" : "ยืนยันการรับ"}
+                    {busy ? t.saving : t.adminPrizesConfirmClaim}
                   </button>
                 )}
               </div>
@@ -387,14 +394,17 @@ export default function PrizeAwardPanel({
                   borderRadius: "var(--radius-xl)",
                   overflow: "hidden",
                   border: "6px solid var(--bg-elevated)",
-                  minHeight: 260,
+                  // Square, matching the aspectRatio:1 requested from the
+                  // camera above — bounds the box instead of letting it grow
+                  // to a webcam's native (often tall-portrait) resolution.
+                  aspectRatio: "1",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   position: "relative",
                 }}
               >
-                <div id="prize-qr-reader" style={{ width: "100%" }} />
+                <div id="prize-qr-reader" style={{ width: "100%", height: "100%" }} />
               </div>
               {cameraError && (
                 <p style={{ borderRadius: 12, padding: "10px 14px", fontSize: 12.5, background: "rgba(245,158,11,0.1)", color: "#b45309", lineHeight: 1.5 }}>
@@ -403,13 +413,13 @@ export default function PrizeAwardPanel({
               )}
               {busy && (
                 <p style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 14, color: "var(--text-muted)" }}>
-                  <Loader2 size={16} className="animate-spin" /> กำลังตรวจสอบ…
+                  <Loader2 size={16} className="animate-spin" /> {t.adminPrizesChecking}
                 </p>
               )}
 
               <details style={{ borderRadius: 16, border: "1px solid var(--border-subtle)", padding: 14 }}>
                 <summary style={{ cursor: "pointer", fontSize: 13.5, fontWeight: 700, color: "var(--text-secondary)" }}>
-                  สแกนไม่ได้? ค้นหาด้วยชื่อ/รหัส
+                  {t.adminPrizesManualSearchToggle}
                 </summary>
                 <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
                   <input
@@ -417,10 +427,10 @@ export default function PrizeAwardPanel({
                     value={manualQuery}
                     onChange={(e) => setManualQuery(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && runManualSearch()}
-                    placeholder="ชื่อ หรือ รหัสนักศึกษา"
+                    placeholder={t.adminPrizesManualSearchPlaceholder}
                     style={{ flex: 1 }}
                   />
-                  <button className="btn btn-ghost" onClick={runManualSearch} aria-label="ค้นหา">
+                  <button className="btn btn-ghost" onClick={runManualSearch} aria-label={t.adminPrizesSearchLabel}>
                     <Search size={16} />
                   </button>
                 </div>
@@ -466,6 +476,7 @@ export default function PrizeAwardPanel({
 // globals.css) so a "duplicate" or "not eligible" refusal reads with the same
 // visual weight staff already recognize from badges elsewhere in admin.
 function PreviewCard({ result }: { result: ClaimResult }) {
+  const { t } = useLanguage();
   const student = result.student;
 
   if (result.status === "success" && student) {
@@ -473,10 +484,10 @@ function PreviewCard({ result }: { result: ClaimResult }) {
       <div style={{ borderRadius: 16, padding: 18, background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)" }}>
         <p style={{ fontSize: 20, fontWeight: 800, color: "var(--text-primary)" }}>{student.name}</p>
         <p style={{ marginTop: 2, fontSize: 14, fontWeight: 600, color: "var(--text-secondary)" }}>
-          {student.studentId ?? "ไม่มีรหัสนักศึกษาในระบบ"}
+          {student.studentId ?? t.adminPrizesNoStudentId}
           {student.nickname ? ` · ${student.nickname}` : ""}
         </p>
-        <p style={{ marginTop: 10, fontSize: 14, fontWeight: 700, color: "#0d9488" }}>มีสิทธิ์รับรางวัลนี้</p>
+        <p style={{ marginTop: 10, fontSize: 14, fontWeight: 700, color: "#0d9488" }}>{t.adminPrizesEligibleNotice}</p>
       </div>
     );
   }
@@ -490,11 +501,11 @@ function PreviewCard({ result }: { result: ClaimResult }) {
     <div style={{ borderRadius: 16, padding: 18, background: tone.bg, border: `1px solid ${tone.border}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, fontSize: 15, color: tone.color }}>
         <AlertTriangle size={20} />
-        {result.status === "already_claimed" && "รับรางวัลนี้ไปแล้ว"}
-        {result.status === "not_eligible" && "ยังไม่มีสิทธิ์รับ"}
-        {result.status === "prize_closed" && "รางวัลนี้ปิดรับแล้ว"}
-        {result.status === "not_found" && "ไม่พบนักศึกษาในระบบ"}
-        {result.status === "error" && "เกิดข้อผิดพลาด"}
+        {result.status === "already_claimed" && t.adminPrizesStatusAlreadyClaimed}
+        {result.status === "not_eligible" && t.adminPrizesStatusNotEligible}
+        {result.status === "prize_closed" && t.adminPrizesStatusClosed}
+        {result.status === "not_found" && t.adminPrizesStatusNotFound}
+        {result.status === "error" && t.adminPrizesStatusError}
       </div>
       {student && (
         <p style={{ marginTop: 6, fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>
@@ -506,13 +517,13 @@ function PreviewCard({ result }: { result: ClaimResult }) {
           tell the student what to do next. */}
       {result.existingClaim && (
         <p style={{ marginTop: 8, fontSize: 13, color: "var(--text-secondary)" }}>
-          รับไปแล้วเมื่อ {new Date(result.existingClaim.claimedAt).toLocaleString("th-TH")}
-          {result.existingClaim.claimedByName ? ` โดย ${result.existingClaim.claimedByName}` : ""}
+          {t.adminPrizesClaimedAt.replace("{date}", new Date(result.existingClaim.claimedAt).toLocaleString("th-TH"))}
+          {result.existingClaim.claimedByName ? t.adminPrizesClaimedBy.replace("{name}", result.existingClaim.claimedByName) : ""}
         </p>
       )}
       {result.status === "not_eligible" && result.requiredEventTitle && (
         <p style={{ marginTop: 8, fontSize: 13, color: "var(--text-secondary)" }}>
-          ต้องเช็คอินกิจกรรม &quot;{result.requiredEventTitle}&quot; ก่อน
+          {t.adminPrizesRequiredEventNotice.replace("{event}", result.requiredEventTitle)}
         </p>
       )}
       {result.error && !result.existingClaim && result.status !== "not_eligible" && (

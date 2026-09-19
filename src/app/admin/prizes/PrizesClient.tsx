@@ -519,19 +519,17 @@ function AwaitingPhotoDialog({
       const compressed = await compressImageFile(file);
       // See PrizeAwardPanel.tsx's uploadPhoto for the full story: confirmed on
       // iOS the server sometimes gets a well-formed multipart Content-Type but
-      // Content-Length: 0, with BOTH fetch() and XHR — this check surfaces,
-      // right on the staff's own screen, whether the blob was already empty
-      // before any network call.
+      // Content-Length: 0 — this check surfaces, right on the staff's own
+      // screen, whether the blob was already empty before any network call.
       if (compressed.size === 0) {
         throw new Error(
           "Photo data was empty before upload (0 bytes) — this looks like a camera/browser issue. Try picking an existing photo from your library instead of taking a new one.",
         );
       }
       const form = new FormData();
-      // Append a plain Blob (via slice()), not the File object
-      // compressImageFile returns — see PrizeAwardPanel.tsx for why.
-      const blob = compressed.slice(0, compressed.size, compressed.type);
-      form.append("file", blob, compressed.name);
+      // uploadFormViaXHR (src/lib/xhr-upload.ts) re-materializes every
+      // File/Blob before sending — see PrizeAwardPanel.tsx for why.
+      form.append("file", compressed);
       const up = await uploadFormViaXHR("/api/forms/upload", form);
       if (!up.ok) throw new Error((up.body.error as string) || t.adminPrizesConnectionError);
 

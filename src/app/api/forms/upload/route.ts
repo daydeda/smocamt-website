@@ -57,11 +57,17 @@ export async function POST(req: Request) {
       // deeper detail from undici — the multipart body never even reached the
       // point of extracting a file. Log the headers Next saw so a reverse-proxy
       // issue (stripped Content-Length, mangled boundary, request buffering)
-      // can actually be diagnosed instead of guessed at.
+      // can actually be diagnosed instead of guessed at. User-Agent and Referer
+      // pin down which device/browser/page produced it — three rounds of
+      // client-side fixes (fetch->XHR, File->Blob, arrayBuffer materialization)
+      // have each been guesses without this, so if it recurs again we need the
+      // actual device fingerprint instead of another blind theory.
       console.error("Form file upload: failed to parse multipart body", {
         error: e,
         contentType: req.headers.get("content-type"),
         contentLength: req.headers.get("content-length"),
+        userAgent: req.headers.get("user-agent"),
+        referer: req.headers.get("referer"),
       });
       return NextResponse.json(
         { error: "Could not read the uploaded file. Please check your connection and try again." },

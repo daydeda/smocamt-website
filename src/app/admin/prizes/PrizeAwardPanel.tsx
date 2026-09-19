@@ -218,8 +218,7 @@ export default function PrizeAwardPanel({
       const compressed = await compressImageFile(file);
       // Confirmed on iOS: the server sometimes receives a well-formed
       // multipart Content-Type but Content-Length: 0 — the body never
-      // arrives, with BOTH fetch() and XHR (ruling out a transport-specific
-      // bug). This check tells us, from what's on the STAFF'S OWN SCREEN,
+      // arrives. This check tells us, from what's on the STAFF'S OWN SCREEN,
       // whether the blob was already empty before we even touch the network
       // — no server-log spelunking needed to isolate which half is broken.
       if (compressed.size === 0) {
@@ -228,15 +227,10 @@ export default function PrizeAwardPanel({
         );
       }
       const form = new FormData();
-      // Append a plain Blob (via slice()), not the File object
-      // compressImageFile returns. `new File([blob], ...)` is the other prime
-      // suspect for this: WebKit has known bugs serializing a FormData entry
-      // that's a synthesized File rather than a native input-derived one or a
-      // plain Blob. slice() hands back a genuine Blob over the same bytes,
-      // and the explicit 3rd arg keeps the filename FormData would otherwise
-      // have taken from the File's own .name.
-      const blob = compressed.slice(0, compressed.size, compressed.type);
-      form.append("file", blob, compressed.name);
+      // uploadFormViaXHR (src/lib/xhr-upload.ts) re-materializes every
+      // File/Blob before sending — that's where the actual WebKit-safety
+      // work happens, so this call site just appends the file as-is.
+      form.append("file", compressed);
       const up = await uploadFormViaXHR("/api/forms/upload", form);
       if (!up.ok) throw new Error((up.body.error as string) || "upload failed");
       const { key } = up.body as { key: string };

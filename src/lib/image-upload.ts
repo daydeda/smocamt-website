@@ -14,6 +14,19 @@ export function sniffImageType(buf: Buffer): string | null {
   return null;
 }
 
+// ISO base media (HEIC/HEIF) container: bytes 4-7 are "ftyp", followed by a
+// 4-byte major brand. iPhones save camera photos in this format by default
+// (unless the device is set to "Most Compatible"), and it has no simple magic
+// number sniffImageType recognizes, so without this check every such upload
+// silently fell through to the generic "File content is not a valid image."
+// error below with no way for staff to tell what went wrong.
+function isHeicBuffer(buf: Buffer): boolean {
+  if (buf.length < 12) return false;
+  if (buf.subarray(4, 8).toString("ascii") !== "ftyp") return false;
+  const brand = buf.subarray(8, 12).toString("ascii");
+  return ["heic", "heix", "hevc", "hevx", "heim", "heis", "hevm", "hevs", "mif1", "msf1"].includes(brand);
+}
+
 export class ImageValidationError extends Error {}
 
 export interface HardenedImage {
@@ -40,7 +53,14 @@ export async function hardenImageUpload(
   let buffer: Buffer = Buffer.from(await file.arrayBuffer());
 
   const sniffedType = sniffImageType(buffer);
-  if (!sniffedType) throw new ImageValidationError("File content is not a valid image.");
+  if (!sniffedType) {
+    if (isHeicBuffer(buffer)) {
+      throw new ImageValidationError(
+        "HEIC/HEIF photos aren't supported. On iPhone, switch Camera format to \"Most Compatible\" in Settings, or choose an existing JPG/PNG image instead.",
+      );
+    }
+    throw new ImageValidationError("File content is not a valid image.");
+  }
 
   // Animated GIFs are left untouched to preserve animation; everything else is
   // re-encoded to WebP, which shrinks slips/posters and neutralizes payloads.

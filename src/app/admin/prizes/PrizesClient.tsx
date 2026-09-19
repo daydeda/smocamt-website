@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import PrizeAwardPanel from "./PrizeAwardPanel";
-import { Gift, Plus, QrCode, FileSpreadsheet, Printer, Loader2, ImageOff, Lock, X, PackageOpen, Pencil } from "lucide-react";
+import { Gift, Plus, QrCode, FileSpreadsheet, Printer, Loader2, ImageOff, Lock, X, PackageOpen, Pencil, Camera, Check } from "lucide-react";
 import { useLanguage } from "@/lib/LanguageContext";
+import { compressImageFile } from "@/lib/compress-image";
 
 // /admin/prizes — the top-level prize tab.
 //
@@ -47,6 +48,7 @@ export default function PrizesClient({ canAward, canManage }: { canAward: boolea
   const [awarding, setAwarding] = useState<PrizeRow | null>(null);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<PrizeRow | null>(null);
+  const [awaitingPhotoPrize, setAwaitingPhotoPrize] = useState<PrizeRow | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -174,9 +176,25 @@ export default function PrizesClient({ canAward, canManage }: { canAward: boolea
                             RECORDING rather than stop awarding. */}
                         {overQuantity && <span style={{ marginLeft: 8, fontWeight: 700, color: "#b45309" }}>{t.adminPrizesOverQuantity}</span>}
                         {!!p.awaitingPhotoCount && (
-                          <span style={{ marginLeft: 8, display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 700, color: "#b45309" }}>
+                          <button
+                            onClick={() => setAwaitingPhotoPrize(p)}
+                            style={{
+                              marginLeft: 8,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              fontWeight: 700,
+                              color: "#b45309",
+                              background: "none",
+                              border: "none",
+                              padding: 0,
+                              cursor: "pointer",
+                              textDecoration: "underline",
+                              font: "inherit",
+                            }}
+                          >
                             <ImageOff size={13} /> {t.adminPrizesAwaitingPhoto.replace("{count}", String(p.awaitingPhotoCount))}
-                          </span>
+                          </button>
                         )}
                       </p>
                     )}
@@ -240,6 +258,15 @@ export default function PrizesClient({ canAward, canManage }: { canAward: boolea
             setEditing(null);
             void load();
           }}
+        />
+      )}
+
+      {awaitingPhotoPrize && (
+        <AwaitingPhotoDialog
+          prizeId={awaitingPhotoPrize.id}
+          prizeName={awaitingPhotoPrize.name}
+          onClose={() => setAwaitingPhotoPrize(null)}
+          onAttached={load}
         />
       )}
     </div>
@@ -424,6 +451,202 @@ function PrizeFormDialog({
           <button className="btn btn-primary" onClick={submit} disabled={saving || !name.trim()}>
             {saving ? t.saving : isEdit ? t.saveChanges : t.adminPrizesSubmit}
           </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+interface AwaitingPhotoClaim {
+  claimId: string;
+  name: string;
+  studentId: string | null;
+  claimedAt: string;
+}
+
+// The "รอรูป" follow-up: claims that were confirmed at the booth but never got
+// a proof photo (venue wifi died mid-upload, staff moved on to the next
+// person, etc). Before this dialog existed, PrizeAwardPanel's own failure copy
+// promised "attach it later from the awaiting photos list" but no such list
+// was reachable anywhere — this is that missing other half.
+function AwaitingPhotoDialog({
+  prizeId,
+  prizeName,
+  onClose,
+  onAttached,
+}: {
+  prizeId: string;
+  prizeName: string;
+  onClose: () => void;
+  onAttached: () => void;
+}) {
+  const { t } = useLanguage();
+  const [loading, setLoading] = useState(true);
+  const [claims, setClaims] = useState<AwaitingPhotoClaim[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [doneIds, setDoneIds] = useState<Set<string>>(new Set());
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/prizes/${prizeId}/awaiting-photo`);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || t.adminPrizesConnectionError);
+      setClaims(Array.isArray(body.claims) ? body.claims : []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t.adminPrizesConnectionError);
+    } finally {
+      setLoading(false);
+    }
+  }, [prizeId, t.adminPrizesConnectionError]);
+
+  useEffect(() => {
+    // Deferred via setTimeout so the setState calls fire after this render
+    // commits rather than synchronously within the effect — mirrors the
+    // top-level load() effect above (react-hooks/set-state-in-effect).
+    const timer = setTimeout(() => void load(), 0);
+    return () => clearTimeout(timer);
+  }, [load]);
+
+  async function attach(claimId: string, file: File) {
+    setUploadingId(claimId);
+    setError(null);
+    try {
+      const compressed = await compressImageFile(file);
+      const form = new FormData();
+      form.append("file", compressed);
+      const up = await fetch("/api/forms/upload", { method: "POST", body: form });
+      const upBody = await up.json().catch(() => ({}));
+      if (!up.ok) throw new Error(upBody.error || t.adminPrizesConnectionError);
+
+      const attachRes = await fetch(`/api/admin/prizes/claims/${claimId}/photo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ photoKey: upBody.key }),
+      });
+      if (!attachRes.ok) throw new Error(t.adminPrizesConnectionError);
+
+      setDoneIds((prev) => new Set(prev).add(claimId));
+      onAttached();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t.adminPrizesConnectionError);
+    } finally {
+      setUploadingId(null);
+    }
+  }
+
+  const remaining = claims.filter((c) => !doneIds.has(c.claimId));
+
+  return createPortal(
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.4)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1100,
+        padding: "clamp(12px, 4vw, 24px)",
+      }}
+      onClick={onClose}
+    >
+      <div
+        className="animate-fade-in-up"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "var(--bg-surface)",
+          width: "100%",
+          maxWidth: 480,
+          maxHeight: "calc(100vh - 48px)",
+          display: "flex",
+          flexDirection: "column",
+          borderRadius: "clamp(20px, 4vw, 28px)",
+          overflow: "hidden",
+          boxShadow: "0 30px 60px rgba(0,0,0,0.2)",
+          border: "1px solid var(--border-medium)",
+        }}
+      >
+        <div style={{ padding: "22px 28px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexShrink: 0, gap: 12 }}>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>{prizeName}</p>
+            <h2 style={{ fontSize: 19, fontWeight: 800, color: "var(--text-primary)" }}>{t.adminPrizesAwaitingPhotoDialogTitle}</h2>
+          </div>
+          <button className="btn btn-ghost" style={{ borderRadius: "50%", width: 36, height: 36, padding: 0, flexShrink: 0 }} onClick={onClose} aria-label={t.adminPrizesCloseLabel}>
+            <X size={16} />
+          </button>
+        </div>
+
+        <div style={{ padding: "20px 28px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
+          {loading ? (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "32px 0", color: "var(--text-muted)", fontSize: 14 }}>
+              <Loader2 size={18} className="animate-spin" /> {t.adminPrizesLoading}
+            </div>
+          ) : remaining.length === 0 ? (
+            <p style={{ textAlign: "center", padding: "32px 0", fontSize: 14, color: "var(--text-muted)" }}>
+              {t.adminPrizesAwaitingPhotoEmpty}
+            </p>
+          ) : (
+            remaining.map((c) => (
+              <div
+                key={c.claimId}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  padding: "12px 14px",
+                  borderRadius: 14,
+                  background: "var(--bg-elevated)",
+                  border: "1px solid var(--border-subtle)",
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", overflowWrap: "break-word" }}>{c.name}</p>
+                  <p style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                    {c.studentId ?? t.adminPrizesNoStudentId}
+                    {" · "}
+                    {t.adminPrizesClaimedAt.replace("{date}", new Date(c.claimedAt).toLocaleString("th-TH"))}
+                  </p>
+                </div>
+
+                <label
+                  className="btn btn-primary"
+                  style={{ flexShrink: 0, cursor: uploadingId === c.claimId ? "not-allowed" : "pointer" }}
+                >
+                  {uploadingId === c.claimId ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
+                  {t.adminPrizesAwaitingPhotoAttachBtn}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: "none" }}
+                    disabled={uploadingId === c.claimId}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) void attach(c.claimId, f);
+                    }}
+                  />
+                </label>
+              </div>
+            ))
+          )}
+
+          {!!doneIds.size && !loading && remaining.length > 0 && (
+            <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: "#0d9488" }}>
+              <Check size={14} /> {t.adminPrizesPhotoAttached} ({doneIds.size})
+            </p>
+          )}
+
+          {error && <p style={{ color: "#dc2626", fontWeight: 600, fontSize: 13 }}>{error}</p>}
+        </div>
+
+        <div style={{ padding: "18px 28px", background: "var(--bg-elevated)", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "flex-end", flexShrink: 0 }}>
+          <button className="btn btn-ghost" onClick={onClose}>{t.cancel}</button>
         </div>
       </div>
     </div>,

@@ -1,13 +1,52 @@
 # Prize claim (การรับรางวัล / การรับของ)
 
-**Status:** implemented on `feat/prize-claim` (schema + migration `drizzle/0042`,
-`PrizeService`, admin routes, `/admin/prizes` tab, both report renderings).
-NOT yet run against a database — `npm test`/`lint`/`build` pass, but the suite
-covers pure logic only, so the claim/report SQL and the booth flow still need
-`/verify` against a local DB before a PR. Written 2026-09-19 and revised twice
-the same day: once after the "แจกแก้ว" case showed the first model was wrong
-(see "Why the prize is not owned by an event"), once after the report turned out
-to need both an `.xlsx` and a PDF.
+**Status:** implemented on `feat/prize-claim` and verified end-to-end against a
+local DB (`/verify`, 2026-09-19) — schema, `PrizeService`, admin routes,
+`/admin/prizes` tab, both report renderings. `npm test`/`lint`/`build` all pass.
+
+**`/verify` found and fixed one real bug**, exactly the kind unit tests can't
+catch: `src/db/migrate.ts` — the script that actually runs against real
+Postgres (local AND prod, via `db:migrate`/`db:migrate:container`) — is a
+hand-maintained sequence of `CREATE TABLE`/`ALTER TABLE ... IF NOT EXISTS`
+statements. It does **not** read `drizzle/*.sql` at all for the Postgres path
+(only the PGlite/Vitest path does, via `migratePglite`). `db:generate` had
+produced `drizzle/0042_careless_wendell_vaughn.sql` correctly, but nothing
+wires a generated migration into `migrate.ts` automatically — that step is
+manual, and I'd missed it. Had this shipped as-is, the app code would have
+referenced `prizes`/`prize_claims` while a real deploy's
+`db:migrate:container` silently did nothing for them, so every prize route
+would 500 in prod despite `npm run build` succeeding. Added the matching block
+to `migrate.ts` (mirrors the `drizzle/0042` DDL exactly, including the partial
+unique index) and confirmed via `\d prizes`/`\d prize_claims` against the
+local container that the schema now matches. **This is a load-bearing
+convention worth adding to `CLAUDE.md` or the `drizzle-migration-author`
+skill** — `db:generate` alone is not sufficient for a schema change to reach
+Postgres; a corresponding block must be hand-added to `migrate.ts`.
+
+**Verified live** (dev-bypass login, real HTTP requests, real Postgres):
+partial-unique-index duplicate rejection (both raw SQL and through the API's
+preview→confirm→409 path, confirming zero duplicate rows survive a race);
+`requireCheckIn` eligibility (refused before attendance, admitted after, with
+the right event title in the refusal message); the multi-day attendance
+dedup fix (2 sessions attended → exactly 1 report row, `daysAttended: 2`,
+verified in both the JSON claim list and the actual `.xlsx` bytes);
+`onePerStudent: false` allowing repeat claims; the `.xlsx` export's real date
+cells (confirmed via the raw OOXML — a genuine Excel serial date matching the
+claim timestamp to the millisecond, not a preformatted string) and its custom
+`dd/mm/yyyy hh:mm` numFmt; embedded photo thumbnails (confirmed 320×180px,
+anchored in the correct cell); the PDF report page (audit-logged as an export,
+photos load through the auth-guarded route); photo delete keeping the claim
+row alive so the duplicate guarantee survives a photo deletion; prize delete
+cascading claims; and club-president scoping — a president sees and can only
+reach prizes attached to an event their own club owns, confirmed both
+positively (their own event) and negatively (another president's prizes stay
+invisible and return 403, and `src/proxy.ts` bounces `smo` away from the PDF
+report route before the page component ever runs).
+
+Written 2026-09-19 and revised through the day: once after the "แจกแก้ว" case
+showed the first model was wrong (see "Why the prize is not owned by an
+event"), once after the report turned out to need both an `.xlsx` and a PDF,
+once after `/verify`.
 
 **Known gaps:** the admin UI strings are hardcoded Thai rather than routed
 through `src/lib/i18n.ts` in all four languages (EN/TH/MM/CN) — deliberate for
@@ -15,7 +54,13 @@ the booth screens, which are staffed in Thai, but it is a deviation from the
 repo's i18n rule and should get a proper pass. Only the nav label
 (`managePrizes`) is translated. The claim-list/รอรูป follow-up view and prize
 editing exist in the API (`GET`/`PATCH /api/admin/prizes/[id]`,
-`PrizeService.listAwaitingPhoto`) but have no UI yet.
+`PrizeService.listAwaitingPhoto`) but have no dedicated UI yet (the claim list
+IS rendered as JSON data behind `GET /api/admin/prizes/[id]`, just not
+surfaced in `/admin/prizes` beyond the รอรูป counter). The camera/QR-scan path
+itself (`PrizeAwardPanel`'s `html5-qrcode` integration) was exercised via the
+underlying API only — verifying the actual camera UI needs a manual pass or a
+Playwright walkthrough with a real/virtual camera, which `/verify`'s curl-based
+approach doesn't cover.
 
 ## Problem
 

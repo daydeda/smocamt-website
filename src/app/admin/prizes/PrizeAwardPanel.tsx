@@ -272,9 +272,10 @@ export default function PrizeAwardPanel({
         backdropFilter: "blur(6px)",
         WebkitBackdropFilter: "blur(6px)",
         display: "flex",
-        alignItems: "flex-end",
+        alignItems: "center",
         justifyContent: "center",
         zIndex: 1100,
+        padding: "clamp(12px, 4vw, 24px)",
       }}
       onClick={onClose}
     >
@@ -288,9 +289,10 @@ export default function PrizeAwardPanel({
           maxHeight: "92vh",
           display: "flex",
           flexDirection: "column",
-          borderRadius: "24px 24px 0 0",
+          borderRadius: "clamp(20px, 5vw, 24px)",
           overflow: "hidden",
-          boxShadow: "0 -20px 60px rgba(0,0,0,0.25)",
+          boxShadow: "0 30px 60px rgba(0,0,0,0.25)",
+          border: "1px solid var(--border-medium)",
         }}
       >
         <div style={{ padding: "18px 22px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexShrink: 0 }}>

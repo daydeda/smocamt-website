@@ -272,9 +272,10 @@ export default function PrizeAwardPanel({
         backdropFilter: "blur(6px)",
         WebkitBackdropFilter: "blur(6px)",
         display: "flex",
-        alignItems: "flex-end",
+        alignItems: "center",
         justifyContent: "center",
         zIndex: 1100,
+        padding: "clamp(12px, 4vw, 24px)",
       }}
       onClick={onClose}
     >
@@ -288,9 +289,10 @@ export default function PrizeAwardPanel({
           maxHeight: "92vh",
           display: "flex",
           flexDirection: "column",
-          borderRadius: "24px 24px 0 0",
+          borderRadius: "clamp(20px, 5vw, 24px)",
           overflow: "hidden",
-          boxShadow: "0 -20px 60px rgba(0,0,0,0.25)",
+          boxShadow: "0 30px 60px rgba(0,0,0,0.25)",
+          border: "1px solid var(--border-medium)",
         }}
       >
         <div style={{ padding: "18px 22px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexShrink: 0 }}>
@@ -404,7 +406,24 @@ export default function PrizeAwardPanel({
                   position: "relative",
                 }}
               >
-                <div id="prize-qr-reader" style={{ width: "100%", height: "100%" }} />
+                <div
+                  id="prize-qr-reader"
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    // html5-qrcode sizes the <video> it inserts here to the
+                    // container's width and leaves height auto, so if the
+                    // camera doesn't actually deliver a square stream (many
+                    // webcams ignore the requested aspectRatio and fall back
+                    // to their native ratio) the video renders shorter or
+                    // taller than this square box. Centering it here keeps
+                    // the reticle looking centered in the visible black
+                    // frame instead of pinned to the top.
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                />
               </div>
               {cameraError && (
                 <p style={{ borderRadius: 12, padding: "10px 14px", fontSize: 12.5, background: "rgba(245,158,11,0.1)", color: "#b45309", lineHeight: 1.5 }}>

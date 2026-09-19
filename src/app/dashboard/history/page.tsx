@@ -303,10 +303,10 @@ export default function HistoryPage() {
       const upload = await compressImageFile(file, { maxDim: 1600 });
       if (upload.size === 0) throw new Error("empty file");
       const form = new FormData();
-      // Append a plain Blob (via slice()), not the File object compressImageFile
-      // returns — see src/lib/xhr-upload.ts for why (WebKit FormData/Blob bug).
-      const blob = upload.slice(0, upload.size, upload.type);
-      form.append("file", blob, upload.name);
+      // uploadFormViaXHR (src/lib/xhr-upload.ts) re-materializes every
+      // File/Blob before sending, which is where the WebKit-safety work
+      // actually happens — this call site just appends the file as-is.
+      form.append("file", upload);
       const up = await uploadFormViaXHR("/api/forms/upload", form);
       const data = up.body as { key?: string; error?: string };
       if (!up.ok) {

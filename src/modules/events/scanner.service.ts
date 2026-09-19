@@ -14,7 +14,7 @@ type ResolvedStudent = NonNullable<Awaited<ReturnType<typeof UsersService.resolv
 type DBTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export interface ScanResult {
-  status: "success" | "success_walk_in" | "pending_confirmation" | "pending_checkout" | "already_checked_in" | "not_found" | "quota_full" | "walk_ins_disabled" | "found" | "not_registered" | "error";
+  status: "success" | "success_walk_in" | "success_checkout" | "pending_confirmation" | "pending_checkout" | "already_checked_in" | "not_found" | "quota_full" | "walk_ins_disabled" | "found" | "not_registered" | "error";
   student: {
     name: string;
     nickname: string | null;
@@ -766,6 +766,10 @@ export class ScannerService {
    * Mirrors the manual 'score' action: increments users.points, fires the same 100-pt
    * milestone house bonus, and writes a score_history row. No audit log here — the
    * check-in itself is already audited by each caller.
+   *
+   * @returns the student's new points total, or null when `points` was 0 (no award
+   * happened, so callers that need a fresh total should fall back to the pre-fetched
+   * value instead).
    */
   private static async awardAttendanceIndividualPoints(
     tx: DBTransaction,
@@ -778,9 +782,10 @@ export class ScannerService {
       points: number;
       sessionLabel: string;
     }
-  ): Promise<void> {
+  ): Promise<number | null> {
     const { studentId, studentName, houseId, eventId, eventTitle, points, sessionLabel } = params;
-    await awardIndividualPoints(tx, {
+    if (!points || points <= 0) return null;
+    const { newPoints } = await awardIndividualPoints(tx, {
       studentId,
       studentName,
       houseId,
@@ -789,6 +794,7 @@ export class ScannerService {
       reason: `Awarded ${points} individual points to ${studentName} for attending "${eventTitle}" (${sessionLabel})`,
       activityLabel: eventTitle,
     });
+    return newPoints;
   }
 
   // A stored evidence key is always "<uuid>.<ext>" (see uploadFormFile in
@@ -833,8 +839,9 @@ export class ScannerService {
         .where(and(eq(attendance.id, record.id), isNull(attendance.checkOutTime)))
         .returning({ id: attendance.id });
 
+      let newPoints: number | null = null;
       if (rows.length > 0) {
-        await this.awardAttendanceIndividualPoints(tx, {
+        newPoints = await this.awardAttendanceIndividualPoints(tx, {
           studentId: student.id,
           studentName: student.name,
           houseId: student.houseId,
@@ -850,13 +857,19 @@ export class ScannerService {
           ipAddress,
         });
       }
-      return rows;
+      return { rows, newPoints };
     });
 
-    if (updated.length === 0) {
+    if (updated.rows.length === 0) {
       return { status: "already_checked_in", student: null, checkedInAt: record.checkInTime };
     }
-    return { status: "success", student: studentWithMedical, checkedInAt: record.checkInTime };
+    // studentWithMedical.points was fetched BEFORE this transaction's award —
+    // use the just-awarded total so the confirmation modal doesn't show a stale count.
+    return {
+      status: "success_checkout",
+      student: { ...studentWithMedical, points: updated.newPoints ?? studentWithMedical.points },
+      checkedInAt: record.checkInTime,
+    };
   }
 
   /**

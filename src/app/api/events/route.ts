@@ -80,6 +80,7 @@ export async function GET() {
         isRegistered: false,
         attendanceStatus: null,
         registeredCount: seatCountMap.get(event.id) ?? 0,
+        pointsCredited: false,
       }));
       return NextResponse.json(enrichedEvents);
     }
@@ -112,10 +113,10 @@ export async function GET() {
     const userId = session.user.id!;
     const userAttendances = await db.query.attendance.findMany({
       where: eq(attendance.studentId, userId),
-      columns: { eventId: true, checkInTime: true, status: true },
+      columns: { eventId: true, checkInTime: true, checkOutTime: true, status: true },
     });
 
-    const attendanceMap = new Map(userAttendances.map((a) => [a.eventId, a.status]));
+    const attendanceMap = new Map(userAttendances.map((a) => [a.eventId, a]));
 
     const eligibleEvents = allEvents.filter((event) => {
       // Always surface an event the student is registered for / checked into,
@@ -163,12 +164,18 @@ export async function GET() {
             status: submittedFormIds.has(pf.id) ? "submitted" : getFormAvailability(pf),
           }
         : null;
+      const att = attendanceMap.get(event.id);
       return {
         ...event,
         isRegistered: attendanceMap.has(event.id),
-        attendanceStatus: attendanceMap.get(event.id) || null,
+        attendanceStatus: att?.status || null,
         registeredCount: seatCountMap.get(event.id) ?? 0,
         preTest,
+        // requireCheckOut events defer the individual-points award to the check-out
+        // step (ScannerService.confirmCheckout) — an 'attended' row with no
+        // checkOutTime yet hasn't actually had individualPointsAwarded credited, so
+        // the dashboard's "Points" stat must not count it as earned until then.
+        pointsCredited: att?.status === "attended" && (!event.requireCheckOut || !!att.checkOutTime),
       };
     });
 

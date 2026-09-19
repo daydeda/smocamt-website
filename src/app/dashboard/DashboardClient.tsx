@@ -101,6 +101,12 @@ type Event = {
   imageUrls?: string[] | null;
   pointsAwarded?: number;
   individualPointsAwarded?: number;
+  requireCheckOut?: boolean;
+  // True once individualPointsAwarded has actually been credited to this student
+  // for this event — for a requireCheckOut event, that's only after check-OUT is
+  // confirmed (see /api/events GET), not merely on arrival (attendanceStatus
+  // 'attended' is set on arrival, before the points award).
+  pointsCredited?: boolean;
   // Pre-test (K_pre) gate. Present when the event has a pre-test form; `status`
   // is "open" (student must complete it), "submitted" (already done), or
   // "upcoming"/"closed"/"awarded" (can't be submitted, so not forced).
@@ -767,10 +773,13 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
   ].filter((s) => s.items.length > 0);
 
   // --- Overview stats strip (logged-in students only). Counts are derived from the
-  // events list; pointsEarned sums the point value of events the student attended. ---
+  // events list; pointsEarned sums the INDIVIDUAL points actually credited to this
+  // student (gated on pointsCredited, not just attendanceStatus — a requireCheckOut
+  // event's points aren't credited until check-out is confirmed). Note: pointsAwarded
+  // is the event's HOUSE-winner bonus, a different number — not summed here. ---
   const thisWeekCount = upcoming.filter((e) => new Date(e.startTime) < weekEnd).length;
   const attendedEvents = events.filter((e) => e.attendanceStatus === "attended");
-  const pointsEarned = attendedEvents.reduce((sum, e) => sum + (e.pointsAwarded || 0), 0);
+  const pointsEarned = events.reduce((sum, e) => sum + (e.pointsCredited ? (e.individualPointsAwarded || 0) : 0), 0);
   const stats: { key: string; label: string; value: number; icon: typeof Calendar }[] = [
     { key: "upcoming", label: t.statUpcoming, value: upcoming.length, icon: Calendar },
     { key: "week", label: t.statThisWeek, value: thisWeekCount, icon: CalendarClock },

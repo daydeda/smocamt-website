@@ -45,7 +45,7 @@ const QRCodeCanvas = dynamic(() => import("qrcode.react").then((mod) => mod.QRCo
   ssr: false,
 });
 
-type ScanStatus = "success" | "success_walk_in" | "pending_confirmation" | "pending_checkout" | "already_checked_in" | "walk_ins_disabled" | "not_found" | "quota_full" | "found" | "not_registered" | "error";
+type ScanStatus = "success" | "success_walk_in" | "success_checkout" | "pending_confirmation" | "pending_checkout" | "already_checked_in" | "walk_ins_disabled" | "not_found" | "quota_full" | "found" | "not_registered" | "error";
 
 type ScanResult = {
   status: ScanStatus;
@@ -806,11 +806,18 @@ export default function QRScannerPage() {
       desc: t.scanSuccess,
       bg: "rgba(16, 185, 129, 0.1)"
     },
-    success_walk_in: { 
-      color: "#10b981", 
-      icon: UserCheck, 
-      title: t.scanSuccess + " (Walk-in)", 
+    success_walk_in: {
+      color: "#10b981",
+      icon: UserCheck,
+      title: t.scanSuccess + " (Walk-in)",
       desc: t.scanSuccess,
+      bg: "rgba(16, 185, 129, 0.1)"
+    },
+    success_checkout: {
+      color: "#10b981",
+      icon: UserCheck,
+      title: t.scanCheckoutSuccess,
+      desc: t.scanCheckoutSuccess,
       bg: "rgba(16, 185, 129, 0.1)"
     },
     pending_confirmation: {
@@ -1873,7 +1880,7 @@ export default function QRScannerPage() {
                 </div>
               )}
 
-              {scanMode === "checkin" && (scanResult?.status === "success" || scanResult?.status === "success_walk_in" || scanResult?.status === "already_checked_in") && (
+              {scanMode === "checkin" && (scanResult?.status === "success" || scanResult?.status === "success_walk_in" || scanResult?.status === "success_checkout" || scanResult?.status === "already_checked_in") && (
                 <div 
                   style={{ 
                     marginTop: 24, 

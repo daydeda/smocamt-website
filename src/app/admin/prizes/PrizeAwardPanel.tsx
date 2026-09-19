@@ -58,6 +58,7 @@ export default function PrizeAwardPanel({
   const [busy, setBusy] = useState(false);
   const [committed, setCommitted] = useState<{ claimId: string; student: ClaimStudent } | null>(null);
   const [photoState, setPhotoState] = useState<"idle" | "uploading" | "done" | "failed">("idle");
+  const [photoErrorMessage, setPhotoErrorMessage] = useState<string | null>(null);
   const [manualQuery, setManualQuery] = useState("");
   const [manualResults, setManualResults] = useState<ClaimStudent[]>([]);
 
@@ -211,13 +212,15 @@ export default function PrizeAwardPanel({
   async function uploadPhoto(file: File) {
     if (!committed) return;
     setPhotoState("uploading");
+    setPhotoErrorMessage(null);
     try {
       const compressed = await compressImageFile(file);
       const form = new FormData();
       form.append("file", compressed);
       const up = await fetch("/api/forms/upload", { method: "POST", body: form });
-      if (!up.ok) throw new Error("upload failed");
-      const { key } = await up.json();
+      const upBody = await up.json().catch(() => ({}));
+      if (!up.ok) throw new Error(upBody.error || "upload failed");
+      const { key } = upBody;
 
       const attach = await fetch(`/api/admin/prizes/claims/${committed.claimId}/photo`, {
         method: "POST",
@@ -227,11 +230,16 @@ export default function PrizeAwardPanel({
       if (!attach.ok) throw new Error("attach failed");
       if (mountedRef.current) setPhotoState("done");
       onClaimed();
-    } catch {
+    } catch (e) {
       // The CLAIM is already saved — only the photo failed. Say so explicitly,
       // because "failed" on this screen otherwise reads as "nothing was recorded"
-      // and staff will try to hand the prize over a second time.
-      if (mountedRef.current) setPhotoState("failed");
+      // and staff will try to hand the prize over a second time. Surface the
+      // server's actual reason (wrong format, too large, ...) rather than a
+      // blanket "failed" — staff at the booth need to know WHAT to fix.
+      if (mountedRef.current) {
+        setPhotoErrorMessage(e instanceof Error ? e.message : null);
+        setPhotoState("failed");
+      }
     }
   }
 
@@ -258,6 +266,7 @@ export default function PrizeAwardPanel({
     setPreview(null);
     setCommitted(null);
     setPhotoState("idle");
+    setPhotoErrorMessage(null);
     setManualResults([]);
     setManualQuery("");
     setScanning(true);
@@ -340,7 +349,11 @@ export default function PrizeAwardPanel({
                       <input
                         type="file"
                         accept="image/*"
-                        capture="environment"
+                        // No `capture` attribute: on mobile that forces the
+                        // camera app open directly and hides the gallery/
+                        // "Choose image" option, which is exactly what staff
+                        // need when the phone's camera format (HEIC) fails to
+                        // upload — they can then pick an already-converted photo.
                         style={{ display: "none" }}
                         disabled={photoState === "uploading"}
                         onChange={(e) => {
@@ -353,6 +366,12 @@ export default function PrizeAwardPanel({
                       <p style={{ marginTop: 10, fontSize: 12.5, color: "#b45309", lineHeight: 1.5 }}>
                         {t.adminPrizesPhotoFailedNotice} <strong>{t.adminPrizesPhotoFailedEmphasis}</strong>{" "}
                         {t.adminPrizesPhotoFailedRetry}
+                        {photoErrorMessage && (
+                          <>
+                            <br />
+                            {photoErrorMessage}
+                          </>
+                        )}
                       </p>
                     )}
                   </>

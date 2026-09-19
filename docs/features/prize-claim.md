@@ -1,10 +1,21 @@
 # Prize claim (การรับรางวัล / การรับของ)
 
-**Status:** in progress on `feat/prize-claim`. Schema + migration (`drizzle/0042`)
-landed; service, routes and UI still to come — see "Build order". Written
-2026-09-19 and revised twice the same day: once after the "แจกแก้ว" case showed
-the first model was wrong (see "Why the prize is not owned by an event"), once
-after the report turned out to need both an `.xlsx` and a PDF.
+**Status:** implemented on `feat/prize-claim` (schema + migration `drizzle/0042`,
+`PrizeService`, admin routes, `/admin/prizes` tab, both report renderings).
+NOT yet run against a database — `npm test`/`lint`/`build` pass, but the suite
+covers pure logic only, so the claim/report SQL and the booth flow still need
+`/verify` against a local DB before a PR. Written 2026-09-19 and revised twice
+the same day: once after the "แจกแก้ว" case showed the first model was wrong
+(see "Why the prize is not owned by an event"), once after the report turned out
+to need both an `.xlsx` and a PDF.
+
+**Known gaps:** the admin UI strings are hardcoded Thai rather than routed
+through `src/lib/i18n.ts` in all four languages (EN/TH/MM/CN) — deliberate for
+the booth screens, which are staffed in Thai, but it is a deviation from the
+repo's i18n rule and should get a proper pass. Only the nav label
+(`managePrizes`) is translated. The claim-list/รอรูป follow-up view and prize
+editing exist in the API (`GET`/`PATCH /api/admin/prizes/[id]`,
+`PrizeService.listAwaitingPhoto`) but have no UI yet.
 
 ## Problem
 

@@ -132,7 +132,10 @@ export default function PrizesClient({ canAward, canManage }: { canAward: boolea
           }}
         >
           <Lock size={16} style={{ marginTop: 2, flexShrink: 0, color: "var(--text-muted)" }} />
-          {t.adminPrizesAwardOnlyNotice}
+          <span>
+            {t.adminPrizesAwardOnlyNotice}
+            {canAward && <> {t.adminPrizesAwardOnlyAwaitingNote}</>}
+          </span>
         </div>
       )}
 
@@ -167,7 +170,13 @@ export default function PrizesClient({ canAward, canManage }: { canAward: boolea
                       {p.requireCheckIn && <span className="badge badge-purple">{t.adminPrizesRequireCheckInBadge}</span>}
                     </div>
 
-                    {canManage && (
+                    {/* canAward, not canManage: claimCount/awaitingPhotoCount are
+                        aggregate numbers with no student's name in them — "how
+                        many have gone out" and "how much of the booth's own work
+                        is unfinished" — so an award-only role (smo) gets this line
+                        and the รอรูป follow-up button too. The winner ROLL and the
+                        Edit button below stay canManage-only. */}
+                    {canAward && (
                       <p style={{ marginTop: 6, fontSize: 13, color: "var(--text-secondary)" }}>
                         {p.quantity !== null
                           ? t.adminPrizesAwardedCountWithTarget.replace("{count}", String(p.claimCount ?? 0)).replace("{target}", String(p.quantity))

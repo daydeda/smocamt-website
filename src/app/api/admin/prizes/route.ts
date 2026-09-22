@@ -35,13 +35,20 @@ export async function GET() {
 
     const all = await PrizeService.listPrizes();
 
-    // Award-only roles (smo) still need the list to pick a prize at the booth —
-    // they get it WITHOUT the claim/รอรูป counts, which are management data.
+    // Award-only roles (smo) still need the list to pick a prize at the booth,
+    // and get BOTH counts: claimCount ("how many have gone out") and
+    // awaitingPhotoCount ("how much of the booth's own work is unfinished") are
+    // both operational numbers with no student's name in them. The line that
+    // actually separates the tiers is NAMES, not numbers — the winner ROLL
+    // (GET /api/admin/prizes/[id]) stays canManage, and the dean report stays
+    // canExport. An smo is also unscoped for prizes (see prize-scope.ts), so
+    // this branch skips the per-prize canReachPrize filter below on purpose.
     if (!access.canManage) {
       return NextResponse.json({
-        prizes: all.map(({ claimCount: _c, awaitingPhotoCount: _a, ...rest }) => rest),
+        prizes: all,
         canManage: false,
         canExport: false,
+        canAward: access.canAward,
       });
     }
 

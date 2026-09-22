@@ -84,14 +84,20 @@
    forced `object-fit: cover` to hide a portrait stream's overflow, which
    desynced that ratio from what's visually shown: the pixels actually
    decoded stopped matching what's inside the white guide border, so a code
-   held visibly inside it could fail to scan. Centering via transform (not
-   width/height/object-fit) clips + centers the overflow without touching
-   the library's own element sizing, so its ratio math stays correct. */
+   held visibly inside it could fail to scan.
+   Centering must NOT use the `transform` property: PrizeAwardPanel.tsx sets
+   `video.style.transform` inline (mirror-flip for a front-facing camera),
+   inline style always wins over this stylesheet rule for the same property,
+   so a `transform: translate(...)` here gets silently dropped the moment the
+   mirror flip runs, leaving the video positioned at its pre-transform
+   top:50%/left:50% offset (visually pushed outside the guide border). Using
+   inset + margin:auto centers the element without touching `transform`, so
+   it can't collide with the mirror flip, while still clipping + centering
+   the overflow without touching the library's own element sizing. */
 .reader video {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  inset: 0;
+  margin: auto;
 }
 
 .reader :global(#qr-shaded-region) {

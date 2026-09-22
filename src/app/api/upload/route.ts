@@ -144,16 +144,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ url: publicUrl });
     }
 
-    // --- DEVELOPMENT FALLBACK: Local Disk ---
+    // --- DEVELOPMENT FALLBACK: Local Disk --- also the ACTIVE path on the
+    // self-hosted deploy (SUPABASE_* intentionally unset there, see
+    // docker-stack.yml). Wrap so a disk fault (e.g. EACCES from stale volume
+    // ownership) surfaces its real fs error instead of a silently-swallowed
+    // mkdir failure followed by an opaque, unguarded writeFile 500.
     const uploadDir = path.join(process.cwd(), "public", "uploads");
-    
-    // Ensure directory exists
+    let filePath: string;
     try {
       await mkdir(uploadDir, { recursive: true });
-    } catch (e) {}
-
-    const filePath = path.join(uploadDir, filename);
-    await writeFile(filePath, buffer);
+      filePath = path.join(uploadDir, filename);
+      await writeFile(filePath, buffer);
+    } catch (e) {
+      console.error("Upload local-disk write error:", e);
+      const detail = e instanceof Error ? e.message : String(e);
+      return NextResponse.json({ error: `Failed to store the uploaded file (${detail}).` }, { status: 500 });
+    }
 
     const publicPath = `/uploads/${filename}`;
     return NextResponse.json({ url: publicPath });

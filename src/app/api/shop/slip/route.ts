@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { hardenImageUpload, ImageValidationError } from "@/lib/image-upload";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { decodeSlipQr, hashSlip, signSlipMeta } from "@/lib/shop-slip-verify";
-import { uploadSlip } from "@/lib/shop-storage";
+import { uploadSlip, StorageError } from "@/lib/shop-storage";
 import { NextResponse } from "next/server";
 
 // POST /api/shop/slip — upload a payment slip to the PRIVATE bucket. Returns the
@@ -67,6 +67,12 @@ export async function POST(req: Request) {
   } catch (error) {
     if (error instanceof ImageValidationError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    // StorageError carries a safe, pre-written (or fs-detail-carrying) message
+    // — surface it instead of the opaque generic string below, so staff/admins
+    // actually see WHY storage failed (see shop-storage.ts).
+    if (error instanceof StorageError) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
     console.error("Slip upload error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

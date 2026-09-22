@@ -44,16 +44,17 @@ export async function resolvePrizeAccess(): Promise<PrizeAccess | null> {
   const roles = effectiveRoles(session.user.role, session.user.roles);
   if (!canAwardPrizes(roles) && !canManagePrizes(roles)) return null;
 
-  const unscoped = roles.some((r) => UNSCOPED_ROLES.includes(r));
-
   // smo is unscoped-but-award-only: it staffs whichever prize table it is sent
   // to and owns no events, so scoping it by ownership would leave it with
   // nothing. Its narrowing is canManage/canExport being false, not the event
-  // allow-list.
-  const isSmoOnly = !unscoped && roles.includes("smo") &&
-    !roles.some((r) => ["club_president", "major_president"].includes(r));
+  // allow-list. This must hold regardless of what ELSE the account holds — an
+  // smo who is ALSO a club_president must not lose the unscoped SMO prize
+  // table just because they also run a club (the same bug class as
+  // isEventUnscopedStaff in admin-access.ts, applied to prizes instead of
+  // events).
+  const unscoped = roles.some((r) => UNSCOPED_ROLES.includes(r)) || roles.includes("smo");
 
-  const scope = unscoped || isSmoOnly
+  const scope = unscoped
     ? null
     : await EventScopeService.getPresidentScope(session.user.id, roles);
 

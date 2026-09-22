@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { events, attendance, eventSessions, eventProposals, users } from "@/db/schema";
-import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/admin-access";
+import { effectiveRoles, isGlobalRegistrationPosition, isEventUnscopedStaff } from "@/lib/admin-access";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { EventScopeService } from "@/modules/events/event-scope.service";
 import { and, eq, inArray, sql } from "drizzle-orm";
@@ -142,8 +142,7 @@ export async function GET() {
     // registration position (case 2/3) is scoped the same way presidents are. This
     // drives both the admin events page AND the scanner's event picker, which
     // share this endpoint.
-    const isStaff = myRoles.some((r) => ["super_admin", "admin", "registration", "organizer"].includes(r))
-      || isGlobalRegistrationPosition(myRoles, smoPosition, anusmoPosition);
+    const isStaff = isEventUnscopedStaff(myRoles, smoPosition, anusmoPosition);
     const presidentTags = myRoles.filter((r) => ["club_president", "major_president"].includes(r));
     const access = await EventScopeService.resolveEventAccess({
       userId: session.user.id!, roles: myRoles, smoPosition, anusmoPosition, isUnscopedStaff: isStaff, hasPresidentTag: presidentTags.length > 0,

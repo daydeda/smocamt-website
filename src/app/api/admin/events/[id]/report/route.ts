@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { EventScopeService } from "@/modules/events/event-scope.service";
-import { isGlobalRegistrationPosition } from "@/lib/admin-access";
+import { isEventUnscopedStaff } from "@/lib/admin-access";
 
 // xlsx is a CommonJS package — keep this route on the Node.js runtime.
 export const runtime = "nodejs";
@@ -41,8 +41,7 @@ export async function GET(
     // club/major-scoped registration position, may only export events they OWN
     // (ownerClubIds/ownerMajors). Staff, smo, and a GLOBAL registration position
     // are unscoped.
-    const isStaff = myRoles.some((r) => ["super_admin", "admin", "registration", "organizer"].includes(r))
-      || isGlobalRegistrationPosition(myRoles, smoPosition, anusmoPosition);
+    const isStaff = isEventUnscopedStaff(myRoles, smoPosition, anusmoPosition);
     const presidentTags = myRoles.filter((r) => ["club_president", "major_president"].includes(r));
     const hasPresidentTag = presidentTags.length > 0;
     // Bare smo (no president tag, no registration position) stays unscoped —

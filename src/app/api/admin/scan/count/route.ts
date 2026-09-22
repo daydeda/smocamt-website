@@ -5,7 +5,7 @@ import { and, eq, count } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { captureException } from "@/lib/logger";
-import { canEnterAdminAny, effectiveRoles, isGlobalRegistrationPosition } from "@/lib/admin-access";
+import { canEnterAdminAny, effectiveRoles, isEventUnscopedStaff } from "@/lib/admin-access";
 import { EventScopeService } from "@/modules/events/event-scope.service";
 
 // GET /api/admin/scan/count?eventId=<uuid>&sessionId=<uuid>
@@ -47,9 +47,7 @@ export async function GET(req: Request) {
     const myRoles = session.user.roles ?? (session.user.role ? [session.user.role] : []);
     const smoPosition = session.user.smoPosition;
     const anusmoPosition = session.user.anusmoPosition;
-    const isStaff = myRoles.some((r) =>
-      ["super_admin", "admin", "registration", "organizer"].includes(r),
-    ) || isGlobalRegistrationPosition(myRoles, smoPosition, anusmoPosition);
+    const isStaff = isEventUnscopedStaff(myRoles, smoPosition, anusmoPosition);
     const presidentTags = myRoles.filter((r) =>
       ["club_president", "major_president"].includes(r),
     );

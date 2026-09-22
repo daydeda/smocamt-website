@@ -90,21 +90,25 @@ export async function GET(
     // same as that roster. The audit log below is the accountability mechanism
     // standing in for the narrower field set canViewMedical would otherwise get.
     const isPresidentRole = myRoles.some((r) => ["club_president", "major_president"].includes(r));
-    // Thin roster: smo sees basic identity + check-in only — NO phone,
-    // emergency contacts, or medical signal. Any staff role, a (possibly
-    // scoped) registration-position holder, or a president viewing their own
-    // event overrides this.
-    const isThinRoster = !isStaffRole && !isPositionScopedRegistration && !isPresidentRole;
 
     const { id: eventId } = await params;
 
     // Event scoping for president roles (mirrors the /api/admin/events list filter)
-    // AND for a club/major-scoped registration position: they may only read
-    // attendance for events their club/major OWNS (ownerClubIds/ownerMajors — see
-    // EventScopeService), independent of allowedRoles. Staff and a global
-    // registration position are unscoped. This is what makes the medical-detail
-    // grant above safe: a president only ever reaches this branch for an event
-    // their own club/major owns, never someone else's.
+    // AND for a club/major-scoped registration position: they may only read FULL
+    // detail for attendance of events their club/major OWNS (ownerClubIds/
+    // ownerMajors — see EventScopeService), independent of allowedRoles. Staff and
+    // a global registration position are unscoped. This is what makes the
+    // medical-detail grant above safe: a president only ever reaches full detail
+    // for an event their own club/major owns, never someone else's.
+    //
+    // A president/registration-scoped-position holder who does NOT own this event
+    // is normally blocked outright (403). But if they ALSO hold the smo role — smo
+    // is unscoped and entitled to a THIN roster for every event — fall back to
+    // that thin tier instead of a flat 403 (deniedFallbackToThin below). Without
+    // this, an smo who is also a club_president would lose smo's own unscoped
+    // access the moment the president-scope check runs against an event their
+    // club doesn't own — see isEventUnscopedStaff's doc comment in admin-access.ts.
+    let deniedFallbackToThin = false;
     if (!isStaffRole && (isPresidentRole || isPositionScopedRegistration)) {
       const ev = await db.query.events.findFirst({
         where: eq(events.id, eventId),
@@ -115,9 +119,22 @@ export async function GET(
       });
       const managed = access.allowed && (access.unscoped || (ev ? EventScopeService.isEventManagedByScope(ev, access.scope) : false));
       if (!managed) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        if (myRoles.includes("smo")) {
+          deniedFallbackToThin = true;
+        } else {
+          return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
       }
     }
+
+    // Thin roster: smo sees basic identity + check-in only — NO phone,
+    // emergency contacts, or medical signal. Any staff role, a (possibly
+    // scoped) registration-position holder, or a president viewing an event they
+    // OWN overrides this. deniedFallbackToThin (above) forces this tier even
+    // though isPresidentRole/isPositionScopedRegistration may still be true —
+    // holding the role is not the same as owning THIS event.
+    const isThinRoster = deniedFallbackToThin
+      || (!isStaffRole && !isPositionScopedRegistration && !isPresidentRole);
     // Optional ?sessionId= filter narrows the roster to one day of a multi-day event.
     const sessionIdFilter = new URL(req.url).searchParams.get("sessionId");
 
@@ -175,16 +192,11 @@ export async function GET(
       if (canViewMedical) {
         return { ...row, user: u ? { ...u, hasMedicalInfo } : u };
       }
-      if (isPresidentRole) {
-        const presidentUser = u && {
-          ...u,
-          hasMedicalInfo,
-          emergencyContacts: redactEmergencyContacts(u.emergencyContacts),
-        };
-        return { ...row, user: presidentUser };
-      }
-      // Scanner-only student-leader roles: identity + check-in only. Strip phone,
-      // emergency contacts, and the medical signal (no hasMedicalInfo/categories).
+      // Checked BEFORE isPresidentRole: isThinRoster is the authoritative "does
+      // this request actually get sensitive data" answer (it accounts for
+      // deniedFallbackToThin — an smo+president who doesn't own THIS event still
+      // literally holds the club_president role, but must get the thin tier, not
+      // the president tier, for an event their club doesn't own).
       if (isThinRoster) {
         const thinUser = u && {
           id: u.id,
@@ -198,6 +210,14 @@ export async function GET(
           noShowCount: u.noShowCount,
         };
         return { ...row, medsCheckOption: null, user: thinUser };
+      }
+      if (isPresidentRole) {
+        const presidentUser = u && {
+          ...u,
+          hasMedicalInfo,
+          emergencyContacts: redactEmergencyContacts(u.emergencyContacts),
+        };
+        return { ...row, user: presidentUser };
       }
       const safeUser = u && {
         id: u.id,
@@ -222,8 +242,13 @@ export async function GET(
     // medical-category signal — BOTH are auditable PDPA reads, so log them too. This
     // used to fire ONLY for canViewMedical, leaving registration/organizer reads of
     // emergency-contact PII untracked. Thin-roster scanner roles get no sensitive
-    // data (identity + check-in only), so they are not logged.
-    if (canViewMedical || isPresidentRole || !isThinRoster) {
+    // data (identity + check-in only), so they are not logged. Deliberately NOT
+    // `|| isPresidentRole` (dropped): isThinRoster is already the authoritative
+    // "was sensitive data actually returned" signal (see the sanitize step above)
+    // — an smo+president who fell back to the thin tier for an unowned event
+    // still literally holds club_president but must not be logged as having
+    // viewed president-tier health detail they were never shown.
+    if (canViewMedical || !isThinRoster) {
       const ev = await db.query.events.findFirst({
         where: eq(events.id, eventId),
         columns: { title: true },

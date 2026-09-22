@@ -169,6 +169,35 @@ export function isGlobalRegistrationPosition(
   );
 }
 
+// Roles that are UNSCOPED with respect to EVENT OWNERSHIP: they see/scan every
+// event rather than only events a club/major owns. "smo" belongs here — it owns
+// no events at all, so scoping it by ownership would leave it with nothing (the
+// same reasoning prize-scope.ts's canonical unscoped check applies for prizes).
+//
+// This exists because every event-scoped route used to inline its own "isStaff"
+// role list, and every one of them omitted "smo" — so the moment an smo ALSO
+// held club_president/major_president, the president scope won and hid every
+// SMO-run event from them. Route handlers should call isEventUnscopedStaff
+// instead of hand-rolling this list.
+export const EVENT_UNSCOPED_ROLES = ["super_admin", "admin", "registration", "organizer", "smo"] as const;
+
+// May this role set reach EVERY event regardless of club/major ownership? Holds
+// for the roles above, or a GLOBAL registration position (smo/anusmo +
+// smoPosition/anusmoPosition === "registration"). A club/major-scoped
+// registration position does NOT pass here — see
+// EventScopeService.getRegistrationPositionScope for that narrower case, which
+// route handlers layer on top of this when it doesn't apply.
+export function isEventUnscopedStaff(
+  roles: string[],
+  smoPosition?: string | null,
+  anusmoPosition?: string | null,
+): boolean {
+  return (
+    roles.some((r) => (EVENT_UNSCOPED_ROLES as readonly string[]).includes(r)) ||
+    isGlobalRegistrationPosition(roles, smoPosition, anusmoPosition)
+  );
+}
+
 // SMO Finance is the trusted money/merch reviewer for the marketplace. This is
 // deliberately position-scoped: a plain `smo` role keeps scanner-only breadth.
 export function isShopFinancePosition(roles: string[], smoPosition?: string | null): boolean {

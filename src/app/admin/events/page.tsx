@@ -69,6 +69,8 @@ interface AdminEvent {
   checkInMode?: "qr" | "evidence";
   // Two-step QR check-in/check-out — see events.requireCheckOut in schema.ts.
   requireCheckOut?: boolean;
+  // Sub-option of requireCheckOut — see events.checkOutEvidenceRequired in schema.ts.
+  checkOutEvidenceRequired?: boolean;
   sessions?: EventSession[];
   attendeeCount?: number;
   createdAt?: string;
@@ -335,6 +337,7 @@ const EMPTY_FORM = {
   songsueLinked: false, // staff-only "also count for Songsue" mirror toggle
   checkInMode: "qr" as "qr" | "evidence", // 'evidence' = students self-submit proof instead of scanning, see events.checkInMode
   requireCheckOut: false, // two-step QR check-in/check-out, see events.requireCheckOut
+  checkOutEvidenceRequired: true, // sub-option of requireCheckOut, see events.checkOutEvidenceRequired
   // Hold-and-diff for president edits — see events.detailsReviewStatus/
   // pendingDetailsChanges in schema.ts. A brand new event (not yet saved) has
   // no pending edit, so this only matters once an existing event is loaded.
@@ -1246,6 +1249,7 @@ export default function AdminEventsPage() {
       // pending payload (it can't contain it, see PRESIDENT_EDITABLE_FIELDS).
       checkInMode: evt.checkInMode || "qr",
       requireCheckOut: evt.requireCheckOut || false,
+      checkOutEvidenceRequired: evt.checkOutEvidenceRequired ?? true,
       detailsReviewStatus: evt.detailsReviewStatus || "pending",
       detailsReviewedAt: evt.detailsReviewedAt || null,
     });
@@ -2851,6 +2855,58 @@ export default function AdminEventsPage() {
                         : lang === "mm" ? "ပထမဆုံး scan သည် ရောက်ရှိမှုကိုသာ မှတ်တမ်းတင်မည် (မှတ်မရသေးပါ) — ဒုတိယ scan တွင် ဝန်ထမ်းသည် checkout အတည်ပြုမီ သက်သေပုံကို ပူးတွဲရမည်၊ ထိုအချိန်၌သာ မှတ်များ ရရှိမည်။"
                         : "The first scan only records arrival (no points yet). A second scan of the same student lets staff attach a proof photo before confirming check-out — that's when points are actually awarded."}
                     </p>
+
+                    {/* Sub-option of requireCheckOut above — only meaningful once
+                        that's on. Lets staff skip the mandatory proof photo for
+                        events where the in-person scan alone is trusted (e.g. a
+                        small activity staff are watching directly). See
+                        events.checkOutEvidenceRequired in schema.ts. */}
+                    {formData.requireCheckOut && (
+                      <label
+                        className="label"
+                        style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", marginTop: 12, marginLeft: 30 }}
+                      >
+                        <span
+                          style={{
+                            position: "relative",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: 18,
+                            height: 18,
+                            flexShrink: 0,
+                            borderRadius: 4,
+                            border: `2px solid ${formData.checkOutEvidenceRequired ? "var(--accent-primary)" : "var(--border-subtle)"}`,
+                            background: formData.checkOutEvidenceRequired ? "var(--accent-primary)" : "var(--bg-surface)",
+                            transition: "background 0.15s, border-color 0.15s",
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={formData.checkOutEvidenceRequired}
+                            onChange={(e) => set("checkOutEvidenceRequired", e.target.checked)}
+                            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", margin: 0, opacity: 0, cursor: "pointer" }}
+                          />
+                          {formData.checkOutEvidenceRequired && <Check size={12} strokeWidth={3} style={{ color: "#fff", pointerEvents: "none" }} />}
+                        </span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>
+                          {lang === "th"
+                            ? "ต้องมีรูปหลักฐานตอนเช็คเอาท์"
+                            : lang === "cn" ? "签退需要证据照片"
+                            : lang === "mm" ? "checkout လုပ်ရန် သက်သေပုံ လိုအပ်သည်"
+                            : "Require a proof photo for check-out"}
+                        </span>
+                      </label>
+                    )}
+                    {formData.requireCheckOut && !formData.checkOutEvidenceRequired && (
+                      <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "6px 0 0 30px", lineHeight: 1.45 }}>
+                        {lang === "th"
+                          ? "ปิดไว้: เจ้าหน้าที่ยืนยันเช็คเอาท์ด้วยการสแกนซ้ำเท่านั้น โดยไม่ต้องแนบรูป"
+                          : lang === "cn" ? "已关闭：工作人员只需再次扫码即可确认签退，无需附照片。"
+                          : lang === "mm" ? "ပိတ်ထားသည်: ဝန်ထမ်းသည် scan ပြန်ခြင်းဖြင့်သာ checkout ကို အတည်ပြုနိုင်ပြီး ပုံ ပူးတွဲရန် မလိုအပ်ပါ။"
+                          : "Off: staff confirm check-out with just a second scan — no photo needed."}
+                      </p>
+                    )}
                   </div>
                 )}
 

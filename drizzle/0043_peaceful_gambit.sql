@@ -1,0 +1,1 @@
+ALTER TABLE "events" ADD COLUMN "check_out_evidence_required" boolean DEFAULT true NOT NULL;

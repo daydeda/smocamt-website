@@ -16,6 +16,7 @@ import {
   adminLandingHref,
   adminLandingHrefForRoles,
   isShopFinancePosition,
+  isEventUnscopedStaff,
 } from "@/lib/admin-access";
 
 // Every role the live model defines (users.role / users.roles[]), per CLAUDE.md +
@@ -279,5 +280,48 @@ describe("prize claim predicates", () => {
     for (const roles of [["smo"], ["student"], ["admin"], ["club_president"], ["shop_seller"]]) {
       if (canExportPrizeReport(roles)) expect(canManagePrizes(roles)).toBe(true);
     }
+  });
+});
+
+describe("isEventUnscopedStaff", () => {
+  it("treats a bare smo as unscoped", () => {
+    expect(isEventUnscopedStaff(["smo"])).toBe(true);
+  });
+
+  it("keeps smo unscoped even when the SAME account also holds a president role", () => {
+    // The regression this predicate exists to fix: every event-scoped route used
+    // to inline its own role list that omitted "smo", so the moment an smo also
+    // held club_president/major_president, the president scope won and hid every
+    // SMO-run event from them.
+    expect(isEventUnscopedStaff(["smo", "club_president"])).toBe(true);
+    expect(isEventUnscopedStaff(["smo", "major_president"])).toBe(true);
+    expect(isEventUnscopedStaff(["smo", "club_president", "major_president"])).toBe(true);
+  });
+
+  it("scopes a plain president (no smo) as before", () => {
+    expect(isEventUnscopedStaff(["club_president"])).toBe(false);
+    expect(isEventUnscopedStaff(["major_president", "club_president"])).toBe(false);
+  });
+
+  it("treats every staff role as unscoped", () => {
+    for (const role of ["super_admin", "admin", "registration", "organizer"]) {
+      expect(isEventUnscopedStaff([role])).toBe(true);
+    }
+  });
+
+  it("treats a GLOBAL registration position (smo/anusmo) as unscoped", () => {
+    expect(isEventUnscopedStaff(["smo"], "registration")).toBe(true);
+    expect(isEventUnscopedStaff(["anusmo"], undefined, "registration")).toBe(true);
+  });
+
+  it("does NOT treat an unrelated staff position as unscoped", () => {
+    expect(isEventUnscopedStaff(["anusmo"], undefined, "secretary")).toBe(false);
+    expect(isEventUnscopedStaff(["anusmo"])).toBe(false);
+  });
+
+  it("keeps plain students and shop sellers scoped out", () => {
+    expect(isEventUnscopedStaff(["student"])).toBe(false);
+    expect(isEventUnscopedStaff(["shop_seller"])).toBe(false);
+    expect(isEventUnscopedStaff([])).toBe(false);
   });
 });

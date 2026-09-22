@@ -147,17 +147,25 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
     await db.delete(prizes).where(eq(prizes.id, id));
 
+    // A failure here is a real, silent storage leak (a student's face photo
+    // left behind in the private bucket with nothing pointing at it anymore)
+    // — count it into the audit line below rather than only console.error, so
+    // a cleanup miss is visible in /admin/audit-logs instead of only in
+    // container logs nobody is watching.
+    let failedPhotoDeletes = 0;
     for (const key of orphanedPhotoKeys) {
       try {
         await deleteFormFile(key);
       } catch (e) {
+        failedPhotoDeletes++;
         console.error(`Failed to delete orphaned prize photo ${key}:`, e);
       }
     }
 
     await AuditService.logAction({
       actorId: access.userId,
-      action: `Deleted prize "${existing.name}" (${id}) — ${claimCount} claim(s) cascaded, ${orphanedPhotoKeys.length} photo(s) removed`,
+      action: `Deleted prize "${existing.name}" (${id}) — ${claimCount} claim(s) cascaded, ${orphanedPhotoKeys.length} photo(s) removed`
+        + (failedPhotoDeletes > 0 ? ` — ${failedPhotoDeletes} photo deletion(s) FAILED` : ""),
       ipAddress: getClientIp(req),
     });
 

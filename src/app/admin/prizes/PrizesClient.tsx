@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import PrizeAwardPanel from "./PrizeAwardPanel";
-import { Gift, Plus, QrCode, FileSpreadsheet, Printer, Loader2, ImageOff, Lock, X, PackageOpen, Pencil, Camera, Check } from "lucide-react";
+import { Gift, Plus, QrCode, FileSpreadsheet, Printer, Loader2, ImageOff, Lock, X, PackageOpen, Pencil, Camera, Check, ImagePlus, Trash2, AlertTriangle } from "lucide-react";
 import { useLanguage } from "@/lib/LanguageContext";
 import { compressImageFile } from "@/lib/compress-image";
 import { uploadFormViaXHR } from "@/lib/xhr-upload";
@@ -40,7 +40,7 @@ interface EventOption {
   title: string;
 }
 
-export default function PrizesClient({ canAward, canManage }: { canAward: boolean; canManage: boolean }) {
+export default function PrizesClient({ canAward, canManage, isSuperAdmin }: { canAward: boolean; canManage: boolean; isSuperAdmin: boolean }) {
   const { t } = useLanguage();
   const [prizes, setPrizes] = useState<PrizeRow[]>([]);
   const [events, setEvents] = useState<EventOption[]>([]);
@@ -50,6 +50,7 @@ export default function PrizesClient({ canAward, canManage }: { canAward: boolea
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<PrizeRow | null>(null);
   const [awaitingPhotoPrize, setAwaitingPhotoPrize] = useState<PrizeRow | null>(null);
+  const [deleting, setDeleting] = useState<PrizeRow | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -132,7 +133,10 @@ export default function PrizesClient({ canAward, canManage }: { canAward: boolea
           }}
         >
           <Lock size={16} style={{ marginTop: 2, flexShrink: 0, color: "var(--text-muted)" }} />
-          {t.adminPrizesAwardOnlyNotice}
+          <span>
+            {t.adminPrizesAwardOnlyNotice}
+            {canAward && <> {t.adminPrizesAwardOnlyAwaitingNote}</>}
+          </span>
         </div>
       )}
 
@@ -167,7 +171,13 @@ export default function PrizesClient({ canAward, canManage }: { canAward: boolea
                       {p.requireCheckIn && <span className="badge badge-purple">{t.adminPrizesRequireCheckInBadge}</span>}
                     </div>
 
-                    {canManage && (
+                    {/* canAward, not canManage: claimCount/awaitingPhotoCount are
+                        aggregate numbers with no student's name in them — "how
+                        many have gone out" and "how much of the booth's own work
+                        is unfinished" — so an award-only role (smo) gets this line
+                        and the รอรูป follow-up button too. The winner ROLL and the
+                        Edit button below stay canManage-only. */}
+                    {canAward && (
                       <p style={{ marginTop: 6, fontSize: 13, color: "var(--text-secondary)" }}>
                         {p.quantity !== null
                           ? t.adminPrizesAwardedCountWithTarget.replace("{count}", String(p.claimCount ?? 0)).replace("{target}", String(p.quantity))
@@ -222,6 +232,13 @@ export default function PrizesClient({ canAward, canManage }: { canAward: boolea
                         </a>
                       </>
                     )}
+                    {/* Last in the row, deliberately not adjacent to Award —
+                        irreversible + cascades every claim and proof photo. */}
+                    {isSuperAdmin && (
+                      <button className="btn btn-danger" onClick={() => setDeleting(p)}>
+                        <Trash2 size={16} /> {t.adminPrizesDeleteBtn}
+                      </button>
+                    )}
                   </div>
                 </div>
               </li>
@@ -268,6 +285,21 @@ export default function PrizesClient({ canAward, canManage }: { canAward: boolea
           prizeName={awaitingPhotoPrize.name}
           onClose={() => setAwaitingPhotoPrize(null)}
           onAttached={load}
+        />
+      )}
+
+      {deleting && (
+        <DeletePrizeDialog
+          prize={deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={() => {
+            setDeleting(null);
+            void load();
+          }}
+          onCloseInstead={() => {
+            setDeleting(null);
+            void load();
+          }}
         />
       )}
     </div>
@@ -626,23 +658,51 @@ function AwaitingPhotoDialog({
                   </p>
                 </div>
 
-                <label
-                  className="btn btn-primary"
-                  style={{ flexShrink: 0, cursor: uploadingId === c.claimId ? "not-allowed" : "pointer" }}
-                >
-                  {uploadingId === c.claimId ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
-                  {t.adminPrizesAwaitingPhotoAttachBtn}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    style={{ display: "none" }}
-                    disabled={uploadingId === c.claimId}
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) void attach(c.claimId, f);
-                    }}
-                  />
-                </label>
+                {/* Two icon-only buttons rather than one text-labelled one: same
+                    Android OEM-picker reasoning as PrizeAwardPanel's photo card
+                    (capture="environment" is the only reliable way to force the
+                    camera open on Android). Icon-only keeps this compact row from
+                    overflowing at narrow widths; the group has one accessible
+                    label and each button its own. */}
+                <div role="group" aria-label={t.adminPrizesAwaitingPhotoAttachBtn} style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <label
+                    className="btn btn-primary"
+                    aria-label={t.adminPrizesPhotoCtaCamera}
+                    title={t.adminPrizesPhotoCtaCamera}
+                    style={{ width: 40, height: 40, padding: 0, justifyContent: "center", cursor: uploadingId === c.claimId ? "not-allowed" : "pointer" }}
+                  >
+                    {uploadingId === c.claimId ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      style={{ display: "none" }}
+                      disabled={uploadingId === c.claimId}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) void attach(c.claimId, f);
+                      }}
+                    />
+                  </label>
+                  <label
+                    className="btn btn-ghost"
+                    aria-label={t.adminPrizesPhotoCtaGallery}
+                    title={t.adminPrizesPhotoCtaGallery}
+                    style={{ width: 40, height: 40, padding: 0, justifyContent: "center", cursor: uploadingId === c.claimId ? "not-allowed" : "pointer" }}
+                  >
+                    <ImagePlus size={16} />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      style={{ display: "none" }}
+                      disabled={uploadingId === c.claimId}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) void attach(c.claimId, f);
+                      }}
+                    />
+                  </label>
+                </div>
               </div>
             ))
           )}
@@ -706,5 +766,172 @@ function ToggleRow({
         {hint && <span style={{ display: "block", fontSize: 12, color: "var(--text-muted)", marginTop: 2, lineHeight: 1.4 }}>{hint}</span>}
       </span>
     </label>
+  );
+}
+
+// super_admin-only, irreversible: DELETE /api/admin/prizes/[id] cascades every
+// claim row AND deletes every proof photo object from the private bucket (see
+// that route's own comment — it reads every photoKey before the cascade so
+// nothing is orphaned). There is no stored PDF/Excel to also clean up — both
+// are generated on demand from the claims, so once they're gone neither can be
+// regenerated; the dialog says this explicitly rather than silently implying
+// "documents deleted too". A prize that has ever been claimed requires typing
+// its name to enable the button (GitHub-style, but nothing else in this app
+// has a delete this destructive yet, so there's no existing pattern to match);
+// an unclaimed prize can be removed on a plain confirm. "Close instead" is
+// offered first and more prominently — PATCHing status:"closed" is what the
+// DELETE route's own comment says the UI *should* be pushing people toward.
+function DeletePrizeDialog({
+  prize,
+  onClose,
+  onDeleted,
+  onCloseInstead,
+}: {
+  prize: PrizeRow;
+  onClose: () => void;
+  onDeleted: () => void;
+  onCloseInstead: () => void;
+}) {
+  const { t } = useLanguage();
+  const claimCount = prize.claimCount ?? 0;
+  const awaitingPhotoCount = prize.awaitingPhotoCount ?? 0;
+  const photoCount = Math.max(0, claimCount - awaitingPhotoCount);
+  const requiresTypedConfirm = claimCount > 0;
+  const [confirmText, setConfirmText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const canDelete = !requiresTypedConfirm || confirmText.trim() === prize.name;
+
+  async function doDelete() {
+    if (!canDelete || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/prizes/${prize.id}`, { method: "DELETE" });
+      // Always the translated fallback, never the server's raw (English-only)
+      // error string — matches doCloseInstead right below and PrizeFormDialog's
+      // submit() elsewhere in this file. The DELETE route's error bodies
+      // ("Unauthorized"/"Forbidden"/"Prize not found"/"Invalid prize id") are
+      // untranslated and would otherwise leak literal English into a TH/MM/CN
+      // admin's UI on a race (e.g. the prize was already deleted by someone
+      // else between page load and this click).
+      if (!res.ok) throw new Error(t.adminPrizesConnectionError);
+      onDeleted();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t.adminPrizesConnectionError);
+      setBusy(false);
+    }
+  }
+
+  async function doCloseInstead() {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/prizes/${prize.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "closed" }),
+      });
+      if (!res.ok) throw new Error(t.adminPrizesConnectionError);
+      onCloseInstead();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t.adminPrizesConnectionError);
+      setBusy(false);
+    }
+  }
+
+  return createPortal(
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.4)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1100,
+        padding: "clamp(12px, 4vw, 24px)",
+      }}
+      onClick={() => !busy && onClose()}
+    >
+      <div
+        className="animate-fade-in-up"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "var(--bg-surface)",
+          width: "100%",
+          maxWidth: 480,
+          maxHeight: "calc(100vh - 48px)",
+          display: "flex",
+          flexDirection: "column",
+          borderRadius: "clamp(20px, 4vw, 28px)",
+          overflow: "hidden",
+          boxShadow: "0 30px 60px rgba(0,0,0,0.2)",
+          border: "1px solid var(--border-medium)",
+        }}
+      >
+        <div style={{ padding: "22px 28px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexShrink: 0, gap: 12 }}>
+          <div style={{ minWidth: 0, display: "flex", alignItems: "flex-start", gap: 10 }}>
+            <AlertTriangle size={22} style={{ color: "#dc2626", flexShrink: 0, marginTop: 1 }} />
+            <div>
+              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>{prize.name}</p>
+              <h2 style={{ fontSize: 19, fontWeight: 800, color: "var(--text-primary)" }}>{t.adminPrizesDeleteTitle}</h2>
+            </div>
+          </div>
+          <button className="btn btn-ghost" style={{ borderRadius: "50%", width: 36, height: 36, padding: 0, flexShrink: 0 }} onClick={onClose} disabled={busy} aria-label={t.adminPrizesCloseLabel}>
+            <X size={16} />
+          </button>
+        </div>
+
+        <div style={{ padding: "22px 28px", display: "flex", flexDirection: "column", gap: 16, overflowY: "auto", flex: 1 }}>
+          <p style={{ fontSize: 14, color: "var(--text-primary)", lineHeight: 1.6 }}>
+            {t.adminPrizesDeleteWarning
+              .replace("{claims}", String(claimCount))
+              .replace("{photos}", String(photoCount))}
+          </p>
+          <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.5 }}>
+            {t.adminPrizesDeleteNoDocsNotice}
+          </p>
+
+          <div style={{ borderRadius: 16, padding: 16, background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)" }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{t.adminPrizesDeleteCloseInsteadTitle}</p>
+            <p style={{ marginTop: 4, fontSize: 12.5, color: "var(--text-muted)", lineHeight: 1.5 }}>{t.adminPrizesDeleteCloseInsteadHint}</p>
+            <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={doCloseInstead} disabled={busy}>
+              {busy ? <Loader2 size={16} className="animate-spin" /> : null} {t.adminPrizesDeleteCloseInsteadBtn}
+            </button>
+          </div>
+
+          {requiresTypedConfirm && (
+            <div className="field">
+              <label className="label">
+                {t.adminPrizesDeleteTypeToConfirm.replace("{name}", prize.name)}
+              </label>
+              <input
+                className="input"
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                placeholder={prize.name}
+                disabled={busy}
+                autoComplete="off"
+              />
+            </div>
+          )}
+
+          {error && <p style={{ color: "#dc2626", fontWeight: 600, fontSize: 13 }}>{error}</p>}
+        </div>
+
+        <div style={{ padding: "18px 28px", background: "var(--bg-elevated)", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "flex-end", gap: 12, flexShrink: 0 }}>
+          <button className="btn btn-ghost" onClick={onClose} disabled={busy}>{t.cancel}</button>
+          <button className="btn btn-danger" onClick={doDelete} disabled={busy || !canDelete}>
+            {busy ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />} {t.adminPrizesDeleteConfirmBtn}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }

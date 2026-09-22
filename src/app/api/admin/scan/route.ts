@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { canEnterAdminAny, canGiveIndividualScoreAny, effectiveRoles, isGlobalRegistrationPosition } from "@/lib/admin-access";
+import { canEnterAdminAny, canGiveIndividualScoreAny, effectiveRoles, isEventUnscopedStaff } from "@/lib/admin-access";
 import { ScannerService } from "@/modules/events/scanner.service";
 import { EventsService } from "@/modules/events/events.service";
 import { EventScopeService } from "@/modules/events/event-scope.service";
@@ -80,8 +80,7 @@ export async function POST(req: Request) {
     // old flat "registration" role would have been (every club's every event),
     // not looser, so this is safe to enable without a bake-in period like the
     // rest of this rollout.
-    const isStaff = roles.some((r) => ["super_admin", "admin", "registration", "organizer"].includes(r))
-      || isGlobalRegistrationPosition(roles, smoPosition, anusmoPosition);
+    const isStaff = isEventUnscopedStaff(roles, smoPosition, anusmoPosition);
     const presidentTags = roles.filter((r) => ["club_president", "major_president"].includes(r));
     const hasRegistrationScope = !isStaff && presidentTags.length === 0
       && (await EventScopeService.hasRegistrationScope(session.user.id!, roles, smoPosition, anusmoPosition));

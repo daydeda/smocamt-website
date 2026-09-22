@@ -22,5 +22,11 @@ export default async function AdminPrizesPage() {
   const canManage = canManagePrizes(roles);
   if (!canAward && !canManage) redirect("/admin/dashboard");
 
-  return <PrizesClient canAward={canAward} canManage={canManage} />;
+  // Deleting a prize cascades its claims + proof photos — the ONLY way any of
+  // that data goes away. super_admin only; the route (DELETE
+  // /api/admin/prizes/[id]) is the real gate, this just decides whether the
+  // button renders.
+  const isSuperAdmin = roles.includes("super_admin");
+
+  return <PrizesClient canAward={canAward} canManage={canManage} isSuperAdmin={isSuperAdmin} />;
 }

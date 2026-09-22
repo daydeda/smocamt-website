@@ -1570,9 +1570,24 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                     )}
                     <QRCodeCanvas
                       value={qrValue}
-                      size={240}
-                      style={{ width: "100%", height: "auto", maxWidth: 240 }}
-                      level="H"
+                      // Rendered internally larger than its display maxWidth
+                      // below for crispness on a high-DPI screen (canvas
+                      // resolution vs CSS-scaled display size, not a layout
+                      // change) — see the identical comment on /dashboard/id's
+                      // QRCodeCanvas, which this widget mirrors.
+                      size={320}
+                      // 240 -> 260: fills the existing wrapper's available
+                      // space (maxWidth: 300 above, minus its 20px padding on
+                      // each side = 260px usable) without widening the card.
+                      style={{ width: "100%", height: "auto", maxWidth: 260 }}
+                      // "H" (30% error correction) is for a PRINTED code that
+                      // might get scuffed; this is a backlit phone screen —
+                      // "M" (15%) still has margin to spare and produces a
+                      // lower QR version (fewer, larger modules) at the same
+                      // physical size, which is what actually speeds up a
+                      // close-range camera read. See /dashboard/id for the
+                      // same change with the fuller rationale.
+                      level="M"
                       bgColor="#ffffff"
                       fgColor="#000000"
                     />

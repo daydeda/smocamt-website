@@ -366,6 +366,16 @@ an export, not a view — it is the whole roster on one screen.
 Four layers move together (`proxy.ts` → admin layout → `admin-access.ts` →
 server-side route gates). Route gates remain the real source of truth.
 
+**`smo` is unscoped for prizes; a president tag never subtracts from a role the
+user also holds.** `src/lib/prize-scope.ts`'s `resolvePrizeAccess` treats `smo`
+as unscoped regardless of what other roles the same account holds — an
+`smo` who is ALSO a `club_president`/`major_president` must still see and award
+at every prize table, not only the ones their club owns (this was a real bug:
+every prize/event-scoped route used to omit `smo` from its own inlined
+"unscoped" role list, so the moment the same account also held a president
+role, the narrower president scope won and hid everything else — see
+`isEventUnscopedStaff` in `src/lib/admin-access.ts` for the events-side fix).
+
 | Action | Who |
 |---|---|
 | Create / configure / close a prize | `super_admin`, `admin`, `organizer`; `club_president`/`major_president` for prizes attached to an event they own |

@@ -35,6 +35,7 @@ import { canGiveIndividualScoreAny, effectiveRoles } from "@/lib/admin-access";
 import { compressImageFile } from "@/lib/compress-image";
 import { uploadFormViaXHR } from "@/lib/xhr-upload";
 import { usePolling } from "@/lib/usePolling";
+import { QR_SCANNER_CONSTRUCTOR_CONFIG, QR_SCANNER_START_CONFIG } from "@/lib/qr-scanner-config";
 import dynamic from "next/dynamic";
 
 // Pre-test warning QR — client-only (qrcode.react reads the DOM). Canvas, not
@@ -180,6 +181,35 @@ function SongsueCheckinNotice({ message }: { message: string }) {
   );
 }
 
+// A student's QR token is stable for a 5-minute window (WINDOW_MS, see
+// src/lib/qr-token.ts). Clearing the "last decoded" guard unconditionally on
+// modal close lets the SAME still-in-frame student re-decode within
+// milliseconds of dismissing a result — the server then truthfully answers
+// already_checked_in and a ghost result modal reopens with nobody having
+// scanned anything. This cooldown map remembers recently-decoded tokens for a
+// short grace period so a stray re-decode of the same code is silently
+// dropped before it ever reaches the server. lastTokenRef itself is still
+// cleared in closeModal (see there) — it only dedupes the camera firing many
+// times a second on ONE in-flight decode, and clearing it is what lets a
+// genuine retry of the same code work right away after a transient error.
+const SCANNER_COOLDOWN_MS = 20_000;
+
+function pruneAndCheckScannerCooldown(map: Map<string, number>, key: string): boolean {
+  const now = Date.now();
+  for (const [k, ts] of map) {
+    if (now - ts > SCANNER_COOLDOWN_MS) map.delete(k);
+  }
+  const ts = map.get(key);
+  return ts !== undefined && now - ts < SCANNER_COOLDOWN_MS;
+}
+
+// Only these statuses are a definitively SETTLED, stable per-student outcome
+// worth cooling down. Deliberately excludes pending_confirmation/
+// pending_checkout (still awaiting a follow-up action on this same token, not
+// a re-decode) and not_found/error/quota_full/walk_ins_disabled/not_registered
+// (may be transient or a genuine mis-scan staff wants to retry immediately).
+const SCANNER_SETTLED_STATUSES: ScanStatus[] = ["success", "success_walk_in", "success_checkout", "already_checked_in"];
+
 export default function QRScannerPage() {
   const { t, lang } = useLanguage();
   const { data: session } = useSession();
@@ -223,6 +253,9 @@ export default function QRScannerPage() {
   
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const lastTokenRef = useRef<string | null>(null);
+  // See SCANNER_COOLDOWN_MS above: recently-settled tokens → timestamp, checked
+  // by the decode callback before a scan request is even sent.
+  const recentRef = useRef<Map<string, number>>(new Map());
   const eventIdRef = useRef<string>("");
   // The camera decode callback is registered once; mirror sessionId into a ref so
   // it never sends a scan against a stale day after the staff switches sessions.
@@ -405,7 +438,7 @@ export default function QRScannerPage() {
     // 3. Initialize new instance (load the scanner lib on demand)
     const { Html5Qrcode } = await import("html5-qrcode");
     if (!isMountedRef.current || currentSessionId !== scanSessionIdRef.current) return;
-    const scanner = new Html5Qrcode("qr-reader");
+    const scanner = new Html5Qrcode("qr-reader", QR_SCANNER_CONSTRUCTOR_CONFIG);
     scannerRef.current = scanner;
     if (isMountedRef.current) {
       setScannerError(null);
@@ -414,11 +447,15 @@ export default function QRScannerPage() {
     try {
       await scanner.start(
         { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 280, height: 280 } },
+        QR_SCANNER_START_CONFIG,
         async (decodedText) => {
           if (lastTokenRef.current === decodedText || showModalRef.current) return;
+          // Same still-in-frame student re-decoding right after closing a
+          // settled result (see SCANNER_COOLDOWN_MS) is not a new scan — drop
+          // it before it ever reaches the server.
+          if (pruneAndCheckScannerCooldown(recentRef.current, decodedText)) return;
           lastTokenRef.current = decodedText;
-          
+
           try {
             const res = await fetch("/api/admin/scan", {
               method: "POST",
@@ -433,11 +470,14 @@ export default function QRScannerPage() {
               }),
             });
             const data = await res.json();
-            const result: ScanResult = { 
-              status: data.status ?? (res.ok ? "success" : "error"), 
-              ...data, 
-              rawToken: decodedText 
+            const result: ScanResult = {
+              status: data.status ?? (res.ok ? "success" : "error"),
+              ...data,
+              rawToken: decodedText
             };
+            if (SCANNER_SETTLED_STATUSES.includes(result.status)) {
+              recentRef.current.set(decodedText, Date.now());
+            }
             if (isMountedRef.current && currentSessionId === scanSessionIdRef.current) {
               setScanResult(result);
               setShowModal(true);
@@ -534,29 +574,49 @@ export default function QRScannerPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [events.length > 0]);
 
-  // Restart scanner on window resize or device orientation change
+  // Restart scanner on a REAL device orientation change, but not on every
+  // plain `resize` event.
   useEffect(() => {
     let resizeTimeout: NodeJS.Timeout | null = null;
+    // A mobile browser fires `resize` every time its URL bar collapses or
+    // expands on scroll — several times during a single scanning session,
+    // each one tearing the camera down and re-acquiring it (~1-2s of dead
+    // scanner). Staff experienced this as "it randomly stops reading" while
+    // just scrolling the page. Only restart when the width actually changed
+    // by more than a trivial amount (an address-bar collapse moves the
+    // viewport height, not the width) — a genuine layout change (rotating the
+    // phone, resizing a desktop test window) still gets caught.
+    let lastWidth = window.innerWidth;
 
-    const handleResize = () => {
+    const scheduleRestart = () => {
       if (!isScanning) return;
       if (resizeTimeout) clearTimeout(resizeTimeout);
-
       resizeTimeout = setTimeout(() => {
         if (isMountedRef.current && isScanning) {
-          console.log("Orientation/size changed. Restarting scanner...");
           startScanner();
         }
       }, 500); // 500ms debounce to let rotate animations settle
     };
 
+    const handleResize = () => {
+      const width = window.innerWidth;
+      if (Math.abs(width - lastWidth) < 80) return;
+      lastWidth = width;
+      scheduleRestart();
+    };
+
+    const handleOrientationChange = () => {
+      lastWidth = window.innerWidth;
+      scheduleRestart();
+    };
+
     window.addEventListener("resize", handleResize);
-    window.addEventListener("orientationchange", handleResize);
+    window.addEventListener("orientationchange", handleOrientationChange);
 
     return () => {
       if (resizeTimeout) clearTimeout(resizeTimeout);
       window.removeEventListener("resize", handleResize);
-      window.removeEventListener("orientationchange", handleResize);
+      window.removeEventListener("orientationchange", handleOrientationChange);
     };
   }, [isScanning]);
 
@@ -565,6 +625,14 @@ export default function QRScannerPage() {
     setTimeout(() => {
       if (isMountedRef.current) {
         setScanResult(null);
+        // Safe to clear unconditionally: lastTokenRef only dedupes the camera
+        // firing many times a second on ONE in-flight decode, never the ghost
+        // "already checked in" case — that's the recentRef cooldown above,
+        // which is deliberately time-based and NOT cleared here, so it keeps
+        // suppressing a still-in-frame student's QR for the rest of its
+        // window regardless of this close. Clearing lastTokenRef here is what
+        // lets a genuine retry of the same code work immediately after a
+        // transient error/mis-scan.
         lastTokenRef.current = null;
         setMedsCheckOption(null);
         setScoreInput("");
@@ -597,8 +665,12 @@ export default function QRScannerPage() {
         }),
       });
       const data = await res.json();
+      const confirmedStatus: ScanStatus = data.status ?? (res.ok ? "success" : "error");
+      if (SCANNER_SETTLED_STATUSES.includes(confirmedStatus)) {
+        recentRef.current.set(token, Date.now());
+      }
       if (isMountedRef.current) {
-        setScanResult({ status: data.status ?? (res.ok ? "success" : "error"), ...data, rawToken: token });
+        setScanResult({ status: confirmedStatus, ...data, rawToken: token });
       }
       // A confirmed check-in changed the attendance total — refresh the live count
       // now instead of waiting for the next poll tick.

@@ -76,12 +76,22 @@
   overflow: hidden;
 }
 
-/* html5-qrcode sets an inline pixel width and sizes its overlay from the
-   stream. A portrait stream otherwise protrudes past the square on iOS. */
+/* html5-qrcode sizes the video itself (inline width = container's
+   clientWidth, height auto to preserve the stream's native aspect ratio) and
+   computes its decode crop from that element's OWN clientWidth/clientHeight
+   as a simple per-axis stretch ratio (foreverScan in the library source) —
+   it has no concept of CSS object-fit. An earlier version of this rule
+   forced `object-fit: cover` to hide a portrait stream's overflow, which
+   desynced that ratio from what's visually shown: the pixels actually
+   decoded stopped matching what's inside the white guide border, so a code
+   held visibly inside it could fail to scan. Centering via transform (not
+   width/height/object-fit) clips + centers the overflow without touching
+   the library's own element sizing, so its ratio math stays correct. */
 .reader video {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
 }
 
 .reader :global(#qr-shaded-region) {

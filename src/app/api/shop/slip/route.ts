@@ -31,7 +31,26 @@ export async function POST(req: Request) {
       );
     }
 
-    const formData = await req.formData();
+    let formData: FormData;
+    try {
+      formData = await req.formData();
+    } catch (e) {
+      // Same class of failure diagnosed in src/app/api/forms/upload/route.ts:
+      // "TypeError: Failed to parse body as FormData" from a reverse-proxy issue
+      // in front of the container — throws before any app code runs, so log the
+      // headers Next actually saw instead of surfacing the opaque generic 500.
+      console.error("Slip upload: failed to parse multipart body", {
+        error: e,
+        contentType: req.headers.get("content-type"),
+        contentLength: req.headers.get("content-length"),
+        userAgent: req.headers.get("user-agent"),
+        referer: req.headers.get("referer"),
+      });
+      return NextResponse.json(
+        { error: "Could not read the uploaded file. Please check your connection and try again." },
+        { status: 400 },
+      );
+    }
     const file = formData.get("file");
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });

@@ -39,6 +39,42 @@ interface ClaimResult {
   existingClaim?: { claimedAt: string; claimedByName: string | null };
   requiredEventTitle?: string | null;
   error?: string;
+  // Client-side only marker (never sent by the server): true when this
+  // already_claimed result is for a student THIS panel session just awarded —
+  // see justAwardedIdsRef below. Lets PreviewCard show a calm confirmation
+  // instead of a refusal card for what is really just the camera catching the
+  // same student a second time.
+  justAwarded?: boolean;
+}
+
+// A student's QR token is stable for a 5-minute window (WINDOW_MS, see
+// src/lib/qr-token.ts). Without a cooldown, clearing the "last decoded" guard
+// on "Next person" lets the SAME still-in-frame student re-decode within
+// milliseconds — the server then truthfully answers already_claimed (or
+// success, for a rarer race) and a ghost refusal appears with nobody having
+// scanned anything. This map remembers recently-SETTLED identifiers (the raw
+// token AND, once known, the student's id) for a short grace period so a stray
+// re-decode of the same person is silently dropped before it ever reaches the
+// server. Only "success"/"already_claimed" are cooled down — those are the
+// only two outcomes that are actually stable per-student; not_eligible/
+// prize_closed/not_found/error may be transient or a genuine mis-scan staff
+// wants to retry immediately, so they deliberately do NOT start a cooldown.
+const PRIZE_SCAN_COOLDOWN_MS = 20_000;
+
+function pruneAndCheckCooldown(map: Map<string, number>, key: string): boolean {
+  const now = Date.now();
+  for (const [k, ts] of map) {
+    if (now - ts > PRIZE_SCAN_COOLDOWN_MS) map.delete(k);
+  }
+  const ts = map.get(key);
+  return ts !== undefined && now - ts < PRIZE_SCAN_COOLDOWN_MS;
+}
+
+function markCooldown(map: Map<string, number>, keys: (string | null | undefined)[]) {
+  const now = Date.now();
+  for (const k of keys) {
+    if (k) map.set(k, now);
+  }
 }
 
 export default function PrizeAwardPanel({
@@ -67,6 +103,15 @@ export default function PrizeAwardPanel({
   const mountedRef = useRef(true);
   const lastTokenRef = useRef<string | null>(null);
   const previewOpenRef = useRef(false);
+  // See PRIZE_SCAN_COOLDOWN_MS above. recentRef holds recently-settled
+  // token/student-id → timestamp; justAwardedIdsRef is the whole-session set of
+  // students this panel instance has successfully awarded, used to soften an
+  // already_claimed result for one of them into a calm confirmation instead of
+  // a refusal card (see PreviewCard's justAwarded handling below). Both are
+  // fresh for every panel mount (the award dialog is remounted per open), so
+  // neither needs explicit clearing.
+  const recentRef = useRef<Map<string, number>>(new Map());
+  const justAwardedIdsRef = useRef<Set<string>>(new Set());
 
   // Mirrored into a ref for the camera callback, which is created once when the
   // scanner starts and would otherwise close over the first render's state.
@@ -104,7 +149,19 @@ export default function PrizeAwardPanel({
       });
       const data: ClaimResult = await res.json();
       if (!mountedRef.current) return;
-      setPreview({ ...data, rawToken: qrToken });
+      // "success" and "already_claimed" are both SETTLED, stable answers for
+      // this student — start the cooldown so a still-in-frame QR doesn't
+      // re-open the same preview a moment later (see PRIZE_SCAN_COOLDOWN_MS).
+      if (data.status === "success" || data.status === "already_claimed") {
+        markCooldown(recentRef.current, [qrToken, data.student?.id]);
+      }
+      // A student THIS panel session already awarded, now showing
+      // already_claimed (e.g. the camera caught them again before the
+      // cooldown above even applied) — show it as a calm confirmation, not a
+      // refusal; nobody did anything wrong.
+      const justAwarded = data.status === "already_claimed" && !!data.student
+        && justAwardedIdsRef.current.has(data.student.id);
+      setPreview({ ...data, rawToken: qrToken, justAwarded });
       if ("vibrate" in navigator) navigator.vibrate(data.status === "success" ? [90, 40, 90] : 200);
     } catch {
       if (mountedRef.current) setPreview({ status: "error", student: null, error: t.adminPrizesConnectionError });
@@ -153,7 +210,12 @@ export default function PrizeAwardPanel({
           async (decodedText) => {
             // Ignore repeats of the token already on screen: the camera fires
             // many times a second and the student keeps holding their phone up.
+            // Also drop anything still on cooldown (PRIZE_SCAN_COOLDOWN_MS) —
+            // the same still-in-frame student re-decoding right after "Next
+            // person" is not a new scan, so it's dropped before it ever
+            // reaches the server.
             if (lastTokenRef.current === decodedText || previewOpenRef.current) return;
+            if (pruneAndCheckCooldown(recentRef.current, decodedText)) return;
             lastTokenRef.current = decodedText;
             await runPreview(decodedText);
           },
@@ -194,14 +256,27 @@ export default function PrizeAwardPanel({
       if (!mountedRef.current) return;
 
       if (data.status === "success" && data.claimId && data.student) {
+        // This student is now SETTLED for this prize — cool their token/id down
+        // (PRIZE_SCAN_COOLDOWN_MS) so the camera catching them again right after
+        // "Next person" doesn't reopen a ghost already_claimed preview, and
+        // remember them for the rest of this panel session so it can be shown
+        // as a calm confirmation if it ever does (see justAwardedIdsRef).
+        markCooldown(recentRef.current, [body.qrToken, data.student.id]);
+        justAwardedIdsRef.current.add(data.student.id);
         setCommitted({ claimId: data.claimId, student: data.student });
         setPreview(null);
         onClaimed();
       } else {
         // Includes the 409 duplicate that only surfaced at insert time (two
         // staffers scanning the same student at once) — show it like any other
-        // refusal rather than as an error.
-        setPreview({ ...data, rawToken: body.qrToken });
+        // refusal rather than as an error. Same settled-outcome cooldown as
+        // runPreview.
+        if (data.status === "already_claimed") {
+          markCooldown(recentRef.current, [body.qrToken, data.student?.id]);
+        }
+        const justAwarded = data.status === "already_claimed" && !!data.student
+          && justAwardedIdsRef.current.has(data.student.id);
+        setPreview({ ...data, rawToken: body.qrToken, justAwarded });
       }
     } catch {
       if (mountedRef.current) setPreview({ status: "error", student: null, error: t.adminPrizesConnectionError });
@@ -275,6 +350,14 @@ export default function PrizeAwardPanel({
   }
 
   function resetForNext() {
+    // Safe to clear unconditionally: the "last decoded" pointer only dedupes
+    // rapid-fire re-decodes of the SAME in-flight scan (the camera fires many
+    // times a second), never the ghost-refusal case — that's now the
+    // recentRef cooldown above, which is deliberately time-based and NOT
+    // cleared here, so it keeps suppressing a still-in-frame student's QR for
+    // the rest of its window regardless of this reset. Clearing lastTokenRef
+    // here is what lets a genuine retry of the same code (e.g. after a
+    // transient network error) work immediately via "Rescan".
     lastTokenRef.current = null;
     setPreview(null);
     setCommitted(null);
@@ -574,6 +657,25 @@ function PreviewCard({ result }: { result: ClaimResult }) {
           {student.nickname ? ` · ${student.nickname}` : ""}
         </p>
         <p style={{ marginTop: 10, fontSize: 14, fontWeight: 700, color: "#0d9488" }}>{t.adminPrizesEligibleNotice}</p>
+      </div>
+    );
+  }
+
+  // A student THIS session already awarded, decoded again (the cooldown above
+  // should already stop this at the source, but a second staff device or a
+  // manual re-pick isn't covered by it) — a calm confirmation, not a refusal.
+  // Nobody did anything wrong; there's nothing to act on.
+  if (result.status === "already_claimed" && result.justAwarded && student) {
+    return (
+      <div style={{ borderRadius: 16, padding: 18, background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, fontSize: 15, color: "#0d9488" }}>
+          <Check size={20} />
+          {t.adminPrizesAlreadyRecordedJustNow}
+        </div>
+        <p style={{ marginTop: 6, fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>
+          {student.name}
+          {student.studentId ? ` · ${student.studentId}` : ""}
+        </p>
       </div>
     );
   }

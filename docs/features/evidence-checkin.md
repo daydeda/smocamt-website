@@ -138,6 +138,15 @@ exact same `attendance` row and flow every other event already uses:
   the export, everything downstream is identical to a normal check-in, just
   timed later. An `isNull(checkOutTime)` guard on the update closes the race
   where two staff try to confirm the same check-out at once.
+- **`events.checkOutEvidenceRequired`** (boolean, default `true` — sub-option
+  of `requireCheckOut`, meaningless unless that's also on): some activities
+  have no separate evidence to look at (e.g. staff directly witness the whole
+  thing) — trusting the in-person re-scan alone, with no photo, is the whole
+  point of setting this to `false`. `ScannerService.confirmCheckout` only
+  enforces the "a proof photo is required" error when this is `true`; a
+  malformed `evidenceFileKey` is still always rejected if one is sent,
+  regardless of the requirement. The audit log line distinguishes the two
+  cases ("with evidence" vs. "staff-witnessed, no evidence required").
 - Scanner UI (`src/app/admin/scanner/page.tsx`): a `pending_checkout` result
   shows a photo-attach control + "Confirm Check-out" button (disabled until a
   photo is attached), parallel to the existing "Confirm Physical Presence"
@@ -155,7 +164,10 @@ Event editor (`/admin/events`) → check-in method stays "QR / staff scanner" �
 tick **"Require check-out (2 scans: arrival + evidence-reviewed departure)"**.
 That's the whole setup; no per-session config needed (unlike the dormant
 design's per-day code word) since the review happens in person, not against a
-published word.
+published word. A nested checkbox, **"Require a proof photo for check-out"**
+(default on), appears once that's ticked — turn it off for an event where
+staff witness the whole thing directly and a kept photo adds nothing; the
+second scan then confirms check-out on its own, no upload needed.
 
 ## Files
 
@@ -182,7 +194,8 @@ published word.
 
 - Schema: `src/db/schema.ts` (`events.requireCheckOut`,
   `attendance.checkOutTime`, reusing `attendance.evidenceFileKey`) — migration
-  `drizzle/0040_skinny_dark_phoenix.sql`.
+  `drizzle/0040_skinny_dark_phoenix.sql`. `events.checkOutEvidenceRequired`
+  (default `true`) added later in `drizzle/0043_peaceful_gambit.sql`.
 - Orchestration: `src/modules/events/scanner.service.ts` — the narrow
   `requireCheckOut` branches inside `processScan` (award-call sites + the
   `record.status === "attended"` check) plus the new `confirmCheckout`

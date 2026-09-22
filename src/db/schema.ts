@@ -236,6 +236,14 @@ export const events = pgTable("events", {
   // real/fake call in person before tapping confirm; the photo is kept only
   // as a durable record. See docs/features/evidence-checkin.md §Check-in/out.
   requireCheckOut: boolean("require_check_out").notNull().default(false),
+  // Sub-option of requireCheckOut above — meaningless unless that's true.
+  // When true (default, preserves today's behavior), the checkout scan still
+  // requires staff to attach a proof photo before checkout points are granted
+  // (see requireCheckOut comment / ScannerService.confirmCheckout). When
+  // false, staff may confirm the checkout scan as a pure witnessed
+  // confirmation — no photo upload — for events where the in-person scan
+  // alone is trusted. See docs/features/evidence-checkin.md §Check-in/out.
+  checkOutEvidenceRequired: boolean("check_out_evidence_required").notNull().default(true),
   targetThai: boolean("target_thai").default(true),
   targetInternational: boolean("target_international").default(true),
   quotaThai: integer("quota_thai"),

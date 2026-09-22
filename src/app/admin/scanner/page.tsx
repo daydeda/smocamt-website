@@ -87,7 +87,7 @@ type EventSession = {
   endTime: string;
   sortOrder: number;
 };
-type Event = { id: string; title: string; startTime: string; endTime: string; sessions?: EventSession[]; songsueLinked?: boolean; requireCheckOut?: boolean };
+type Event = { id: string; title: string; startTime: string; endTime: string; sessions?: EventSession[]; songsueLinked?: boolean; requireCheckOut?: boolean; checkOutEvidenceRequired?: boolean };
 
 // Sessions sorted into display order ("Day 1", "Day 2", …).
 function sortedSessions(sessions?: EventSession[]): EventSession[] {
@@ -733,7 +733,12 @@ export default function QRScannerPage() {
   // already looked at the evidence in person; this just records the kept
   // photo and awards that day's points (see ScannerService.confirmCheckout).
   const confirmCheckout = async (token: string) => {
-    if (!checkoutFileKey) return;
+    // events.checkOutEvidenceRequired (default true) — an event can opt out
+    // of the mandatory proof photo, trusting staff's in-person confirmation
+    // alone. See ScannerService.confirmCheckout for the server-side mirror
+    // of this same check.
+    const evidenceRequired = selectedEvent?.checkOutEvidenceRequired ?? true;
+    if (evidenceRequired && !checkoutFileKey) return;
     setIsConfirmingCheckout(true);
     try {
       const res = await fetch("/api/admin/scan", {
@@ -744,7 +749,7 @@ export default function QRScannerPage() {
           eventId,
           sessionId: sessionId || undefined,
           action: "confirm_checkout",
-          evidenceFileKey: checkoutFileKey,
+          ...(checkoutFileKey ? { evidenceFileKey: checkoutFileKey } : {}),
         }),
       });
       const data = await res.json();
@@ -1898,13 +1903,22 @@ export default function QRScannerPage() {
               {/* Check-OUT (events.requireCheckOut): staff has already looked at
                   the student's evidence in person — attach the kept photo, then
                   confirm to award this day's points. See docs/features/evidence-checkin.md. */}
-              {scanMode === "checkin" && scanResult?.status === "pending_checkout" && scanResult.rawToken && (
+              {scanMode === "checkin" && scanResult?.status === "pending_checkout" && scanResult.rawToken && (() => {
+                // events.checkOutEvidenceRequired (default true) — some events
+                // trust a staff-witnessed re-scan alone and skip the mandatory
+                // proof photo. See confirmCheckout above / ScannerService.confirmCheckout.
+                const evidenceRequired = selectedEvent?.checkOutEvidenceRequired ?? true;
+                const checkoutBlocked = evidenceRequired && !checkoutFileKey;
+                return (
                 <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 12 }}>
                   <p style={{ fontSize: 13, color: "var(--text-secondary)", textAlign: "center", lineHeight: 1.5 }}>
-                    {lang === "th" ? "ตรวจสอบหลักฐาน (เช่น Strava) กับนักศึกษาแล้ว ให้แนบรูปเพื่อบันทึกไว้ก่อนยืนยันเช็คเอาท์" : lang === "cn" ? "已当面核实证据（如 Strava）后，请附上照片留存记录，然后确认签退。" : lang === "mm" ? "သက်သေ (ဥပမာ Strava) ကို ကိုယ်တိုင်စစ်ဆေးပြီးနောက် မှတ်တမ်းအတွက် ပုံကို ပူးတွဲပြီး checkout ကို အတည်ပြုပါ။" : "After verifying their evidence (e.g. Strava) in person, attach a photo for the record, then confirm check-out."}
+                    {evidenceRequired
+                      ? (lang === "th" ? "ตรวจสอบหลักฐาน (เช่น Strava) กับนักศึกษาแล้ว ให้แนบรูปเพื่อบันทึกไว้ก่อนยืนยันเช็คเอาท์" : lang === "cn" ? "已当面核实证据（如 Strava）后，请附上照片留存记录，然后确认签退。" : lang === "mm" ? "သက်သေ (ဥပမာ Strava) ကို ကိုယ်တိုင်စစ်ဆေးပြီးနောက် မှတ်တမ်းအတွက် ပုံကို ပူးတွဲပြီး checkout ကို အတည်ပြုပါ။" : "After verifying their evidence (e.g. Strava) in person, attach a photo for the record, then confirm check-out.")
+                      : (lang === "th" ? "ยืนยันตัวนักศึกษาแล้ว กดยืนยันเช็คเอาท์ได้เลย ไม่ต้องแนบรูป" : lang === "cn" ? "已当面核实身份，可直接确认签退，无需附照片。" : lang === "mm" ? "ကျောင်းသားကို ကိုယ်တိုင်စစ်ဆေးပြီးပါက ပုံ ပူးတွဲစရာမလိုဘဲ checkout ကို အတည်ပြုနိုင်ပါသည်။" : "You've confirmed the student in person — go ahead and check them out, no photo needed.")
+                    }
                   </p>
 
-                  {checkoutFileName ? (
+                  {evidenceRequired && (checkoutFileName ? (
                     <div style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--bg-elevated)", borderRadius: 12, padding: "10px 14px" }}>
                       <Paperclip size={16} style={{ flexShrink: 0, color: "var(--text-muted)" }} />
                       <span style={{ fontSize: 13, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{checkoutFileName}</span>
@@ -1931,23 +1945,23 @@ export default function QRScannerPage() {
                         }}
                       />
                     </label>
-                  )}
+                  ))}
 
                   {checkoutFileError && <p style={{ fontSize: 12.5, color: "#ef4444", textAlign: "center" }}>{checkoutFileError}</p>}
 
                   <button
                     className="btn btn-primary btn-full"
                     onClick={() => confirmCheckout(scanResult.rawToken!)}
-                    disabled={isConfirmingCheckout || !checkoutFileKey}
+                    disabled={isConfirmingCheckout || checkoutBlocked}
                     style={{
-                      background: !checkoutFileKey ? "var(--bg-elevated)" : "#f59e0b",
-                      color: !checkoutFileKey ? "var(--text-muted)" : "white",
+                      background: checkoutBlocked ? "var(--bg-elevated)" : "#f59e0b",
+                      color: checkoutBlocked ? "var(--text-muted)" : "white",
                       minHeight: 56,
                       borderRadius: 16,
                       fontSize: 16,
                       fontWeight: 700,
-                      opacity: !checkoutFileKey ? 0.7 : 1,
-                      cursor: !checkoutFileKey ? "not-allowed" : "pointer",
+                      opacity: checkoutBlocked ? 0.7 : 1,
+                      cursor: checkoutBlocked ? "not-allowed" : "pointer",
                     }}
                   >
                     {isConfirmingCheckout
@@ -1955,7 +1969,8 @@ export default function QRScannerPage() {
                       : (lang === "th" ? "ยืนยันเช็คเอาท์" : lang === "cn" ? "确认签退" : lang === "mm" ? "checkout ကို အတည်ပြုပါ" : "Confirm Check-out")}
                   </button>
                 </div>
-              )}
+                );
+              })()}
 
               {scanMode === "checkin" && (scanResult?.status === "success" || scanResult?.status === "success_walk_in" || scanResult?.status === "success_checkout" || scanResult?.status === "already_checked_in") && (
                 <div 

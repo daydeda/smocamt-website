@@ -804,12 +804,19 @@ export class ScannerService {
 
   /**
    * The check-OUT half of a requireCheckOut event (see events.requireCheckOut
-   * in schema.ts). Called once staff has looked at the student's evidence in
-   * person and decided it's legit — attaches the kept photo, stamps
-   * checkOutTime, and (only now) awards that day's individual points. A race
-   * where two staff confirm the same check-out concurrently is closed by the
-   * `isNull(checkOutTime)` guard on the update: the loser's update affects 0
-   * rows and reads back as already_checked_in instead of double-awarding.
+   * in schema.ts). Called once staff has looked at the student in person and
+   * decided the checkout is legit — stamps checkOutTime, and (only now)
+   * awards that day's individual points. A race where two staff confirm the
+   * same check-out concurrently is closed by the `isNull(checkOutTime)`
+   * guard on the update: the loser's update affects 0 rows and reads back as
+   * already_checked_in instead of double-awarding.
+   *
+   * Whether a proof photo is mandatory is per-event (events.checkOutEvidenceRequired,
+   * default true — preserves the original photo-gated behavior). When false,
+   * staff's in-person confirmation alone is trusted and no photo is required,
+   * though one is still stored if the client sends it anyway. A malformed key
+   * is always rejected regardless of the requirement, to keep the stored
+   * reference (when present) trustworthy.
    */
   private static async confirmCheckout(params: {
     record: NonNullable<Awaited<ReturnType<typeof db.query.attendance.findFirst>>>;
@@ -824,7 +831,14 @@ export class ScannerService {
   }): Promise<ScanResult> {
     const { record, student, event, sessionLabel, individualPoints, evidenceFileKey, actorId, ipAddress, studentWithMedical } = params;
 
-    if (!evidenceFileKey || !this.EVIDENCE_KEY_PATTERN.test(evidenceFileKey)) {
+    if (evidenceFileKey && !this.EVIDENCE_KEY_PATTERN.test(evidenceFileKey)) {
+      return {
+        status: "error",
+        student: null,
+        error: "Invalid proof photo reference.",
+      };
+    }
+    if (event.checkOutEvidenceRequired && !evidenceFileKey) {
       return {
         status: "error",
         student: null,
@@ -835,7 +849,7 @@ export class ScannerService {
     const updated = await db.transaction(async (tx) => {
       const rows = await tx
         .update(attendance)
-        .set({ checkOutTime: new Date(), evidenceFileKey })
+        .set({ checkOutTime: new Date(), ...(evidenceFileKey ? { evidenceFileKey } : {}) })
         .where(and(eq(attendance.id, record.id), isNull(attendance.checkOutTime)))
         .returning({ id: attendance.id });
 
@@ -853,7 +867,9 @@ export class ScannerService {
         await AuditService.logActionInternal(tx, {
           actorId,
           targetId: student.id,
-          action: `Confirmed check-out with evidence for event: ${event.title} (${sessionLabel})`,
+          action: evidenceFileKey
+            ? `Confirmed check-out with evidence for event: ${event.title} (${sessionLabel})`
+            : `Confirmed check-out (staff-witnessed, no evidence required) for event: ${event.title} (${sessionLabel})`,
           ipAddress,
         });
       }

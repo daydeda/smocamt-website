@@ -1560,6 +1560,16 @@ async function migrate() {
   await sql`CREATE INDEX IF NOT EXISTS idx_prize_claims_claimed_at ON prize_claims (claimed_at)`;
   console.log("  ✅ prize_claims table + partial unique(prize_id, student_id) + prize/student/event/claimed_at indexes");
 
+  // 95. Sub-option of require_check_out (step 92): whether the checkout scan
+  // needs a staff-uploaded proof photo. Defaults to true so every existing
+  // require_check_out event keeps its current mandatory-photo behavior
+  // unchanged; staff can turn it off per event to trust an in-person
+  // witnessed re-scan alone, with no photo. See ScannerService.confirmCheckout
+  // and docs/features/evidence-checkin.md. Mirrors
+  // drizzle/0043_peaceful_gambit.sql. Additive, idempotent, non-destructive.
+  await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS check_out_evidence_required boolean NOT NULL DEFAULT true`;
+  console.log("  ✅ events.check_out_evidence_required");
+
   console.log("✅ Migration complete!");
   await sql.end();
   process.exit(0);

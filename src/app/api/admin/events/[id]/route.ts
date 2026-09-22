@@ -35,6 +35,8 @@ const eventUpdateSchema = z.object({
   checkInMode: z.enum(["qr", "evidence"]).optional(),
   // Two-step QR check-in/check-out — see events.requireCheckOut in schema.ts.
   requireCheckOut: z.boolean().optional(),
+  // Sub-option of requireCheckOut — see events.checkOutEvidenceRequired in schema.ts.
+  checkOutEvidenceRequired: z.boolean().optional(),
   // When provided, the full desired set of sessions. Existing sessions are
   // matched by id (updated), new ones inserted, dropped ones removed — except a
   // session that already has attendance is never deleted (non-destructive).
@@ -162,6 +164,7 @@ function buildEventSetFields(
     ...(data.registrationMode !== undefined && { registrationMode: data.registrationMode }),
     ...(data.checkInMode !== undefined && { checkInMode: data.checkInMode }),
     ...(data.requireCheckOut !== undefined && { requireCheckOut: data.requireCheckOut }),
+    ...(data.checkOutEvidenceRequired !== undefined && { checkOutEvidenceRequired: data.checkOutEvidenceRequired }),
     ...(data.targetThai !== undefined && { targetThai: data.targetThai }),
     ...(data.targetInternational !== undefined && { targetInternational: data.targetInternational }),
     ...(data.quotaThai !== undefined && { quotaThai: data.quotaThai }),

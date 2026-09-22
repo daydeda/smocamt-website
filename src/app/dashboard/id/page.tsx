@@ -287,7 +287,13 @@ export default function DigitalIdPage() {
                 alignItems: "center",
                 gap: 16,
                 width: "100%",
-                maxWidth: 280
+                // Widened from 280 (kept in lockstep with the QR's own maxWidth
+                // below; padding here is unchanged at 20px) — a physically
+                // bigger QR code reads faster and more reliably under a camera
+                // held close, which was the reported "even putting the scanner
+                // right on the QR code" complaint against the admin scanner
+                // (src/app/admin/scanner/page.tsx) that reads this code.
+                maxWidth: 320
               }}
             >
               {user.image ? (
@@ -311,9 +317,22 @@ export default function DigitalIdPage() {
               )}
               <QRCodeCanvas
                 value={qrValue}
-                size={240}
-                style={{ width: "100%", height: "auto", maxWidth: 220 }}
-                level="H"
+                // Rendered internally at a higher resolution than its display
+                // maxWidth below (240 vs 280px on screen) — qrcode.react draws
+                // to a canvas at `size` px and CSS then scales the DISPLAYED
+                // size down via the style below, so this is supersampling for
+                // crispness on a high-DPI phone screen, not a layout change.
+                size={320}
+                style={{ width: "100%", height: "auto", maxWidth: 280 }}
+                // Error correction trades symbol density for damage tolerance.
+                // "H" (30%) is for a PRINTED code that might get scuffed or
+                // partially obscured; this is a backlit phone screen held
+                // ~20cm from a camera, where that tolerance is never needed.
+                // "M" (15%) is still comfortably more correction than a clean
+                // digital display needs, but produces a meaningfully lower QR
+                // version (fewer, larger modules) at the same physical size —
+                // which is what actually makes a close-range camera read fast.
+                level="M"
                 bgColor="#ffffff"
                 fgColor="#000000"
               />

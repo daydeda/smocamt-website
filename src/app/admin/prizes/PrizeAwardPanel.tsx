@@ -6,6 +6,7 @@ import type { Html5Qrcode } from "html5-qrcode";
 import { compressImageFile } from "@/lib/compress-image";
 import { uploadFormViaXHR } from "@/lib/xhr-upload";
 import { useLanguage } from "@/lib/LanguageContext";
+import { QR_SCANNER_CONSTRUCTOR_CONFIG, QR_SCANNER_START_CONFIG } from "@/lib/qr-scanner-config";
 import { Camera, Check, X, AlertTriangle, Loader2, Search, ImagePlus } from "lucide-react";
 
 // The booth screen: scan → see who it is and whether they may have it → confirm
@@ -193,20 +194,24 @@ export default function PrizeAwardPanel({
       const { Html5Qrcode } = await import("html5-qrcode");
       if (cancelled || !mountedRef.current) return;
 
-      const scanner = new Html5Qrcode("prize-qr-reader");
+      const scanner = new Html5Qrcode("prize-qr-reader", QR_SCANNER_CONSTRUCTOR_CONFIG);
       scannerRef.current = scanner;
       setCameraError(null);
 
       try {
         await scanner.start(
           { facingMode: "environment" },
-          // aspectRatio: 1 requests a roughly square camera stream. Without
-          // it, a webcam's native (often tall-portrait, e.g. a laptop selfie
-          // cam) resolution is used unmodified, so the video — and the
-          // reticle centered within it — end up much taller than the qrbox,
-          // reading as "off-center" even though it's centered in that tall
-          // frame. Square keeps the visible frame close to the qrbox itself.
-          { fps: 10, qrbox: { width: 280, height: 280 }, aspectRatio: 1 },
+          // Shared with the main scanner (src/lib/qr-scanner-config.ts) — the
+          // two had drifted apart (this panel had aspectRatio: 1, the scanner
+          // didn't; neither restricted formats or requested autofocus) before
+          // that module existed. aspectRatio: 1 requests a roughly square
+          // camera stream: without it, a webcam's native (often tall-portrait,
+          // e.g. a laptop selfie cam) resolution is used unmodified, so the
+          // video — and the reticle centered within it — end up much taller
+          // than the qrbox, reading as "off-center" even though it's centered
+          // in that tall frame. Square keeps the visible frame close to the
+          // qrbox itself.
+          QR_SCANNER_START_CONFIG,
           async (decodedText) => {
             // Ignore repeats of the token already on screen: the camera fires
             // many times a second and the student keeps holding their phone up.

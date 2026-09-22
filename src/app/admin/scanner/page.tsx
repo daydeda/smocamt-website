@@ -35,6 +35,7 @@ import { canGiveIndividualScoreAny, effectiveRoles } from "@/lib/admin-access";
 import { compressImageFile } from "@/lib/compress-image";
 import { uploadFormViaXHR } from "@/lib/xhr-upload";
 import { usePolling } from "@/lib/usePolling";
+import { QR_SCANNER_CONSTRUCTOR_CONFIG, QR_SCANNER_START_CONFIG } from "@/lib/qr-scanner-config";
 import dynamic from "next/dynamic";
 
 // Pre-test warning QR — client-only (qrcode.react reads the DOM). Canvas, not
@@ -437,7 +438,7 @@ export default function QRScannerPage() {
     // 3. Initialize new instance (load the scanner lib on demand)
     const { Html5Qrcode } = await import("html5-qrcode");
     if (!isMountedRef.current || currentSessionId !== scanSessionIdRef.current) return;
-    const scanner = new Html5Qrcode("qr-reader");
+    const scanner = new Html5Qrcode("qr-reader", QR_SCANNER_CONSTRUCTOR_CONFIG);
     scannerRef.current = scanner;
     if (isMountedRef.current) {
       setScannerError(null);
@@ -446,7 +447,7 @@ export default function QRScannerPage() {
     try {
       await scanner.start(
         { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 280, height: 280 } },
+        QR_SCANNER_START_CONFIG,
         async (decodedText) => {
           if (lastTokenRef.current === decodedText || showModalRef.current) return;
           // Same still-in-frame student re-decoding right after closing a
@@ -573,29 +574,49 @@ export default function QRScannerPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [events.length > 0]);
 
-  // Restart scanner on window resize or device orientation change
+  // Restart scanner on a REAL device orientation change, but not on every
+  // plain `resize` event.
   useEffect(() => {
     let resizeTimeout: NodeJS.Timeout | null = null;
+    // A mobile browser fires `resize` every time its URL bar collapses or
+    // expands on scroll — several times during a single scanning session,
+    // each one tearing the camera down and re-acquiring it (~1-2s of dead
+    // scanner). Staff experienced this as "it randomly stops reading" while
+    // just scrolling the page. Only restart when the width actually changed
+    // by more than a trivial amount (an address-bar collapse moves the
+    // viewport height, not the width) — a genuine layout change (rotating the
+    // phone, resizing a desktop test window) still gets caught.
+    let lastWidth = window.innerWidth;
 
-    const handleResize = () => {
+    const scheduleRestart = () => {
       if (!isScanning) return;
       if (resizeTimeout) clearTimeout(resizeTimeout);
-
       resizeTimeout = setTimeout(() => {
         if (isMountedRef.current && isScanning) {
-          console.log("Orientation/size changed. Restarting scanner...");
           startScanner();
         }
       }, 500); // 500ms debounce to let rotate animations settle
     };
 
+    const handleResize = () => {
+      const width = window.innerWidth;
+      if (Math.abs(width - lastWidth) < 80) return;
+      lastWidth = width;
+      scheduleRestart();
+    };
+
+    const handleOrientationChange = () => {
+      lastWidth = window.innerWidth;
+      scheduleRestart();
+    };
+
     window.addEventListener("resize", handleResize);
-    window.addEventListener("orientationchange", handleResize);
+    window.addEventListener("orientationchange", handleOrientationChange);
 
     return () => {
       if (resizeTimeout) clearTimeout(resizeTimeout);
       window.removeEventListener("resize", handleResize);
-      window.removeEventListener("orientationchange", handleResize);
+      window.removeEventListener("orientationchange", handleOrientationChange);
     };
   }, [isScanning]);
 

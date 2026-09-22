@@ -6,7 +6,7 @@ import type { Html5Qrcode } from "html5-qrcode";
 import { compressImageFile } from "@/lib/compress-image";
 import { uploadFormViaXHR } from "@/lib/xhr-upload";
 import { useLanguage } from "@/lib/LanguageContext";
-import { Camera, Check, X, AlertTriangle, Loader2, Search } from "lucide-react";
+import { Camera, Check, X, AlertTriangle, Loader2, Search, ImagePlus } from "lucide-react";
 
 // The booth screen: scan → see who it is and whether they may have it → confirm
 // → photo. See docs/features/prize-claim.md.
@@ -353,28 +353,62 @@ export default function PrizeAwardPanel({
                   </p>
                 ) : (
                   <>
-                    <label
-                      className="btn btn-primary btn-lg btn-full"
-                      style={{ marginTop: 14, cursor: photoState === "uploading" ? "not-allowed" : "pointer" }}
-                    >
-                      {photoState === "uploading" ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
-                      {photoState === "uploading" ? t.adminPrizesPhotoUploading : t.adminPrizesPhotoCta}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        // No `capture` attribute: on mobile that forces the
-                        // camera app open directly and hides the gallery/
-                        // "Choose image" option, which is exactly what staff
-                        // need when the phone's camera format (HEIC) fails to
-                        // upload — they can then pick an already-converted photo.
-                        style={{ display: "none" }}
-                        disabled={photoState === "uploading"}
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) void uploadPhoto(f);
-                        }}
-                      />
-                    </label>
+                    {/* Two separate inputs, not one bare accept="image/*": Android's
+                        OEM file picker (Samsung/Xiaomi/the Android 13+ Photo Picker)
+                        frequently shows gallery-only when there's no `capture`
+                        attribute to force the camera — the camera option simply
+                        isn't there, not merely un-obvious. `capture="environment"`
+                        on the first input guarantees the camera opens; the second
+                        input (no `capture`) keeps the existing HEIC-escape-hatch —
+                        staff can pick an already-converted photo when the phone's
+                        native camera format fails to upload. Both share the same
+                        uploadPhoto() handler. */}
+                    {/* flexWrap so the two buttons stack instead of clipping
+                        their label text on a narrow phone (checked at 360px);
+                        smaller padding than btn-lg's default gives each one more
+                        breathing room before that wrap point is needed at all. */}
+                    <div style={{ marginTop: 14, display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      <label
+                        className="btn btn-primary btn-lg"
+                        style={{ flex: "1 1 150px", padding: "12px 16px", cursor: photoState === "uploading" ? "not-allowed" : "pointer" }}
+                      >
+                        {photoState === "uploading" ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
+                        {photoState === "uploading" ? t.adminPrizesPhotoUploading : t.adminPrizesPhotoCtaCamera}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          style={{ display: "none" }}
+                          disabled={photoState === "uploading"}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) void uploadPhoto(f);
+                          }}
+                        />
+                      </label>
+                      <label
+                        className="btn btn-ghost btn-lg"
+                        style={{ flex: "1 1 150px", padding: "12px 16px", cursor: photoState === "uploading" ? "not-allowed" : "pointer" }}
+                      >
+                        <ImagePlus size={18} />
+                        {t.adminPrizesPhotoCtaGallery}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: "none" }}
+                          disabled={photoState === "uploading"}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) void uploadPhoto(f);
+                          }}
+                        />
+                      </label>
+                    </div>
+                    {typeof window !== "undefined" && window.isSecureContext === false && (
+                      <p style={{ marginTop: 10, fontSize: 12.5, color: "#b45309", lineHeight: 1.5 }}>
+                        {t.adminPrizesCameraBlockedHttps}
+                      </p>
+                    )}
                     {photoState === "failed" && (
                       <p style={{ marginTop: 10, fontSize: 12.5, color: "#b45309", lineHeight: 1.5 }}>
                         {t.adminPrizesPhotoFailedNotice} <strong>{t.adminPrizesPhotoFailedEmphasis}</strong>{" "}

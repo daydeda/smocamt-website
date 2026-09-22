@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import PrizeAwardPanel from "./PrizeAwardPanel";
-import { Gift, Plus, QrCode, FileSpreadsheet, Printer, Loader2, ImageOff, Lock, X, PackageOpen, Pencil, Camera, Check } from "lucide-react";
+import { Gift, Plus, QrCode, FileSpreadsheet, Printer, Loader2, ImageOff, Lock, X, PackageOpen, Pencil, Camera, Check, ImagePlus } from "lucide-react";
 import { useLanguage } from "@/lib/LanguageContext";
 import { compressImageFile } from "@/lib/compress-image";
 import { uploadFormViaXHR } from "@/lib/xhr-upload";
@@ -635,23 +635,51 @@ function AwaitingPhotoDialog({
                   </p>
                 </div>
 
-                <label
-                  className="btn btn-primary"
-                  style={{ flexShrink: 0, cursor: uploadingId === c.claimId ? "not-allowed" : "pointer" }}
-                >
-                  {uploadingId === c.claimId ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
-                  {t.adminPrizesAwaitingPhotoAttachBtn}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    style={{ display: "none" }}
-                    disabled={uploadingId === c.claimId}
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) void attach(c.claimId, f);
-                    }}
-                  />
-                </label>
+                {/* Two icon-only buttons rather than one text-labelled one: same
+                    Android OEM-picker reasoning as PrizeAwardPanel's photo card
+                    (capture="environment" is the only reliable way to force the
+                    camera open on Android). Icon-only keeps this compact row from
+                    overflowing at narrow widths; the group has one accessible
+                    label and each button its own. */}
+                <div role="group" aria-label={t.adminPrizesAwaitingPhotoAttachBtn} style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <label
+                    className="btn btn-primary"
+                    aria-label={t.adminPrizesPhotoCtaCamera}
+                    title={t.adminPrizesPhotoCtaCamera}
+                    style={{ width: 40, height: 40, padding: 0, justifyContent: "center", cursor: uploadingId === c.claimId ? "not-allowed" : "pointer" }}
+                  >
+                    {uploadingId === c.claimId ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      style={{ display: "none" }}
+                      disabled={uploadingId === c.claimId}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) void attach(c.claimId, f);
+                      }}
+                    />
+                  </label>
+                  <label
+                    className="btn btn-ghost"
+                    aria-label={t.adminPrizesPhotoCtaGallery}
+                    title={t.adminPrizesPhotoCtaGallery}
+                    style={{ width: 40, height: 40, padding: 0, justifyContent: "center", cursor: uploadingId === c.claimId ? "not-allowed" : "pointer" }}
+                  >
+                    <ImagePlus size={16} />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      style={{ display: "none" }}
+                      disabled={uploadingId === c.claimId}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) void attach(c.claimId, f);
+                      }}
+                    />
+                  </label>
+                </div>
               </div>
             ))
           )}

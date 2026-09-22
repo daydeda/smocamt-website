@@ -8,6 +8,7 @@ import { uploadFormViaXHR } from "@/lib/xhr-upload";
 import { useLanguage } from "@/lib/LanguageContext";
 import { QR_SCANNER_CONSTRUCTOR_CONFIG, QR_SCANNER_START_CONFIG } from "@/lib/qr-scanner-config";
 import { Camera, Check, X, AlertTriangle, Loader2, Search, ImagePlus } from "lucide-react";
+import styles from "./PrizeAwardPanel.module.css";
 
 // The booth screen: scan → see who it is and whether they may have it → confirm
 // → photo. See docs/features/prize-claim.md.
@@ -207,10 +208,8 @@ export default function PrizeAwardPanel({
           // that module existed. aspectRatio: 1 requests a roughly square
           // camera stream: without it, a webcam's native (often tall-portrait,
           // e.g. a laptop selfie cam) resolution is used unmodified, so the
-          // video — and the reticle centered within it — end up much taller
-          // than the qrbox, reading as "off-center" even though it's centered
-          // in that tall frame. Square keeps the visible frame close to the
-          // qrbox itself.
+          // video can still be portrait on phones that ignore the request.
+          // The viewfinder CSS crops that stream to a consistent square.
           QR_SCANNER_START_CONFIG,
           async (decodedText) => {
             // Ignore repeats of the token already on screen: the camera fires
@@ -375,47 +374,27 @@ export default function PrizeAwardPanel({
 
   return createPortal(
     <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.5)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1100,
-        padding: "clamp(12px, 4vw, 24px)",
-      }}
+      className={styles.backdrop}
       onClick={onClose}
     >
       <div
-        className="animate-fade-in-up"
+        className={`${styles.dialog} animate-fade-in-up`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="prize-award-title"
         onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "var(--bg-surface)",
-          width: "100%",
-          maxWidth: 480,
-          maxHeight: "92vh",
-          display: "flex",
-          flexDirection: "column",
-          borderRadius: "clamp(20px, 5vw, 24px)",
-          overflow: "hidden",
-          boxShadow: "0 30px 60px rgba(0,0,0,0.25)",
-          border: "1px solid var(--border-medium)",
-        }}
       >
-        <div style={{ padding: "18px 22px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexShrink: 0 }}>
+        <div className={styles.header}>
           <div style={{ minWidth: 0 }}>
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>{t.adminPrizesAwardBtn}</p>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", overflowWrap: "break-word" }}>{prizeName}</h2>
+            <h2 id="prize-award-title" style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", overflowWrap: "break-word" }}>{prizeName}</h2>
           </div>
-          <button className="btn btn-ghost" style={{ borderRadius: "50%", width: 36, height: 36, padding: 0, flexShrink: 0 }} onClick={onClose} aria-label={t.adminPrizesCloseLabel}>
+          <button className={`btn btn-ghost ${styles.closeButton}`} onClick={onClose} aria-label={t.adminPrizesCloseLabel}>
             <X size={16} />
           </button>
         </div>
 
-        <div style={{ padding: 20, overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
+        <div className={styles.content}>
           {committed ? (
             /* ---- Committed: the handover is recorded; now the photo ---- */
             <>
@@ -544,41 +523,9 @@ export default function PrizeAwardPanel({
           ) : (
             /* ---- Scanning ---- */
             <>
-              <div
-                style={{
-                  background: "#000",
-                  borderRadius: "var(--radius-xl)",
-                  overflow: "hidden",
-                  border: "8px solid var(--bg-surface)",
-                  boxShadow: "0 40px 80px rgba(0,0,0,0.15)",
-                  // Square, matching the aspectRatio:1 requested from the
-                  // camera above — bounds the box instead of letting it grow
-                  // to a webcam's native (often tall-portrait) resolution.
-                  aspectRatio: "1",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  position: "relative",
-                }}
-              >
-                <div
-                  id="prize-qr-reader"
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    // html5-qrcode sizes the <video> it inserts here to the
-                    // container's width and leaves height auto, so if the
-                    // camera doesn't actually deliver a square stream (many
-                    // webcams ignore the requested aspectRatio and fall back
-                    // to their native ratio) the video renders shorter or
-                    // taller than this square box. Centering it here keeps
-                    // the reticle looking centered in the visible black
-                    // frame instead of pinned to the top.
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                />
+              <div className={styles.viewfinder}>
+                <div id="prize-qr-reader" className={styles.reader} />
+                <div className={styles.scanGuide} aria-hidden="true" />
               </div>
               {cameraError && (
                 <p style={{ borderRadius: 12, padding: "10px 14px", fontSize: 12.5, background: "rgba(245,158,11,0.1)", color: "#b45309", lineHeight: 1.5 }}>
@@ -591,8 +538,8 @@ export default function PrizeAwardPanel({
                 </p>
               )}
 
-              <details style={{ borderRadius: 16, border: "1px solid var(--border-subtle)", padding: 14 }}>
-                <summary style={{ cursor: "pointer", fontSize: 13.5, fontWeight: 700, color: "var(--text-secondary)" }}>
+              <details className={styles.searchDetails}>
+                <summary className={styles.searchSummary}>
                   {t.adminPrizesManualSearchToggle}
                 </summary>
                 <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
@@ -602,7 +549,7 @@ export default function PrizeAwardPanel({
                     onChange={(e) => setManualQuery(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && runManualSearch()}
                     placeholder={t.adminPrizesManualSearchPlaceholder}
-                    style={{ flex: 1 }}
+                    style={{ flex: 1, minWidth: 0 }}
                   />
                   <button className="btn btn-ghost" onClick={runManualSearch} aria-label={t.adminPrizesSearchLabel}>
                     <Search size={16} />

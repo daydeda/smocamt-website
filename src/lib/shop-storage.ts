@@ -15,6 +15,12 @@ import path from "path";
 const BUCKET = "slips";
 const DEV_DIR = path.join(process.cwd(), ".uploads-private", BUCKET);
 
+// A storage-layer failure (Supabase upload rejected, disk write failed, ...).
+// Distinct from a generic Error so the route can surface this specific,
+// pre-written (or fs-detail-carrying) message instead of a bare "Internal
+// Server Error" — mirrors src/lib/form-file-storage.ts's StorageError.
+export class StorageError extends Error {}
+
 function hasSupabase(): boolean {
   return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
@@ -39,14 +45,23 @@ export async function uploadSlip(buffer: Buffer, ext: string): Promise<string> {
       .upload(key, buffer, { contentType: contentTypeForKey(key), upsert: false });
     if (error) {
       console.error("Slip upload error:", error);
-      throw new Error("Failed to store the payment slip.");
+      throw new StorageError("Failed to store the payment slip.");
     }
     return key;
   }
 
-  // Dev fallback: private (non-public, git-ignored) disk dir.
-  await mkdir(DEV_DIR, { recursive: true });
-  await writeFile(path.join(DEV_DIR, key), buffer);
+  // Dev fallback: private (non-public, git-ignored) disk dir. Also the ACTIVE
+  // path on the self-hosted deploy (SUPABASE_* intentionally unset there, see
+  // docker-stack.yml) — wrap so a disk fault (e.g. EACCES from stale volume
+  // ownership) surfaces its real fs error instead of an opaque 500.
+  try {
+    await mkdir(DEV_DIR, { recursive: true });
+    await writeFile(path.join(DEV_DIR, key), buffer);
+  } catch (e) {
+    console.error("Slip local-disk write error:", e);
+    const detail = e instanceof Error ? e.message : String(e);
+    throw new StorageError(`Failed to store the payment slip (${detail}).`);
+  }
   return key;
 }
 

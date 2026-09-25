@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { db } from "@/db";
 import { shopOrderItems, shopOrders, shopSellers, users } from "@/db/schema";
 import { resolveShopAccess, classifyOrdersByScope } from "@/lib/shop-scope";
+import { autoConfirmDueShipments } from "@/lib/shop-fulfillment-server";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { desc, eq, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
@@ -11,6 +12,8 @@ export const dynamic = "force-dynamic";
 
 // Second users join for who reviewed the order (the finance summary on each card).
 const reviewers = alias(users, "reviewers");
+// ...and for who handed the order over (the "picked up … by" line).
+const fulfillers = alias(users, "fulfillers");
 
 // GET /api/admin/shop/orders — the admin review queue: every order with buyer
 // info + line items, newest first. The slip is fetched separately (auth-gated)
@@ -27,6 +30,10 @@ export async function GET(req: Request) {
     if (!access.ok) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Complete mailed orders past the auto-confirm window before listing them
+    // (no scheduler on the self-hosted deploy — see the helper).
+    await autoConfirmDueShipments();
 
     const allOrders = await db
       .select({
@@ -52,11 +59,25 @@ export async function GET(req: Request) {
         buyerName: users.name,
         buyerStudentId: users.studentId,
         buyerNickname: users.nickname,
+        fulfillmentStatus: shopOrders.fulfillmentStatus,
+        readyAt: shopOrders.readyAt,
+        carrier: shopOrders.carrier,
+        carrierName: shopOrders.carrierName,
+        trackingNumber: shopOrders.trackingNumber,
+        trackingUrl: shopOrders.trackingUrl,
+        shippedAt: shopOrders.shippedAt,
+        fulfilledAt: shopOrders.fulfilledAt,
+        fulfilledVia: shopOrders.fulfilledVia,
+        fulfilledByName: fulfillers.name,
+        fulfillmentNote: shopOrders.fulfillmentNote,
+        issueNote: shopOrders.issueNote,
+        issueAt: shopOrders.issueAt,
       })
       .from(shopOrders)
       .leftJoin(users, eq(shopOrders.buyerId, users.id))
       .leftJoin(shopSellers, eq(shopOrders.sellerId, shopSellers.id))
       .leftJoin(reviewers, eq(shopOrders.reviewedBy, reviewers.id))
+      .leftJoin(fulfillers, eq(shopOrders.fulfilledBy, fulfillers.id))
       .orderBy(desc(shopOrders.createdAt));
 
     // For a scoped president, keep only orders with a line item they own.
@@ -101,6 +122,19 @@ export async function GET(req: Request) {
         shippingAddress: o.shippingAddress,
         sellerId: o.sellerId,
         sellerName: o.sellerName,
+        fulfillmentStatus: o.fulfillmentStatus,
+        readyAt: o.readyAt,
+        carrier: o.carrier,
+        carrierName: o.carrierName,
+        trackingNumber: o.trackingNumber,
+        trackingUrl: o.trackingUrl,
+        shippedAt: o.shippedAt,
+        fulfilledAt: o.fulfilledAt,
+        fulfilledVia: o.fulfilledVia,
+        fulfilledByName: o.fulfilledByName,
+        fulfillmentNote: o.fulfillmentNote,
+        issueNote: o.issueNote,
+        issueAt: o.issueAt,
         // A scoped president may only review an order that is entirely theirs.
         fullyInScope: info ? info.fullyOwned : true,
         buyer: { name: o.buyerName, studentId: o.buyerStudentId, nickname: o.buyerNickname },

@@ -1580,6 +1580,31 @@ async function migrate() {
   await sql`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS discount_amount integer NOT NULL DEFAULT 0`;
   console.log("  ✅ shop_products.bundle_deals / shop_orders.discount_amount");
 
+  // 97. Shop fulfilment tracking — proof the buyer actually got the item
+  // (self-pickup / on-campus delivery by Digital ID scan, mail by carrier +
+  // tracking number then buyer confirmation or auto-confirm). Every column is
+  // nullable except fulfillment_status, which defaults to 'awaiting' so every
+  // existing order simply shows as "not handed over yet" — nothing is inferred
+  // or rewritten. See src/lib/shop-fulfillment.ts and
+  // docs/features/shop-fulfillment.md. Mirrors drizzle/0045_rainy_crusher_hogan.sql.
+  // Additive, idempotent, non-destructive.
+  await sql`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS fulfillment_status text NOT NULL DEFAULT 'awaiting'`;
+  await sql`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS ready_at timestamptz`;
+  await sql`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS carrier text`;
+  await sql`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS carrier_name text`;
+  await sql`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS tracking_number text`;
+  await sql`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS tracking_url text`;
+  await sql`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS shipped_at timestamptz`;
+  await sql`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS shipped_by text REFERENCES users(id) ON DELETE SET NULL`;
+  await sql`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS fulfilled_at timestamptz`;
+  await sql`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS fulfilled_by text REFERENCES users(id) ON DELETE SET NULL`;
+  await sql`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS fulfilled_via text`;
+  await sql`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS fulfillment_note text`;
+  await sql`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS issue_note text`;
+  await sql`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS issue_at timestamptz`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_shop_orders_fulfillment ON shop_orders (fulfillment_status)`;
+  console.log("  ✅ shop_orders fulfilment tracking (status, carrier/tracking, handover, issue)");
+
   console.log("✅ Migration complete!");
   await sql.end();
   process.exit(0);

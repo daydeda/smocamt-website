@@ -12,8 +12,11 @@ import {
   ShoppingBag, Package, ReceiptText, Settings as SettingsIcon, Plus, Trash2, Pencil,
   Upload, Loader2, X, CheckCircle2, XCircle, Clock, GripVertical, Save, RotateCcw, Download,
   Check, FileText, Truck, Store, Users, ChevronLeft, ChevronRight, ChevronDown,
-  AlertTriangle, ExternalLink, Tag, Wallet,
+  AlertTriangle, ExternalLink, Tag, Wallet, ScanLine,
 } from "lucide-react";
+import type { StaffFulfillmentAction } from "@/lib/shop-fulfillment";
+import ShopHandoverScanner from "./ShopHandoverScanner";
+import { FulfillmentChip, FulfillmentPanel, FulfilModal, canRevertPayment, type FulfilRequest } from "./ShopFulfillmentControls";
 
 // True when a decoded slip QR payload is a link the admin can tap to open the
 // issuing bank's own verify page. Deliberately NOT imported from
@@ -175,7 +178,23 @@ interface AdminOrder {
   fullyInScope?: boolean;
   buyer: { name: string | null; studentId: string | null; nickname: string | null };
   items: AdminOrderItem[];
+  // Handover tracking (src/lib/shop-fulfillment.ts) — layered on top of status.
+  fulfillmentStatus: string; readyAt: string | null;
+  carrier: string | null; carrierName: string | null; trackingNumber: string | null; trackingUrl: string | null;
+  shippedAt: string | null; fulfilledAt: string | null; fulfilledVia: string | null; fulfilledByName: string | null;
+  fulfillmentNote: string | null; issueNote: string | null; issueAt: string | null;
 }
+
+// Handover filters layered on the payment-status filter row. "to_fulfil" = paid
+// and not yet in the buyer's hands (awaiting/ready), i.e. who still hasn't
+// collected or been sent their stuff.
+type OrderFilter = "all" | "pending" | "approved" | "rejected" | "to_fulfil" | "shipped" | "issue";
+const matchesOrderFilter = (o: AdminOrder, f: OrderFilter) => {
+  if (f === "all") return true;
+  if (f === "to_fulfil") return o.status === "approved" && (o.fulfillmentStatus === "awaiting" || o.fulfillmentStatus === "ready");
+  if (f === "shipped" || f === "issue") return o.status === "approved" && o.fulfillmentStatus === f;
+  return o.status === f;
+};
 interface AdminOrderItem {
   id: string; productId: string | null; variantId: string | null;
   productName: string; variantLabel: string; customValues: ShopCustomValue[] | null;
@@ -1084,7 +1103,7 @@ function OrdersTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [productsLoaded, setProductsLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("pending");
+  const [filter, setFilter] = useState<OrderFilter>("pending");
   // Extra filters layered on top of status: by product (an order matches if any of
   // its lines is that product) and by an inclusive created-at date/time range.
   const [productFilter, setProductFilter] = useState<string>("all");
@@ -1108,6 +1127,10 @@ function OrdersTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
   // The order currently open in the "edit details" modal (admin/owner
   // correcting a buyer's option/personalization/delivery mistake).
   const [editing, setEditing] = useState<AdminOrder | null>(null);
+  // Handover: the ship/handover/reset dialog, and the Digital ID scanner.
+  const [fulfilling, setFulfilling] = useState<{ order: AdminOrder; action: "ship" | "handover" | "reset" } | null>(null);
+  const [fulfilError, setFulfilError] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
 
   const load = useCallback(async () => {
     setLoadError(false);
@@ -1165,6 +1188,38 @@ function OrdersTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
     }
   };
 
+  // "ready" runs immediately (it only notifies the buyer); the rest open a dialog.
+  const fulfil = (o: AdminOrder, action: StaffFulfillmentAction) => {
+    setFulfilError(null);
+    if (action === "ready") { submitFulfil(o, { action }); return; }
+    setFulfilling({ order: o, action });
+  };
+
+  const submitFulfil = async (o: AdminOrder, req: FulfilRequest) => {
+    setBusy(o.id);
+    setActionError(null);
+    setFulfilError(null);
+    try {
+      const res = await fetch(`/api/admin/shop/orders/${o.id}/fulfillment`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(req),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || (th ? "ดำเนินการไม่สำเร็จ" : "Action failed"));
+      }
+      setFulfilling(null);
+      load();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : (th ? "ดำเนินการไม่สำเร็จ" : "Action failed");
+      // Inside the dialog, keep it open with the error so typed input isn't lost.
+      if (req.action === "ready") setActionError(msg); else setFulfilError(msg);
+    } finally {
+      setBusy(null);
+    }
+  };
+
   // Product dropdown options: every distinct product name across all orders.
   const productNames = Array.from(new Set(orders.flatMap((o) => o.items.map((i) => i.productName)))).sort((a, b) => a.localeCompare(b));
 
@@ -1181,7 +1236,7 @@ function OrdersTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
   });
   const flaggedCount = preFlag.filter((o) => o.slipFlag).length;
   const base = flaggedOnly ? preFlag.filter((o) => o.slipFlag) : preFlag;
-  const shown = base.filter((o) => filter === "all" || o.status === filter);
+  const shown = base.filter((o) => matchesOrderFilter(o, filter));
   const hasExtraFilter = productFilter !== "all" || !!fromDate || !!toDate || flaggedOnly;
 
   // Reset to page 1 whenever the filter combination changes (adjust-state-during-render
@@ -1207,13 +1262,29 @@ function OrdersTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
 
   return (
     <div>
+      {/* The pickup-counter action: its own row so it's the obvious big button on a phone. */}
+      <button onClick={() => setScanning(true)} className="btn btn-primary" style={{ width: "100%", maxWidth: 360, marginBottom: 14, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+        <ScanLine size={16} />{th ? "สแกน Digital ID เพื่อส่งมอบสินค้า" : "Scan Digital ID to hand over"}
+      </button>
       <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
         {(["pending", "approved", "rejected", "all"] as const).map((f) => (
           <button key={f} onClick={() => setFilter(f)} className={filter === f ? "btn btn-primary" : "btn btn-ghost"} style={{ fontSize: 13, padding: "6px 14px" }}>
             {f === "all" ? (th ? "ทั้งหมด" : "All") : f === "pending" ? (th ? "รอตรวจสอบ" : "Pending") : f === "approved" ? (th ? "อนุมัติ" : "Approved") : (th ? "ปฏิเสธ" : "Rejected")}
-            {" "}({base.filter((o) => f === "all" || o.status === f).length})
+            {" "}({base.filter((o) => matchesOrderFilter(o, f)).length})
           </button>
         ))}
+        {(["to_fulfil", "shipped", "issue"] as const).map((f) => {
+          const count = base.filter((o) => matchesOrderFilter(o, f)).length;
+          // Hide the empty "problem" filter so it only draws the eye when needed.
+          if (f === "issue" && count === 0 && filter !== "issue") return null;
+          return (
+            <button key={f} onClick={() => setFilter(f)} className={filter === f ? "btn btn-primary" : "btn btn-ghost"} style={{ fontSize: 13, padding: "6px 14px", ...(f === "issue" && filter !== f ? { color: "#dc2626" } : {}) }}>
+              {f === "to_fulfil" ? (th ? "รอส่งมอบ" : "To hand over") : f === "shipped" ? (th ? "จัดส่งแล้ว" : "Shipped") : (th ? "แจ้งปัญหา" : "Problem")}
+              {" "}({count})
+            </button>
+          );
+        })}
+
         <button
           onClick={() => setFlaggedOnly((v) => !v)}
           className={flaggedOnly ? "btn btn-primary" : "btn btn-ghost"}
@@ -1257,7 +1328,7 @@ function OrdersTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
       ) : (
         <>
           <div style={{ display: "grid", gap: 14 }}>
-            {pageOrders.map((o) => <AdminOrderRow key={o.id} order={o} th={th} busy={busy === o.id} scoped={ctx?.scoped ?? false} onReview={review} onEdit={() => setEditing(o)} />)}
+            {pageOrders.map((o) => <AdminOrderRow key={o.id} order={o} th={th} busy={busy === o.id} scoped={ctx?.scoped ?? false} onReview={review} onEdit={() => setEditing(o)} onFulfil={fulfil} />)}
           </div>
           <Pagination th={th} page={safePage} total={shown.length} onPage={setPage} />
         </>
@@ -1273,6 +1344,20 @@ function OrdersTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
           onConfirm={(reason) => submit(pending.order, pending.action, reason)}
         />
       )}
+
+      {fulfilling && (
+        <FulfilModal
+          th={th}
+          order={fulfilling.order}
+          action={fulfilling.action}
+          busy={busy === fulfilling.order.id}
+          error={fulfilError}
+          onCancel={() => { setFulfilling(null); setFulfilError(null); }}
+          onConfirm={(req) => submitFulfil(fulfilling.order, req)}
+        />
+      )}
+
+      {scanning && <ShopHandoverScanner th={th} onClose={() => setScanning(false)} onHandedOver={load} />}
 
       {editing && (
         <EditOrderModal
@@ -1390,7 +1475,7 @@ function OrderFinanceSummary({ order, th }: { order: AdminOrder; th: boolean }) 
   );
 }
 
-function AdminOrderRow({ order, th, busy, scoped, onReview, onEdit }: { order: AdminOrder; th: boolean; busy: boolean; scoped: boolean; onReview: (o: AdminOrder, a: "approve" | "reject" | "revert") => void; onEdit: () => void }) {
+function AdminOrderRow({ order, th, busy, scoped, onReview, onEdit, onFulfil }: { order: AdminOrder; th: boolean; busy: boolean; scoped: boolean; onReview: (o: AdminOrder, a: "approve" | "reject" | "revert") => void; onEdit: () => void; onFulfil: (o: AdminOrder, a: StaffFulfillmentAction) => void }) {
   const [showSlip, setShowSlip] = useState(order.status === "pending");
   const badge = ORDER_BADGE[order.status] ?? ORDER_BADGE.pending;
   // A scoped president may only review an order that is entirely theirs — a mixed
@@ -1404,7 +1489,10 @@ function AdminOrderRow({ order, th, busy, scoped, onReview, onEdit }: { order: A
           <p style={{ fontWeight: 700, fontSize: 15 }}>{order.buyer.name ?? "—"} {order.buyer.nickname ? <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>({order.buyer.nickname})</span> : null}</p>
           <p style={{ fontSize: 12, color: "var(--text-muted)" }}>{order.buyer.studentId ?? ""} · {new Date(order.createdAt).toLocaleString(th ? "th-TH" : "en-GB")}</p>
         </div>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, padding: "5px 10px", borderRadius: 999, background: badge.bg, color: badge.color, height: "fit-content", whiteSpace: "nowrap" }}>{badge.icon}{th ? badge.th : badge.en}</span>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, padding: "5px 10px", borderRadius: 999, background: badge.bg, color: badge.color, height: "fit-content", whiteSpace: "nowrap" }}>{badge.icon}{th ? badge.th : badge.en}</span>
+          <FulfillmentChip order={order} th={th} />
+        </div>
       </div>
 
       <div style={{ fontSize: 14, marginBottom: 8 }}>
@@ -1507,6 +1595,12 @@ function AdminOrderRow({ order, th, busy, scoped, onReview, onEdit }: { order: A
           <button onClick={() => onReview(order, "reject")} disabled={busy} className="btn btn-ghost" style={{ flex: 1, color: "#ef4444", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}><XCircle size={16} />{th ? "ปฏิเสธ" : "Reject"}</button>
           <button onClick={() => onReview(order, "approve")} disabled={busy} className="btn btn-primary" style={{ flex: 2, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>{busy ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}{th ? "อนุมัติ" : "Approve"}</button>
         </div>
+      ) : !canRevertPayment(order.fulfillmentStatus) ? (
+        // The goods already left the seller — payment review is closed until the
+        // handover is reset (the server refuses reject/revert here too).
+        <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 10 }}>
+          {th ? "ส่งมอบ/จัดส่งแล้ว — ถ้าต้องตรวจการชำระเงินใหม่ ให้ \"ยกเลิกการส่งมอบ\" ก่อน" : "Already shipped/handed over — to re-check the payment, reset the handover first."}
+        </p>
       ) : (
         <div style={{ marginTop: 10 }}>
           <button
@@ -1524,6 +1618,8 @@ function AdminOrderRow({ order, th, busy, scoped, onReview, onEdit }: { order: A
           </button>
         </div>
       )}
+
+      <FulfillmentPanel order={order} th={th} busy={busy} locked={reviewLocked} onAction={(o, a) => onFulfil(order, a)} />
     </div>
   );
 }

@@ -253,6 +253,13 @@
       "when": 1790329900155,
       "tag": "0044_sour_king_bedlam",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1790360447087,
+      "tag": "0045_rainy_crusher_hogan",
+      "breakpoints": true
     }
   ]
 }

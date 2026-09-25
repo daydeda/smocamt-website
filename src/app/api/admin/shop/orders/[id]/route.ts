@@ -6,6 +6,7 @@ import { resolveShopAccess, classifyOrdersByScope } from "@/lib/shop-scope";
 import { validateCustomAnswers } from "@/lib/shop-custom-fields";
 import { computeProductDeliveryFee } from "@/lib/shop-delivery";
 import { computeBundleDiscount } from "@/lib/shop-promotions";
+import { blocksPaymentReview } from "@/lib/shop-fulfillment";
 import { PushService } from "@/modules/notifications/push.service";
 import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { after, NextResponse } from "next/server";
@@ -25,6 +26,8 @@ const LABEL_BY_ACTION = { approve: "Approved", reject: "Rejected", revert: "Reve
 // Thrown inside the PATCH transaction when a "revert" would oversell stock.
 class RevertConflict extends Error {}
 class SellerInactive extends Error {}
+// Thrown inside the PATCH transaction when the goods already left the seller.
+class FulfilledConflict extends Error {}
 // Thrown inside the PUT (edit) transaction for a client-facing validation error.
 class EditValidation extends Error {}
 // Thrown inside the PUT (edit) transaction when a variant swap would oversell stock.
@@ -98,11 +101,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       // Seller approval/suspension takes FOR UPDATE on the same seller row, so
       // neither operation can race past the other's decision.
       const [lockedOrder] = await tx
-        .select({ sellerId: shopOrders.sellerId })
+        .select({ sellerId: shopOrders.sellerId, fulfillmentStatus: shopOrders.fulfillmentStatus })
         .from(shopOrders)
         .where(eq(shopOrders.id, id))
         .limit(1)
         .for("update");
+      // Rejecting/reverting an order that was already shipped or handed over
+      // would leave "rejected" + "picked up" on the same row. The seller undoes
+      // the handover first (Reset on the card), then re-reviews the payment.
+      if (data.action !== "approve" && lockedOrder && blocksPaymentReview(lockedOrder.fulfillmentStatus)) {
+        throw new FulfilledConflict();
+      }
       if (lockedOrder?.sellerId) {
         const [seller] = await tx
           .select({ status: shopSellers.status })
@@ -203,6 +212,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   } catch (error) {
     if (error instanceof SellerInactive) {
       return NextResponse.json({ error: "This seller is not active; order review is temporarily frozen." }, { status: 409 });
+    }
+    if (error instanceof FulfilledConflict) {
+      return NextResponse.json({ error: "This order was already shipped or handed over — undo that first (Reset handover), then review the payment again." }, { status: 409 });
     }
     if (error instanceof RevertConflict) {
       return NextResponse.json({ error: error.message }, { status: 409 });

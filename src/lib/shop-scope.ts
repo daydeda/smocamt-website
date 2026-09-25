@@ -3,16 +3,17 @@ import { db } from "@/db";
 import { shopOrderItems, shopOrders, shopProducts, shopSellers } from "@/db/schema";
 import { EventScopeService } from "@/modules/events/event-scope.service";
 import { effectiveRoles } from "@/lib/admin-access";
-import { isProductOwnedByScope, isShopAdmin, isShopManager, type ShopScope } from "@/lib/shop-auth";
+import { isProductOwnedByScope, isShopAdmin, isShopFullAdmin, isShopManager, type ShopScope } from "@/lib/shop-auth";
 import { eq, inArray } from "drizzle-orm";
 
 // Server-side resolution of a shop-admin caller's access: either full/unscoped
-// (super_admin/admin) or scoped to the club(s)/major they preside over
+// (super_admin/admin, or SMO Finance with fullAdmin=false — sees and reviews
+// everything but may not delete, and its new products need approval) or scoped to the club(s)/major they preside over
 // (club_president/major_president). Every /api/admin/shop route calls this right
 // after auth(). Mirrors EventScopeService.resolveEventAccess for events.
 export type ShopAccess =
   | { ok: false }
-  | { ok: true; unscoped: true; userId: string }
+  | { ok: true; unscoped: true; fullAdmin: boolean; userId: string }
   | {
       ok: true;
       unscoped: false;
@@ -25,7 +26,7 @@ export type ShopAccess =
 export async function resolveShopAccess(session: Session | null): Promise<ShopAccess> {
   if (!isShopManager(session)) return { ok: false };
   const userId = session!.user!.id!;
-  if (isShopAdmin(session)) return { ok: true, unscoped: true, userId };
+  if (isShopAdmin(session)) return { ok: true, unscoped: true, fullAdmin: isShopFullAdmin(session), userId };
   const roles = effectiveRoles(session!.user!.role, session!.user!.roles);
   const isPresident = roles.some((role) => role === "club_president" || role === "major_president");
 

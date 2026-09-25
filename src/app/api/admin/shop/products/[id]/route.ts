@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { db } from "@/db";
 import { shopOrderItems, shopProducts, shopVariants } from "@/db/schema";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
-import { isOwnerAssignmentWithinScope, isProductOwnedByScope, isShopAdmin } from "@/lib/shop-auth";
+import { isOwnerAssignmentWithinScope, isProductOwnedByScope, isShopAdmin, isShopFullAdmin } from "@/lib/shop-auth";
 import { resolveShopAccess } from "@/lib/shop-scope";
 import { and, eq, notInArray, or, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -202,13 +202,17 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 // DELETE /api/admin/shop/products/[id] — remove a product. Existing order line
 // items keep their snapshot (ON DELETE SET NULL on product_id/variant_id), so
 // order history stays intact. Prefer toggling isActive=false to hide a product
-// while keeping it; delete is for mistakes.
+// while keeping it; delete is for mistakes. SMO Finance sees every product but
+// may not delete one — only super_admin/admin (or a scoped owner, their own).
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await auth();
     const access = await resolveShopAccess(session);
     if (!access.ok) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (access.unscoped && !access.fullAdmin) {
+      return NextResponse.json({ error: "Only an admin can delete products." }, { status: 403 });
     }
     const { id } = await params;
 
@@ -242,7 +246,10 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 }
 
 // PATCH /api/admin/shop/products/[id] — trusted reviewer approval for a
-// seller-created product. Scoped sellers/presidents cannot self-approve.
+// pending product. Scoped sellers/presidents cannot self-approve. A seller
+// product may be reviewed by any unscoped reviewer (incl. SMO Finance); a
+// central product (no seller — created pending by SMO Finance) only by
+// super_admin/admin, so Finance can never approve its own listing.
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await auth();
@@ -262,7 +269,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         .where(eq(shopProducts.id, id))
         .limit(1);
       if (!product) return { notFound: true as const };
-      if (!product.sellerId) return { central: true as const };
+      if (!product.sellerId && !isShopFullAdmin(session)) return { central: true as const };
 
       const status = data.action === "approve" ? "approved" : "rejected";
       await tx
@@ -279,14 +286,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       await AuditService.logActionInternal(tx, {
         actorId: session!.user!.id!,
         targetId: id,
-        action: `${data.action === "approve" ? "Approved" : "Rejected"} seller product "${product.name}" (${id})`,
+        action: `${data.action === "approve" ? "Approved" : "Rejected"} ${product.sellerId ? "seller" : "central"} product "${product.name}" (${id})`,
         ipAddress: getClientIp(req),
       });
       return { status };
     });
 
     if ("notFound" in result) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    if ("central" in result) return NextResponse.json({ error: "Central products do not require seller approval." }, { status: 400 });
+    if ("central" in result) return NextResponse.json({ error: "Only an admin can approve a central product." }, { status: 403 });
     return NextResponse.json({ success: true, status: result.status });
   } catch (error) {
     if (error instanceof z.ZodError) {

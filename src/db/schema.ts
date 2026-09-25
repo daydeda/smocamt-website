@@ -3,6 +3,7 @@ import { relations, sql } from "drizzle-orm";
 import type { AdapterAccountType } from "next-auth/adapters";
 import type { ShopCustomField, ShopCustomValue } from "@/lib/shop-custom-fields";
 import type { ShopDeliveryTier } from "@/lib/shop-delivery";
+import type { ShopBundleDeal } from "@/lib/shop-promotions";
 
 export const houses = pgTable("houses", {
   // House id, e.g. 'red'. ActiveCAMT is CAMT-only (see src/lib/faculties.ts) so
@@ -754,6 +755,10 @@ export const shopProducts = pgTable("shop_products", {
   // the SUM of each product's computed fee. See src/lib/shop-delivery.ts.
   deliveryFee: integer("delivery_fee"),
   deliveryTiers: jsonb("delivery_tiers").$type<ShopDeliveryTier[]>(),
+  // Bundle promotions — "buy N for ฿X" ([{qty, price}], e.g. 3 for ฿100). Counted
+  // per product across its variants within one order; the buyer gets the cheapest
+  // mix of deals + singles. NULL/[] = no promotion. See src/lib/shop-promotions.ts.
+  bundleDeals: jsonb("bundle_deals").$type<ShopBundleDeal[]>(),
   sortOrder: integer("sort_order").notNull().default(0),
   // President ownership scope (mirrors events.ownerClubIds/ownerMajors). Answers
   // "which club/major owns this product" for admin-side scoping only — it does
@@ -846,6 +851,9 @@ export const shopOrders = pgTable("shop_orders", {
   recipientPhone: text("recipient_phone"),
   shippingAddress: text("shipping_address"),
   shippingFee: integer("shipping_fee").notNull().default(0),
+  // Snapshot of the bundle-promotion saving (฿) at checkout. Order lines keep their
+  // full unitPrice; totalAmount = SUM(lines) − discountAmount + shippingFee.
+  discountAmount: integer("discount_amount").notNull().default(0),
   reviewedBy: text("reviewed_by"),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
   rejectionReason: text("rejection_reason"),

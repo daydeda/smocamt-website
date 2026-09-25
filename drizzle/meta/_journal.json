@@ -246,6 +246,13 @@
       "when": 1790085549549,
       "tag": "0043_peaceful_gambit",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1790329900155,
+      "tag": "0044_sour_king_bedlam",
+      "breakpoints": true
     }
   ]
 }

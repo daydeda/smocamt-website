@@ -110,6 +110,8 @@ export async function GET() {
       // Per-product delivery pricing (null fee = falls back to shop-wide deliveryFee).
       deliveryFee: p.deliveryFee ?? null,
       deliveryTiers: p.deliveryTiers ?? [],
+      // "Buy N for ฿X" promotions; the order route recomputes the discount anyway.
+      bundleDeals: p.bundleDeals ?? [],
       seller: p.sellerId ? sellerById.get(p.sellerId) ?? null : null,
       variants: variants
         .filter((v) => v.productId === p.id)

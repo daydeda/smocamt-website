@@ -6,6 +6,7 @@ import { filterProductsByScope, isOwnerAssignmentWithinScope } from "@/lib/shop-
 import { resolveShopAccess } from "@/lib/shop-scope";
 import { FACULTIES } from "@/lib/faculties";
 import { productSchema } from "@/lib/shop-product-schema";
+import { normalizeBundleDeals } from "@/lib/shop-promotions";
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -95,6 +96,7 @@ export async function GET() {
       customFields: p.customFields ?? [],
       deliveryFee: p.deliveryFee ?? null,
       deliveryTiers: p.deliveryTiers ?? [],
+      bundleDeals: p.bundleDeals ?? [],
       sortOrder: p.sortOrder,
       ownerClubIds: p.ownerClubIds ?? [],
       ownerMajors: p.ownerMajors ?? [],
@@ -170,6 +172,7 @@ export async function POST(req: Request) {
           customFields: data.customFields,
           deliveryFee: data.deliveryFee,
           deliveryTiers: data.deliveryTiers,
+          bundleDeals: normalizeBundleDeals(data.bundleDeals),
           sortOrder: data.sortOrder,
           ownerClubIds: data.ownerClubIds,
           ownerMajors: data.ownerMajors,

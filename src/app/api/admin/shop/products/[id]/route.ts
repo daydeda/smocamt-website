@@ -8,6 +8,7 @@ import { and, eq, notInArray, or, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { productSchema } from "@/lib/shop-product-schema";
+import { normalizeBundleDeals } from "@/lib/shop-promotions";
 
 export const dynamic = "force-dynamic";
 
@@ -100,6 +101,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           customFields: data.customFields,
           deliveryFee: data.deliveryFee,
           deliveryTiers: data.deliveryTiers,
+          bundleDeals: normalizeBundleDeals(data.bundleDeals),
           sortOrder: data.sortOrder,
           ownerClubIds: data.ownerClubIds,
           ownerMajors: data.ownerMajors,

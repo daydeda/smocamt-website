@@ -6,11 +6,12 @@ import { compressImageFile } from "@/lib/compress-image";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import type { ShopCustomField, ShopCustomValue, ShopCustomFieldType } from "@/lib/shop-custom-fields";
 import { normalizeTiers, type ShopDeliveryTier } from "@/lib/shop-delivery";
+import { normalizeBundleDeals, type ShopBundleDeal } from "@/lib/shop-promotions";
 import {
   ShoppingBag, Package, ReceiptText, Settings as SettingsIcon, Plus, Trash2, Pencil,
   Upload, Loader2, X, CheckCircle2, XCircle, Clock, GripVertical, Save, RotateCcw, Download,
   Check, FileText, Truck, Store, Users, ChevronLeft, ChevronRight, ChevronDown,
-  AlertTriangle, ExternalLink,
+  AlertTriangle, ExternalLink, Tag,
 } from "lucide-react";
 
 // True when a decoded slip QR payload is a link the admin can tap to open the
@@ -90,6 +91,8 @@ interface AdminProduct {
   // Per-product delivery pricing. deliveryFee = base ฿ (null = shop-wide fallback);
   // deliveryTiers = quantity thresholds (highest applicable minQty wins).
   deliveryFee: number | null; deliveryTiers: ShopDeliveryTier[];
+  // Bundle promotions — "buy N for ฿X" (e.g. 3 for ฿100). Empty = none.
+  bundleDeals: ShopBundleDeal[];
   // President ownership scope (admin-side only). Empty both = "central" (SMO)
   // product. Drives which club_president/major_president may manage it + its orders.
   ownerClubIds: string[]; ownerMajors: string[];
@@ -124,6 +127,7 @@ interface FieldDraft {
 
 // Editor row for one delivery tier (strings keep empty inputs forgiving).
 interface TierDraft { minQty: string; fee: string }
+interface DealDraft { qty: string; price: string }
 
 // Roles a product's visibility can be restricted to (mirrors the events targeting
 // list). Empty selection = all roles. Admins always see everything.
@@ -146,7 +150,7 @@ interface AdminOrder {
   id: string; status: string; totalAmount: number; note: string | null; rejectionReason: string | null;
   hasSlip: boolean; slipFlag: string | null; slipQrPayload: string | null;
   createdAt: string; reviewedAt: string | null;
-  fulfillment: string; shippingFee: number;
+  fulfillment: string; shippingFee: number; discountAmount: number;
   recipientName: string | null; recipientPhone: string | null; shippingAddress: string | null;
   sellerId?: string | null; sellerName?: string | null;
   // False (scoped president only) when the order also contains another team's
@@ -178,7 +182,7 @@ async function uploadImage(file: File): Promise<string> {
 interface ProductOrderRow {
   orderId: string; status: string; createdAt: string; reviewedAt: string | null;
   rejectionReason: string | null; orderTotal: number; slipPath: string | null; note: string | null;
-  fulfillment: string; shippingFee: number;
+  fulfillment: string; shippingFee: number; discountAmount: number;
   recipientName: string | null; recipientPhone: string | null; shippingAddress: string | null;
   variantLabel: string; customValues: ShopCustomValue[] | null; quantity: number; unitPrice: number;
   buyerName: string | null; nickname: string | null; studentId: string | null;
@@ -252,6 +256,7 @@ async function exportProductXlsx(p: AdminProduct) {
     "Reviewed (Bangkok)": dt(r.reviewedAt),
     "Rejection reason": r.rejectionReason ?? "",
     "Slip uploaded": r.slipPath ? "Yes" : "No",
+    "Promotion discount (THB)": r.discountAmount ?? 0,
     "Order total (THB)": r.orderTotal,
     "Fulfillment": r.fulfillment === "delivery" ? "Delivery" : "Self-pickup",
     "Shipping (THB)": r.shippingFee,
@@ -463,7 +468,7 @@ function ProductsTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontWeight: 700, fontSize: 15, overflowWrap: "anywhere", wordBreak: "break-word" }}>{p.name} {!p.isActive && <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>({th ? "ซ่อน" : "hidden"})</span>}{isAudienceLimited(p) && <span title={th ? "จำกัดผู้เห็น (บทบาท/สาขา/นักศึกษา)" : "Limited audience (roles/majors/students)"} style={{ fontSize: 11, color: "var(--accent-primary)", fontWeight: 700 }}> · {th ? "จำกัดผู้เห็น" : "limited"}</span>}<span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700 }}> · {p.sellerName || ownerLabel(p, ownerOptions, th)}</span></p>
                 <p style={{ fontSize: 13, color: "var(--text-muted)", overflowWrap: "anywhere", wordBreak: "break-word" }}>
-                  {baht(p.price)} · {p.variants.map((v) => `${v.label}${v.stock != null ? ` ${Math.max(0, v.stock - (v.sold ?? 0))}/${v.stock}` : ""}`).join(", ")}
+                  {baht(p.price)}{(p.bundleDeals ?? []).map((d) => ` · ${th ? `${d.qty} ชิ้น ${baht(d.price)}` : `${d.qty} for ${baht(d.price)}`}`).join("")} · {p.variants.map((v) => `${v.label}${v.stock != null ? ` ${Math.max(0, v.stock - (v.sold ?? 0))}/${v.stock}` : ""}`).join(", ")}
                   {p.maxPerOrder != null ? ` · ${th ? "จำกัด" : "max"} ${p.maxPerOrder}/${th ? "คน" : "person"}` : ""}
                 </p>
                 {p.sellerId && (
@@ -534,6 +539,9 @@ function ProductForm({ th, product, ownerOptions, scoped, requiresOwner, onClose
   const [deliveryTiers, setDeliveryTiers] = useState<TierDraft[]>(
     (product?.deliveryTiers ?? []).map((t) => ({ minQty: String(t.minQty), fee: String(t.fee) }))
   );
+  const [bundleDeals, setBundleDeals] = useState<DealDraft[]>(
+    (product?.bundleDeals ?? []).map((d) => ({ qty: String(d.qty), price: String(d.price) }))
+  );
   const [variants, setVariants] = useState<AdminVariant[]>(product?.variants?.length ? product.variants : [{ label: "Standard", stock: null, allowCustom: false, priceDelta: 0 }]);
   // Product ownership (admin-side scoping). For a NEW product a scoped president
   // defaults to owning it with every club/major they lead; a full admin starts
@@ -574,6 +582,7 @@ function ProductForm({ th, product, ownerOptions, scoped, requiresOwner, onClose
     if (customFields.some((f) => !f.label.trim())) { setError(th ? "ช่องกรอกเองทุกช่องต้องมีชื่อ" : "Every custom field needs a label"); return; }
     if (customFields.some((f) => f.type === "select" && f.options.filter((o) => o.trim()).length === 0)) { setError(th ? "ช่องแบบตัวเลือกต้องมีอย่างน้อย 1 ตัวเลือก" : "A select field needs at least one option"); return; }
     if (customFields.some((f) => f.type === "select" && f.options.some((o) => o.trim().length > 1000))) { setError(th ? "แต่ละตัวเลือกต้องไม่เกิน 1000 ตัวอักษร" : "Each option must be 1000 characters or fewer"); return; }
+    if (bundleDeals.some((d) => d.qty.trim() !== "" && Math.round(Number(d.qty)) < 2)) { setError(th ? "โปรโมชันต้องมีจำนวนอย่างน้อย 2 ชิ้น" : "A promotion needs a quantity of at least 2"); return; }
     if (requiresOwner && ownerClubIds.length === 0 && ownerMajors.length === 0) { setError(th ? "เลือกชมรมหรือสาขาที่เป็นเจ้าของสินค้านี้" : "Pick the club or major that owns this product"); return; }
     setSaving(true);
     try {
@@ -609,6 +618,12 @@ function ProductForm({ th, product, ownerOptions, scoped, requiresOwner, onClose
             .filter((t) => t.minQty.trim() !== "" && t.fee.trim() !== "")
             .map((t) => ({ minQty: Math.round(Number(t.minQty) || 0), fee: Math.round(Number(t.fee) || 0) }))
         ),
+        // Bundle promotions: drop incomplete rows, then dedupe + sort ascending by qty.
+        bundleDeals: normalizeBundleDeals(
+          bundleDeals
+            .filter((d) => d.qty.trim() !== "" && d.price.trim() !== "")
+            .map((d) => ({ qty: Math.round(Number(d.qty) || 0), price: Math.max(0, Math.round(Number(d.price) || 0)) }))
+        ),
         sortOrder: product?.sortOrder ?? 0,
         ownerClubIds,
         ownerMajors,
@@ -635,6 +650,10 @@ function ProductForm({ th, product, ownerOptions, scoped, requiresOwner, onClose
   const scheduleSummary = scheduleSet ? (th ? "มีกำหนดเวลา" : "Time-limited") : (th ? "ขายได้ตลอด" : "Always available");
   const deliveryBase = deliveryFee.trim() === "" ? (th ? "ค่าเริ่มต้นร้าน" : "Shop default") : baht(Math.max(0, Math.round(Number(deliveryFee) || 0)));
   const deliverySummary = deliveryTiers.length > 0 ? `${deliveryBase} · ${th ? "ตามจำนวน" : "tiered"}` : deliveryBase;
+  const filledDeals = bundleDeals.filter((d) => d.qty.trim() !== "" && d.price.trim() !== "");
+  const promoSummary = filledDeals.length === 0
+    ? (th ? "ไม่มี" : "None")
+    : filledDeals.map((d) => (th ? `${d.qty} ชิ้น ${baht(Number(d.price) || 0)}` : `${d.qty} for ${baht(Number(d.price) || 0)}`)).join(" · ");
   const filledFields = customFields.filter((f) => f.label.trim()).length;
   const fieldsSummary = filledFields === 0 ? (th ? "ไม่มี" : "None") : `${filledFields} ${th ? "ช่อง" : filledFields === 1 ? "field" : "fields"}`;
   const audienceLimited = allowedRoles.length > 0 || allowedMajors.length > 0 || !targetThai || !targetInternational;
@@ -783,6 +802,44 @@ function ProductForm({ th, product, ownerOptions, scoped, requiresOwner, onClose
             </div>
             <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>
               {th ? "เว้นว่างทั้งคู่ = ขายได้ตลอดเวลา" : "Leave both blank to keep it on sale indefinitely."}
+            </p>
+          </div>
+
+          {/* Bundle promotions — "buy N for ฿X" (e.g. 3 for ฿100). Counted per
+              product across all its options in one order; the buyer automatically
+              gets the cheapest mix. Surcharges (+฿ on an option) still apply. */}
+          <SectionDivider icon={<Tag size={15} />} title={th ? "โปรโมชัน (ซื้อหลายชิ้นราคาพิเศษ)" : "Promotion (multi-buy price)"} summary={promoSummary} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {bundleDeals.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {bundleDeals.map((d, i) => {
+                  const setDeal = (patch: Partial<DealDraft>) => setBundleDeals((ds) => ds.map((x, idx) => (idx === i ? { ...x, ...patch } : x)));
+                  const q = Math.round(Number(d.qty));
+                  const dp = Math.round(Number(d.price));
+                  const full = q >= 2 ? q * (Math.round(price) || 0) : 0;
+                  const saving = d.price.trim() !== "" && full > dp ? full - dp : 0;
+                  return (
+                    <div key={i} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 13 }}>
+                      <span style={{ color: "var(--text-muted)" }}>{th ? "ซื้อ" : "Buy"}</span>
+                      <input type="number" min={2} value={d.qty} onChange={(e) => setDeal({ qty: e.target.value })} placeholder={th ? "จำนวน" : "qty"} style={{ ...inputStyle, width: 90 }} />
+                      <span style={{ color: "var(--text-muted)" }}>{th ? "ชิ้น ในราคา ฿" : "for ฿"}</span>
+                      <input type="number" min={0} value={d.price} onChange={(e) => setDeal({ price: e.target.value })} placeholder={th ? "ราคารวม" : "total"} style={{ ...inputStyle, width: 110 }} />
+                      {saving > 0 && (
+                        <span style={{ fontSize: 12, color: "#10b981", fontWeight: 600 }}>{th ? `ประหยัด ${baht(saving)}` : `saves ${baht(saving)}`}</span>
+                      )}
+                      <button onClick={() => setBundleDeals((ds) => ds.filter((_, idx) => idx !== i))} className="btn btn-ghost" style={{ padding: 6, color: "#ef4444" }}><Trash2 size={15} /></button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <button onClick={() => setBundleDeals((ds) => [...ds, { qty: "", price: "" }])} className="btn btn-ghost" style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+              <Plus size={15} />{th ? "เพิ่มโปรโมชัน" : "Add promotion"}
+            </button>
+            <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>
+              {th
+                ? "เช่น ซื้อ 3 ชิ้น ฿100 — นับรวมทุกตัวเลือก/ไซส์ของสินค้านี้ในออร์เดอร์เดียว ระบบเลือกราคาที่ถูกที่สุดให้อัตโนมัติ (ชิ้นที่เกินคิดราคาปกติ) ส่วนที่บวกเพิ่มของไซส์พิเศษยังคิดตามปกติ"
+                : "e.g. Buy 3 for ฿100 — counts every option/size of this product in one order, and the buyer automatically gets the cheapest combination (leftover units at the normal price). Option surcharges still apply."}
             </p>
           </div>
 
@@ -1251,6 +1308,11 @@ function AdminOrderRow({ order, th, busy, scoped, onReview, onEdit }: { order: A
             )}
           </div>
         ))}
+        {order.discountAmount > 0 && (
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#10b981", marginTop: 6 }}>
+            <span>{th ? "ส่วนลดโปรโมชัน" : "Promotion discount"}</span><span>−{baht(order.discountAmount)}</span>
+          </div>
+        )}
         {order.shippingFee > 0 && (
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "var(--text-muted)", marginTop: 6 }}>
             <span>{th ? "ค่าจัดส่ง" : "Shipping"}</span><span>{baht(order.shippingFee)}</span>

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { StudentNav } from "@/components/layout/StudentNav";
 import { useLanguage } from "@/lib/LanguageContext";
 import { compressImageFile } from "@/lib/compress-image";
+import { uploadFormViaXHR } from "@/lib/xhr-upload";
 import { parseRichText } from "@/lib/rich-text";
 import type { ShopCustomField, ShopCustomValue } from "@/lib/shop-custom-fields";
 import { computeProductDeliveryFee, type ShopDeliveryTier } from "@/lib/shop-delivery";
@@ -403,23 +404,48 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
       // Shrink the photo in the browser first. Raw phone slips (2–5MB) get
       // rejected by the reverse proxy's body-size cap with a 413 before reaching
       // the app; a downscaled WebP is a few hundred KB and sails through.
-      const upload = await compressImageFile(file);
+      const unreadable = th ? "อ่านไฟล์รูปไม่ได้ กรุณาเลือกรูปใหม่" : "Could not read that image. Please choose it again.";
+      // Copy the picked file into memory FIRST. On iPhone, picking from Photos
+      // hands back a temp ".jpeg" that iOS transcoded from HEIC; that file is
+      // disk-backed and can be empty/unreadable by the time it's posted, which
+      // the server sees as a multipart body with Content-Length: 0 ("Could not
+      // read the uploaded file"). Reading it now, while it's fresh, both
+      // catches that case with a clear message and means nothing downstream
+      // touches the temp file again.
+      let picked: File;
+      try {
+        const bytes = await file.arrayBuffer();
+        if (bytes.byteLength === 0) throw new Error("empty");
+        picked = new File([bytes], file.name, { type: file.type });
+      } catch {
+        throw new Error(unreadable);
+      }
+      const upload = await compressImageFile(picked);
+      if (upload.size === 0) throw new Error(unreadable);
       const fd = new FormData();
+      // Must go through uploadFormViaXHR, not fetch(): on iOS Safari a Blob
+      // posted directly can go out with an empty body. The helper materializes
+      // the bytes first (see src/lib/xhr-upload.ts).
       fd.append("file", upload);
-      const res = await fetch("/api/shop/slip", { method: "POST", body: fd });
-      // A proxy-level rejection (e.g. 413) returns an HTML body, not JSON, so
-      // guard the parse and surface a useful, size-aware message instead of a
-      // cryptic JSON error.
-      const d = await res.json().catch(() => null);
+      // A proxy-level rejection (e.g. 413) returns an HTML body, not JSON; the
+      // helper parses defensively and hands back {} in that case.
+      let res = await uploadFormViaXHR("/api/shop/slip", fd);
+      // The server couldn't parse the body (it arrived empty/truncated). The
+      // bytes are already in memory, so one silent retry usually succeeds.
+      if (res.status === 400 && res.body.code === "BODY_UNREADABLE") {
+        res = await uploadFormViaXHR("/api/shop/slip", fd);
+      }
+      const d = res.body as { path?: string; slipMeta?: string; error?: string };
       if (!res.ok) {
         if (res.status === 413) {
           throw new Error(th ? "ไฟล์รูปใหญ่เกินไป กรุณาเลือกรูปที่เล็กลง" : "Image is too large. Please choose a smaller photo.");
         }
-        throw new Error(d?.error || (th ? "อัปโหลดไม่สำเร็จ กรุณาลองใหม่" : "Upload failed. Please try again."));
+        throw new Error(d.error || (th ? "อัปโหลดไม่สำเร็จ กรุณาลองใหม่" : "Upload failed. Please try again."));
       }
+      if (!d.path) throw new Error(th ? "อัปโหลดไม่สำเร็จ กรุณาลองใหม่" : "Upload failed. Please try again.");
       setSlipPath(d.path);
       setSlipMeta(d.slipMeta ?? null);
-      setSlipPreview(URL.createObjectURL(file));
+      setSlipPreview(URL.createObjectURL(upload));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed");
     } finally {

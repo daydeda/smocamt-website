@@ -14,7 +14,7 @@ type ResolvedStudent = NonNullable<Awaited<ReturnType<typeof UsersService.resolv
 type DBTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export interface ScanResult {
-  status: "success" | "success_walk_in" | "success_checkout" | "pending_confirmation" | "pending_checkout" | "already_checked_in" | "not_found" | "quota_full" | "walk_ins_disabled" | "found" | "not_registered" | "error";
+  status: "success" | "success_walk_in" | "success_checkout" | "pending_confirmation" | "pending_checkout" | "already_checked_in" | "already_checked_out" | "not_found" | "quota_full" | "walk_ins_disabled" | "found" | "not_registered" | "error";
   student: {
     name: string;
     nickname: string | null;
@@ -38,6 +38,8 @@ export interface ScanResult {
     points?: number | null;
   } | null;
   checkedInAt?: Date | null;
+  // Only on "already_checked_out" (requireCheckOut events).
+  checkedOutAt?: Date | null;
   error?: string;
   isWalkIn?: boolean;
   // Set on a confirmed check-in when the event has a takeable K_pre (pre-test) form
@@ -296,12 +298,17 @@ export class ScannerService {
           if (action === "confirm_checkout") {
             return await this.confirmCheckout({
               record, student, event, sessionLabel, individualPoints,
-              evidenceFileKey, actorId, ipAddress, studentWithMedical,
+              evidenceFileKey, actorId, ipAddress, baseStudentInfo,
             });
           }
           // Scan-only — surface the pending check-out state so the UI can
           // prompt staff to attach the reviewed evidence photo before confirming.
           return { status: "pending_checkout", student: baseStudentInfo, checkedInAt: record.checkInTime };
+        }
+        // A requireCheckOut attendee who has ALSO checked out is done for the
+        // day — say so, rather than the misleading "already checked in".
+        if (event.requireCheckOut && record.checkOutTime) {
+          return { status: "already_checked_out", student: baseStudentInfo, checkedInAt: record.checkInTime, checkedOutAt: record.checkOutTime };
         }
         // Already done — return base info only (no reason to re-expose medical data)
         return { status: "already_checked_in", student: baseStudentInfo, checkedInAt: record.checkInTime };
@@ -809,7 +816,7 @@ export class ScannerService {
    * awards that day's individual points. A race where two staff confirm the
    * same check-out concurrently is closed by the `isNull(checkOutTime)`
    * guard on the update: the loser's update affects 0 rows and reads back as
-   * already_checked_in instead of double-awarding.
+   * already_checked_out instead of double-awarding.
    *
    * Whether a proof photo is mandatory is per-event (events.checkOutEvidenceRequired,
    * default true — preserves the original photo-gated behavior). When false,
@@ -827,9 +834,11 @@ export class ScannerService {
     evidenceFileKey: string | undefined;
     actorId: string;
     ipAddress: string;
-    studentWithMedical: NonNullable<ScanResult["student"]>;
+    // Base info only — the medical check already happened at check-in, so the
+    // check-out step must not re-prompt it (nor re-ship medical data unaudited).
+    baseStudentInfo: NonNullable<ScanResult["student"]>;
   }): Promise<ScanResult> {
-    const { record, student, event, sessionLabel, individualPoints, evidenceFileKey, actorId, ipAddress, studentWithMedical } = params;
+    const { record, student, event, sessionLabel, individualPoints, evidenceFileKey, actorId, ipAddress, baseStudentInfo } = params;
 
     if (evidenceFileKey && !this.EVIDENCE_KEY_PATTERN.test(evidenceFileKey)) {
       return {
@@ -877,13 +886,13 @@ export class ScannerService {
     });
 
     if (updated.rows.length === 0) {
-      return { status: "already_checked_in", student: null, checkedInAt: record.checkInTime };
+      return { status: "already_checked_out", student: baseStudentInfo, checkedInAt: record.checkInTime };
     }
-    // studentWithMedical.points was fetched BEFORE this transaction's award —
+    // baseStudentInfo.points was fetched BEFORE this transaction's award —
     // use the just-awarded total so the confirmation modal doesn't show a stale count.
     return {
       status: "success_checkout",
-      student: { ...studentWithMedical, points: updated.newPoints ?? studentWithMedical.points },
+      student: { ...baseStudentInfo, points: updated.newPoints ?? baseStudentInfo.points },
       checkedInAt: record.checkInTime,
     };
   }

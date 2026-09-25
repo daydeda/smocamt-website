@@ -139,12 +139,13 @@ export async function POST(req: Request) {
       );
     }
 
-    if (result.status === "already_checked_in") {
+    if (result.status === "already_checked_in" || result.status === "already_checked_out") {
       return NextResponse.json(
         {
           status: result.status,
           student: result.student,
           checkedInAt: result.checkedInAt,
+          checkedOutAt: result.checkedOutAt,
         },
         { status: 409 }
       );

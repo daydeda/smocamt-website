@@ -47,7 +47,7 @@ const QRCodeCanvas = dynamic(() => import("qrcode.react").then((mod) => mod.QRCo
   ssr: false,
 });
 
-type ScanStatus = "success" | "success_walk_in" | "success_checkout" | "pending_confirmation" | "pending_checkout" | "already_checked_in" | "walk_ins_disabled" | "not_found" | "quota_full" | "found" | "not_registered" | "error";
+type ScanStatus = "success" | "success_walk_in" | "success_checkout" | "pending_confirmation" | "pending_checkout" | "already_checked_in" | "already_checked_out" | "walk_ins_disabled" | "not_found" | "quota_full" | "found" | "not_registered" | "error";
 
 type ScanResult = {
   status: ScanStatus;
@@ -203,12 +203,16 @@ function pruneAndCheckScannerCooldown(map: Map<string, number>, key: string): bo
   return ts !== undefined && now - ts < SCANNER_COOLDOWN_MS;
 }
 
+function markScannerCooldown(map: Map<string, number>, key: string) {
+  map.set(key, Date.now());
+}
+
 // Only these statuses are a definitively SETTLED, stable per-student outcome
 // worth cooling down. Deliberately excludes pending_confirmation/
 // pending_checkout (still awaiting a follow-up action on this same token, not
 // a re-decode) and not_found/error/quota_full/walk_ins_disabled/not_registered
 // (may be transient or a genuine mis-scan staff wants to retry immediately).
-const SCANNER_SETTLED_STATUSES: ScanStatus[] = ["success", "success_walk_in", "success_checkout", "already_checked_in"];
+const SCANNER_SETTLED_STATUSES: ScanStatus[] = ["success", "success_walk_in", "success_checkout", "already_checked_in", "already_checked_out"];
 
 export default function QRScannerPage() {
   const { t, lang } = useLanguage();
@@ -753,8 +757,15 @@ export default function QRScannerPage() {
         }),
       });
       const data = await res.json();
+      const confirmedStatus: ScanStatus = data.status ?? (res.ok ? "success" : "error");
+      // Same as confirmAttendance: without this the student's still-in-frame
+      // QR re-decodes right after "Continue Scanning" and reopens a ghost
+      // "already checked out" result.
+      if (SCANNER_SETTLED_STATUSES.includes(confirmedStatus)) {
+        markScannerCooldown(recentRef.current, token);
+      }
       if (isMountedRef.current) {
-        setScanResult({ status: data.status ?? (res.ok ? "success" : "error"), ...data, rawToken: token });
+        setScanResult({ status: confirmedStatus, ...data, rawToken: token });
       }
       if (res.ok) refreshCheckedInCount();
       if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
@@ -923,6 +934,13 @@ export default function QRScannerPage() {
       desc: t.scanAlreadyCheckedIn,
       bg: "rgba(239, 68, 68, 0.1)"
     },
+    already_checked_out: {
+      color: "#3b82f6",
+      icon: CheckCircle2,
+      title: lang === "th" ? "เช็คเอาท์ไปแล้ว" : lang === "cn" ? "已签退" : lang === "mm" ? "checkout ပြီးသားဖြစ်သည်" : "Already Checked Out",
+      desc: lang === "th" ? "นักศึกษาเช็คอินและเช็คเอาท์ครบแล้ว" : lang === "cn" ? "该学生已完成签到和签退" : lang === "mm" ? "ဤကျောင်းသားသည် check-in နှင့် checkout ပြီးပါပြီ" : "This student has already checked in and out",
+      bg: "rgba(59, 130, 246, 0.1)"
+    },
     walk_ins_disabled: {
       color: "#f59e0b",
       icon: UserMinus,
@@ -985,6 +1003,14 @@ export default function QRScannerPage() {
     && (scanResult?.status === "success" || scanResult?.status === "success_walk_in")
     && Boolean(selectedEvent?.songsueLinked);
 
+  // The medical check (warning + meds-check selector) belongs to the check-IN
+  // step only. The server already omits medical data from check-out results;
+  // this also keeps the UI from re-prompting it if one ever slips through.
+  const isCheckoutStatus = scanResult?.status === "pending_checkout"
+    || scanResult?.status === "success_checkout"
+    || scanResult?.status === "already_checked_out";
+  const showMedicalCheck = scanMode === "checkin" && !isCheckoutStatus && !!scanResult?.student?.hasMedicalCondition;
+
   let cfg = scanResult ? (STATUS_CONFIG[scanResult.status] || STATUS_CONFIG.error) : null;
 
   if (cfg && scanMode === "score") {
@@ -1012,7 +1038,7 @@ export default function QRScannerPage() {
         bg: "rgba(99, 102, 241, 0.1)"
       };
     }
-  } else if (cfg && scanResult?.student?.hasMedicalCondition) {
+  } else if (cfg && showMedicalCheck) {
     cfg = {
       ...cfg,
       color: "#ef4444",
@@ -1716,7 +1742,7 @@ export default function QRScannerPage() {
                     )}
                   </div>
 
-                  {scanMode === "checkin" && scanResult.student.hasMedicalCondition && (
+                  {showMedicalCheck && (
                     <div style={{ 
                       marginTop: 8,
                       padding: 16, 
@@ -1972,13 +1998,13 @@ export default function QRScannerPage() {
                 );
               })()}
 
-              {scanMode === "checkin" && (scanResult?.status === "success" || scanResult?.status === "success_walk_in" || scanResult?.status === "success_checkout" || scanResult?.status === "already_checked_in") && (
+              {scanMode === "checkin" && (scanResult?.status === "success" || scanResult?.status === "success_walk_in" || scanResult?.status === "success_checkout" || scanResult?.status === "already_checked_in" || scanResult?.status === "already_checked_out") && (
                 <div 
                   style={{ 
                     marginTop: 24, 
                     padding: 16, 
                     borderRadius: 16, 
-                    background: scanResult?.status === "already_checked_in" ? "#3b82f6" : "#10b981", 
+                    background: (scanResult?.status === "already_checked_in" || scanResult?.status === "already_checked_out") ? "#3b82f6" : "#10b981", 
                     color: "white", 
                     textAlign: "center",
                     fontWeight: 800,
@@ -1987,11 +2013,14 @@ export default function QRScannerPage() {
                     alignItems: "center",
                     justifyContent: "center",
                     gap: 12,
-                    boxShadow: scanResult?.status === "already_checked_in" ? "0 10px 20px rgba(59, 130, 246, 0.3)" : "0 10px 20px rgba(16, 185, 129, 0.3)"
+                    boxShadow: (scanResult?.status === "already_checked_in" || scanResult?.status === "already_checked_out") ? "0 10px 20px rgba(59, 130, 246, 0.3)" : "0 10px 20px rgba(16, 185, 129, 0.3)"
                   }}
                 >
                   <CheckCircle2 size={24} />
-                  {scanResult?.status === "already_checked_in" ? t.scanAlreadyCheckedIn : t.attended}
+                  {scanResult?.status === "already_checked_in" ? t.scanAlreadyCheckedIn
+                    : scanResult?.status === "already_checked_out" ? STATUS_CONFIG.already_checked_out.title
+                    : scanResult?.status === "success_checkout" ? t.scanCheckoutSuccess
+                    : t.attended}
                 </div>
               )}
 
@@ -2247,8 +2276,7 @@ export default function QRScannerPage() {
 
               {(() => {
                 const isCloseDisabled = !!(
-                  scanMode === "checkin" &&
-                  scanResult?.student?.hasMedicalCondition && 
+                  showMedicalCheck &&
                   !medsCheckOption && 
                   scanResult?.status !== "pending_confirmation"
                 );

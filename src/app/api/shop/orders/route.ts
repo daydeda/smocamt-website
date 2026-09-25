@@ -123,6 +123,7 @@ export async function GET() {
           customValues: i.customValues ?? null,
           unitPrice: i.unitPrice,
           quantity: i.quantity,
+          handedOverAt: i.handedOverAt,
         })),
     }));
 

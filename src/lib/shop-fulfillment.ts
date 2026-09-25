@@ -10,8 +10,12 @@
 //   delivery, campus:   awaiting → delivered                            staff scan / manual
 //   delivery, mail:     awaiting → shipped → delivered                  buyer confirms, or auto
 //                                  shipped → issue → shipped/delivered  buyer reported a problem
+//
+// In person, the counter hands over order LINES (one product at a time), so an
+// order with several products sits in 'partial' until every line is stamped
+// (shop_order_items.handed_over_at). See statusAfterItemHandover.
 
-export type FulfillmentStatus = "awaiting" | "ready" | "shipped" | "picked_up" | "delivered" | "issue";
+export type FulfillmentStatus = "awaiting" | "ready" | "partial" | "shipped" | "picked_up" | "delivered" | "issue";
 export type FulfilledVia = "qr" | "manual" | "buyer" | "auto";
 export type StaffFulfillmentAction = "ready" | "ship" | "handover" | "reset";
 export type BuyerFulfillmentAction = "confirm" | "report";
@@ -152,10 +156,12 @@ export function nextFulfillmentStatus(order: FulfillmentState, action: Fulfillme
       // "issue" it's the seller sending a replacement.
       return !pickup && (from === "awaiting" || from === "shipped" || from === "issue") ? "shipped" : null;
     case "handover":
-      if (pickup) return from === "awaiting" || from === "ready" ? "picked_up" : null;
+      // The status once EVERY line is handed over (statusAfterItemHandover
+      // handles handing over only some of them).
+      if (pickup) return from === "awaiting" || from === "ready" || from === "partial" ? "picked_up" : null;
       // On-campus hand delivery, or staff closing a shipped/issue order they
       // settled in person.
-      return from === "awaiting" || from === "shipped" || from === "issue" ? "delivered" : null;
+      return from === "awaiting" || from === "partial" || from === "shipped" || from === "issue" ? "delivered" : null;
     case "reset":
       // Undo a mistake (wrong buyer, marked too early). Back to square one.
       return from === "awaiting" ? null : "awaiting";
@@ -169,6 +175,41 @@ export function nextFulfillmentStatus(order: FulfillmentState, action: Fulfillme
 // True once the item is in the buyer's hands (the end of the flow).
 export function isFulfilled(fulfillmentStatus: string): boolean {
   return fulfillmentStatus === "picked_up" || fulfillmentStatus === "delivered";
+}
+
+// Has this order line reached the buyer? A stamped line, or any line of a
+// finished order (a mailed order completes by buyer confirmation without
+// stamping its lines, and orders finished before per-line handover existed
+// were never stamped either).
+export function isItemHandedOver(item: { handedOverAt?: Date | string | null }, orderFulfillmentStatus: string): boolean {
+  return item.handedOverAt != null || isFulfilled(orderFulfillmentStatus);
+}
+
+// The order's status after staff hand over some lines in person, given how
+// many lines would still be waiting afterwards. Null = not allowed.
+// Only an order that hasn't left by mail can be handed over line by line: from
+// shipped/issue the staff are settling the whole parcel, so every remaining
+// line must go at once.
+export function statusAfterItemHandover(order: FulfillmentState, remainingAfter: number): FulfillmentStatus | null {
+  const complete = nextFulfillmentStatus(order, "handover");
+  if (!complete) return null;
+  if (remainingAfter <= 0) return complete;
+  const from = order.fulfillmentStatus;
+  return from === "awaiting" || from === "ready" || from === "partial" ? "partial" : null;
+}
+
+// The order's status after staff undo the handover of some lines (a slip at
+// the counter: wrong size, wrong person). Null = not allowed — mailed orders
+// are undone with the order-level reset instead, which also clears tracking.
+export function statusAfterItemUndo(
+  order: FulfillmentState & { shippedAt?: Date | string | null; readyAt?: Date | string | null },
+  stillHandedAfter: number,
+): FulfillmentStatus | null {
+  if (order.status !== "approved" || order.shippedAt) return null;
+  const from = order.fulfillmentStatus;
+  if (from !== "partial" && from !== "picked_up" && from !== "delivered") return null;
+  if (stillHandedAfter > 0) return "partial";
+  return order.readyAt && order.fulfillment !== "delivery" ? "ready" : "awaiting";
 }
 
 // An order whose goods have left the seller (shipped / handed over / disputed)

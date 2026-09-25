@@ -11,7 +11,7 @@ import { parseRichText } from "@/lib/rich-text";
 import type { ShopCustomField, ShopCustomValue } from "@/lib/shop-custom-fields";
 import { computeProductDeliveryFee, type ShopDeliveryTier } from "@/lib/shop-delivery";
 import { computeBundleDiscount, type ShopBundleDeal } from "@/lib/shop-promotions";
-import { carrierLabel, daysUntilAutoConfirm, nextFulfillmentStatus, trackingLinkFor } from "@/lib/shop-fulfillment";
+import { carrierLabel, daysUntilAutoConfirm, isItemHandedOver, nextFulfillmentStatus, trackingLinkFor } from "@/lib/shop-fulfillment";
 import {
   ShoppingBag, X, ChevronLeft, ChevronRight, ChevronDown, Check, Upload, Loader2, CheckCircle2,
   Clock, XCircle, Package, Minus, Plus, ReceiptText, Store, Tag, Truck, Copy, ExternalLink, AlertTriangle, QrCode,
@@ -35,7 +35,7 @@ interface ShopData {
   deliveryEnabled?: boolean; deliveryFee?: number; pickupInfo?: string;
   products: Product[];
 }
-interface OrderItem { productName: string; variantLabel: string; customValues?: ShopCustomValue[] | null; unitPrice: number; quantity: number }
+interface OrderItem { productName: string; variantLabel: string; customValues?: ShopCustomValue[] | null; unitPrice: number; quantity: number; handedOverAt?: string | null }
 interface Order {
   id: string; status: string; totalAmount: number; note: string | null;
   rejectionReason: string | null; hasSlip: boolean; createdAt: string; items: OrderItem[];
@@ -785,7 +785,12 @@ function OrderRow({ order, th, onChanged }: { order: Order; th: boolean; onChang
           )}
           {order.items.map((i, idx) => (
             <div key={idx}>
-              <p style={{ fontSize: 14, fontWeight: 600, overflowWrap: "anywhere", wordBreak: "break-word" }}>{i.productName}{i.variantLabel && i.variantLabel !== "Standard" ? ` · ${i.variantLabel}` : ""} × {i.quantity}</p>
+              <p style={{ fontSize: 14, fontWeight: 600, overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                {order.fulfillmentStatus === "partial" && isItemHandedOver(i, "partial") && (
+                  <CheckCircle2 size={14} aria-label={th ? "ได้รับแล้ว" : "Received"} style={{ display: "inline-block", color: "#15803d", verticalAlign: "-2px", marginRight: 4 }} />
+                )}
+                {i.productName}{i.variantLabel && i.variantLabel !== "Standard" ? ` · ${i.variantLabel}` : ""} × {i.quantity}
+              </p>
               {i.customValues && i.customValues.length > 0 && (
                 <p style={{ fontSize: 12, color: "var(--text-muted)", overflowWrap: "anywhere", wordBreak: "break-word" }}>
                   {i.customValues.map((cv) => `${cv.label}: ${cv.value}`).join(" · ")}
@@ -889,6 +894,26 @@ function OrderHandover({ order, th, onChanged }: { order: Order; th: boolean; on
         <CheckCircle2 size={15} />
         {s === "picked_up" ? (th ? "รับสินค้าแล้ว" : "Picked up") : (th ? "ได้รับสินค้าแล้ว" : "Delivered")} · {when(order.fulfilledAt)}
       </p>
+    );
+  }
+
+  // Some lines handed over at the counter, some still to collect.
+  if (s === "partial") {
+    const left = order.items.filter((i) => !isItemHandedOver(i, s));
+    return (
+      <div style={box("rgba(245,158,11,0.08)", "rgba(245,158,11,0.3)")}>
+        <p style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "#b45309" }}>
+          <Package size={15} />{th ? `ได้รับแล้ว ${order.items.length - left.length} จาก ${order.items.length} รายการ` : `Received ${order.items.length - left.length} of ${order.items.length} items`}
+        </p>
+        <p style={{ overflowWrap: "anywhere" }}>
+          {th ? "ยังต้องรับ: " : "Still to collect: "}
+          <strong>{left.map((i) => `${i.productName}${i.variantLabel && i.variantLabel !== "Standard" ? ` · ${i.variantLabel}` : ""} ×${i.quantity}`).join(", ")}</strong>
+        </p>
+        {order.fulfillment !== "delivery" && order.pickupInfo?.trim() && <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{th ? "รับที่: " : "Pick up at: "}{order.pickupInfo}</p>}
+        <Link href="/dashboard/id" className="btn btn-ghost" style={{ fontSize: 13, padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 6, alignSelf: "flex-start" }}>
+          <QrCode size={14} />{th ? "เปิด Digital ID" : "Open Digital ID"}
+        </Link>
+      </div>
     );
   }
 

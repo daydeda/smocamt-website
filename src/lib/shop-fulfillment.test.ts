@@ -4,8 +4,11 @@ import {
   carrierLabel,
   daysUntilAutoConfirm,
   isAutoConfirmDue,
+  isItemHandedOver,
   nextFulfillmentStatus,
   normalizeTrackingNumber,
+  statusAfterItemHandover,
+  statusAfterItemUndo,
   trackingLinkFor,
   validateShipment,
   type FulfillmentAction,
@@ -147,6 +150,53 @@ describe("blocksPaymentReview", () => {
   it("only an order whose goods haven't left the seller can be rejected/reverted", () => {
     expect(blocksPaymentReview("awaiting")).toBe(false);
     expect(blocksPaymentReview("ready")).toBe(false);
-    for (const s of ["shipped", "picked_up", "delivered", "issue"]) expect(blocksPaymentReview(s)).toBe(true);
+    for (const s of ["partial", "shipped", "picked_up", "delivered", "issue"]) expect(blocksPaymentReview(s)).toBe(true);
+  });
+});
+
+describe("per-line handover", () => {
+  it("hands over some lines → partial, the last line → picked_up / delivered", () => {
+    expect(statusAfterItemHandover(order("pickup", "awaiting"), 1)).toBe("partial");
+    expect(statusAfterItemHandover(order("pickup", "ready"), 1)).toBe("partial");
+    expect(statusAfterItemHandover(order("pickup", "partial"), 1)).toBe("partial");
+    expect(statusAfterItemHandover(order("pickup", "partial"), 0)).toBe("picked_up");
+    expect(statusAfterItemHandover(order("delivery", "awaiting"), 0)).toBe("delivered");
+    expect(statusAfterItemHandover(order("delivery", "partial"), 0)).toBe("delivered");
+  });
+
+  it("a mailed parcel is settled whole, never line by line", () => {
+    expect(statusAfterItemHandover(order("delivery", "shipped"), 1)).toBeNull();
+    expect(statusAfterItemHandover(order("delivery", "issue"), 1)).toBeNull();
+    expect(statusAfterItemHandover(order("delivery", "shipped"), 0)).toBe("delivered");
+  });
+
+  it("refuses unpaid or finished orders", () => {
+    expect(statusAfterItemHandover(order("pickup", "awaiting", "pending"), 0)).toBeNull();
+    expect(statusAfterItemHandover(order("pickup", "picked_up"), 0)).toBeNull();
+  });
+
+  it("partial can't be marked ready or shipped, and can be reset", () => {
+    expect(nextFulfillmentStatus(order("pickup", "partial"), "ready")).toBeNull();
+    expect(nextFulfillmentStatus(order("delivery", "partial"), "ship")).toBeNull();
+    expect(nextFulfillmentStatus(order("pickup", "partial"), "reset")).toBe("awaiting");
+  });
+
+  it("undoing lines goes back to partial, then to ready/awaiting", () => {
+    expect(statusAfterItemUndo(order("pickup", "picked_up"), 1)).toBe("partial");
+    expect(statusAfterItemUndo(order("pickup", "picked_up"), 0)).toBe("awaiting");
+    expect(statusAfterItemUndo({ ...order("pickup", "partial"), readyAt: "2026-09-01T10:00:00Z" }, 0)).toBe("ready");
+    expect(statusAfterItemUndo({ ...order("delivery", "delivered"), readyAt: "2026-09-01T10:00:00Z" }, 0)).toBe("awaiting");
+  });
+
+  it("undo refuses mailed, unpaid or untouched orders", () => {
+    expect(statusAfterItemUndo({ ...order("delivery", "delivered"), shippedAt: "2026-09-01T10:00:00Z" }, 0)).toBeNull();
+    expect(statusAfterItemUndo(order("pickup", "awaiting"), 0)).toBeNull();
+    expect(statusAfterItemUndo(order("pickup", "picked_up", "pending"), 0)).toBeNull();
+  });
+
+  it("every line of a finished order counts as handed, stamped or not", () => {
+    expect(isItemHandedOver({ handedOverAt: null }, "delivered")).toBe(true);
+    expect(isItemHandedOver({ handedOverAt: null }, "partial")).toBe(false);
+    expect(isItemHandedOver({ handedOverAt: "2026-09-01T10:00:00Z" }, "partial")).toBe(true);
   });
 });

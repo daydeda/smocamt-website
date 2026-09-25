@@ -339,6 +339,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           customValues: shopOrderItems.customValues,
           quantity: shopOrderItems.quantity,
           unitPrice: shopOrderItems.unitPrice,
+          handedOverAt: shopOrderItems.handedOverAt,
         })
         .from(shopOrderItems)
         .where(eq(shopOrderItems.orderId, id))
@@ -533,6 +534,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         if (!optionChanged && !quantityChanged) {
           newTotal += item.unitPrice * item.quantity;
           continue;
+        }
+        // The buyer already has this line in hand — the record must keep saying
+        // what they actually got. Undo the handover first to correct it.
+        if (item.handedOverAt) {
+          throw new EditValidation(`${product.name} was already handed over, so it can't be changed. Undo the handover first.`);
         }
 
         const unitPrice = optionChanged ? product.price + (variant.priceDelta ?? 0) : item.unitPrice;

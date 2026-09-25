@@ -1,10 +1,10 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { shopOrders } from "@/db/schema";
+import { shopOrderItems, shopOrders } from "@/db/schema";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { resolveShopAccess, classifyOrdersByScope } from "@/lib/shop-scope";
 import { carrierLabel, nextFulfillmentStatus, validateShipment, type ShipmentValue } from "@/lib/shop-fulfillment";
-import { SHIPMENT_ERROR_MESSAGE, staffFulfillmentPatch } from "@/lib/shop-fulfillment-server";
+import { HandoverRefused, SHIPMENT_ERROR_MESSAGE, handOverItems, staffFulfillmentPatch } from "@/lib/shop-fulfillment-server";
 import { PushService } from "@/modules/notifications/push.service";
 import { eq } from "drizzle-orm";
 import { after, NextResponse } from "next/server";
@@ -19,7 +19,9 @@ const schema = z.object({
   carrierName: z.string().max(80).optional(),
   trackingNumber: z.string().max(80).optional(),
   trackingUrl: z.string().max(1000).optional(),
-  // handover only (e.g. "collected by a friend")
+  // handover only: which lines are being handed over (the card's checklist),
+  // and an optional note (e.g. "collected by a friend").
+  itemIds: z.array(z.string().uuid()).min(1).max(100).optional(),
   note: z.string().max(500).optional(),
 });
 
@@ -49,6 +51,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
     const data = schema.parse(await req.json());
+    if (data.action === "handover" && !data.itemIds?.length) {
+      return NextResponse.json({ error: "Tick the items you're handing over." }, { status: 400 });
+    }
 
     let shipment: ShipmentValue | undefined;
     if (data.action === "ship") {
@@ -74,6 +79,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           { status: 403 }
         );
       }
+    }
+
+    if (data.action === "handover") {
+      const changes = await db.transaction((tx) => handOverItems(tx, {
+        itemIds: data.itemIds!,
+        orderId: id,
+        actorId: access.userId,
+        via: "manual",
+        note: data.note,
+        ip: getClientIp(req),
+      }));
+      return NextResponse.json({ success: true, fulfillmentStatus: changes[0]?.next });
     }
 
     const result = await db.transaction(async (tx) => {
@@ -111,6 +128,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           note: data.note,
         }))
         .where(eq(shopOrders.id, id));
+      // Reset also forgets which lines were handed over.
+      if (data.action === "reset") {
+        await tx.update(shopOrderItems).set({ handedOverAt: null, handedOverBy: null }).where(eq(shopOrderItems.orderId, id));
+      }
 
       const detail = shipment
         ? ` (${carrierLabel(shipment.carrier, shipment.carrierName, false)}${shipment.trackingNumber ? ` ${shipment.trackingNumber}` : ""})`
@@ -138,6 +159,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     return NextResponse.json({ success: true, fulfillmentStatus: result.next });
   } catch (error) {
+    if (error instanceof HandoverRefused) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     if (error instanceof TransitionRefused) {
       return NextResponse.json({ error: error.message }, { status: error.message === "Not found" ? 404 : 409 });
     }

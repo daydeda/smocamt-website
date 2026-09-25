@@ -40,6 +40,8 @@ import { usePolling } from "@/lib/usePolling";
 import { QR_SCANNER_CONSTRUCTOR_CONFIG, QR_SCANNER_START_CONFIG } from "@/lib/qr-scanner-config";
 import dynamic from "next/dynamic";
 import ScannerPrizeTab from "./ScannerPrizeTab";
+import ScannerShopTab from "./ScannerShopTab";
+import { isShopManager } from "@/lib/shop-auth";
 
 // Pre-test warning QR — client-only (qrcode.react reads the DOM). Canvas, not
 // SVG: Android/Chrome "force dark" auto-inverts inline <svg> DOM content, but
@@ -54,7 +56,10 @@ type ScanStatus = "success" | "success_walk_in" | "success_checkout" | "pending_
 
 // "prize" is not a scan mode of THIS camera: it swaps the page body for
 // ScannerPrizeTab, whose PrizeAwardPanel runs its own camera (see selectMode).
-type ScanMode = "checkin" | "score" | "prize";
+type ScanMode = "checkin" | "score" | "prize" | "shop";
+// Tabs that run their own camera (a dialog with its own html5-qrcode), so this
+// page's scanner must be stopped while they're open.
+const ownsCamera = (m: ScanMode) => m === "prize" || m === "shop";
 
 type ScanResult = {
   status: ScanStatus;
@@ -238,6 +243,9 @@ export default function QRScannerPage() {
   // Prize tab: same predicate as /admin/prizes (includes smo and presidents —
   // presidents only get prizes for events they own, scoped server-side).
   const canPrize = canAwardPrizes(roles);
+  // Shop tab: same gate as /admin/shop (shop admins, SMO Finance, presidents,
+  // sellers). Every handover route re-checks scope server-side.
+  const canShop = isShopManager(session ?? null);
   // "Go live now" moves the event's start time, so it's offered only to roles
   // that may edit an event directly. POST .../go-live re-checks this server-side.
   const canGoLive = canEditEventDirectly(
@@ -607,9 +615,9 @@ export default function QRScannerPage() {
   // has re-mounted.
   const selectMode = (mode: ScanMode) => {
     if (mode === scanMode) return;
-    const leavingPrize = scanMode === "prize";
+    const leavingPrize = ownsCamera(scanMode);
     setScanMode(mode);
-    if (mode === "prize") {
+    if (ownsCamera(mode)) {
       setShowModal(false);
       setScanResult(null);
       void stopScanner();
@@ -1150,7 +1158,7 @@ export default function QRScannerPage() {
         
         {/* Mode Selector — each tab gated by its own predicate; hidden entirely
             when check-in is the only mode this role has. */}
-        {(canScore || canPrize) && (
+        {(canScore || canPrize || canShop) && (
         <div style={{
           display: "flex",
           maxWidth: "100%",
@@ -1163,6 +1171,7 @@ export default function QRScannerPage() {
             { mode: "checkin", label: t.scanModeCheckin, show: true },
             { mode: "score", label: t.scanModeScore, show: canScore },
             { mode: "prize", label: t.scanModePrize, show: canPrize },
+            { mode: "shop", label: t.scanModeShop, show: canShop },
           ] as const).filter((m) => m.show).map((m) => (
             <button
               key={m.mode}
@@ -1193,6 +1202,8 @@ export default function QRScannerPage() {
 
       {scanMode === "prize" ? (
         <ScannerPrizeTab eventId={eventId} eventTitle={selectedEvent?.title ?? null} />
+      ) : scanMode === "shop" ? (
+        <ScannerShopTab />
       ) : (
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-6 items-start">
         

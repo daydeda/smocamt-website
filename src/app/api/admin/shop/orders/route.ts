@@ -152,6 +152,7 @@ export async function GET(req: Request) {
             customValues: i.customValues ?? null,
             unitPrice: i.unitPrice,
             quantity: i.quantity,
+            handedOverAt: i.handedOverAt,
           })),
       };
     });

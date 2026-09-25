@@ -91,7 +91,6 @@ export default function PrizeAwardPanel({
   onClose: () => void;
 }) {
   const { t } = useLanguage();
-  const [scanning, setScanning] = useState(true);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [preview, setPreview] = useState<(ClaimResult & { rawToken?: string }) | null>(null);
   const [busy, setBusy] = useState(false);
@@ -121,17 +120,28 @@ export default function PrizeAwardPanel({
     previewOpenRef.current = !!preview || !!committed;
   }, [preview, committed]);
 
-  const stopCamera = useCallback(async () => {
+  // Every stop is chained onto this promise, and a new start awaits it first:
+  // phones won't reliably hand the camera to a new getUserMedia call while the
+  // previous stream is still being torn down.
+  const stopPromiseRef = useRef<Promise<void>>(Promise.resolve());
+
+  const releaseScanner = useCallback((scanner: Html5Qrcode) => {
+    stopPromiseRef.current = stopPromiseRef.current.then(async () => {
+      try {
+        await scanner.stop();
+        scanner.clear();
+      } catch {
+        // Already stopped / never started — nothing to unwind.
+      }
+    });
+    return stopPromiseRef.current;
+  }, []);
+
+  const stopCamera = useCallback(() => {
     const scanner = scannerRef.current;
     scannerRef.current = null;
-    if (!scanner) return;
-    try {
-      await scanner.stop();
-      scanner.clear();
-    } catch {
-      // Already stopped / never started — nothing to unwind.
-    }
-  }, []);
+    return scanner ? releaseScanner(scanner) : stopPromiseRef.current;
+  }, [releaseScanner]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -172,8 +182,15 @@ export default function PrizeAwardPanel({
     }
   }, [prizeId, t.adminPrizesConnectionError]);
 
+  // The camera runs only while the scan view (and so #prize-qr-reader) is on
+  // screen. The preview/committed views unmount that div, so the scanner must
+  // stop with it and start fresh on the new div when "Rescan"/"Next person"
+  // brings the scan view back — otherwise the old instance keeps rendering into
+  // a detached element and the new viewfinder is just its black background.
+  const cameraActive = !preview && !committed;
+
   useEffect(() => {
-    if (!scanning) {
+    if (!cameraActive) {
       void stopCamera();
       return;
     }
@@ -193,6 +210,7 @@ export default function PrizeAwardPanel({
       }
 
       const { Html5Qrcode } = await import("html5-qrcode");
+      await stopPromiseRef.current;
       if (cancelled || !mountedRef.current) return;
 
       const scanner = new Html5Qrcode("prize-qr-reader", QR_SCANNER_CONSTRUCTOR_CONFIG);
@@ -226,6 +244,14 @@ export default function PrizeAwardPanel({
           () => {},
         );
 
+        // The view switched away while the camera was still starting (e.g. a
+        // manual-search pick during the permission prompt): the stop issued by
+        // that switch may have run before start() finished, so stop it again.
+        if (cancelled) {
+          void releaseScanner(scanner);
+          return;
+        }
+
         // A device with no rear camera (a laptop at the desk) falls back to the
         // front one, which is face-to-face and needs mirroring to feel right.
         try {
@@ -246,7 +272,7 @@ export default function PrizeAwardPanel({
     return () => {
       cancelled = true;
     };
-  }, [scanning, stopCamera, runPreview, t.adminPrizesCameraBlockedHttps, t.adminPrizesCameraNoApi, t.adminPrizesCameraStartError]);
+  }, [cameraActive, stopCamera, releaseScanner, runPreview, t.adminPrizesCameraBlockedHttps, t.adminPrizesCameraNoApi, t.adminPrizesCameraStartError]);
 
   async function confirmClaim(body: { qrToken?: string; studentUserId?: string }) {
     setBusy(true);
@@ -369,7 +395,6 @@ export default function PrizeAwardPanel({
     setPhotoErrorMessage(null);
     setManualResults([]);
     setManualQuery("");
-    setScanning(true);
   }
 
   return createPortal(

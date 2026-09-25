@@ -9,7 +9,7 @@
 // ignored and outside /public, so they are not web-accessible.
 
 import { randomUUID } from "crypto";
-import { mkdir, readFile, writeFile } from "fs/promises";
+import { mkdir, readdir, readFile, stat, unlink, writeFile } from "fs/promises";
 import path from "path";
 
 const BUCKET = "slips";
@@ -83,4 +83,67 @@ export async function downloadSlip(key: string): Promise<{ buffer: Buffer; conte
 
   const buffer = await readFile(path.join(DEV_DIR, key));
   return { buffer, contentType: contentTypeForKey(key) };
+}
+
+// Delete a slip object. Only used by the one-off cleanup script
+// (scripts/purge-shop-slips.ts) — the app itself never deletes slips, since a slip
+// is the payment record for its order. A missing object is not an error.
+export async function deleteSlip(key: string): Promise<void> {
+  if (!key || key.includes("/") || key.includes("..")) return;
+
+  if (hasSupabase()) {
+    const { createClient } = await import("@supabase/supabase-js");
+    const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+    const { error } = await supabase.storage.from(BUCKET).remove([key]);
+    if (error) throw new StorageError(`Failed to delete slip ${key}: ${error.message}`);
+    return;
+  }
+
+  try {
+    await unlink(path.join(DEV_DIR, key));
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+  }
+}
+
+// List every slip object with its creation time (epoch ms) and size in bytes.
+// Mirrors listFormFiles: when the store can't report an age we say "now", so a
+// caller filtering on age errs toward KEEPING the file.
+export async function listSlips(): Promise<{ key: string; createdAt: number; size: number }[]> {
+  if (hasSupabase()) {
+    const { createClient } = await import("@supabase/supabase-js");
+    const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+    const out: { key: string; createdAt: number; size: number }[] = [];
+    const pageSize = 1000;
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await supabase.storage
+        .from(BUCKET)
+        .list("", { limit: pageSize, offset, sortBy: { column: "created_at", order: "asc" } });
+      if (error) throw new Error(`Failed to list slips: ${error.message}`);
+      if (!data || data.length === 0) break;
+      for (const obj of data) {
+        if (!obj.name) continue;
+        out.push({
+          key: obj.name,
+          createdAt: obj.created_at ? Date.parse(obj.created_at) : Date.now(),
+          size: Number(obj.metadata?.size ?? 0),
+        });
+      }
+      if (data.length < pageSize) break;
+    }
+    return out;
+  }
+
+  try {
+    const names = await readdir(DEV_DIR);
+    const out: { key: string; createdAt: number; size: number }[] = [];
+    for (const name of names) {
+      const st = await stat(path.join(DEV_DIR, name));
+      out.push({ key: name, createdAt: st.mtimeMs, size: st.size });
+    }
+    return out;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return []; // no slips yet
+    throw e;
+  }
 }

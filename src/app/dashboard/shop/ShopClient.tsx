@@ -320,12 +320,17 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
   product: Product; settings: ShopData; th: boolean; onClose: () => void; onOrdered: () => void;
 }) {
   const [imgIdx, setImgIdx] = useState(0);
-  const [variantId, setVariantId] = useState<string>(() => {
-    const firstAvailable = product.variants.find((v) => v.remaining == null || v.remaining > 0);
-    return firstAvailable?.id ?? product.variants[0]?.id ?? "";
+  // Quantity per variant, so one order can mix sizes (e.g. 2×S + 1×XL). A
+  // single-option product starts at 1 (nothing to choose); a multi-option one
+  // starts empty so the buyer picks sizes deliberately. The server already
+  // accepts several items per order and re-checks stock/limits per variant.
+  const [qtyByVariant, setQtyByVariant] = useState<Record<string, number>>(() => {
+    if (product.variants.length !== 1) return {};
+    const only = product.variants[0];
+    return only && (only.remaining == null || only.remaining > 0) ? { [only.id]: 1 } : {};
   });
-  const [qtyRaw, setQty] = useState(1);
-  const [customValue, setCustomValue] = useState("");
+  // "Other (specify)" text, per variant (only variants with allowCustom use it).
+  const [customValueByVariant, setCustomValueByVariant] = useState<Record<string, string>>({});
   const [customAnswers, setCustomAnswers] = useState<Record<string, string>>({});
   const [step, setStep] = useState<"select" | "pay">("select");
   const [slipPath, setSlipPath] = useState<string | null>(null);
@@ -343,24 +348,30 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const variant = product.variants.find((v) => v.id === variantId);
   const checkoutSettings = product.seller ?? settings;
   const customFields = product.customFields ?? [];
   const missingRequiredCustom = customFields.some((f) => f.required && !(customAnswers[f.key] ?? "").trim());
-  const remaining = variant?.remaining ?? null;
-  // Plain computation — cheap enough that memoization isn't worth it, and the
-  // React Compiler couldn't preserve the manual memo (deps derived from find()).
-  const maxQtyCaps = [99];
-  if (remaining != null) maxQtyCaps.push(remaining);
-  if (product.maxPerOrder != null) maxQtyCaps.push(product.maxPerOrder);
-  const maxQty = Math.max(1, Math.min(...maxQtyCaps));
-
-  // Clamp at render instead of in an effect: variant changes can shrink maxQty.
-  const qty = Math.min(qtyRaw, maxQty);
-  // Unit price = base price + the selected variant's surcharge (e.g. a special
+  // Per-variant cap: 99 (the API's per-item max) and the variant's remaining stock.
+  const variantCap = (v: Variant) => Math.max(0, Math.min(99, v.remaining ?? 99));
+  // Chosen lines in variant order. Clamped at render (not in an effect) so a
+  // stale quantity can never exceed the variant's cap.
+  const lines = product.variants
+    .map((v) => ({ variant: v, qty: Math.min(qtyByVariant[v.id] ?? 0, variantCap(v)) }))
+    .filter((l) => l.qty > 0);
+  // Total units of this product in the order: drives the per-person limit, the
+  // bundle promotion and the delivery tier, all of which are per product.
+  const qty = lines.reduce((n, l) => n + l.qty, 0);
+  const productCap = product.maxPerOrder ?? Infinity;
+  const setVariantQty = (v: Variant, next: number) => {
+    const others = qty - Math.min(qtyByVariant[v.id] ?? 0, variantCap(v));
+    const clamped = Math.max(0, Math.min(next, variantCap(v), productCap - others));
+    setQtyByVariant((m) => ({ ...m, [v.id]: clamped }));
+  };
+  const missingOtherText = lines.some((l) => l.variant.allowCustom && !(customValueByVariant[l.variant.id] ?? "").trim());
+  // Unit price per line = base price + that variant's surcharge (e.g. a special
   // size). Mirrors the server's authoritative computation in /api/shop/orders.
-  const unitPrice = product.price + (variant?.priceDelta ?? 0);
-  const subtotal = unitPrice * qty;
+  const unitPriceOf = (v: Variant) => product.price + (v.priceDelta ?? 0);
+  const subtotal = lines.reduce((sum, l) => sum + unitPriceOf(l.variant) * l.qty, 0);
   // "Buy N for ฿X" saving — mirrors the server's authoritative computeBundleDiscount.
   const discount = computeBundleDiscount(product, qty);
   // Per-product delivery fee for the current quantity (tiers can raise it as qty
@@ -416,7 +427,13 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          items: [{ variantId, quantity: qty, customValue: variant?.allowCustom ? customValue.trim() : undefined, custom: customFields.length ? customAnswers : undefined }],
+          items: lines.map((l) => ({
+            variantId: l.variant.id,
+            quantity: l.qty,
+            customValue: l.variant.allowCustom ? (customValueByVariant[l.variant.id] ?? "").trim() : undefined,
+            // Custom fields are per product, so every line carries the same answers.
+            custom: customFields.length ? customAnswers : undefined,
+          })),
           slipPath, slipMeta: slipMeta || undefined, note: note || undefined,
           fulfillment,
           recipientName: fulfillment === "delivery" ? recipientName.trim() : undefined,
@@ -466,8 +483,7 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
               </div>
 
               <p style={{ fontWeight: 800, fontSize: 22, color: "var(--accent-primary)", marginBottom: 12 }}>
-                {baht(unitPrice)}
-                {variant?.priceDelta ? <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-muted)", marginLeft: 6 }}>{baht(product.price)} +{baht(variant.priceDelta)}</span> : null}
+                {baht(product.price)}
               </p>
               {(product.bundleDeals?.length ?? 0) > 0 && (
                 <div style={{ marginTop: -4, marginBottom: 12 }}>
@@ -495,44 +511,58 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
                 <div style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 16, lineHeight: 1.6, overflowWrap: "anywhere", wordBreak: "break-word" }} dangerouslySetInnerHTML={{ __html: parseRichText(product.description) }} />
               )}
 
-              {/* Variant picker */}
-              {product.variants.length > 1 && (
-                <div style={{ marginBottom: 16 }}>
-                  <label style={{ display: "block", fontWeight: 700, fontSize: 13, marginBottom: 8 }}>{th ? "ตัวเลือก / ไซส์" : "Option / Size"}</label>
-                  <CustomSelect
-                    ariaLabel={th ? "ตัวเลือก / ไซส์" : "Option / Size"}
-                    value={variantId}
-                    placeholder={th ? "— เลือกตัวเลือก —" : "— Select an option —"}
-                    onChange={(id) => { setVariantId(id); setCustomValue(""); }}
-                    options={product.variants.map((v) => {
-                      const out = v.remaining != null && v.remaining <= 0;
-                      // Surcharge shown inline on the option (e.g. "XXL  +฿50") so the
-                      // buyer sees the price difference before selecting.
-                      return {
-                        value: v.id,
-                        label: v.priceDelta ? `${v.label}  +${baht(v.priceDelta)}` : v.label,
-                        hint: v.remaining != null ? (out ? (th ? "หมด" : "Sold out") : (th ? `เหลือ ${v.remaining}` : `${v.remaining} left`)) : undefined,
-                        disabled: out,
-                        strike: out,
-                      };
-                    })}
-                  />
+              {/* Quantity per option. Several sizes can go into one order, each
+                  with its own stepper; the per-person limit, promotion and
+                  delivery tier count the product's total across all of them. */}
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: "block", fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
+                  {product.variants.length > 1 ? (th ? "เลือกไซส์และจำนวน (เลือกได้หลายไซส์)" : "Choose sizes & quantity (mix sizes freely)") : (th ? "จำนวน" : "Quantity")}
+                </label>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {product.variants.map((v) => {
+                    const cap = variantCap(v);
+                    const out = cap === 0;
+                    const q = Math.min(qtyByVariant[v.id] ?? 0, cap);
+                    const atLimit = q >= cap || qty >= productCap;
+                    return (
+                      <div key={v.id} style={{ display: "flex", flexDirection: "column", gap: 8, padding: product.variants.length > 1 ? "8px 12px" : 0, borderRadius: "var(--radius-md)", border: product.variants.length > 1 ? `1px solid ${q > 0 ? "var(--accent-primary)" : "var(--border-subtle)"}` : "none", background: product.variants.length > 1 ? "var(--bg-base)" : "transparent", opacity: out ? 0.55 : 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          {product.variants.length > 1 && (
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <span style={{ fontWeight: 700, fontSize: 14, overflowWrap: "anywhere", wordBreak: "break-word", textDecoration: out ? "line-through" : undefined }}>{v.label}</span>
+                              {v.priceDelta ? <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", marginLeft: 6 }}>+{baht(v.priceDelta)}</span> : null}
+                              {v.remaining != null && (
+                                <span style={{ display: "block", fontSize: 12, color: out ? "#ef4444" : "var(--text-muted)" }}>{out ? (th ? "หมด" : "Sold out") : (th ? `เหลือ ${v.remaining}` : `${v.remaining} left`)}</span>
+                              )}
+                            </div>
+                          )}
+                          <button onClick={() => setVariantQty(v, q - 1)} disabled={q === 0} aria-label={th ? `ลดจำนวน ${v.label}` : `Decrease ${v.label}`} className="btn btn-ghost" style={{ padding: 8 }}><Minus size={16} /></button>
+                          <span style={{ fontWeight: 800, fontSize: 18, minWidth: 32, textAlign: "center" }}>{q}</span>
+                          <button onClick={() => setVariantQty(v, q + 1)} disabled={out || atLimit} aria-label={th ? `เพิ่มจำนวน ${v.label}` : `Increase ${v.label}`} className="btn btn-ghost" style={{ padding: 8 }}><Plus size={16} /></button>
+                        </div>
+                        {/* Custom value for an "Other (specify)" option */}
+                        {v.allowCustom && q > 0 && (
+                          <input
+                            value={customValueByVariant[v.id] ?? ""}
+                            onChange={(e) => setCustomValueByVariant((m) => ({ ...m, [v.id]: e.target.value }))}
+                            maxLength={120}
+                            aria-label={th ? "ระบุรายละเอียด" : "Please specify"}
+                            placeholder={th ? "ระบุรายละเอียด * เช่น ไซส์/สีที่ต้องการ" : "Please specify * e.g. desired size/colour"}
+                            style={{ width: "100%", padding: "10px 12px", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)", fontSize: 14, fontFamily: "inherit", background: "var(--bg-surface)" }}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
-
-              {/* Custom value for an "Other (specify)" option */}
-              {variant?.allowCustom && (
-                <div style={{ marginBottom: 16 }}>
-                  <label style={{ display: "block", fontWeight: 700, fontSize: 13, marginBottom: 8 }}>{th ? "ระบุรายละเอียด *" : "Please specify *"}</label>
-                  <input
-                    value={customValue}
-                    onChange={(e) => setCustomValue(e.target.value)}
-                    maxLength={120}
-                    placeholder={th ? "พิมพ์รายละเอียดที่ต้องการ เช่น ไซส์/สีที่ต้องการ" : "Type your request, e.g. desired size/colour"}
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)", fontSize: 14, fontFamily: "inherit", background: "var(--bg-base)" }}
-                  />
-                </div>
-              )}
+                {(product.maxPerOrder != null || (product.variants.length > 1 && qty > 0)) && (
+                  <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8 }}>
+                    {product.variants.length > 1 && qty > 0 ? (th ? `รวม ${qty} ชิ้น` : `${qty} item${qty === 1 ? "" : "s"} in total`) : ""}
+                    {product.variants.length > 1 && qty > 0 && product.maxPerOrder != null ? " · " : ""}
+                    {product.maxPerOrder != null ? (th ? `จำกัด ${product.maxPerOrder} ชิ้น/คน` : `Max ${product.maxPerOrder} per person`) : ""}
+                  </p>
+                )}
+              </div>
 
               {/* Custom fields (e.g. jersey name/number) */}
               {customFields.map((f) => (
@@ -564,22 +594,9 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
                 </div>
               ))}
 
-              {/* Quantity */}
-              <div style={{ marginBottom: 8 }}>
-                <label style={{ display: "block", fontWeight: 700, fontSize: 13, marginBottom: 8 }}>{th ? "จำนวน" : "Quantity"}</label>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <button onClick={() => setQty(Math.max(1, qty - 1))} className="btn btn-ghost" style={{ padding: 8 }}><Minus size={16} /></button>
-                  <span style={{ fontWeight: 800, fontSize: 18, minWidth: 32, textAlign: "center" }}>{qty}</span>
-                  <button onClick={() => setQty(Math.min(maxQty, qty + 1))} disabled={qty >= maxQty} className="btn btn-ghost" style={{ padding: 8 }}><Plus size={16} /></button>
-                  {product.maxPerOrder != null && (
-                    <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{th ? `จำกัด ${product.maxPerOrder} ชิ้น/คน` : `Max ${product.maxPerOrder} per person`}</span>
-                  )}
-                </div>
-              </div>
-
               {error && <p style={{ color: "#ef4444", fontSize: 13, marginTop: 12 }}>{error}</p>}
 
-              <button onClick={() => setStep("pay")} disabled={!variant || (remaining != null && remaining <= 0) || (!!variant?.allowCustom && !customValue.trim()) || missingRequiredCustom || !!notOpen} className="btn btn-primary" style={{ width: "100%", marginTop: 20, justifyContent: "space-between", display: "flex" }}>
+              <button onClick={() => setStep("pay")} disabled={qty === 0 || missingOtherText || missingRequiredCustom || !!notOpen} className="btn btn-primary" style={{ width: "100%", marginTop: 20, justifyContent: "space-between", display: "flex" }}>
                 <span>{notOpen ? (product.saleStatus === "upcoming" ? (th ? "ยังไม่เปิดขาย" : "Not on sale yet") : (th ? "ปิดการขาย" : "Sales closed")) : (th ? "ดำเนินการต่อ" : "Continue")}</span>
                 {!notOpen && <span>{baht(total)}</span>}
               </button>
@@ -588,10 +605,15 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
             <>
               {/* Order summary */}
               <div style={{ background: "var(--bg-base)", borderRadius: "var(--radius-md)", padding: 14, marginBottom: 16, border: "1px solid var(--border-subtle)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 14, marginBottom: 4 }}>
-                  <span style={{ minWidth: 0, overflowWrap: "anywhere", wordBreak: "break-word" }}>{product.name}{variant && product.variants.length > 1 ? ` · ${variant.label}` : ""} × {qty}</span>
-                  <span style={{ fontWeight: 700, flexShrink: 0, whiteSpace: "nowrap" }}>{baht(subtotal)}</span>
-                </div>
+                {lines.map((l) => {
+                  const other = l.variant.allowCustom ? (customValueByVariant[l.variant.id] ?? "").trim() : "";
+                  return (
+                    <div key={l.variant.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 14, marginBottom: 4 }}>
+                      <span style={{ minWidth: 0, overflowWrap: "anywhere", wordBreak: "break-word" }}>{product.name}{product.variants.length > 1 ? ` · ${l.variant.label}${other ? `: ${other}` : ""}` : ""} × {l.qty}</span>
+                      <span style={{ fontWeight: 700, flexShrink: 0, whiteSpace: "nowrap" }}>{baht(unitPriceOf(l.variant) * l.qty)}</span>
+                    </div>
+                  );
+                })}
                 {customFields.filter((f) => (customAnswers[f.key] ?? "").trim()).map((f) => (
                   <div key={f.key} style={{ fontSize: 12, color: "var(--text-muted)", overflowWrap: "anywhere", wordBreak: "break-word" }}>{f.label}: <strong style={{ color: "var(--text-secondary)" }}>{customAnswers[f.key]}</strong></div>
                 ))}

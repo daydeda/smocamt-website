@@ -198,6 +198,26 @@ export function isEventUnscopedStaff(
   );
 }
 
+// Roles that write an event's LIVE columns directly (PUT /api/admin/events/[id]
+// staff branch). Narrower than EVENT_UNSCOPED_ROLES: plain "smo" can SEE every
+// event but not edit one, and a club/major president's edits are held for
+// review instead of applied — neither passes here.
+export const EVENT_DIRECT_EDIT_ROLES = ["super_admin", "admin", "registration", "organizer"] as const;
+
+// May this role set change an event's schedule without review? Gates the
+// scanner's "Go live now" (POST /api/admin/events/[id]/go-live), which moves
+// the start time — the same power as editing the event.
+export function canEditEventDirectly(
+  roles: string[],
+  smoPosition?: string | null,
+  anusmoPosition?: string | null,
+): boolean {
+  return (
+    roles.some((r) => (EVENT_DIRECT_EDIT_ROLES as readonly string[]).includes(r)) ||
+    isGlobalRegistrationPosition(roles, smoPosition, anusmoPosition)
+  );
+}
+
 // SMO Finance is the trusted money/merch reviewer for the marketplace. This is
 // deliberately position-scoped: a plain `smo` role keeps scanner-only breadth.
 export function isShopFinancePosition(roles: string[], smoPosition?: string | null): boolean {

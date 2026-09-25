@@ -17,6 +17,7 @@ import {
   adminLandingHrefForRoles,
   isShopFinancePosition,
   isEventUnscopedStaff,
+  canEditEventDirectly,
 } from "@/lib/admin-access";
 
 // Every role the live model defines (users.role / users.roles[]), per CLAUDE.md +
@@ -323,5 +324,29 @@ describe("isEventUnscopedStaff", () => {
     expect(isEventUnscopedStaff(["student"])).toBe(false);
     expect(isEventUnscopedStaff(["shop_seller"])).toBe(false);
     expect(isEventUnscopedStaff([])).toBe(false);
+  });
+});
+
+describe("canEditEventDirectly", () => {
+  it("allows the roles that write an event's live columns", () => {
+    for (const role of ["super_admin", "admin", "registration", "organizer"]) {
+      expect(canEditEventDirectly([role])).toBe(true);
+    }
+  });
+
+  it("allows a GLOBAL registration position", () => {
+    expect(canEditEventDirectly(["smo"], "registration")).toBe(true);
+    expect(canEditEventDirectly(["anusmo"], null, "registration")).toBe(true);
+  });
+
+  it("denies plain smo, presidents, sellers and students", () => {
+    // smo can see every event but not edit one; president edits go through
+    // review — neither may move an event's start time directly ("Go live now").
+    expect(canEditEventDirectly(["smo"])).toBe(false);
+    expect(canEditEventDirectly(["smo"], "finance")).toBe(false);
+    expect(canEditEventDirectly(["club_president"])).toBe(false);
+    expect(canEditEventDirectly(["major_president", "smo"])).toBe(false);
+    expect(canEditEventDirectly(["shop_seller"])).toBe(false);
+    expect(canEditEventDirectly(["student"])).toBe(false);
   });
 });

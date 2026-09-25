@@ -99,6 +99,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     ws.autoFilter = { from: { row: headerRow.number, column: 1 }, to: { row: headerRow.number, column: header.length } };
 
     const DATE_FMT = "dd/mm/yyyy hh:mm";
+    // Excel cells have no timezone: exceljs writes a Date's UTC wall clock, so
+    // a 19:25 Bangkok check-in showed as 12:25. Shift to Bangkok wall-clock
+    // time (UTC+7, no DST) before writing — still a real, sortable date.
+    const bangkokCell = (d: Date | string) => new Date(new Date(d).getTime() + 7 * 60 * 60 * 1000);
 
     for (const [i, row] of data.rows.entries()) {
       // Fall back to the event's own start time when the student has no
@@ -114,9 +118,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         // Real Date values, not preformatted strings: a text date sorts
         // alphabetically, which makes an "editable" report useless the first
         // time someone sorts by it.
-        attendedAt ? new Date(attendedAt) : "",
+        attendedAt ? bangkokCell(attendedAt) : "",
         row.daysAttended || "",
-        new Date(row.claimedAt),
+        bangkokCell(row.claimedAt),
         row.awardedByName ?? "",
         row.photoKey ? "" : "— ไม่มีรูป —",
         row.note ?? "",
@@ -164,7 +168,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     });
 
     const out = await wb.xlsx.writeBuffer();
-    const filename = `prize-${data.prize.name.replace(/[^\p{L}\p{N}_-]+/gu, "_")}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const filename = `prize-${data.prize.name.replace(/[^\p{L}\p{N}_-]+/gu, "_")}-${bangkokCell(new Date()).toISOString().slice(0, 10)}.xlsx`;
 
     return new NextResponse(new Uint8Array(out as ArrayBuffer), {
       headers: {

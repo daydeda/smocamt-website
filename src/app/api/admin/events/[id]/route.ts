@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { allowedEventYearsSchema, sessionInputSchema, sessionsHaveInvalidSpan } from "@/lib/event-schema";
-import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/admin-access";
+import { canEditEventDirectly, effectiveRoles, isGlobalRegistrationPosition } from "@/lib/admin-access";
 import { EventScopeService } from "@/modules/events/event-scope.service";
 import { syncEventToSongsue } from "@/lib/songsue-sync";
 import { eventYearFields, getAllowedEventYears } from "@/lib/event-access";
@@ -239,8 +239,7 @@ export async function PUT(
     // pending-review/allowlist flow below that would need its own design work
     // to safely extend; only a GLOBAL registration position (case 1) gets full
     // edit parity with the "registration" role.
-    const isAdminRole = myRoles.some((r) => ["super_admin", "admin", "registration", "organizer"].includes(r))
-      || isGlobalRegistrationPosition(myRoles, session?.user?.smoPosition, session?.user?.anusmoPosition);
+    const isAdminRole = canEditEventDirectly(myRoles, session?.user?.smoPosition, session?.user?.anusmoPosition);
     const isPresidentRole = myRoles.some((r) => ["club_president", "major_president"].includes(r));
     if (!session?.user || (!isAdminRole && !isPresidentRole)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

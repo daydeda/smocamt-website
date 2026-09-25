@@ -31,6 +31,10 @@ export async function compressImageFile(
   if (!file.type.startsWith("image/") || file.type === "image/gif") return file;
 
   try {
+    const encode = (canvas: HTMLCanvasElement, type: string) =>
+      new Promise<Blob>((resolve, reject) =>
+        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("encode failed"))), type, quality),
+      );
     const blob = await new Promise<Blob>((resolve, reject) => {
       const reader = new FileReader();
       reader.onerror = () => reject(new Error("read failed"));
@@ -54,11 +58,14 @@ export async function compressImageFile(
           const ctx = canvas.getContext("2d");
           if (!ctx) return reject(new Error("no 2d context"));
           ctx.drawImage(img, 0, 0, width, height);
-          canvas.toBlob(
-            (b) => (b ? resolve(b) : reject(new Error("encode failed"))),
-            "image/webp",
-            quality,
-          );
+          // Safari (all iOS browsers) can't ENCODE WebP: toBlob silently falls
+          // back to a lossless PNG, which for a phone photo is usually bigger
+          // than the original — so the "keep the smaller" check below threw it
+          // away and iPhones uploaded the raw multi-MB file. Fall back to JPEG,
+          // which every browser encodes.
+          encode(canvas, "image/webp")
+            .then((b) => (b.type === "image/webp" ? b : encode(canvas, "image/jpeg")))
+            .then(resolve, reject);
         };
         img.src = event.target?.result as string;
       };
@@ -69,7 +76,8 @@ export async function compressImageFile(
     // grow it.
     if (blob.size >= file.size) return file;
     const base = file.name.replace(/\.[^.]+$/, "") || "image";
-    return new File([blob], `${base}.webp`, { type: "image/webp" });
+    const ext = blob.type === "image/webp" ? "webp" : blob.type === "image/png" ? "png" : "jpg";
+    return new File([blob], `${base}.${ext}`, { type: blob.type || "image/jpeg" });
   } catch {
     // Couldn't decode/encode in this browser — upload the original and let the
     // server decide.

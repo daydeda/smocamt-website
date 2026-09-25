@@ -47,7 +47,8 @@ export async function POST(req: Request) {
         referer: req.headers.get("referer"),
       });
       return NextResponse.json(
-        { error: "Could not read the uploaded file. Please check your connection and try again." },
+        // `code` lets the client tell this apart from validation 400s and retry.
+        { error: "Could not read the uploaded file. Please check your connection and try again.", code: "BODY_UNREADABLE" },
         { status: 400 },
       );
     }

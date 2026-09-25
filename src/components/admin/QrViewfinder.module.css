@@ -1,0 +1,71 @@
+/* The camera viewfinder shared by every html5-qrcode reader in a dialog (the
+   prize booth PrizeAwardPanel and the shop handover counter). Markup:
+     <div class={viewfinder}><div id=... class={reader} /><div class={scanGuide} /></div>
+   One stylesheet so the two can't drift apart again. */
+
+.viewfinder {
+  position: relative;
+  width: min(100%, 52dvh, 400px);
+  aspect-ratio: 1;
+  flex: none;
+  align-self: center;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #000;
+  isolation: isolate;
+}
+
+.reader {
+  position: absolute !important;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* html5-qrcode sizes the video itself (inline width = container's
+   clientWidth, height auto to preserve the stream's native aspect ratio) and
+   computes its decode crop from that element's OWN clientWidth/clientHeight
+   as a simple per-axis stretch ratio (foreverScan in the library source) —
+   it has no concept of CSS object-fit. An earlier version of this rule
+   forced `object-fit: cover` to hide a portrait stream's overflow, which
+   desynced that ratio from what's visually shown: the pixels actually
+   decoded stopped matching what's inside the white guide border, so a code
+   held visibly inside it could fail to scan.
+   Centering must NOT use the `transform` property: PrizeAwardPanel.tsx sets
+   `video.style.transform` inline (mirror-flip for a front-facing camera),
+   inline style always wins over this stylesheet rule for the same property,
+   so a `transform: translate(...)` here gets silently dropped the moment the
+   mirror flip runs, leaving the video positioned at its pre-transform
+   top:50%/left:50% offset (visually pushed outside the guide border). Using
+   inset + margin:auto centers the element without touching `transform`, so
+   it can't collide with the mirror flip, while still clipping + centering
+   the overflow without touching the library's own element sizing. */
+.reader video {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+}
+
+.reader :global(#qr-shaded-region) {
+  display: none;
+}
+
+.scanGuide {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 75%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  border: 3px solid #fff;
+  border-radius: 14px;
+  box-shadow: 0 0 0 100vmax rgb(0 0 0 / 25%);
+}
+
+@media (max-height: 500px) {
+  .viewfinder {
+    width: min(100%, 42dvh, 400px);
+  }
+}

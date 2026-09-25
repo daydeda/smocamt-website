@@ -1,11 +1,12 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { shopOrderItems, shopOrders, shopSellers, users } from "@/db/schema";
+import { shopOrderItems, shopOrders, shopProducts, users } from "@/db/schema";
 import { AuditService } from "@/modules/audit/audit.service";
 import { UsersService } from "@/modules/users/users.service";
 import { resolveShopAccess, classifyOrdersByScope, type OrderScopeInfo } from "@/lib/shop-scope";
-import { isFulfilled, nextFulfillmentStatus } from "@/lib/shop-fulfillment";
-import { staffFulfillmentPatch } from "@/lib/shop-fulfillment-server";
+import { isProductOwnedByScope } from "@/lib/shop-auth";
+import { isItemHandedOver } from "@/lib/shop-fulfillment";
+import { HandoverRefused, handOverItems, undoItemHandover } from "@/lib/shop-fulfillment-server";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { captureException } from "@/lib/logger";
 import { and, desc, eq, inArray } from "drizzle-orm";
@@ -18,34 +19,42 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 20;
 
 // POST /api/admin/shop/fulfillment/scan — the pickup counter (and on-campus
-// delivery at the door). Same two-step shape as the prize booth:
-//   "preview": resolve the scanned Digital ID and list that buyer's orders this
-//              caller may hand over — writes nothing, so staff see "already
-//              picked up on …" BEFORE handing anything over.
-//   "confirm": hand over the chosen orders. The QR is re-verified (tokens live
-//              ~5 min) and every order is re-checked under a row lock: it must
-//              belong to THIS buyer, be in the caller's scope, and still allow
-//              a handover.
-const schema = z.object({
-  action: z.enum(["preview", "confirm"]),
-  qrToken: z.string().min(1).max(2000),
-  orderIds: z.array(z.string().uuid()).min(1).max(20).optional(),
-  note: z.string().trim().max(500).optional(),
-});
+// delivery at the door). Staff choose the PRODUCT first, then scan, so only
+// that product's lines can be handed over — a buyer with several orders, or
+// two products sharing a name, can't be given the wrong thing by a stray tick.
+//   "preview": resolve the scanned Digital ID and list that buyer's lines of the
+//              chosen product — writes nothing, so staff see "already received
+//              on …" BEFORE handing anything over.
+//   "confirm": hand over the chosen lines. The QR is re-verified (tokens live
+//              ~5 min) and every line is re-checked under a row lock: it must
+//              belong to THIS buyer, be the chosen product, be in the caller's
+//              scope, and not be handed over yet.
+//   "undo":    take back lines just handed over (a slip at the counter).
+const uuid = z.string().uuid();
+const schema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("preview"), qrToken: z.string().min(1).max(2000), productId: uuid }),
+  z.object({
+    action: z.literal("confirm"),
+    qrToken: z.string().min(1).max(2000),
+    productId: uuid,
+    itemIds: z.array(uuid).min(1).max(50),
+    note: z.string().trim().max(500).optional(),
+  }),
+  z.object({ action: z.literal("undo"), itemIds: z.array(uuid).min(1).max(50) }),
+]);
 
 const fulfillers = alias(users, "fulfillers");
+const lineHanders = alias(users, "line_handers");
 
-type ScanOrder = {
-  id: string;
+type Line = {
+  itemId: string;
+  orderId: string;
+  productName: string;
+  variantLabel: string;
+  customValues: { label: string; value: string }[] | null;
+  quantity: number;
   fulfillment: string;
-  fulfillmentStatus: string;
-  status: string;
-  totalAmount: number;
-  createdAt: Date | null;
-  fulfilledAt: Date | null;
-  fulfilledByName: string | null;
-  sellerName: string | null;
-  items: { productName: string; variantLabel: string; customValues: { label: string; value: string }[] | null; quantity: number }[];
+  orderCreatedAt: Date | null;
 };
 
 export async function POST(req: Request) {
@@ -65,137 +74,160 @@ export async function POST(req: Request) {
     if (!access.ok) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = schema.parse(await req.json());
+
+    // A scoped seller/president may only hand over lines on orders that are
+    // entirely theirs (same rule as payment review).
+    const assertLinesInScope = async (itemIds: string[]) => {
+      if (access.unscoped) return;
+      const owners = await db.select({ orderId: shopOrderItems.orderId }).from(shopOrderItems).where(inArray(shopOrderItems.id, itemIds));
+      const orderIds = [...new Set(owners.map((o) => o.orderId))];
+      const info = await classifyOrdersByScope(orderIds, access.scope, access.sellerId);
+      if (orderIds.some((oid) => !info.get(oid)?.anyOwned || !info.get(oid)?.fullyOwned)) {
+        throw new HandoverRefused("One of these items isn't yours to hand over.", 403);
+      }
+    };
+
+    if (body.action === "undo") {
+      await assertLinesInScope(body.itemIds);
+      const changes = await db.transaction((tx) => undoItemHandover(tx, { itemIds: body.itemIds, actorId: access.userId, ip }));
+      return NextResponse.json({ success: true, changes });
+    }
+
+    // The product the counter chose must be one this caller manages.
+    const [product] = await db
+      .select({
+        id: shopProducts.id,
+        name: shopProducts.name,
+        sellerId: shopProducts.sellerId,
+        ownerClubIds: shopProducts.ownerClubIds,
+        ownerMajors: shopProducts.ownerMajors,
+      })
+      .from(shopProducts)
+      .where(eq(shopProducts.id, body.productId))
+      .limit(1);
+    if (!product || (!access.unscoped && !isProductOwnedByScope(product, access.scope, access.sellerId))) {
+      return NextResponse.json({ error: "Product not found." }, { status: 404 });
+    }
+
     const student = await UsersService.resolveStudentByToken(body.qrToken, ip);
     if (!student) {
       return NextResponse.json(
-        { error: "QR not recognised or expired — ask the buyer to refresh their Digital ID and scan again." },
+        { error: "QR not recognised or expired. Ask the buyer to refresh their Digital ID and scan again." },
         { status: 404 }
       );
     }
     const buyer = { id: student.id, name: student.name, nickname: student.nickname, studentId: student.studentId };
 
-    if (body.action === "preview") {
-      // Every paid-or-pending order of this buyer; filtered to the caller's
-      // scope below, then split into "hand over now" and context.
-      const rows = await db
-        .select({
-          id: shopOrders.id,
-          fulfillment: shopOrders.fulfillment,
-          fulfillmentStatus: shopOrders.fulfillmentStatus,
-          status: shopOrders.status,
-          totalAmount: shopOrders.totalAmount,
-          createdAt: shopOrders.createdAt,
-          fulfilledAt: shopOrders.fulfilledAt,
-          fulfilledByName: fulfillers.name,
-          sellerName: shopSellers.displayName,
-        })
-        .from(shopOrders)
-        .leftJoin(shopSellers, eq(shopOrders.sellerId, shopSellers.id))
-        .leftJoin(fulfillers, eq(shopOrders.fulfilledBy, fulfillers.id))
-        .where(and(eq(shopOrders.buyerId, buyer.id), inArray(shopOrders.status, ["pending", "approved"])))
-        .orderBy(desc(shopOrders.createdAt));
-
-      let scopeInfo: Map<string, OrderScopeInfo> | null = null;
-      if (!access.unscoped) scopeInfo = await classifyOrdersByScope(rows.map((r) => r.id), access.scope, access.sellerId);
-      // Only orders the caller could hand over in full; a mixed order stays
-      // with a shop admin, same as review.
-      const visible = scopeInfo ? rows.filter((r) => scopeInfo!.get(r.id)?.fullyOwned && scopeInfo!.get(r.id)?.anyOwned) : rows;
-
-      const items = visible.length
-        ? await db
-            .select({
-              orderId: shopOrderItems.orderId,
-              productName: shopOrderItems.productName,
-              variantLabel: shopOrderItems.variantLabel,
-              customValues: shopOrderItems.customValues,
-              quantity: shopOrderItems.quantity,
-            })
-            .from(shopOrderItems)
-            .where(inArray(shopOrderItems.orderId, visible.map((r) => r.id)))
-        : [];
-      const withItems: ScanOrder[] = visible.map((r) => ({
-        ...r,
-        sellerName: r.sellerName ?? "SMO / CAMT",
-        items: items.filter((i) => i.orderId === r.id).map((i) => ({
-          productName: i.productName,
-          variantLabel: i.variantLabel,
-          customValues: i.customValues ?? null,
-          quantity: i.quantity,
-        })),
-      }));
-
-      await AuditService.logAction({
+    if (body.action === "confirm") {
+      await assertLinesInScope(body.itemIds);
+      const changes = await db.transaction((tx) => handOverItems(tx, {
+        itemIds: body.itemIds,
         actorId: access.userId,
-        targetId: buyer.id,
-        action: `Scanned Digital ID at shop handover (${withItems.length} order(s) in scope)`,
-        ipAddress: ip,
-      });
-
-      return NextResponse.json({
-        buyer,
-        // Paid and not yet in the buyer's hands → can be handed over now.
-        ready: withItems.filter((o) => o.status === "approved" && nextFulfillmentStatus(o, "handover")),
-        // Not paid yet → do NOT hand over; shown so staff can say why.
-        unpaid: withItems.filter((o) => o.status === "pending"),
-        // Already picked up / delivered → the "already collected" warning.
-        done: withItems.filter((o) => o.status === "approved" && isFulfilled(o.fulfillmentStatus)).slice(0, 5),
-      });
+        via: "qr",
+        note: body.note,
+        ip,
+        buyerId: buyer.id,
+        productId: product.id,
+      }));
+      return NextResponse.json({ success: true, buyer, changes });
     }
 
-    // confirm
-    if (!body.orderIds?.length) return NextResponse.json({ error: "Choose at least one order to hand over." }, { status: 400 });
-    const orderIds = [...new Set(body.orderIds)];
-    if (!access.unscoped) {
-      const scopeInfo = await classifyOrdersByScope(orderIds, access.scope, access.sellerId);
-      if (orderIds.some((oid) => !scopeInfo.get(oid)?.anyOwned || !scopeInfo.get(oid)?.fullyOwned)) {
-        return NextResponse.json({ error: "One of these orders isn't yours to hand over." }, { status: 403 });
+    // preview: every paid-or-pending order of this buyer, filtered to the
+    // caller's scope, then its lines sorted into what the counter should do.
+    const orders = await db
+      .select({
+        id: shopOrders.id,
+        status: shopOrders.status,
+        fulfillment: shopOrders.fulfillment,
+        fulfillmentStatus: shopOrders.fulfillmentStatus,
+        createdAt: shopOrders.createdAt,
+        fulfilledAt: shopOrders.fulfilledAt,
+        fulfilledByName: fulfillers.name,
+      })
+      .from(shopOrders)
+      .leftJoin(fulfillers, eq(shopOrders.fulfilledBy, fulfillers.id))
+      .where(and(eq(shopOrders.buyerId, buyer.id), inArray(shopOrders.status, ["pending", "approved"])))
+      .orderBy(desc(shopOrders.createdAt));
+
+    let scopeInfo: Map<string, OrderScopeInfo> | null = null;
+    if (!access.unscoped) scopeInfo = await classifyOrdersByScope(orders.map((o) => o.id), access.scope, access.sellerId);
+    const visible = scopeInfo ? orders.filter((o) => scopeInfo!.get(o.id)?.fullyOwned && scopeInfo!.get(o.id)?.anyOwned) : orders;
+    const orderById = new Map(visible.map((o) => [o.id, o]));
+
+    const items = visible.length
+      ? await db
+          .select({
+            id: shopOrderItems.id,
+            orderId: shopOrderItems.orderId,
+            productId: shopOrderItems.productId,
+            productName: shopOrderItems.productName,
+            variantLabel: shopOrderItems.variantLabel,
+            customValues: shopOrderItems.customValues,
+            quantity: shopOrderItems.quantity,
+            handedOverAt: shopOrderItems.handedOverAt,
+            handedOverByName: lineHanders.name,
+          })
+          .from(shopOrderItems)
+          .leftJoin(lineHanders, eq(shopOrderItems.handedOverBy, lineHanders.id))
+          .where(inArray(shopOrderItems.orderId, visible.map((o) => o.id)))
+      : [];
+
+    const toLine = (i: (typeof items)[number]): Line => {
+      const o = orderById.get(i.orderId)!;
+      return {
+        itemId: i.id,
+        orderId: i.orderId,
+        productName: i.productName,
+        variantLabel: i.variantLabel,
+        customValues: i.customValues ?? null,
+        quantity: i.quantity,
+        fulfillment: o.fulfillment,
+        orderCreatedAt: o.createdAt,
+      };
+    };
+    const inPerson = (s: string) => s === "awaiting" || s === "ready" || s === "partial";
+
+    const toHand: Line[] = [];
+    const mailed: Line[] = [];
+    const unpaid: Line[] = [];
+    const done: (Line & { handedAt: Date | null; handedByName: string | null })[] = [];
+    const otherWaiting: Line[] = [];
+    for (const i of items) {
+      const o = orderById.get(i.orderId)!;
+      const handed = isItemHandedOver(i, o.fulfillmentStatus);
+      if (i.productId !== product.id) {
+        if (o.status === "approved" && !handed && inPerson(o.fulfillmentStatus)) otherWaiting.push(toLine(i));
+        continue;
       }
+      if (o.status === "pending") unpaid.push(toLine(i));
+      else if (handed) done.push({ ...toLine(i), handedAt: i.handedOverAt ?? o.fulfilledAt, handedByName: i.handedOverByName ?? o.fulfilledByName });
+      else if (inPerson(o.fulfillmentStatus)) toHand.push(toLine(i));
+      else mailed.push(toLine(i));
     }
 
-    const handed = await db.transaction(async (tx) => {
-      const locked = await tx
-        .select({
-          id: shopOrders.id,
-          buyerId: shopOrders.buyerId,
-          status: shopOrders.status,
-          fulfillment: shopOrders.fulfillment,
-          fulfillmentStatus: shopOrders.fulfillmentStatus,
-        })
-        .from(shopOrders)
-        .where(inArray(shopOrders.id, orderIds))
-        .for("update");
-      if (locked.length !== orderIds.length || locked.some((o) => o.buyerId !== buyer.id)) {
-        throw new ScanRefused("These orders don't belong to the scanned buyer.", 403);
-      }
-      const done: { id: string; fulfillmentStatus: string }[] = [];
-      for (const o of locked) {
-        const next = nextFulfillmentStatus(o, "handover");
-        if (!next) {
-          throw new ScanRefused(
-            o.status !== "approved"
-              ? "One of these orders hasn't been paid (approved) yet — don't hand it over."
-              : "One of these orders was already handed over — scan again to refresh.",
-            409
-          );
-        }
-        await tx
-          .update(shopOrders)
-          .set(staffFulfillmentPatch({ action: "handover", from: o.fulfillmentStatus, next, actorId: access.userId, via: "qr", note: body.note }))
-          .where(eq(shopOrders.id, o.id));
-        await AuditService.logActionInternal(tx, {
-          actorId: access.userId,
-          targetId: o.id,
-          action: `Handed over shop order ${o.id} by Digital ID scan [${o.fulfillmentStatus} → ${next}]`,
-          ipAddress: ip,
-        });
-        done.push({ id: o.id, fulfillmentStatus: next });
-      }
-      return done;
+    await AuditService.logAction({
+      actorId: access.userId,
+      targetId: buyer.id,
+      action: `Scanned Digital ID at shop handover for product ${product.id} (${toHand.length} line(s) to hand over)`,
+      ipAddress: ip,
     });
 
-    return NextResponse.json({ success: true, buyer, handed });
+    return NextResponse.json({
+      buyer,
+      product: { id: product.id, name: product.name },
+      // Paid, in person, not yet handed over → can be handed over now.
+      toHand,
+      // Already in the buyer's hands → the "already received" warning.
+      done: done.sort((a, b) => (b.handedAt?.getTime() ?? 0) - (a.handedAt?.getTime() ?? 0)).slice(0, 10),
+      // Not paid yet → do NOT hand over; shown so staff can say why.
+      unpaid,
+      // Being sent by mail → don't hand over at the counter.
+      mailed,
+      // Other products this buyer is still waiting for (context only).
+      otherWaiting,
+    });
   } catch (error) {
-    if (error instanceof ScanRefused) {
+    if (error instanceof HandoverRefused) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
     if (error instanceof z.ZodError) {
@@ -203,11 +235,5 @@ export async function POST(req: Request) {
     }
     captureException(error, { route: "POST /api/admin/shop/fulfillment/scan" });
     return NextResponse.json({ error: "Failed to record the handover" }, { status: 500 });
-  }
-}
-
-class ScanRefused extends Error {
-  constructor(message: string, readonly status: number) {
-    super(message);
   }
 }

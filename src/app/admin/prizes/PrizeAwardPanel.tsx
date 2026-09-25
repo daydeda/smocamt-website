@@ -9,6 +9,7 @@ import { useLanguage } from "@/lib/LanguageContext";
 import { QR_SCANNER_CONSTRUCTOR_CONFIG, QR_SCANNER_START_CONFIG } from "@/lib/qr-scanner-config";
 import { Camera, Check, X, AlertTriangle, Loader2, Search, ImagePlus } from "lucide-react";
 import styles from "./PrizeAwardPanel.module.css";
+import viewfinderStyles from "@/components/admin/QrViewfinder.module.css";
 
 // The booth screen: scan → see who it is and whether they may have it → confirm
 // → photo. See docs/features/prize-claim.md.
@@ -548,9 +549,9 @@ export default function PrizeAwardPanel({
           ) : (
             /* ---- Scanning ---- */
             <>
-              <div className={styles.viewfinder}>
-                <div id="prize-qr-reader" className={styles.reader} />
-                <div className={styles.scanGuide} aria-hidden="true" />
+              <div className={viewfinderStyles.viewfinder}>
+                <div id="prize-qr-reader" className={viewfinderStyles.reader} />
+                <div className={viewfinderStyles.scanGuide} aria-hidden="true" />
               </div>
               {cameraError && (
                 <p style={{ borderRadius: 12, padding: "10px 14px", fontSize: 12.5, background: "rgba(245,158,11,0.1)", color: "#b45309", lineHeight: 1.5 }}>

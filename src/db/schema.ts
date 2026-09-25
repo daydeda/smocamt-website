@@ -858,6 +858,7 @@ export const shopOrders = pgTable("shop_orders", {
   //   'awaiting' → 'shipped' → 'delivered'                          (mail: carrier + tracking; buyer confirms or auto)
   //   'awaiting' → 'delivered'                                      (on-campus hand delivery: Digital ID scan / manual)
   //   'shipped'  → 'issue'                                          (buyer reported a problem)
+  //   'awaiting'/'ready' → 'partial' → 'picked_up'/'delivered'      (some lines handed over, see shop_order_items.handed_over_at)
   fulfillmentStatus: text("fulfillment_status").notNull().default("awaiting"),
   readyAt: timestamp("ready_at", { withTimezone: true }),
   // Mail only. carrier = a SHOP_CARRIERS id; carrierName = free text for "other".
@@ -913,6 +914,13 @@ export const shopOrderItems = pgTable("shop_order_items", {
   customValues: jsonb("custom_values").$type<ShopCustomValue[]>(),
   unitPrice: integer("unit_price").notNull(),
   quantity: integer("quantity").notNull(),
+  // Per-line handover (src/lib/shop-fulfillment.ts). An order can hold several
+  // products that are handed out at different booths/times, so the counter
+  // stamps each line; the order moves to 'partial' until every line is stamped.
+  // NULL on a mailed order that completed by buyer confirmation — there the
+  // order-level fulfilmentStatus is the record.
+  handedOverAt: timestamp("handed_over_at", { withTimezone: true }),
+  handedOverBy: text("handed_over_by").references(() => users.id, { onDelete: "set null" }),
 }, (table) => ([
   index("idx_shop_order_items_order").on(table.orderId),
   index("idx_shop_order_items_product").on(table.productId),

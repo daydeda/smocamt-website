@@ -14,7 +14,7 @@ import {
   Check, FileText, Truck, Store, Users, ChevronLeft, ChevronRight, ChevronDown,
   AlertTriangle, ExternalLink, Tag, Wallet, ScanLine,
 } from "lucide-react";
-import type { StaffFulfillmentAction } from "@/lib/shop-fulfillment";
+import { isItemHandedOver, type StaffFulfillmentAction } from "@/lib/shop-fulfillment";
 import ShopHandoverScanner from "./ShopHandoverScanner";
 import { FulfillmentChip, FulfillmentPanel, FulfilModal, canRevertPayment, type FulfilRequest } from "./ShopFulfillmentControls";
 
@@ -186,12 +186,12 @@ interface AdminOrder {
 }
 
 // Handover filters layered on the payment-status filter row. "to_fulfil" = paid
-// and not yet in the buyer's hands (awaiting/ready), i.e. who still hasn't
-// collected or been sent their stuff.
+// and not yet in the buyer's hands (awaiting/ready/partial), i.e. who still
+// hasn't collected (all of) their stuff or been sent it.
 type OrderFilter = "all" | "pending" | "approved" | "rejected" | "to_fulfil" | "shipped" | "issue";
 const matchesOrderFilter = (o: AdminOrder, f: OrderFilter) => {
   if (f === "all") return true;
-  if (f === "to_fulfil") return o.status === "approved" && (o.fulfillmentStatus === "awaiting" || o.fulfillmentStatus === "ready");
+  if (f === "to_fulfil") return o.status === "approved" && (o.fulfillmentStatus === "awaiting" || o.fulfillmentStatus === "ready" || o.fulfillmentStatus === "partial");
   if (f === "shipped" || f === "issue") return o.status === "approved" && o.fulfillmentStatus === f;
   return o.status === f;
 };
@@ -199,6 +199,8 @@ interface AdminOrderItem {
   id: string; productId: string | null; variantId: string | null;
   productName: string; variantLabel: string; customValues: ShopCustomValue[] | null;
   unitPrice: number; quantity: number;
+  // Per-line handover stamp (see isItemHandedOver).
+  handedOverAt?: string | null;
 }
 
 async function uploadImage(file: File): Promise<string> {
@@ -1264,7 +1266,7 @@ function OrdersTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
     <div>
       {/* The pickup-counter action: its own row so it's the obvious big button on a phone. */}
       <button onClick={() => setScanning(true)} className="btn btn-primary" style={{ width: "100%", maxWidth: 360, marginBottom: 14, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-        <ScanLine size={16} />{th ? "สแกน Digital ID เพื่อส่งมอบสินค้า" : "Scan Digital ID to hand over"}
+        <ScanLine size={16} />{th ? "ส่งมอบสินค้า (สแกน Digital ID)" : "Hand over items (scan Digital ID)"}
       </button>
       <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
         {(["pending", "approved", "rejected", "all"] as const).map((f) => (
@@ -1499,7 +1501,14 @@ function AdminOrderRow({ order, th, busy, scoped, onReview, onEdit, onFulfil }: 
         {order.items.map((i, idx) => (
           <div key={idx}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-              <span style={{ minWidth: 0, overflowWrap: "anywhere", wordBreak: "break-word" }}>{i.productName}{i.variantLabel && i.variantLabel !== "Standard" ? ` · ${i.variantLabel}` : ""} × {i.quantity}</span>
+              <span style={{ minWidth: 0, overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                {order.status === "approved" && order.fulfillmentStatus === "partial" && (
+                  isItemHandedOver(i, order.fulfillmentStatus)
+                    ? <CheckCircle2 size={14} aria-label={th ? "ส่งมอบแล้ว" : "Handed over"} style={{ display: "inline-block", color: "#15803d", verticalAlign: "-2px", marginRight: 4 }} />
+                    : <Clock size={14} aria-label={th ? "ยังไม่ส่งมอบ" : "Not handed over yet"} style={{ display: "inline-block", color: "var(--text-muted)", verticalAlign: "-2px", marginRight: 4 }} />
+                )}
+                {i.productName}{i.variantLabel && i.variantLabel !== "Standard" ? ` · ${i.variantLabel}` : ""} × {i.quantity}
+              </span>
               <span style={{ color: "var(--text-muted)", flexShrink: 0, whiteSpace: "nowrap" }}>{baht(i.unitPrice * i.quantity)}</span>
             </div>
             {i.customValues && i.customValues.length > 0 && (

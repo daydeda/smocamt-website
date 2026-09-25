@@ -1605,6 +1605,17 @@ async function migrate() {
   await sql`CREATE INDEX IF NOT EXISTS idx_shop_orders_fulfillment ON shop_orders (fulfillment_status)`;
   console.log("  ✅ shop_orders fulfilment tracking (status, carrier/tracking, handover, issue)");
 
+  // 98. Per-line handover — an order can hold several products handed out at
+  // different booths/times, so the Digital ID counter stamps each line and the
+  // order sits in 'partial' until all are stamped. Both columns nullable: an
+  // existing line is simply "not stamped", and display treats every line of an
+  // already picked_up/delivered order as handed (isItemHandedOver), so nothing
+  // needs backfilling. Mirrors drizzle/0046_safe_captain_midlands.sql. Additive, idempotent,
+  // non-destructive.
+  await sql`ALTER TABLE shop_order_items ADD COLUMN IF NOT EXISTS handed_over_at timestamptz`;
+  await sql`ALTER TABLE shop_order_items ADD COLUMN IF NOT EXISTS handed_over_by text REFERENCES users(id) ON DELETE SET NULL`;
+  console.log("  ✅ shop_order_items per-line handover (handed_over_at/by)");
+
   console.log("✅ Migration complete!");
   await sql.end();
   process.exit(0);

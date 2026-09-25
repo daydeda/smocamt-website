@@ -1,6 +1,8 @@
 
 export type Language = "en" | "th" | "mm" | "cn";
 
+// EN and TH must be complete. MM and CN may lag: admin-only keys are
+// deliberately EN/TH only, and LanguageContext falls back to EN per missing key.
 export const translations = {
   en: {
     welcome: "Welcome to ActiveCAMT",
@@ -602,6 +604,15 @@ export const translations = {
     stopScanningBtn: "Stop Scanner",
     scanModeCheckin: "Check-in",
     scanModeScore: "Scan Score",
+    scanModePrize: "Prize",
+    scannerPrizeHint: "Pick a prize, then scan the student's QR code.",
+    scannerPrizeThisEvent: "Prizes for {event}",
+    scannerPrizeOther: "Other open prizes",
+    scannerPrizeOtherHint: "Not tied to the selected event, e.g. a counter giveaway.",
+    scannerPrizeNoOpen: "No open prizes right now.",
+    scannerPrizeLoadError: "Couldn't load prizes.",
+    scannerPrizeRetry: "Retry",
+    scannerPrizeManageLink: "Prize page (awaiting photos, reports)",
     scoreToAward: "Score to Award",
     confirmScoreBtn: "Confirm Score",
     scoreAwarding: "Awarding...",
@@ -1523,6 +1534,15 @@ export const translations = {
     stopScanningBtn: "ปิดสแกนเนอร์",
     scanModeCheckin: "เช็คอินเข้าร่วม",
     scanModeScore: "ให้คะแนนรายบุคคล",
+    scanModePrize: "แจกรางวัล",
+    scannerPrizeHint: "เลือกรางวัล แล้วสแกน QR ของนักศึกษา",
+    scannerPrizeThisEvent: "รางวัลของ {event}",
+    scannerPrizeOther: "รางวัลอื่นที่เปิดรับอยู่",
+    scannerPrizeOtherHint: "ไม่ได้ผูกกับกิจกรรมที่เลือก เช่น แจกของที่เคาน์เตอร์",
+    scannerPrizeNoOpen: "ยังไม่มีรางวัลที่เปิดรับอยู่",
+    scannerPrizeLoadError: "โหลดรายการรางวัลไม่สำเร็จ",
+    scannerPrizeRetry: "ลองอีกครั้ง",
+    scannerPrizeManageLink: "หน้ารางวัล (รอรูป, รายงาน)",
     scoreToAward: "คะแนนที่ต้องการมอบ",
     confirmScoreBtn: "ยืนยันการให้คะแนน",
     scoreAwarding: "กำลังมอบคะแนน...",
@@ -3706,3 +3726,10 @@ export const translations = {
     battleTestingNoticeDesc: "此功能目前正由 SMO/ANUSMO/Admin 团队测试，尚未对所有人开放。请稍后再来查看！",
   },
 };
+
+// Compile-time guard: fails `tsc`/`next build` if TH is missing any EN key.
+// (MM/CN are intentionally not checked — see the note above `translations`.)
+type AssertNoMissingKeys<T extends never> = T;
+export type ThaiTranslationsComplete = AssertNoMissingKeys<
+  Exclude<keyof typeof translations.en, keyof typeof translations.th>
+>;

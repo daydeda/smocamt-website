@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
 import { Language, translations } from "./i18n";
 
 type LanguageContextType = {
@@ -40,7 +40,12 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const t = translations[lang];
+  // MM/CN may be missing keys (admin strings are EN/TH only — see i18n.ts), so
+  // they fall back to EN per key. EN/TH are complete by construction.
+  const t = useMemo<typeof translations.en>(
+    () => (lang === "mm" || lang === "cn" ? { ...translations.en, ...translations[lang] } : translations[lang]),
+    [lang],
+  );
 
   return (
     <LanguageContext.Provider value={{ lang, setLang, t }}>

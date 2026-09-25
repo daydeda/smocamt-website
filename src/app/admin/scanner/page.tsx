@@ -32,13 +32,14 @@ import {
 } from "lucide-react";
 import { useLanguage } from "@/lib/LanguageContext";
 import { useSession } from "next-auth/react";
-import { canEditEventDirectly, canGiveIndividualScoreAny, effectiveRoles } from "@/lib/admin-access";
+import { canAwardPrizes, canEditEventDirectly, canGiveIndividualScoreAny, effectiveRoles } from "@/lib/admin-access";
 import { bangkokDateKey } from "@/lib/event-schema";
 import { compressImageFile } from "@/lib/compress-image";
 import { uploadFormViaXHR } from "@/lib/xhr-upload";
 import { usePolling } from "@/lib/usePolling";
 import { QR_SCANNER_CONSTRUCTOR_CONFIG, QR_SCANNER_START_CONFIG } from "@/lib/qr-scanner-config";
 import dynamic from "next/dynamic";
+import ScannerPrizeTab from "./ScannerPrizeTab";
 
 // Pre-test warning QR — client-only (qrcode.react reads the DOM). Canvas, not
 // SVG: Android/Chrome "force dark" auto-inverts inline <svg> DOM content, but
@@ -50,6 +51,10 @@ const QRCodeCanvas = dynamic(() => import("qrcode.react").then((mod) => mod.QRCo
 });
 
 type ScanStatus = "success" | "success_walk_in" | "success_checkout" | "pending_confirmation" | "pending_checkout" | "already_checked_in" | "already_checked_out" | "walk_ins_disabled" | "not_found" | "quota_full" | "found" | "not_registered" | "error";
+
+// "prize" is not a scan mode of THIS camera: it swaps the page body for
+// ScannerPrizeTab, whose PrizeAwardPanel runs its own camera (see selectMode).
+type ScanMode = "checkin" | "score" | "prize";
 
 type ScanResult = {
   status: ScanStatus;
@@ -226,9 +231,13 @@ const SCANNER_SETTLED_STATUSES: ScanStatus[] = ["success", "success_walk_in", "s
 export default function QRScannerPage() {
   const { t, lang } = useLanguage();
   const { data: session } = useSession();
+  const roles = effectiveRoles(session?.user?.role, session?.user?.roles);
   // Club/Major presidents are check-in only — hide the Individual Score mode.
   // The server (scan API + ScannerService) is the real gate; this is UX only.
-  const canScore = canGiveIndividualScoreAny(effectiveRoles(session?.user?.role, session?.user?.roles));
+  const canScore = canGiveIndividualScoreAny(roles);
+  // Prize tab: same predicate as /admin/prizes (includes smo and presidents —
+  // presidents only get prizes for events they own, scoped server-side).
+  const canPrize = canAwardPrizes(roles);
   // "Go live now" moves the event's start time, so it's offered only to roles
   // that may edit an event directly. POST .../go-live re-checks this server-side.
   const canGoLive = canEditEventDirectly(
@@ -263,7 +272,7 @@ export default function QRScannerPage() {
   const [uploadingCheckoutFile, setUploadingCheckoutFile] = useState(false);
   const [checkoutFileError, setCheckoutFileError] = useState<string | null>(null);
   const [isConfirmingCheckout, setIsConfirmingCheckout] = useState(false);
-  const [scanMode, setScanMode] = useState<"checkin" | "score">("checkin");
+  const [scanMode, setScanMode] = useState<ScanMode>("checkin");
   const [scoreInput, setScoreInput] = useState<string>("");
   const [scoreSign, setScoreSign] = useState<1 | -1>(1);
   const [scoreReason, setScoreReason] = useState<string>("");
@@ -285,7 +294,7 @@ export default function QRScannerPage() {
   // The camera decode callback is registered once; mirror sessionId into a ref so
   // it never sends a scan against a stale day after the staff switches sessions.
   const sessionIdRef = useRef<string>("");
-  const scanModeRef = useRef<"checkin" | "score">("checkin");
+  const scanModeRef = useRef<ScanMode>("checkin");
   const isMountedRef = useRef(true);
   const scanSessionIdRef = useRef(0);
   // The decode callback is registered once; mirror showModal into a ref so a
@@ -573,6 +582,39 @@ export default function QRScannerPage() {
         setIsScanning(false);
         scannerRef.current = null;
       }
+    }
+  };
+
+  // Release the camera. Bumping the session id also cancels a start that is
+  // still in flight (startScanner re-checks it after every await).
+  const stopScanner = async () => {
+    scanSessionIdRef.current++;
+    const s = scannerRef.current;
+    scannerRef.current = null;
+    setIsScanning(false);
+    if (!s) return;
+    try {
+      await s.stop();
+      s.clear();
+    } catch {
+      // Already stopped / never started.
+    }
+  };
+
+  // Entering the Prize tab must free the camera: PrizeAwardPanel starts its own
+  // html5-qrcode instance and two can't hold the camera at once (iOS shows a
+  // black viewfinder). Leaving it restarts this page's scanner once #qr-reader
+  // has re-mounted.
+  const selectMode = (mode: ScanMode) => {
+    if (mode === scanMode) return;
+    const leavingPrize = scanMode === "prize";
+    setScanMode(mode);
+    if (mode === "prize") {
+      setShowModal(false);
+      setScanResult(null);
+      void stopScanner();
+    } else if (leavingPrize && events.length > 0) {
+      setTimeout(() => startScanner(), 0);
     }
   };
 
@@ -1106,53 +1148,52 @@ export default function QRScannerPage() {
       <div className="mb-10" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
         <h1 style={{ fontSize: "clamp(32px,5vw,48px)", fontWeight: 900, letterSpacing: "-0.04em", lineHeight: 1.3 }}>{t.qrScanner}</h1>
         
-        {/* Mode Selector — hidden for check-in-only roles (Club/Major presidents) */}
-        {canScore && (
+        {/* Mode Selector — each tab gated by its own predicate; hidden entirely
+            when check-in is the only mode this role has. */}
+        {(canScore || canPrize) && (
         <div style={{
           display: "flex",
+          maxWidth: "100%",
           background: "var(--bg-elevated)",
           padding: 4, 
           borderRadius: 12, 
           border: "1px solid var(--border-subtle)" 
         }}>
-          <button
-            onClick={() => setScanMode("checkin")}
-            style={{
-              padding: "8px 16px",
-              borderRadius: 10,
-              fontSize: 14,
-              fontWeight: 700,
-              background: scanMode === "checkin" ? "var(--bg-surface)" : "transparent",
-              color: scanMode === "checkin" ? "var(--text-primary)" : "var(--text-muted)",
-              boxShadow: scanMode === "checkin" ? "0 4px 12px rgba(0,0,0,0.05)" : "none",
-              border: "none",
-              cursor: "pointer",
-              transition: "all 0.2s"
-            }}
-          >
-            {t.scanModeCheckin}
-          </button>
-          <button
-            onClick={() => setScanMode("score")}
-            style={{
-              padding: "8px 16px",
-              borderRadius: 10,
-              fontSize: 14,
-              fontWeight: 700,
-              background: scanMode === "score" ? "var(--bg-surface)" : "transparent",
-              color: scanMode === "score" ? "var(--text-primary)" : "var(--text-muted)",
-              boxShadow: scanMode === "score" ? "0 4px 12px rgba(0,0,0,0.05)" : "none",
-              border: "none",
-              cursor: "pointer",
-              transition: "all 0.2s"
-            }}
-          >
-            {t.scanModeScore}
-          </button>
+          {([
+            { mode: "checkin", label: t.scanModeCheckin, show: true },
+            { mode: "score", label: t.scanModeScore, show: canScore },
+            { mode: "prize", label: t.scanModePrize, show: canPrize },
+          ] as const).filter((m) => m.show).map((m) => (
+            <button
+              key={m.mode}
+              onClick={() => selectMode(m.mode)}
+              aria-pressed={scanMode === m.mode}
+              style={{
+                flex: "1 1 auto",
+                // Tight enough that three Thai labels stay on one line at 360px.
+                padding: "8px 10px",
+                borderRadius: 10,
+                fontSize: 13,
+                whiteSpace: "nowrap",
+                fontWeight: 700,
+                background: scanMode === m.mode ? "var(--bg-surface)" : "transparent",
+                color: scanMode === m.mode ? "var(--text-primary)" : "var(--text-muted)",
+                boxShadow: scanMode === m.mode ? "0 4px 12px rgba(0,0,0,0.05)" : "none",
+                border: "none",
+                cursor: "pointer",
+                transition: "all 0.2s"
+              }}
+            >
+              {m.label}
+            </button>
+          ))}
         </div>
         )}
       </div>
 
+      {scanMode === "prize" ? (
+        <ScannerPrizeTab eventId={eventId} eventTitle={selectedEvent?.title ?? null} />
+      ) : (
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-6 items-start">
         
         {/* Left: Main Scanner Area */}
@@ -1750,6 +1791,7 @@ export default function QRScannerPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Result Modal */}
       {showModal && cfg && (

@@ -6,7 +6,7 @@ import { compressImageFile } from "@/lib/compress-image";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import type { ShopCustomField, ShopCustomValue, ShopCustomFieldType } from "@/lib/shop-custom-fields";
 import { normalizeTiers, type ShopDeliveryTier } from "@/lib/shop-delivery";
-import { normalizeBundleDeals, type ShopBundleDeal } from "@/lib/shop-promotions";
+import { findBundleScopeConflict, type ShopBundleDeal } from "@/lib/shop-promotions";
 import {
   ShoppingBag, Package, ReceiptText, Settings as SettingsIcon, Plus, Trash2, Pencil,
   Upload, Loader2, X, CheckCircle2, XCircle, Clock, GripVertical, Save, RotateCcw, Download,
@@ -50,6 +50,13 @@ const SLIP_FLAG_COPY: Record<string, { th: string; en: string; severity: "high" 
 };
 
 const baht = (n: number) => `฿${n.toLocaleString()}`;
+// One price, or a "฿min – ฿max" range when options cost different amounts.
+const adminPriceLabel = (p: { price: number; variants: { priceDelta?: number }[] }) => {
+  const prices = p.variants.length ? p.variants.map((v) => p.price + (v.priceDelta ?? 0)) : [p.price];
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  return min === max ? baht(min) : `${baht(min)} – ${baht(max)}`;
+};
 
 // Short owner tag for a product row: "Central (SMO)" when no owner, else the
 // club name(s) / major code(s) that own it. Club names come from ownerOptions
@@ -127,7 +134,12 @@ interface FieldDraft {
 
 // Editor row for one delivery tier (strings keep empty inputs forgiving).
 interface TierDraft { minQty: string; fee: string }
-interface DealDraft { qty: string; price: string }
+// keys = the option keys (VariantDraft.key) a promotion is limited to; null = all options.
+interface DealDraft { qty: string; price: string; keys: string[] | null }
+// Form-only stable key per option row: the id for a saved option, a random key for
+// a new one. Promotions reference options by it, so deleting a row can't shift them.
+type VariantDraft = AdminVariant & { key: string };
+const newVariantKey = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `k${Math.random().toString(36).slice(2)}`);
 
 // Roles a product's visibility can be restricted to (mirrors the events targeting
 // list). Empty selection = all roles. Admins always see everything.
@@ -468,7 +480,7 @@ function ProductsTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontWeight: 700, fontSize: 15, overflowWrap: "anywhere", wordBreak: "break-word" }}>{p.name} {!p.isActive && <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>({th ? "ซ่อน" : "hidden"})</span>}{isAudienceLimited(p) && <span title={th ? "จำกัดผู้เห็น (บทบาท/สาขา/นักศึกษา)" : "Limited audience (roles/majors/students)"} style={{ fontSize: 11, color: "var(--accent-primary)", fontWeight: 700 }}> · {th ? "จำกัดผู้เห็น" : "limited"}</span>}<span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700 }}> · {p.sellerName || ownerLabel(p, ownerOptions, th)}</span></p>
                 <p style={{ fontSize: 13, color: "var(--text-muted)", overflowWrap: "anywhere", wordBreak: "break-word" }}>
-                  {baht(p.price)}{(p.bundleDeals ?? []).map((d) => ` · ${th ? `${d.qty} ชิ้น ${baht(d.price)}` : `${d.qty} for ${baht(d.price)}`}`).join("")} · {p.variants.map((v) => `${v.label}${v.stock != null ? ` ${Math.max(0, v.stock - (v.sold ?? 0))}/${v.stock}` : ""}`).join(", ")}
+                  {adminPriceLabel(p)}{(p.bundleDeals ?? []).map((d) => ` · ${th ? `${d.qty} ชิ้น ${baht(d.price)}` : `${d.qty} for ${baht(d.price)}`}${d.variantIds ? ` (${p.variants.filter((v) => v.id && d.variantIds!.includes(v.id)).map((v) => v.label).join(", ")})` : ""}`).join("")} · {p.variants.map((v) => `${v.label}${v.stock != null ? ` ${Math.max(0, v.stock - (v.sold ?? 0))}/${v.stock}` : ""}`).join(", ")}
                   {p.maxPerOrder != null ? ` · ${th ? "จำกัด" : "max"} ${p.maxPerOrder}/${th ? "คน" : "person"}` : ""}
                 </p>
                 {p.sellerId && (
@@ -540,9 +552,13 @@ function ProductForm({ th, product, ownerOptions, scoped, requiresOwner, onClose
     (product?.deliveryTiers ?? []).map((t) => ({ minQty: String(t.minQty), fee: String(t.fee) }))
   );
   const [bundleDeals, setBundleDeals] = useState<DealDraft[]>(
-    (product?.bundleDeals ?? []).map((d) => ({ qty: String(d.qty), price: String(d.price) }))
+    (product?.bundleDeals ?? []).map((d) => ({ qty: String(d.qty), price: String(d.price), keys: d.variantIds ?? null }))
   );
-  const [variants, setVariants] = useState<AdminVariant[]>(product?.variants?.length ? product.variants : [{ label: "Standard", stock: null, allowCustom: false, priceDelta: 0 }]);
+  const [variants, setVariants] = useState<VariantDraft[]>(
+    product?.variants?.length
+      ? product.variants.map((v) => ({ ...v, key: v.id ?? newVariantKey() }))
+      : [{ key: newVariantKey(), label: "Standard", stock: null, allowCustom: false, priceDelta: 0 }]
+  );
   // Product ownership (admin-side scoping). For a NEW product a scoped president
   // defaults to owning it with every club/major they lead; a full admin starts
   // blank (central).
@@ -572,6 +588,10 @@ function ProductForm({ th, product, ownerOptions, scoped, requiresOwner, onClose
     }
   };
 
+  // A promotion's option keys that still exist (a row may have been deleted).
+  const liveKeys = (keys: string[]) => keys.filter((k) => variants.some((v) => v.key === k));
+  const optionPrice = (v: AdminVariant) => (Math.round(price) || 0) + Math.max(0, Math.round(Number(v.priceDelta) || 0));
+  const labelOf = (k: string) => variants.find((v) => v.key === k)?.label.trim() || "?";
   const setVariant = (i: number, patch: Partial<AdminVariant>) => setVariants((vs) => vs.map((v, idx) => (idx === i ? { ...v, ...patch } : v)));
 
   const save = async () => {
@@ -583,6 +603,12 @@ function ProductForm({ th, product, ownerOptions, scoped, requiresOwner, onClose
     if (customFields.some((f) => f.type === "select" && f.options.filter((o) => o.trim()).length === 0)) { setError(th ? "ช่องแบบตัวเลือกต้องมีอย่างน้อย 1 ตัวเลือก" : "A select field needs at least one option"); return; }
     if (customFields.some((f) => f.type === "select" && f.options.some((o) => o.trim().length > 1000))) { setError(th ? "แต่ละตัวเลือกต้องไม่เกิน 1000 ตัวอักษร" : "Each option must be 1000 characters or fewer"); return; }
     if (bundleDeals.some((d) => d.qty.trim() !== "" && Math.round(Number(d.qty)) < 2)) { setError(th ? "โปรโมชันต้องมีจำนวนอย่างน้อย 2 ชิ้น" : "A promotion needs a quantity of at least 2"); return; }
+    const filledDealRows = bundleDeals.filter((d) => d.qty.trim() !== "" && d.price.trim() !== "");
+    if (filledDealRows.some((d) => d.keys && liveKeys(d.keys).length === 0)) { setError(th ? "เลือกตัวเลือกที่ร่วมโปรโมชันอย่างน้อย 1 อย่าง" : "Pick at least one option for each promotion"); return; }
+    if (findBundleScopeConflict(filledDealRows.map((d) => ({ variantIds: d.keys ? liveKeys(d.keys) : undefined })), variants.map((v) => v.key))) {
+      setError(th ? "โปรโมชันแต่ละอันต้องใช้กับตัวเลือกชุดเดียวกันทั้งหมด หรือแยกกันคนละตัวเลือกเลย (เช่น \"ทุกตัวเลือก\" คู่กับ \"เฉพาะสกรีน\" ไม่ได้)" : "Promotions must cover exactly the same options or completely different ones (e.g. not \"all options\" plus \"only Screen print\").");
+      return;
+    }
     if (requiresOwner && ownerClubIds.length === 0 && ownerMajors.length === 0) { setError(th ? "เลือกชมรมหรือสาขาที่เป็นเจ้าของสินค้านี้" : "Pick the club or major that owns this product"); return; }
     setSaving(true);
     try {
@@ -618,12 +644,14 @@ function ProductForm({ th, product, ownerOptions, scoped, requiresOwner, onClose
             .filter((t) => t.minQty.trim() !== "" && t.fee.trim() !== "")
             .map((t) => ({ minQty: Math.round(Number(t.minQty) || 0), fee: Math.round(Number(t.fee) || 0) }))
         ),
-        // Bundle promotions: drop incomplete rows, then dedupe + sort ascending by qty.
-        bundleDeals: normalizeBundleDeals(
-          bundleDeals
-            .filter((d) => d.qty.trim() !== "" && d.price.trim() !== "")
-            .map((d) => ({ qty: Math.round(Number(d.qty) || 0), price: Math.max(0, Math.round(Number(d.price) || 0)) }))
-        ),
+        // Bundle promotions: drop incomplete rows. Options are sent as indexes into
+        // the variants array below (new options have no id yet); the server maps
+        // them to ids, dedupes and sorts.
+        bundleDeals: filledDealRows.map((d) => ({
+          qty: Math.round(Number(d.qty) || 0),
+          price: Math.max(0, Math.round(Number(d.price) || 0)),
+          ...(d.keys ? { variantIndexes: liveKeys(d.keys).map((k) => variants.findIndex((v) => v.key === k)) } : {}),
+        })),
         sortOrder: product?.sortOrder ?? 0,
         ownerClubIds,
         ownerMajors,
@@ -653,7 +681,7 @@ function ProductForm({ th, product, ownerOptions, scoped, requiresOwner, onClose
   const filledDeals = bundleDeals.filter((d) => d.qty.trim() !== "" && d.price.trim() !== "");
   const promoSummary = filledDeals.length === 0
     ? (th ? "ไม่มี" : "None")
-    : filledDeals.map((d) => (th ? `${d.qty} ชิ้น ${baht(Number(d.price) || 0)}` : `${d.qty} for ${baht(Number(d.price) || 0)}`)).join(" · ");
+    : filledDeals.map((d) => (th ? `${d.qty} ชิ้น ${baht(Number(d.price) || 0)}` : `${d.qty} for ${baht(Number(d.price) || 0)}`) + (d.keys && liveKeys(d.keys).length ? ` (${liveKeys(d.keys).map(labelOf).join(", ")})` : "")).join(" · ");
   const filledFields = customFields.filter((f) => f.label.trim()).length;
   const fieldsSummary = filledFields === 0 ? (th ? "ไม่มี" : "None") : `${filledFields} ${th ? "ช่อง" : filledFields === 1 ? "field" : "fields"}`;
   const audienceLimited = allowedRoles.length > 0 || allowedMajors.length > 0 || !targetThai || !targetInternational;
@@ -763,16 +791,18 @@ function ProductForm({ th, product, ownerOptions, scoped, requiresOwner, onClose
           </Field>
 
           {/* Variants */}
-          <Field label={th ? "ตัวเลือก / ไซส์" : "Options / sizes"} required hint={th ? "สต็อกเว้นว่าง = ไม่จำกัด · +฿ = บวกเพิ่มจากราคา (เช่น ไซส์พิเศษ)" : "Blank stock = unlimited · +฿ = surcharge on top of price (e.g. special size)"}>
+          <Field label={th ? "ตัวเลือก / ไซส์" : "Options / sizes"} required hint={th ? "สต็อกเว้นว่าง = ไม่จำกัด · +฿ = บวกเพิ่มจากราคา (เช่น ไซส์พิเศษ) · ถ้าแต่ละแบบราคาต่างกัน ให้ใส่ราคาของแบบที่ถูกที่สุดเป็นราคาสินค้า แล้วบวกเพิ่มเฉพาะแบบที่แพงกว่า" : "Blank stock = unlimited · +฿ = surcharge on top of price (e.g. special size) · If options cost different amounts, use the cheapest option as the price and add a surcharge to the pricier ones"}>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {variants.map((v, i) => (
-                <div key={i} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <div key={v.key} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                   <GripVertical size={16} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
                   <input value={v.label} onChange={(e) => setVariant(i, { label: e.target.value })} placeholder={v.allowCustom ? (th ? "ชื่อ เช่น อื่นๆ" : "Label e.g. Other") : (th ? "ชื่อ เช่น S, M, L" : "Label e.g. S, M, L")} style={{ ...inputStyle, flex: 2, minWidth: 120 }} />
                   <input type="number" min={0} value={v.stock ?? ""} onChange={(e) => setVariant(i, { stock: e.target.value === "" ? null : Math.max(0, Number(e.target.value)) })} placeholder={th ? "สต็อก" : "Stock"} style={{ ...inputStyle, flex: 1, minWidth: 80 }} />
                   <div style={{ display: "inline-flex", alignItems: "center", gap: 4, flex: 1, minWidth: 110 }} title={th ? "บวกเพิ่มจากราคาสินค้า เช่น ไซส์พิเศษ (0 = ไม่บวกเพิ่ม)" : "Added on top of the base price, e.g. a special size (0 = no surcharge)"}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-muted)" }}>+฿</span>
                     <input type="number" min={0} value={v.priceDelta ?? ""} onChange={(e) => setVariant(i, { priceDelta: e.target.value === "" ? 0 : Math.max(0, Math.round(Number(e.target.value))) })} placeholder={th ? "เพิ่มราคา" : "Surcharge"} style={{ ...inputStyle, width: "100%" }} />
+                    {/* Final price the buyer pays for this option (price + surcharge). */}
+                    <span title={th ? "ราคาที่ผู้ซื้อจ่ายต่อชิ้น" : "What the buyer pays per unit"} style={{ fontSize: 12, fontWeight: 700, color: "var(--accent-primary)", whiteSpace: "nowrap" }}>= {baht(optionPrice(v))}</span>
                   </div>
                   <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }} title={th ? "ให้ผู้ซื้อพิมพ์รายละเอียดเอง" : "Buyer types their own value"}>
                     <input type="checkbox" checked={!!v.allowCustom} onChange={(e) => setVariant(i, { allowCustom: e.target.checked })} />
@@ -781,7 +811,7 @@ function ProductForm({ th, product, ownerOptions, scoped, requiresOwner, onClose
                   {variants.length > 1 && <button onClick={() => setVariants((vs) => vs.filter((_, idx) => idx !== i))} className="btn btn-ghost" style={{ padding: 6, color: "#ef4444" }}><Trash2 size={15} /></button>}
                 </div>
               ))}
-              <button onClick={() => setVariants((vs) => [...vs, { label: "", stock: null, allowCustom: false, priceDelta: 0 }])} className="btn btn-ghost" style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+              <button onClick={() => setVariants((vs) => [...vs, { key: newVariantKey(), label: "", stock: null, allowCustom: false, priceDelta: 0 }])} className="btn btn-ghost" style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13 }}>
                 <Plus size={15} />{th ? "เพิ่มตัวเลือก" : "Add option"}
               </button>
             </div>
@@ -816,10 +846,26 @@ function ProductForm({ th, product, ownerOptions, scoped, requiresOwner, onClose
                   const setDeal = (patch: Partial<DealDraft>) => setBundleDeals((ds) => ds.map((x, idx) => (idx === i ? { ...x, ...patch } : x)));
                   const q = Math.round(Number(d.qty));
                   const dp = Math.round(Number(d.price));
-                  const full = q >= 2 ? q * (Math.round(price) || 0) : 0;
+                  // Mirrors computeBundleDiscount: the deal replaces the price of the
+                  // cheapest option it covers; pricier options pay their difference.
+                  const scoped = d.keys ? variants.filter((v) => d.keys!.includes(v.key)) : variants;
+                  const ref = scoped.length ? Math.min(...scoped.map(optionPrice)) : 0;
+                  const full = q >= 2 ? q * ref : 0;
                   const saving = d.price.trim() !== "" && full > dp ? full - dp : 0;
+                  const toggleKey = (k: string) => {
+                    const cur = d.keys ? liveKeys(d.keys) : [];
+                    const next = cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k];
+                    // Nothing (or everything) picked means "all options".
+                    setDeal({ keys: next.length === 0 || next.length === variants.length ? null : next });
+                  };
+                  const chip = (active: boolean): React.CSSProperties => ({
+                    fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 999, cursor: "pointer",
+                    border: `1px solid ${active ? "var(--accent-primary)" : "var(--border-subtle)"}`,
+                    background: active ? "var(--accent-primary)" : "var(--bg-base)", color: active ? "#fff" : "var(--text-secondary)",
+                  });
                   return (
-                    <div key={i} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 13 }}>
+                    <div key={i} style={{ display: "flex", flexDirection: "column", gap: 8, border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", padding: 10, background: "var(--bg-base)" }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 13 }}>
                       <span style={{ color: "var(--text-muted)" }}>{th ? "ซื้อ" : "Buy"}</span>
                       <input type="number" min={2} value={d.qty} onChange={(e) => setDeal({ qty: e.target.value })} placeholder={th ? "จำนวน" : "qty"} style={{ ...inputStyle, width: 90 }} />
                       <span style={{ color: "var(--text-muted)" }}>{th ? "ชิ้น ในราคา ฿" : "for ฿"}</span>
@@ -829,17 +875,32 @@ function ProductForm({ th, product, ownerOptions, scoped, requiresOwner, onClose
                       )}
                       <button onClick={() => setBundleDeals((ds) => ds.filter((_, idx) => idx !== i))} className="btn btn-ghost" style={{ padding: 6, color: "#ef4444" }}><Trash2 size={15} /></button>
                     </div>
+                    {variants.length > 1 && (
+                      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 12, color: "var(--text-muted)", marginRight: 2 }}>{th ? "ใช้กับ:" : "Applies to:"}</span>
+                        <button type="button" onClick={() => setDeal({ keys: null })} aria-pressed={!d.keys} style={chip(!d.keys)}>{th ? "ทุกตัวเลือก" : "All options"}</button>
+                        {variants.map((v) => {
+                          const on = !!d.keys && d.keys.includes(v.key);
+                          return (
+                            <button key={v.key} type="button" onClick={() => toggleKey(v.key)} aria-pressed={on} style={chip(on)}>
+                              {v.label.trim() || (th ? "(ไม่มีชื่อ)" : "(unnamed)")}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    </div>
                   );
                 })}
               </div>
             )}
-            <button onClick={() => setBundleDeals((ds) => [...ds, { qty: "", price: "" }])} className="btn btn-ghost" style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+            <button onClick={() => setBundleDeals((ds) => [...ds, { qty: "", price: "", keys: null }])} className="btn btn-ghost" style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13 }}>
               <Plus size={15} />{th ? "เพิ่มโปรโมชัน" : "Add promotion"}
             </button>
             <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>
               {th
-                ? "เช่น ซื้อ 3 ชิ้น ฿100 — นับรวมทุกตัวเลือก/ไซส์ของสินค้านี้ในออร์เดอร์เดียว ระบบเลือกราคาที่ถูกที่สุดให้อัตโนมัติ (ชิ้นที่เกินคิดราคาปกติ) ส่วนที่บวกเพิ่มของไซส์พิเศษยังคิดตามปกติ"
-                : "e.g. Buy 3 for ฿100 — counts every option/size of this product in one order, and the buyer automatically gets the cheapest combination (leftover units at the normal price). Option surcharges still apply."}
+                ? "เช่น ซื้อ 3 ชิ้น ฿100 นับรวมทุกตัวเลือกที่ร่วมโปรในออร์เดอร์เดียว และระบบเลือกราคาที่ถูกที่สุดให้อัตโนมัติ (ชิ้นที่เกินคิดราคาปกติ) เลือก \"ใช้กับ\" เพื่อจำกัดโปรไว้เฉพาะบางแบบได้ เช่น เฉพาะสกรีน ไม่รวมปัก ถ้าแบบที่ร่วมโปรราคาไม่เท่ากัน ราคาโปรจะอิงแบบที่ถูกที่สุด และแบบที่แพงกว่าจ่ายส่วนต่างเพิ่ม"
+                : "e.g. Buy 3 for ฿100 counts every eligible option in one order, and the buyer automatically gets the cheapest combination (leftover units at the normal price). Use \"Applies to\" to limit a deal to certain options, e.g. screen print but not embroidery. If eligible options cost different amounts, the deal is priced off the cheapest one and pricier options pay the difference."}
             </p>
           </div>
 

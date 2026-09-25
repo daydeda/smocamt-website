@@ -8,7 +8,8 @@ import { and, eq, notInArray, or, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { productSchema } from "@/lib/shop-product-schema";
-import { normalizeBundleDeals } from "@/lib/shop-promotions";
+import { resolveBundleDeals } from "@/lib/shop-promotions";
+import { randomUUID } from "node:crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +75,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       needsReReview = current.approvalStatus !== "pending";
     }
 
+    // Existing options keep their id; new ones get one assigned here so promotions
+    // scoped to specific options (sent as indexes into data.variants) can be resolved.
+    const variantIds = data.variants.map((v) => v.id ?? randomUUID());
+    const bundle = resolveBundleDeals(data.bundleDeals, variantIds);
+    if (!bundle.ok) {
+      return NextResponse.json({ error: bundle.error }, { status: 400 });
+    }
+
     await db.transaction(async (tx) => {
       const [existing] = await tx.select({ id: shopProducts.id, name: shopProducts.name }).from(shopProducts).where(eq(shopProducts.id, id)).limit(1);
       if (!existing) throw new z.ZodError([{ code: "custom", message: "Product not found", path: ["id"] }]);
@@ -101,7 +110,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           customFields: data.customFields,
           deliveryFee: data.deliveryFee,
           deliveryTiers: data.deliveryTiers,
-          bundleDeals: normalizeBundleDeals(data.bundleDeals),
+          bundleDeals: bundle.deals,
           sortOrder: data.sortOrder,
           ownerClubIds: data.ownerClubIds,
           ownerMajors: data.ownerMajors,
@@ -166,7 +175,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
               );
           }
         } else {
-          await tx.insert(shopVariants).values({ productId: id, label: v.label, stock: v.stock, allowCustom: v.allowCustom, priceDelta: v.priceDelta, sortOrder: i });
+          await tx.insert(shopVariants).values({ id: variantIds[i], productId: id, label: v.label, stock: v.stock, allowCustom: v.allowCustom, priceDelta: v.priceDelta, sortOrder: i });
         }
       }
 

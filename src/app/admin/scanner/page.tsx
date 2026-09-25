@@ -27,11 +27,13 @@ import {
   Minus,
   Camera,
   Paperclip,
-  X
+  X,
+  Loader2
 } from "lucide-react";
 import { useLanguage } from "@/lib/LanguageContext";
 import { useSession } from "next-auth/react";
-import { canGiveIndividualScoreAny, effectiveRoles } from "@/lib/admin-access";
+import { canEditEventDirectly, canGiveIndividualScoreAny, effectiveRoles } from "@/lib/admin-access";
+import { bangkokDateKey } from "@/lib/event-schema";
 import { compressImageFile } from "@/lib/compress-image";
 import { uploadFormViaXHR } from "@/lib/xhr-upload";
 import { usePolling } from "@/lib/usePolling";
@@ -117,6 +119,13 @@ function pickCurrentSessionId(sessions?: EventSession[]): string {
 function isEventLive(e: Pick<Event, "startTime" | "endTime">): boolean {
   const now = Date.now();
   return now >= new Date(e.startTime).getTime() && now <= new Date(e.endTime).getTime();
+}
+
+// Not started yet, but starts later TODAY (Asia/Bangkok) — the only case the
+// go-live route (POST /api/admin/events/[id]/go-live) accepts.
+function startsLaterToday(e: Pick<Event, "startTime">): boolean {
+  const now = new Date();
+  return now.getTime() < new Date(e.startTime).getTime() && bangkokDateKey(e.startTime) === bangkokDateKey(now.toISOString());
 }
 
 // Events sorted for the scanner's picker: whichever event is live right now floats
@@ -220,10 +229,22 @@ export default function QRScannerPage() {
   // Club/Major presidents are check-in only — hide the Individual Score mode.
   // The server (scan API + ScannerService) is the real gate; this is UX only.
   const canScore = canGiveIndividualScoreAny(effectiveRoles(session?.user?.role, session?.user?.roles));
+  // "Go live now" moves the event's start time, so it's offered only to roles
+  // that may edit an event directly. POST .../go-live re-checks this server-side.
+  const canGoLive = canEditEventDirectly(
+    effectiveRoles(session?.user?.role, session?.user?.roles),
+    session?.user?.smoPosition,
+    session?.user?.anusmoPosition,
+  );
   const [events, setEvents] = useState<Event[]>([]);
   const [eventId, setEventId] = useState<string>("");
   // Which session (day) check-ins are recorded against. Defaults to "today".
   const [sessionId, setSessionId] = useState<string>("");
+  // "Go live now" is a two-tap action (ask, then confirm) — no browser confirm().
+  // Both keyed by event id so switching events drops a stale confirm/error.
+  const [goLiveConfirmFor, setGoLiveConfirmFor] = useState<string | null>(null);
+  const [goLiveBusy, setGoLiveBusy] = useState(false);
+  const [goLiveError, setGoLiveError] = useState<{ eventId: string; message: string } | null>(null);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
@@ -993,6 +1014,37 @@ export default function QRScannerPage() {
   // live right now, that's exactly the "forgot to switch the dropdown" mistake —
   // surface it explicitly with a one-tap fix instead of hoping they notice.
   const otherLiveEvent = selectedEventIsLive ? undefined : events.find((e) => e.id !== eventId && isEventLive(e));
+  // Selected event starts later today: say so, and let staff who may edit
+  // events start it early. (A future-day event gets no banner — nothing to act on.)
+  const selectedEventUpcoming = !!selectedEvent && startsLaterToday(selectedEvent);
+  const canGoLiveNow = canGoLive && selectedEventUpcoming;
+  const goLiveConfirming = goLiveConfirmFor === eventId;
+  const goLiveErrorMsg = goLiveError?.eventId === eventId ? goLiveError.message : null;
+  const fmtClock = (iso: string) =>
+    new Date(iso).toLocaleTimeString(lang === "th" ? "th-TH" : "en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" });
+
+  const goLiveNow = async () => {
+    if (!selectedEvent || goLiveBusy) return;
+    const targetId = selectedEvent.id;
+    setGoLiveBusy(true);
+    setGoLiveError(null);
+    try {
+      const res = await fetch(`/api/admin/events/${targetId}/go-live`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      if (!isMountedRef.current) return;
+      setEvents((prev) =>
+        prev.map((e) => (e.id === targetId ? { ...e, startTime: data.startTime, sessions: data.sessions } : e))
+      );
+      // Only re-pick the day if staff are still on this event.
+      if (eventIdRef.current === targetId) setSessionId(pickCurrentSessionId(data.sessions));
+      setGoLiveConfirmFor(null);
+    } catch (err) {
+      if (isMountedRef.current) setGoLiveError({ eventId: targetId, message: err instanceof Error ? err.message : "Failed to start event" });
+    } finally {
+      if (isMountedRef.current) setGoLiveBusy(false);
+    }
+  };
 
   // Show the "ask them to open Songsue" notice only on a fresh confirmed
   // attendance (not a re-scan of an already-checked-in student) for a
@@ -1253,8 +1305,10 @@ export default function QRScannerPage() {
 
           {/* Wrong-event nudge — the selected event isn't live but a different one
               is, right now. This is the exact "forgot to switch the dropdown"
-              mistake staff have hit before, so call it out with a one-tap fix. */}
-          {otherLiveEvent && (
+              mistake staff have hit before, so call it out with a one-tap fix.
+              Also shown for a not-yet-started event on its own, where staff who
+              can edit events get "Go live now" to start it early. */}
+          {(otherLiveEvent || selectedEventUpcoming) && (
             <div
               className="stat-card"
               style={{
@@ -1268,6 +1322,7 @@ export default function QRScannerPage() {
               }}
             >
               <AlertCircle size={20} color="#f59e0b" style={{ flexShrink: 0 }} />
+              {otherLiveEvent && (
               <p style={{ flex: 1, minWidth: 200, fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
                 {lang === "th"
                   ? `กิจกรรมที่เลือกอยู่ไม่ได้กำลังจัดอยู่ตอนนี้ ในขณะที่ "${otherLiveEvent.title}" กำลังดำเนินการอยู่ — ต้องการเปลี่ยนไหม?`
@@ -1277,6 +1332,19 @@ export default function QRScannerPage() {
                   ? `ရွေးထားသော ပွဲသည် အခုလက်ရှိ ကျင်းပနေခြင်း မဟုတ်ပါ၊ "${otherLiveEvent.title}" မှာ ကျင်းပနေဆဲဖြစ်သည် — ပြောင်းလိုပါသလား?`
                   : `The selected event isn't live right now — "${otherLiveEvent.title}" is. Did you mean to pick that one?`}
               </p>
+              )}
+              {!otherLiveEvent && selectedEvent && (
+              <p style={{ flex: 1, minWidth: 200, fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
+                {lang === "th"
+                  ? `กิจกรรมนี้ยังไม่เริ่ม — เริ่มเวลา ${fmtClock(selectedEvent.startTime)} น.`
+                  : lang === "cn"
+                  ? `该活动尚未开始 — 开始时间 ${fmtClock(selectedEvent.startTime)}`
+                  : lang === "mm"
+                  ? `ဤပွဲ မစတင်သေးပါ — ${fmtClock(selectedEvent.startTime)} တွင် စတင်မည်`
+                  : `This event hasn't started yet — it starts at ${fmtClock(selectedEvent.startTime)}.`}
+              </p>
+              )}
+              {otherLiveEvent && (
               <button
                 type="button"
                 onClick={() => {
@@ -1288,6 +1356,52 @@ export default function QRScannerPage() {
               >
                 {lang === "th" ? "เปลี่ยนไปกิจกรรมที่กำลังจัดอยู่" : lang === "cn" ? "切换到进行中的活动" : lang === "mm" ? "ကျင်းပနေသော ပွဲသို့ ပြောင်းရန်" : "Switch to live event"}
               </button>
+              )}
+              {canGoLiveNow && !goLiveConfirming && (
+                <button
+                  type="button"
+                  onClick={() => { setGoLiveConfirmFor(eventId); setGoLiveError(null); }}
+                  className="btn btn-ghost"
+                  style={{ padding: "8px 16px", fontSize: 12, flexShrink: 0, border: "1.5px solid #f59e0b", color: "#b45309" }}
+                >
+                  {lang === "th" ? "เริ่มกิจกรรมนี้ตอนนี้" : lang === "cn" ? "立即开始此活动" : lang === "mm" ? "ဤပွဲကို ယခု စတင်ရန်" : "Go live now"}
+                </button>
+              )}
+              {canGoLiveNow && goLiveConfirming && selectedEvent && (
+                <div style={{ flexBasis: "100%", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <p style={{ flex: 1, minWidth: 200, fontSize: 12, color: "var(--text-secondary)" }}>
+                    {lang === "th"
+                      ? `เปลี่ยนเวลาเริ่มของ "${selectedEvent.title}" จาก ${fmtClock(selectedEvent.startTime)} น. เป็นตอนนี้ใช่ไหม? ระบบจะบันทึกไว้ใน Audit log`
+                      : lang === "cn"
+                      ? `将「${selectedEvent.title}」的开始时间从 ${fmtClock(selectedEvent.startTime)} 改为现在？此操作会记录在审计日志中。`
+                      : lang === "mm"
+                      ? `"${selectedEvent.title}" ၏ စတင်ချိန်ကို ${fmtClock(selectedEvent.startTime)} မှ ယခုသို့ ပြောင်းမည်လား? Audit log တွင် မှတ်တမ်းတင်ပါမည်။`
+                      : `Move "${selectedEvent.title}"'s start time from ${fmtClock(selectedEvent.startTime)} to now? This is recorded in the audit log.`}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setGoLiveConfirmFor(null)}
+                    disabled={goLiveBusy}
+                    className="btn btn-ghost"
+                    style={{ padding: "8px 14px", fontSize: 12, flexShrink: 0 }}
+                  >
+                    {lang === "th" ? "ยกเลิก" : lang === "cn" ? "取消" : lang === "mm" ? "မလုပ်တော့ပါ" : "Cancel"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={goLiveNow}
+                    disabled={goLiveBusy}
+                    className="btn btn-primary"
+                    style={{ padding: "8px 16px", fontSize: 12, flexShrink: 0, background: "#f59e0b", border: "none", display: "flex", alignItems: "center", gap: 6 }}
+                  >
+                    {goLiveBusy && <Loader2 size={14} className="animate-spin" />}
+                    {lang === "th" ? "ยืนยัน เริ่มเลย" : lang === "cn" ? "确认开始" : lang === "mm" ? "အတည်ပြု၍ စတင်ရန်" : "Confirm, go live"}
+                  </button>
+                </div>
+              )}
+              {goLiveErrorMsg && (
+                <p role="alert" style={{ flexBasis: "100%", fontSize: 12, fontWeight: 600, color: "#ef4444" }}>{goLiveErrorMsg}</p>
+              )}
             </div>
           )}
 

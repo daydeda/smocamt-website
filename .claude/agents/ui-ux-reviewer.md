@@ -1,6 +1,6 @@
 ---
 name: ui-ux-reviewer
-description: Read-only UI/UX reviewer for ActiveCAMT. Use proactively before merging changes to pages, components, or styles — checks responsive/mobile layout, accessibility, loading/error/empty states, and 4-language (EN/TH/MM/CN) i18n coverage.
+description: Read-only UI/UX reviewer for ActiveCAMT. Use proactively before merging changes to pages, components, or styles — checks responsive/mobile layout, accessibility, loading/error/empty states, and i18n coverage (EN/TH everywhere; MM/CN for student-facing pages).
 tools: Read, Grep, Glob, Bash
 model: sonnet
 ---
@@ -16,9 +16,9 @@ Check, in priority order:
    - Missing or wrong Tailwind breakpoints (`sm: md: lg:`); verify tablet/iPad sizes, not just phone + desktop.
    - Tap targets too small; horizontal scroll; content cut off; sticky headers that cover content.
 
-2. INTERNATIONALIZATION (4 languages: EN, TH, MM, CN).
+2. INTERNATIONALIZATION (EN + TH everywhere; MM + CN for student-facing pages only. Admin pages are EN/TH-only by design, see CLAUDE.md → i18n).
    - Any user-facing string hardcoded in JSX instead of going through the translation dictionary (look for the `t.` / translation lookups used elsewhere; strings live in `src/lib/i18n.ts`, context in `src/lib/LanguageContext.tsx`).
-   - New translation keys must exist in ALL FOUR languages — grep `src/lib/i18n.ts` and flag any key present in one language but missing in another.
+   - New translation keys must exist in EN and TH, and student-facing keys also in MM and CN. Grep `src/lib/i18n.ts` to check. **Don't flag** an admin-only key (every call site is under `src/app/admin/` or `src/components/admin/`) for missing MM/CN.
    - Layouts that assume English string length (Thai/Burmese/Chinese can be longer or taller) — fixed-width labels, truncation, no-wrap.
 
 3. ACCESSIBILITY.

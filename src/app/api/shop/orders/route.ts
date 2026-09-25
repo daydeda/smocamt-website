@@ -347,12 +347,25 @@ export async function POST(req: Request) {
         });
       }
 
-      // Bundle promotions ("buy N for ฿X") — counted per product across its
-      // variants in THIS order, off the base price (surcharges stay on top).
-      // Server-authoritative; lines keep full unitPrice, the saving is snapshotted.
+      // Bundle promotions ("buy N for ฿X") — counted per product across the
+      // eligible options in THIS order. A deal's reference price is its cheapest
+      // eligible option, so it needs ALL of the product's options, not just the
+      // ordered ones. Server-authoritative; lines keep full unitPrice, and the
+      // saving is snapshotted on the order.
       let discountAmount = 0;
-      for (const pid of productIds) {
-        discountAmount += computeBundleDiscount(productById.get(pid)!, requestedByProduct.get(pid) ?? 0);
+      const productsWithDeals = productIds.filter((pid) => (productById.get(pid)!.bundleDeals ?? []).length > 0);
+      if (productsWithDeals.length) {
+        const allVariants = await tx
+          .select({ id: shopVariants.id, productId: shopVariants.productId, priceDelta: shopVariants.priceDelta })
+          .from(shopVariants)
+          .where(inArray(shopVariants.productId, productsWithDeals));
+        for (const pid of productsWithDeals) {
+          discountAmount += computeBundleDiscount(
+            productById.get(pid)!,
+            allVariants.filter((v) => v.productId === pid),
+            qtyByVariant
+          );
+        }
       }
       total -= discountAmount;
 

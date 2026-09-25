@@ -6,7 +6,8 @@ import { filterProductsByScope, isOwnerAssignmentWithinScope } from "@/lib/shop-
 import { resolveShopAccess } from "@/lib/shop-scope";
 import { FACULTIES } from "@/lib/faculties";
 import { productSchema } from "@/lib/shop-product-schema";
-import { normalizeBundleDeals } from "@/lib/shop-promotions";
+import { resolveBundleDeals } from "@/lib/shop-promotions";
+import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -152,6 +153,14 @@ export async function POST(req: Request) {
       }
     }
 
+    // Assign option ids up front so promotions scoped to specific options (sent as
+    // indexes into data.variants — new options have no id yet) can be resolved.
+    const variantIds = data.variants.map(() => randomUUID());
+    const bundle = resolveBundleDeals(data.bundleDeals, variantIds);
+    if (!bundle.ok) {
+      return NextResponse.json({ error: bundle.error }, { status: 400 });
+    }
+
     const productId = await db.transaction(async (tx) => {
       const [product] = await tx
         .insert(shopProducts)
@@ -172,7 +181,7 @@ export async function POST(req: Request) {
           customFields: data.customFields,
           deliveryFee: data.deliveryFee,
           deliveryTiers: data.deliveryTiers,
-          bundleDeals: normalizeBundleDeals(data.bundleDeals),
+          bundleDeals: bundle.deals,
           sortOrder: data.sortOrder,
           ownerClubIds: data.ownerClubIds,
           ownerMajors: data.ownerMajors,
@@ -183,7 +192,7 @@ export async function POST(req: Request) {
         .returning({ id: shopProducts.id });
 
       await tx.insert(shopVariants).values(
-        data.variants.map((v, i) => ({ productId: product.id, label: v.label, stock: v.stock, allowCustom: v.allowCustom, priceDelta: v.priceDelta, sortOrder: i }))
+        data.variants.map((v, i) => ({ id: variantIds[i], productId: product.id, label: v.label, stock: v.stock, allowCustom: v.allowCustom, priceDelta: v.priceDelta, sortOrder: i }))
       );
 
       const ownerNote = data.ownerClubIds.length || data.ownerMajors.length

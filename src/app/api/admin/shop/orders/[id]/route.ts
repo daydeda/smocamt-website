@@ -420,21 +420,30 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       // config has since drifted, an edit that never touched quantity (e.g.
       // just fixing the note) would silently move a historically-snapshotted
       // shippingFee, the same snapshot-fidelity concern as unitPrice above.
-      // The bundle-promotion discount follows the same rule: it's quantity-based,
-      // so it's recomputed (off the live product's deals) only on a quantity change.
+      // The bundle-promotion discount follows the same rule, but since a deal can
+      // be scoped to specific options, swapping an option (e.g. embroidered →
+      // screen print) can also change it. So it's recomputed (off the live
+      // product's deals) when a quantity OR an option changed, never otherwise.
       let shippingFee = lockedOrder.shippingFee;
       let discountAmount = lockedOrder.discountAmount;
       const anyQuantityChanged = existingItems.some((item) => {
         const edit = editByItemId.get(item.id);
         return edit && edit.quantity !== item.quantity;
       });
+      const anyOptionChanged = existingItems.some((item) => {
+        const edit = editByItemId.get(item.id);
+        return edit && edit.variantId !== item.variantId;
+      });
       const qtyByProduct = new Map<string, number>();
-      if (anyQuantityChanged) {
+      if (anyQuantityChanged || anyOptionChanged) {
+        const qtyByVariant = new Map<string, number>();
         for (const item of existingItems) {
           if (!item.productId) continue;
           const edit = editByItemId.get(item.id);
           const qty = edit ? edit.quantity : item.quantity;
           qtyByProduct.set(item.productId, (qtyByProduct.get(item.productId) ?? 0) + qty);
+          const targetVariantId = edit ? edit.variantId : item.variantId;
+          if (targetVariantId) qtyByVariant.set(targetVariantId, (qtyByVariant.get(targetVariantId) ?? 0) + qty);
         }
         const missingProductIds = [...qtyByProduct.keys()].filter((pid) => !productById.has(pid));
         if (missingProductIds.length) {
@@ -442,11 +451,19 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           for (const p of extraProducts) productById.set(p.id, p);
         }
 
+        // A deal's reference price is its cheapest eligible option, so pass ALL of
+        // each product's options, not just the ones on this order.
+        const productVariants = qtyByProduct.size
+          ? await tx
+              .select({ id: shopVariants.id, productId: shopVariants.productId, priceDelta: shopVariants.priceDelta })
+              .from(shopVariants)
+              .where(inArray(shopVariants.productId, [...qtyByProduct.keys()]))
+          : [];
         discountAmount = 0;
-        for (const [pid, qty] of qtyByProduct) {
+        for (const pid of qtyByProduct.keys()) {
           const product = productById.get(pid);
           if (!product) continue; // product since deleted — no deal config left to apply
-          discountAmount += computeBundleDiscount(product, qty);
+          discountAmount += computeBundleDiscount(product, productVariants.filter((v) => v.productId === pid), qtyByVariant);
         }
       }
       if (anyQuantityChanged && lockedOrder.fulfillment === "delivery") {

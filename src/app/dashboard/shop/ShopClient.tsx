@@ -47,6 +47,14 @@ interface SellerApplication {
 }
 
 const baht = (n: number) => `฿${n.toLocaleString()}`;
+// Price label for a product: one price, or a "฿min – ฿max" range when options
+// cost different amounts (e.g. base ฿0 with every option priced by surcharge).
+const priceLabel = (p: Product) => {
+  const prices = p.variants.length ? p.variants.map((v) => p.price + (v.priceDelta ?? 0)) : [p.price];
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  return min === max ? baht(min) : `${baht(min)} – ${baht(max)}`;
+};
 
 export default function ShopClient() {
   const { lang } = useLanguage();
@@ -309,8 +317,8 @@ function ProductCard({ product, th, onOpen }: { product: Product; th: boolean; o
             </span>
           </>
         )}
-        <p style={{ fontWeight: 800, fontSize: 16, color: "var(--accent-primary)", marginTop: "auto" }}>{baht(product.price)}</p>
-        {(product.bundleDeals?.length ?? 0) > 0 && <BundleDealBadges deals={product.bundleDeals!} th={th} />}
+        <p style={{ fontWeight: 800, fontSize: 16, color: "var(--accent-primary)", marginTop: "auto" }}>{priceLabel(product)}</p>
+        {(product.bundleDeals?.length ?? 0) > 0 && <BundleDealBadges deals={product.bundleDeals!} variants={product.variants} th={th} />}
       </div>
     </div>
   );
@@ -373,7 +381,9 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
   const unitPriceOf = (v: Variant) => product.price + (v.priceDelta ?? 0);
   const subtotal = lines.reduce((sum, l) => sum + unitPriceOf(l.variant) * l.qty, 0);
   // "Buy N for ฿X" saving — mirrors the server's authoritative computeBundleDiscount.
-  const discount = computeBundleDiscount(product, qty);
+  const discount = computeBundleDiscount(product, product.variants, new Map(lines.map((l) => [l.variant.id, l.qty])));
+  // Options can cost different amounts; if so, show each option's full price.
+  const pricesVary = new Set(product.variants.map(unitPriceOf)).size > 1;
   // Per-product delivery fee for the current quantity (tiers can raise it as qty
   // grows). Mirrors the server's authoritative computeProductDeliveryFee. The
   // fee at qty=1 powers the "Delivery (+฿X)" hint on the chooser.
@@ -483,13 +493,13 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
               </div>
 
               <p style={{ fontWeight: 800, fontSize: 22, color: "var(--accent-primary)", marginBottom: 12 }}>
-                {baht(product.price)}
+                {priceLabel(product)}
               </p>
               {(product.bundleDeals?.length ?? 0) > 0 && (
                 <div style={{ marginTop: -4, marginBottom: 12 }}>
-                  <BundleDealBadges deals={product.bundleDeals!} th={th} />
+                  <BundleDealBadges deals={product.bundleDeals!} variants={product.variants} th={th} />
                   <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
-                    {th ? "นับรวมทุกตัวเลือกในออร์เดอร์เดียว ระบบคิดราคาที่ถูกที่สุดให้อัตโนมัติ" : "Counts across all options in one order — the best price is applied automatically."}
+                    {th ? "นับรวมตัวเลือกที่ร่วมโปรในออร์เดอร์เดียว ระบบคิดราคาที่ถูกที่สุดให้อัตโนมัติ" : "Counts every eligible option in one order, and the best price is applied automatically."}
                   </p>
                 </div>
               )}
@@ -530,7 +540,9 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
                           {product.variants.length > 1 && (
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <span style={{ fontWeight: 700, fontSize: 14, overflowWrap: "anywhere", wordBreak: "break-word", textDecoration: out ? "line-through" : undefined }}>{v.label}</span>
-                              {v.priceDelta ? <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", marginLeft: 6 }}>+{baht(v.priceDelta)}</span> : null}
+                              {pricesVary
+                                ? <span style={{ fontSize: 12, fontWeight: 700, color: "var(--accent-primary)", marginLeft: 6 }}>{baht(unitPriceOf(v))}</span>
+                                : null}
                               {v.remaining != null && (
                                 <span style={{ display: "block", fontSize: 12, color: out ? "#ef4444" : "var(--text-muted)" }}>{out ? (th ? "หมด" : "Sold out") : (th ? `เหลือ ${v.remaining}` : `${v.remaining} left`)}</span>
                               )}
@@ -919,14 +931,20 @@ function CustomSelect({ value, options, onChange, placeholder, ariaLabel }: {
 }
 
 // "Buy N for ฿X" promotion chips, shown on the product card and in the buy modal.
-function BundleDealBadges({ deals, th }: { deals: ShopBundleDeal[]; th: boolean }) {
+function BundleDealBadges({ deals, variants, th }: { deals: ShopBundleDeal[]; variants: Variant[]; th: boolean }) {
+  // Name the options a scoped deal covers (e.g. "3 for ฿100 · Screen print").
+  const scopeOf = (d: ShopBundleDeal) =>
+    d.variantIds ? variants.filter((v) => d.variantIds!.includes(v.id)).map((v) => v.label).join(", ") : "";
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
-      {deals.map((d) => (
-        <span key={d.qty} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: "rgba(16,185,129,0.12)", color: "#059669" }}>
-          <Tag size={12} />{th ? `${d.qty} ชิ้น ${baht(d.price)}` : `${d.qty} for ${baht(d.price)}`}
-        </span>
-      ))}
+      {deals.map((d) => {
+        const scope = scopeOf(d);
+        return (
+          <span key={`${d.variantIds?.join(",") ?? "*"}|${d.qty}`} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: "rgba(16,185,129,0.12)", color: "#059669", maxWidth: "100%", overflowWrap: "anywhere" }}>
+            <Tag size={12} style={{ flexShrink: 0 }} />{th ? `${d.qty} ชิ้น ${baht(d.price)}` : `${d.qty} for ${baht(d.price)}`}{scope ? ` · ${scope}` : ""}
+          </span>
+        );
+      })}
     </div>
   );
 }

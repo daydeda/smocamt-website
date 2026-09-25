@@ -4,6 +4,7 @@ import { shopOrderItems, shopOrders, shopProducts, shopSellers, shopSettings, sh
 import { buildViewer, isEligibleFor } from "@/lib/event-access";
 import { validateCustomAnswers } from "@/lib/shop-custom-fields";
 import { computeProductDeliveryFee } from "@/lib/shop-delivery";
+import { computeBundleDiscount } from "@/lib/shop-promotions";
 import { classifySlip, decodeSlipQr, hashSlip, verifySlipMeta } from "@/lib/shop-slip-verify";
 import { downloadSlip } from "@/lib/shop-storage";
 import { getShopOrderAudienceUserIds } from "@/modules/notifications/push-audience";
@@ -85,6 +86,7 @@ export async function GET() {
       createdAt: o.createdAt,
       fulfillment: o.fulfillment,
       shippingFee: o.shippingFee,
+      discountAmount: o.discountAmount,
       recipientName: o.recipientName,
       recipientPhone: o.recipientPhone,
       shippingAddress: o.shippingAddress,
@@ -345,6 +347,15 @@ export async function POST(req: Request) {
         });
       }
 
+      // Bundle promotions ("buy N for ฿X") — counted per product across its
+      // variants in THIS order, off the base price (surcharges stay on top).
+      // Server-authoritative; lines keep full unitPrice, the saving is snapshotted.
+      let discountAmount = 0;
+      for (const pid of productIds) {
+        discountAmount += computeBundleDiscount(productById.get(pid)!, requestedByProduct.get(pid) ?? 0);
+      }
+      total -= discountAmount;
+
       // Fulfillment + flat delivery fee (server-authoritative; never trust the
       // client's fee). Delivery requires the shop to allow it + a complete address.
       let shippingFee = 0;
@@ -389,6 +400,7 @@ export async function POST(req: Request) {
           recipientPhone,
           shippingAddress,
           shippingFee,
+          discountAmount,
         })
         .returning({ id: shopOrders.id });
 

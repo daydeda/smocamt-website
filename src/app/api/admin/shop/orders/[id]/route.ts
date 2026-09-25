@@ -5,6 +5,7 @@ import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { resolveShopAccess, classifyOrdersByScope } from "@/lib/shop-scope";
 import { validateCustomAnswers } from "@/lib/shop-custom-fields";
 import { computeProductDeliveryFee } from "@/lib/shop-delivery";
+import { computeBundleDiscount } from "@/lib/shop-promotions";
 import { PushService } from "@/modules/notifications/push.service";
 import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { after, NextResponse } from "next/server";
@@ -298,7 +299,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       // transaction), so a suspension — or a second concurrent edit — can't
       // race an in-flight correction.
       const [lockedOrder] = await tx
-        .select({ sellerId: shopOrders.sellerId, status: shopOrders.status, fulfillment: shopOrders.fulfillment, shippingFee: shopOrders.shippingFee })
+        .select({ sellerId: shopOrders.sellerId, status: shopOrders.status, fulfillment: shopOrders.fulfillment, shippingFee: shopOrders.shippingFee, discountAmount: shopOrders.discountAmount })
         .from(shopOrders)
         .where(eq(shopOrders.id, id))
         .limit(1)
@@ -419,13 +420,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       // config has since drifted, an edit that never touched quantity (e.g.
       // just fixing the note) would silently move a historically-snapshotted
       // shippingFee, the same snapshot-fidelity concern as unitPrice above.
+      // The bundle-promotion discount follows the same rule: it's quantity-based,
+      // so it's recomputed (off the live product's deals) only on a quantity change.
       let shippingFee = lockedOrder.shippingFee;
+      let discountAmount = lockedOrder.discountAmount;
       const anyQuantityChanged = existingItems.some((item) => {
         const edit = editByItemId.get(item.id);
         return edit && edit.quantity !== item.quantity;
       });
-      if (anyQuantityChanged && lockedOrder.fulfillment === "delivery") {
-        const qtyByProduct = new Map<string, number>();
+      const qtyByProduct = new Map<string, number>();
+      if (anyQuantityChanged) {
         for (const item of existingItems) {
           if (!item.productId) continue;
           const edit = editByItemId.get(item.id);
@@ -438,6 +442,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           for (const p of extraProducts) productById.set(p.id, p);
         }
 
+        discountAmount = 0;
+        for (const [pid, qty] of qtyByProduct) {
+          const product = productById.get(pid);
+          if (!product) continue; // product since deleted — no deal config left to apply
+          discountAmount += computeBundleDiscount(product, qty);
+        }
+      }
+      if (anyQuantityChanged && lockedOrder.fulfillment === "delivery") {
         let fallbackFee = 0;
         if (lockedOrder.sellerId) {
           const [seller] = await tx.select({ deliveryFee: shopSellers.deliveryFee }).from(shopSellers).where(eq(shopSellers.id, lockedOrder.sellerId)).limit(1);
@@ -455,7 +467,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         }
       }
 
-      let newTotal = shippingFee;
+      let newTotal = shippingFee - discountAmount;
       for (const item of existingItems) {
         const edit = editByItemId.get(item.id);
         if (!edit) {
@@ -509,7 +521,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           .where(eq(shopOrderItems.id, item.id));
       }
 
-      const orderPatch: Partial<typeof shopOrders.$inferInsert> = { totalAmount: newTotal, shippingFee, updatedAt: new Date() };
+      const orderPatch: Partial<typeof shopOrders.$inferInsert> = { totalAmount: newTotal, shippingFee, discountAmount, updatedAt: new Date() };
       if (data.note !== undefined) orderPatch.note = data.note.trim() || null;
       if (lockedOrder.fulfillment === "delivery") {
         if (data.recipientName !== undefined) orderPatch.recipientName = data.recipientName.trim();

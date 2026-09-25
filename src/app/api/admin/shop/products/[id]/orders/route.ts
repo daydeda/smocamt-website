@@ -46,6 +46,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         note: shopOrders.note,
         fulfillment: shopOrders.fulfillment,
         shippingFee: shopOrders.shippingFee,
+        discountAmount: shopOrders.discountAmount,
         recipientName: shopOrders.recipientName,
         recipientPhone: shopOrders.recipientPhone,
         shippingAddress: shopOrders.shippingAddress,

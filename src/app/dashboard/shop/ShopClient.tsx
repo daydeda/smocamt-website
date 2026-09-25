@@ -9,9 +9,10 @@ import { compressImageFile } from "@/lib/compress-image";
 import { parseRichText } from "@/lib/rich-text";
 import type { ShopCustomField, ShopCustomValue } from "@/lib/shop-custom-fields";
 import { computeProductDeliveryFee, type ShopDeliveryTier } from "@/lib/shop-delivery";
+import { computeBundleDiscount, type ShopBundleDeal } from "@/lib/shop-promotions";
 import {
   ShoppingBag, X, ChevronLeft, ChevronRight, ChevronDown, Check, Upload, Loader2, CheckCircle2,
-  Clock, XCircle, Package, Minus, Plus, ReceiptText, Store,
+  Clock, XCircle, Package, Minus, Plus, ReceiptText, Store, Tag,
 } from "lucide-react";
 
 interface Variant { id: string; label: string; remaining: number | null; allowCustom?: boolean; priceDelta?: number }
@@ -21,6 +22,7 @@ interface Product {
   opensAt?: string | null; closesAt?: string | null; saleStatus?: "open" | "upcoming" | "closed";
   customFields?: ShopCustomField[];
   deliveryFee?: number | null; deliveryTiers?: ShopDeliveryTier[];
+  bundleDeals?: ShopBundleDeal[];
   seller?: {
     id: string; displayName: string; paymentInfo: string; qrImageUrl: string | null;
     deliveryEnabled: boolean; deliveryFee: number; pickupInfo: string;
@@ -35,7 +37,7 @@ interface OrderItem { productName: string; variantLabel: string; customValues?: 
 interface Order {
   id: string; status: string; totalAmount: number; note: string | null;
   rejectionReason: string | null; hasSlip: boolean; createdAt: string; items: OrderItem[];
-  fulfillment?: string; shippingFee?: number;
+  fulfillment?: string; shippingFee?: number; discountAmount?: number;
   recipientName?: string | null; recipientPhone?: string | null; shippingAddress?: string | null;
   sellerName?: string | null;
 }
@@ -308,6 +310,7 @@ function ProductCard({ product, th, onOpen }: { product: Product; th: boolean; o
           </>
         )}
         <p style={{ fontWeight: 800, fontSize: 16, color: "var(--accent-primary)", marginTop: "auto" }}>{baht(product.price)}</p>
+        {(product.bundleDeals?.length ?? 0) > 0 && <BundleDealBadges deals={product.bundleDeals!} th={th} />}
       </div>
     </div>
   );
@@ -358,13 +361,15 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
   // size). Mirrors the server's authoritative computation in /api/shop/orders.
   const unitPrice = product.price + (variant?.priceDelta ?? 0);
   const subtotal = unitPrice * qty;
+  // "Buy N for ฿X" saving — mirrors the server's authoritative computeBundleDiscount.
+  const discount = computeBundleDiscount(product, qty);
   // Per-product delivery fee for the current quantity (tiers can raise it as qty
   // grows). Mirrors the server's authoritative computeProductDeliveryFee. The
   // fee at qty=1 powers the "Delivery (+฿X)" hint on the chooser.
   const shopWideFee = checkoutSettings.deliveryFee ?? 0;
   const deliveryFee = fulfillment === "delivery" ? computeProductDeliveryFee(product, qty, shopWideFee) : 0;
   const deliveryFeeFrom = computeProductDeliveryFee(product, 1, shopWideFee);
-  const total = subtotal + deliveryFee;
+  const total = subtotal - discount + deliveryFee;
   const deliveryIncomplete = fulfillment === "delivery" && (!recipientName.trim() || !recipientPhone.trim() || !shippingAddress.trim());
   const hasImages = product.imageUrls.length > 0;
   const notOpen = product.saleStatus && product.saleStatus !== "open";
@@ -464,6 +469,14 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
                 {baht(unitPrice)}
                 {variant?.priceDelta ? <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-muted)", marginLeft: 6 }}>{baht(product.price)} +{baht(variant.priceDelta)}</span> : null}
               </p>
+              {(product.bundleDeals?.length ?? 0) > 0 && (
+                <div style={{ marginTop: -4, marginBottom: 12 }}>
+                  <BundleDealBadges deals={product.bundleDeals!} th={th} />
+                  <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+                    {th ? "นับรวมทุกตัวเลือกในออร์เดอร์เดียว ระบบคิดราคาที่ถูกที่สุดให้อัตโนมัติ" : "Counts across all options in one order — the best price is applied automatically."}
+                  </p>
+                </div>
+              )}
 
               {/* Sale schedule notice */}
               {(product.saleStatus === "upcoming" || product.saleStatus === "closed" || product.closesAt) && (
@@ -582,6 +595,11 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
                 {customFields.filter((f) => (customAnswers[f.key] ?? "").trim()).map((f) => (
                   <div key={f.key} style={{ fontSize: 12, color: "var(--text-muted)", overflowWrap: "anywhere", wordBreak: "break-word" }}>{f.label}: <strong style={{ color: "var(--text-secondary)" }}>{customAnswers[f.key]}</strong></div>
                 ))}
+                {discount > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 13, color: "#10b981", fontWeight: 600, marginTop: 4 }}>
+                    <span>{th ? "ส่วนลดโปรโมชัน" : "Promotion discount"}</span><span>−{baht(discount)}</span>
+                  </div>
+                )}
                 {deliveryFee > 0 && (
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>
                     <span>{th ? "ค่าจัดส่ง" : "Shipping"}</span><span>{baht(deliveryFee)}</span>
@@ -716,7 +734,10 @@ function OrderRow({ order, th }: { order: Order; th: boolean }) {
         </span>
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontWeight: 800, fontSize: 16 }}>{baht(order.totalAmount)}</span>
+        <span style={{ fontWeight: 800, fontSize: 16 }}>
+          {baht(order.totalAmount)}
+          {order.discountAmount ? <span style={{ fontSize: 12, fontWeight: 600, color: "#10b981", marginLeft: 6 }}>{th ? `ส่วนลด ${baht(order.discountAmount)}` : `saved ${baht(order.discountAmount)}`}</span> : null}
+        </span>
         {order.hasSlip && (
           <button onClick={() => setShowSlip((s) => !s)} className="btn btn-ghost" style={{ fontSize: 13, padding: "6px 12px" }}>
             {showSlip ? (th ? "ซ่อนสลิป" : "Hide slip") : (th ? "ดูสลิป" : "View slip")}
@@ -872,5 +893,18 @@ function CustomSelect({ value, options, onChange, placeholder, ariaLabel }: {
         document.body
       )}
     </>
+  );
+}
+
+// "Buy N for ฿X" promotion chips, shown on the product card and in the buy modal.
+function BundleDealBadges({ deals, th }: { deals: ShopBundleDeal[]; th: boolean }) {
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+      {deals.map((d) => (
+        <span key={d.qty} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: "rgba(16,185,129,0.12)", color: "#059669" }}>
+          <Tag size={12} />{th ? `${d.qty} ชิ้น ${baht(d.price)}` : `${d.qty} for ${baht(d.price)}`}
+        </span>
+      ))}
+    </div>
   );
 }

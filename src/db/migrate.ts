@@ -1570,6 +1570,16 @@ async function migrate() {
   await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS check_out_evidence_required boolean NOT NULL DEFAULT true`;
   console.log("  ✅ events.check_out_evidence_required");
 
+  // 96. Shop bundle promotions — "buy N for ฿X". shop_products.bundle_deals is
+  // a nullable jsonb [{qty, price}] (NULL = no promotion, so every existing
+  // product is unchanged); shop_orders.discount_amount snapshots the saving at
+  // checkout, defaulting to 0 so every existing order total stays exactly as
+  // charged. See src/lib/shop-promotions.ts. Mirrors
+  // drizzle/0044_sour_king_bedlam.sql. Additive, idempotent, non-destructive.
+  await sql`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS bundle_deals jsonb`;
+  await sql`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS discount_amount integer NOT NULL DEFAULT 0`;
+  console.log("  ✅ shop_products.bundle_deals / shop_orders.discount_amount");
+
   console.log("✅ Migration complete!");
   await sql.end();
   process.exit(0);

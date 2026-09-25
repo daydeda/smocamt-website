@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { customFieldSchema } from "@/lib/shop-custom-fields";
 import { deliveryTierSchema } from "@/lib/shop-delivery";
+import { bundleDealSchema } from "@/lib/shop-promotions";
 
 // Shared validation for creating/updating a shop product. Lives outside the route
 // files because Next.js route modules may only export handlers + config.
@@ -29,6 +30,8 @@ export const productSchema = z.object({
   // deliveryTiers = quantity thresholds ([{minQty,fee}], highest applicable wins).
   deliveryFee: z.number().int().min(0).max(1_000_000).nullable().default(null),
   deliveryTiers: z.array(deliveryTierSchema).max(8).default([]),
+  // Bundle promotions ("buy N for ฿X"). Empty = no promotion. See shop-promotions.ts.
+  bundleDeals: z.array(bundleDealSchema).max(5).default([]),
   sortOrder: z.number().int().default(0),
   // President ownership scope (admin-side only — does NOT gate storefront
   // visibility). Empty both = "central" product (super_admin/admin only). The

@@ -4,9 +4,13 @@ import { shopOrderItems, shopOrders, shopSellers, users } from "@/db/schema";
 import { resolveShopAccess, classifyOrdersByScope } from "@/lib/shop-scope";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { desc, eq, inArray } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
+
+// Second users join for who reviewed the order (the finance summary on each card).
+const reviewers = alias(users, "reviewers");
 
 // GET /api/admin/shop/orders — the admin review queue: every order with buyer
 // info + line items, newest first. The slip is fetched separately (auth-gated)
@@ -36,6 +40,7 @@ export async function GET(req: Request) {
         slipQrPayload: shopOrders.slipQrPayload,
         createdAt: shopOrders.createdAt,
         reviewedAt: shopOrders.reviewedAt,
+        reviewerName: reviewers.name,
         fulfillment: shopOrders.fulfillment,
         shippingFee: shopOrders.shippingFee,
         discountAmount: shopOrders.discountAmount,
@@ -51,6 +56,7 @@ export async function GET(req: Request) {
       .from(shopOrders)
       .leftJoin(users, eq(shopOrders.buyerId, users.id))
       .leftJoin(shopSellers, eq(shopOrders.sellerId, shopSellers.id))
+      .leftJoin(reviewers, eq(shopOrders.reviewedBy, reviewers.id))
       .orderBy(desc(shopOrders.createdAt));
 
     // For a scoped president, keep only orders with a line item they own.
@@ -86,6 +92,7 @@ export async function GET(req: Request) {
         slipQrPayload: o.slipQrPayload,
         createdAt: o.createdAt,
         reviewedAt: o.reviewedAt,
+        reviewerName: o.reviewerName,
         fulfillment: o.fulfillment,
         shippingFee: o.shippingFee,
         discountAmount: o.discountAmount,

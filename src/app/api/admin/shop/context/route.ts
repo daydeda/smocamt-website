@@ -43,6 +43,10 @@ export async function GET() {
       // edit its own payout/fulfilment settings only after seller approval.
       canEditSettings: access.unscoped || Boolean(access.sellerId),
       canReviewMarketplace: access.unscoped,
+      // SMO Finance is unscoped but not an owner: no delete, and it can't
+      // approve a central product (the ones it creates start pending).
+      canDeleteProducts: !access.unscoped || access.fullAdmin,
+      canApproveCentral: access.unscoped && access.fullAdmin,
       requiresOwner: !access.unscoped && (access.scope.clubIds.length > 0 || access.scope.majors.length > 0),
       seller: access.unscoped ? null : access.seller,
     });

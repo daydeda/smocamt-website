@@ -124,7 +124,8 @@ export async function GET() {
 
 // POST /api/admin/shop/products — create a product and its variants. A scoped
 // president must assign an owner within their own club(s)/major; an admin may
-// leave it blank (central product).
+// leave it blank (central product). Only super_admin/admin create an approved
+// product — SMO Finance's and every scoped seller's start pending.
 export async function POST(req: Request) {
   try {
     const session = await auth();
@@ -161,6 +162,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: bundle.error }, { status: 400 });
     }
 
+    const autoApproved = access.unscoped && access.fullAdmin;
+
     const productId = await db.transaction(async (tx) => {
       const [product] = await tx
         .insert(shopProducts)
@@ -186,7 +189,7 @@ export async function POST(req: Request) {
           ownerClubIds: data.ownerClubIds,
           ownerMajors: data.ownerMajors,
           sellerId: access.unscoped ? null : access.sellerId,
-          approvalStatus: access.unscoped ? "approved" : "pending",
+          approvalStatus: autoApproved ? "approved" : "pending",
           approvalReason: null,
         })
         .returning({ id: shopProducts.id });
@@ -200,7 +203,7 @@ export async function POST(req: Request) {
         : " (central)";
       await AuditService.logActionInternal(tx, {
         actorId: access.userId,
-        action: `Created shop product "${data.name}"${ownerNote}${access.unscoped ? " (approved)" : " (pending approval)"}`,
+        action: `Created shop product "${data.name}"${ownerNote}${autoApproved ? " (approved)" : " (pending approval)"}`,
         ipAddress: getClientIp(req),
       });
 

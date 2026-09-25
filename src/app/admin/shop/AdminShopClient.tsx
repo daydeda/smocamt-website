@@ -7,11 +7,12 @@ import { RichTextEditor } from "@/components/RichTextEditor";
 import type { ShopCustomField, ShopCustomValue, ShopCustomFieldType } from "@/lib/shop-custom-fields";
 import { normalizeTiers, type ShopDeliveryTier } from "@/lib/shop-delivery";
 import { findBundleScopeConflict, type ShopBundleDeal } from "@/lib/shop-promotions";
+import { orderBreakdown, type FinanceBucket, type ProductFinanceRow } from "@/lib/shop-finance";
 import {
   ShoppingBag, Package, ReceiptText, Settings as SettingsIcon, Plus, Trash2, Pencil,
   Upload, Loader2, X, CheckCircle2, XCircle, Clock, GripVertical, Save, RotateCcw, Download,
   Check, FileText, Truck, Store, Users, ChevronLeft, ChevronRight, ChevronDown,
-  AlertTriangle, ExternalLink, Tag,
+  AlertTriangle, ExternalLink, Tag, Wallet,
 } from "lucide-react";
 
 // True when a decoded slip QR payload is a link the admin can tap to open the
@@ -117,6 +118,10 @@ interface ShopContext {
   ownerOptions: OwnerOptions;
   canEditSettings: boolean;
   canReviewMarketplace: boolean;
+  // False for SMO Finance: sees every product but may not delete one, and may
+  // not approve a central product (its own new products start pending).
+  canDeleteProducts: boolean;
+  canApproveCentral: boolean;
   requiresOwner: boolean;
   seller: { id: string; displayName: string; status: string } | null;
 }
@@ -161,7 +166,7 @@ function toLocalInput(d?: string | Date | null): string {
 interface AdminOrder {
   id: string; status: string; totalAmount: number; note: string | null; rejectionReason: string | null;
   hasSlip: boolean; slipFlag: string | null; slipQrPayload: string | null;
-  createdAt: string; reviewedAt: string | null;
+  createdAt: string; reviewedAt: string | null; reviewerName?: string | null;
   fulfillment: string; shippingFee: number; discountAmount: number;
   recipientName: string | null; recipientPhone: string | null; shippingAddress: string | null;
   sellerId?: string | null; sellerName?: string | null;
@@ -298,7 +303,7 @@ async function exportProductXlsx(p: AdminProduct) {
 export default function AdminShopClient() {
   const { lang } = useLanguage();
   const th = lang === "th";
-  const [tab, setTab] = useState<"products" | "orders" | "settings" | "sellers">("products");
+  const [tab, setTab] = useState<"products" | "orders" | "finance" | "settings" | "sellers">("products");
   // null until the context loads. A scoped president (club/major) never sees the
   // Settings tab — shop settings (QR, payment info, delivery) stay admin-only.
   const [ctx, setCtx] = useState<ShopContext | null>(null);
@@ -316,6 +321,7 @@ export default function AdminShopClient() {
   const tabs = ([
     ["products", Package, th ? "สินค้า" : "Products"],
     ["orders", ReceiptText, th ? "คำสั่งซื้อ" : "Orders"],
+    ["finance", Wallet, th ? "สรุปการเงิน" : "Finance"],
     ...(canReviewMarketplace ? [["sellers", Users, th ? "ผู้ขาย" : "Sellers"] as const] : []),
     ...(canEditSettings ? [["settings", SettingsIcon, th ? "ตั้งค่า" : "Settings"] as const] : []),
   ] as const);
@@ -341,6 +347,14 @@ export default function AdminShopClient() {
         </div>
       )}
 
+      {ctx && !scoped && !ctx.canDeleteProducts && (
+        <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16, fontWeight: 600 }}>
+          {th
+            ? "ฝ่ายการเงิน: ดูและตรวจสอบได้ทุกอย่าง แต่ลบสินค้าไม่ได้ และสินค้าที่คุณเพิ่มต้องรอ Admin / Super Admin อนุมัติก่อนขึ้นร้าน"
+            : "Finance: you can see and review everything, but can't delete products, and products you add wait for an Admin / Super Admin to approve them."}
+        </p>
+      )}
+
       <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
         {tabs.map(([k, Icon, label]) => (
           <button key={k} onClick={() => setTab(k)} className={activeTab === k ? "btn btn-primary" : "btn btn-ghost"} style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
@@ -351,6 +365,7 @@ export default function AdminShopClient() {
 
       {activeTab === "products" && <ProductsTab th={th} ctx={ctx} />}
       {activeTab === "orders" && <OrdersTab th={th} ctx={ctx} />}
+      {activeTab === "finance" && <FinanceTab th={th} />}
       {activeTab === "sellers" && canReviewMarketplace && <SellersTab th={th} />}
       {activeTab === "settings" && canEditSettings && <SettingsTab th={th} />}
     </div>
@@ -483,7 +498,7 @@ function ProductsTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
                   {adminPriceLabel(p)}{(p.bundleDeals ?? []).map((d) => ` · ${th ? `${d.qty} ชิ้น ${baht(d.price)}` : `${d.qty} for ${baht(d.price)}`}${d.variantIds ? ` (${p.variants.filter((v) => v.id && d.variantIds!.includes(v.id)).map((v) => v.label).join(", ")})` : ""}`).join("")} · {p.variants.map((v) => `${v.label}${v.stock != null ? ` ${Math.max(0, v.stock - (v.sold ?? 0))}/${v.stock}` : ""}`).join(", ")}
                   {p.maxPerOrder != null ? ` · ${th ? "จำกัด" : "max"} ${p.maxPerOrder}/${th ? "คน" : "person"}` : ""}
                 </p>
-                {p.sellerId && (
+                {(p.sellerId || p.approvalStatus !== "approved") && (
                   <p style={{ fontSize: 12, marginTop: 3, color: p.approvalStatus === "approved" ? "#15803d" : p.approvalStatus === "rejected" ? "#dc2626" : "#b45309", fontWeight: 700 }}>
                     {p.approvalStatus === "approved" ? (th ? "อนุมัติแล้ว" : "Approved") : p.approvalStatus === "rejected" ? (th ? "ถูกปฏิเสธ" : "Rejected") : (th ? "รออนุมัติ" : "Pending approval")}
                     {p.approvalReason ? ` · ${p.approvalReason}` : ""}
@@ -495,7 +510,7 @@ function ProductsTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
                   </p>
                 )}
               </div>
-              {ctx?.canReviewMarketplace && p.sellerId && p.approvalStatus !== "approved" && (
+              {ctx?.canReviewMarketplace && p.approvalStatus !== "approved" && (p.sellerId || ctx.canApproveCentral) && (
                 <div style={{ display: "flex", gap: 4 }}>
                   <button onClick={() => reviewProduct(p, "reject")} disabled={reviewingId === p.id} className="btn btn-ghost" style={{ padding: 8, color: "#dc2626" }} title={th ? "ปฏิเสธ" : "Reject"} aria-label={th ? `ปฏิเสธ ${p.name}` : `Reject ${p.name}`}><XCircle size={16} /></button>
                   <button onClick={() => reviewProduct(p, "approve")} disabled={reviewingId === p.id} className="btn btn-ghost" style={{ padding: 8, color: "#15803d" }} title={th ? "อนุมัติ" : "Approve"} aria-label={th ? `อนุมัติ ${p.name}` : `Approve ${p.name}`}>{reviewingId === p.id ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}</button>
@@ -505,7 +520,9 @@ function ProductsTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
                 {exportingId === p.id ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
               </button>
               <button onClick={() => setEditing(p)} className="btn btn-ghost" style={{ padding: 8 }}><Pencil size={16} /></button>
-              <button onClick={() => remove(p)} className="btn btn-ghost" style={{ padding: 8, color: "#ef4444" }}><Trash2 size={16} /></button>
+              {ctx?.canDeleteProducts && (
+                <button onClick={() => remove(p)} className="btn btn-ghost" style={{ padding: 8, color: "#ef4444" }} title={th ? "ลบ" : "Delete"} aria-label={th ? `ลบ ${p.name}` : `Delete ${p.name}`}><Trash2 size={16} /></button>
+              )}
             </div>
           ))}
         </div>
@@ -1336,6 +1353,43 @@ function ReviewModal({ th, order, action, busy, onCancel, onConfirm }: {
   );
 }
 
+// Per-order money breakdown: subtotal → discount → shipping → total charged,
+// who receives the money, and where the payment stands. Subtotal is derived
+// from the charged total (orderBreakdown), so it reconciles even when a scoped
+// viewer only sees their own lines of a mixed order.
+function OrderFinanceSummary({ order, th }: { order: AdminOrder; th: boolean }) {
+  const f = orderBreakdown(order);
+  const status = ORDER_BADGE[order.status] ?? ORDER_BADGE.pending;
+  const when = (d: string) => new Date(d).toLocaleString(th ? "th-TH" : "en-GB", { dateStyle: "medium", timeStyle: "short" });
+  const line = (label: string, value: string, color?: string) => (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 10, color }}>
+      <span>{label}</span><span style={{ whiteSpace: "nowrap" }}>{value}</span>
+    </div>
+  );
+  return (
+    <div style={{ fontSize: 13, background: "var(--bg-base)", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: "10px 12px", marginBottom: 8, display: "grid", gap: 4 }}>
+      <p style={{ fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 2 }}><Wallet size={14} />{th ? "สรุปการเงิน" : "Financial summary"}</p>
+      {line(th ? "ราคาสินค้า" : "Subtotal", baht(f.subtotal), "var(--text-secondary)")}
+      {f.discount > 0 && line(th ? "ส่วนลดโปรโมชัน" : "Promotion discount", `−${baht(f.discount)}`, "#10b981")}
+      {f.shipping > 0 && line(th ? "ค่าจัดส่ง" : "Shipping", baht(f.shipping), "var(--text-secondary)")}
+      <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 800, fontSize: 14, paddingTop: 4, borderTop: "1px solid var(--border-subtle)" }}>
+        <span>{th ? "ยอดชำระ" : "Total charged"}</span><span>{baht(f.total)}</span>
+      </div>
+      {line(th ? "ผู้รับเงิน" : "Paid to", order.sellerName || (th ? "ส่วนกลาง (SMO)" : "Central (SMO)"), "var(--text-muted)")}
+      {line(
+        th ? "สถานะการชำระ" : "Payment",
+        `${th ? status.th : status.en}${!order.hasSlip ? (th ? " · ไม่มีสลิป" : " · no slip") : ""}`,
+        status.color,
+      )}
+      {order.reviewedAt && order.status !== "pending" && (
+        <p style={{ color: "var(--text-muted)", fontSize: 12 }}>
+          {th ? "ตรวจโดย " : "Reviewed by "}{order.reviewerName ?? "—"} · {when(order.reviewedAt)}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function AdminOrderRow({ order, th, busy, scoped, onReview, onEdit }: { order: AdminOrder; th: boolean; busy: boolean; scoped: boolean; onReview: (o: AdminOrder, a: "approve" | "reject" | "revert") => void; onEdit: () => void }) {
   const [showSlip, setShowSlip] = useState(order.status === "pending");
   const badge = ORDER_BADGE[order.status] ?? ORDER_BADGE.pending;
@@ -1369,20 +1423,9 @@ function AdminOrderRow({ order, th, busy, scoped, onReview, onEdit }: { order: A
             )}
           </div>
         ))}
-        {order.discountAmount > 0 && (
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#10b981", marginTop: 6 }}>
-            <span>{th ? "ส่วนลดโปรโมชัน" : "Promotion discount"}</span><span>−{baht(order.discountAmount)}</span>
-          </div>
-        )}
-        {order.shippingFee > 0 && (
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "var(--text-muted)", marginTop: 6 }}>
-            <span>{th ? "ค่าจัดส่ง" : "Shipping"}</span><span>{baht(order.shippingFee)}</span>
-          </div>
-        )}
-        <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 800, marginTop: 6, paddingTop: 6, borderTop: "1px solid var(--border-subtle)" }}>
-          <span>{th ? "รวม" : "Total"}</span><span>{baht(order.totalAmount)}</span>
-        </div>
       </div>
+
+      <OrderFinanceSummary order={order} th={th} />
 
       {/* Fulfillment: pickup chip, or the delivery recipient + address block. */}
       {order.fulfillment === "delivery" ? (
@@ -1688,6 +1731,162 @@ function EditOrderModal({ th, order, productById, productsLoaded, onClose, onSav
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* -------------------------------- Finance -------------------------------- */
+
+interface FinanceData {
+  rows: ProductFinanceRow[];
+  totals: Record<"approved" | "pending" | "rejected", FinanceBucket>;
+  scoped: boolean;
+}
+
+// Money per product, split by order status: approved = confirmed income,
+// pending = awaiting slip review, rejected = not collected. Order-level
+// discount/shipping are split across products server-side (src/lib/shop-finance.ts).
+function FinanceTab({ th }: { th: boolean }) {
+  const [data, setData] = useState<FinanceData | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoadError(false);
+    try {
+      const res = await fetch("/api/admin/shop/finance");
+      if (!res.ok) throw new Error("failed");
+      setData(await res.json());
+    } catch {
+      setLoadError(true);
+    }
+  }, []);
+  useEffect(() => {
+    const t = setTimeout(() => { load(); }, 0);
+    return () => clearTimeout(t);
+  }, [load]);
+
+  const exportXlsx = async () => {
+    if (!data) return;
+    setExporting(true);
+    try {
+      const XLSX = await import("xlsx");
+      const header = [
+        "Product", "Paid to",
+        "Approved orders", "Approved units", "Gross (THB)", "Discount (THB)", "Shipping (THB)", "Net received (THB)",
+        "Pending orders", "Pending amount (THB)", "Rejected orders", "Rejected amount (THB)",
+      ];
+      const toRow = (name: string, payee: string, r: { approved: FinanceBucket; pending: FinanceBucket; rejected: FinanceBucket }) => [
+        name, payee,
+        r.approved.orders, r.approved.units, r.approved.gross, r.approved.discount, r.approved.shipping, r.approved.net,
+        r.pending.orders, r.pending.net, r.rejected.orders, r.rejected.net,
+      ];
+      const aoa: (string | number)[][] = [
+        header,
+        ...data.rows.map((r) => toRow(r.productName, r.sellerName || "Central (SMO)", r)),
+        toRow("TOTAL", "", data.totals),
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws["!cols"] = header.map((h, i) => ({ wch: i === 0 ? 32 : Math.max(12, h.length + 2) }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Finance");
+      const stamp = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
+      XLSX.writeFile(wb, `shop_finance_${stamp}.xlsx`);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  if (loadError) return (
+    <p style={{ color: "#ef4444", fontSize: 14, display: "inline-flex", alignItems: "center", gap: 4 }}>
+      {th ? "โหลดสรุปการเงินไม่สำเร็จ" : "Couldn't load the financial summary."}
+      <button onClick={load} className="btn btn-ghost" style={{ fontSize: 13, padding: "4px 10px" }}>{th ? "ลองอีกครั้ง" : "Retry"}</button>
+    </p>
+  );
+  if (!data) return <Spinner />;
+
+  const { totals } = data;
+  const ordersLabel = (n: number) => `${n} ${th ? "คำสั่งซื้อ" : n === 1 ? "order" : "orders"}`;
+  const tiles = [
+    { label: th ? "รายรับที่ยืนยันแล้ว" : "Confirmed income", value: totals.approved.net, sub: `${ordersLabel(totals.approved.orders)}`, color: "#15803d" },
+    { label: th ? "รอตรวจสลิป" : "Awaiting review", value: totals.pending.net, sub: `${ordersLabel(totals.pending.orders)}`, color: "#b45309" },
+    { label: th ? "ถูกปฏิเสธ" : "Rejected", value: totals.rejected.net, sub: `${ordersLabel(totals.rejected.orders)}`, color: "#dc2626" },
+  ];
+  const cell: React.CSSProperties = { padding: "8px 10px", textAlign: "right", whiteSpace: "nowrap", borderBottom: "1px solid var(--border-subtle)" };
+  const head: React.CSSProperties = { ...cell, fontSize: 12, color: "var(--text-muted)", fontWeight: 700 };
+  const first: React.CSSProperties = { ...cell, textAlign: "left", whiteSpace: "normal", minWidth: 160 };
+
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 16 }}>
+        {tiles.map((t) => (
+          <div key={t.label} style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-lg)", padding: 14 }}>
+            <p style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 700 }}>{t.label}</p>
+            <p style={{ fontSize: 24, fontWeight: 900, color: t.color }}>{baht(t.value)}</p>
+            <p style={{ fontSize: 12, color: "var(--text-muted)" }}>{t.sub}</p>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+        <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+          {th
+            ? "สุทธิ = ราคาสินค้า − ส่วนลด + ค่าจัดส่ง (ส่วนลด/ค่าส่งของคำสั่งซื้อที่มีหลายสินค้าจะแบ่งตามสัดส่วนราคา)"
+            : "Net = subtotal − discount + shipping (an order's discount/shipping is split across its products by price)."}
+          {data.scoped ? (th ? " แสดงเฉพาะสินค้าของคุณ" : " Showing only your products.") : ""}
+        </p>
+        <button onClick={exportXlsx} disabled={exporting || data.rows.length === 0} className="btn btn-ghost" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+          {exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}{th ? "ส่งออก .xlsx" : "Export .xlsx"}
+        </button>
+      </div>
+
+      {data.rows.length === 0 ? (
+        <p style={{ color: "var(--text-muted)" }}>{th ? "ยังไม่มีคำสั่งซื้อ" : "No orders yet."}</p>
+      ) : (
+        <div style={{ overflowX: "auto", background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-lg)" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
+            <thead>
+              <tr>
+                <th style={{ ...head, textAlign: "left" }}>{th ? "สินค้า" : "Product"}</th>
+                <th style={head}>{th ? "ชิ้น (อนุมัติ)" : "Units"}</th>
+                <th style={head}>{th ? "ราคาสินค้า" : "Gross"}</th>
+                <th style={head}>{th ? "ส่วนลด" : "Discount"}</th>
+                <th style={head}>{th ? "ค่าจัดส่ง" : "Shipping"}</th>
+                <th style={head}>{th ? "รับสุทธิ" : "Net received"}</th>
+                <th style={head}>{th ? "รอตรวจ" : "Pending"}</th>
+                <th style={head}>{th ? "ปฏิเสธ" : "Rejected"}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.rows.map((r) => (
+                <tr key={r.key}>
+                  <td style={first}>
+                    <span style={{ fontWeight: 700, overflowWrap: "anywhere" }}>{r.productName}</span>
+                    <span style={{ display: "block", fontSize: 11, color: "var(--text-muted)" }}>{r.sellerName || (th ? "ส่วนกลาง (SMO)" : "Central (SMO)")} · {ordersLabel(r.approved.orders)}</span>
+                  </td>
+                  <td style={cell}>{r.approved.units.toLocaleString()}</td>
+                  <td style={cell}>{baht(r.approved.gross)}</td>
+                  <td style={{ ...cell, color: r.approved.discount ? "#10b981" : undefined }}>{r.approved.discount ? `−${baht(r.approved.discount)}` : "—"}</td>
+                  <td style={cell}>{r.approved.shipping ? baht(r.approved.shipping) : "—"}</td>
+                  <td style={{ ...cell, fontWeight: 800 }}>{baht(r.approved.net)}</td>
+                  <td style={{ ...cell, color: "#b45309" }}>{r.pending.net ? `${baht(r.pending.net)} (${r.pending.orders})` : "—"}</td>
+                  <td style={{ ...cell, color: "#dc2626" }}>{r.rejected.net ? `${baht(r.rejected.net)} (${r.rejected.orders})` : "—"}</td>
+                </tr>
+              ))}
+              <tr style={{ fontWeight: 800 }}>
+                <td style={{ ...first, fontWeight: 800 }}>{th ? "รวม" : "Total"}</td>
+                <td style={cell}>{totals.approved.units.toLocaleString()}</td>
+                <td style={cell}>{baht(totals.approved.gross)}</td>
+                <td style={cell}>{totals.approved.discount ? `−${baht(totals.approved.discount)}` : "—"}</td>
+                <td style={cell}>{totals.approved.shipping ? baht(totals.approved.shipping) : "—"}</td>
+                <td style={cell}>{baht(totals.approved.net)}</td>
+                <td style={{ ...cell, color: "#b45309" }}>{baht(totals.pending.net)}</td>
+                <td style={{ ...cell, color: "#dc2626" }}>{baht(totals.rejected.net)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

@@ -12,6 +12,15 @@ export function isShopAdmin(session: Session | null): boolean {
     isShopFinancePosition(roles, session.user.smoPosition);
 }
 
+// The unscoped shop OWNERS: super_admin/admin only. SMO Finance is an unscoped
+// reviewer (isShopAdmin) but not an owner — it may not delete products, and a
+// central product it creates starts pending until one of these approves it.
+export function isShopFullAdmin(session: Session | null): boolean {
+  if (!session?.user) return false;
+  const roles = effectiveRoles(session.user.role, session.user.roles);
+  return roles.some((r) => r === "super_admin" || r === "admin");
+}
+
 // Roles that get a SCOPED shop: presidents keep their club/major ownership axis,
 // while an approved shop_seller is additionally bound to its direct seller id.
 // resolveShopAccess performs the DB-backed approval check before returning data.

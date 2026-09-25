@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { Session } from "next-auth";
 import {
   isShopAdmin,
+  isShopFullAdmin,
   isShopManager,
   isProductOwnedByScope,
   filterProductsByScope,
@@ -26,6 +27,18 @@ describe("isShopAdmin", () => {
     }
     expect(isShopAdmin(null)).toBe(false);
     expect(isShopAdmin({ user: {} } as Session)).toBe(false);
+  });
+});
+
+describe("isShopFullAdmin", () => {
+  it("is true only for super_admin / admin, not SMO Finance", () => {
+    expect(isShopFullAdmin(sess(["super_admin"]))).toBe(true);
+    expect(isShopFullAdmin(sess(["admin", "smo"]))).toBe(true);
+    expect(isShopFullAdmin({ user: { roles: ["smo"], smoPosition: "finance" } } as unknown as Session)).toBe(false);
+    for (const r of ["club_president", "major_president", "shop_seller", "smo", "student"]) {
+      expect(isShopFullAdmin(sess([r]))).toBe(false);
+    }
+    expect(isShopFullAdmin(null)).toBe(false);
   });
 });
 

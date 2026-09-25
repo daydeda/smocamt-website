@@ -851,6 +851,35 @@ export const shopOrders = pgTable("shop_orders", {
   recipientPhone: text("recipient_phone"),
   shippingAddress: text("shipping_address"),
   shippingFee: integer("shipping_fee").notNull().default(0),
+  // Handover tracking — proof the buyer actually GOT the item, separate from
+  // `status` (which is only the payment review). Meaningful once status is
+  // 'approved'. See docs/features/shop-fulfillment.md and src/lib/shop-fulfillment.ts:
+  //   'awaiting' → 'ready' (pickup only, optional) → 'picked_up'   (Digital ID scan / manual)
+  //   'awaiting' → 'shipped' → 'delivered'                          (mail: carrier + tracking; buyer confirms or auto)
+  //   'awaiting' → 'delivered'                                      (on-campus hand delivery: Digital ID scan / manual)
+  //   'shipped'  → 'issue'                                          (buyer reported a problem)
+  fulfillmentStatus: text("fulfillment_status").notNull().default("awaiting"),
+  readyAt: timestamp("ready_at", { withTimezone: true }),
+  // Mail only. carrier = a SHOP_CARRIERS id; carrierName = free text for "other".
+  // trackingUrl = seller-supplied link (same-day couriers hand out a link, not a number).
+  carrier: text("carrier"),
+  carrierName: text("carrier_name"),
+  trackingNumber: text("tracking_number"),
+  trackingUrl: text("tracking_url"),
+  shippedAt: timestamp("shipped_at", { withTimezone: true }),
+  shippedBy: text("shipped_by").references(() => users.id, { onDelete: "set null" }),
+  // When the buyer had it in hand. fulfilledVia: 'qr' (staff scanned the Digital
+  // ID) | 'manual' (staff tapped handed-over) | 'buyer' (buyer confirmed receipt)
+  // | 'auto' (no confirmation SHOP_AUTO_CONFIRM_DAYS after shipping).
+  // fulfilledBy = the staff member for qr/manual, NULL for buyer/auto.
+  fulfilledAt: timestamp("fulfilled_at", { withTimezone: true }),
+  fulfilledBy: text("fulfilled_by").references(() => users.id, { onDelete: "set null" }),
+  fulfilledVia: text("fulfilled_via"),
+  // Staff note on the handover (e.g. "collected by a friend").
+  fulfillmentNote: text("fulfillment_note"),
+  // Buyer's "report a problem" message. Kept after the problem is resolved.
+  issueNote: text("issue_note"),
+  issueAt: timestamp("issue_at", { withTimezone: true }),
   // Snapshot of the bundle-promotion saving (฿) at checkout. Order lines keep their
   // full unitPrice; totalAmount = SUM(lines) − discountAmount + shippingFee.
   discountAmount: integer("discount_amount").notNull().default(0),
@@ -866,6 +895,7 @@ export const shopOrders = pgTable("shop_orders", {
   index("idx_shop_orders_slip_qr").on(table.slipQrPayload),
   index("idx_shop_orders_seller").on(table.sellerId),
   index("idx_shop_orders_checkout_group").on(table.checkoutGroupId),
+  index("idx_shop_orders_fulfillment").on(table.fulfillmentStatus),
 ]));
 
 export const shopOrderItems = pgTable("shop_order_items", {

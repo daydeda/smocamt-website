@@ -11,9 +11,10 @@ import { parseRichText } from "@/lib/rich-text";
 import type { ShopCustomField, ShopCustomValue } from "@/lib/shop-custom-fields";
 import { computeProductDeliveryFee, type ShopDeliveryTier } from "@/lib/shop-delivery";
 import { computeBundleDiscount, type ShopBundleDeal } from "@/lib/shop-promotions";
+import { carrierLabel, daysUntilAutoConfirm, nextFulfillmentStatus, trackingLinkFor } from "@/lib/shop-fulfillment";
 import {
   ShoppingBag, X, ChevronLeft, ChevronRight, ChevronDown, Check, Upload, Loader2, CheckCircle2,
-  Clock, XCircle, Package, Minus, Plus, ReceiptText, Store, Tag,
+  Clock, XCircle, Package, Minus, Plus, ReceiptText, Store, Tag, Truck, Copy, ExternalLink, AlertTriangle, QrCode,
 } from "lucide-react";
 
 interface Variant { id: string; label: string; remaining: number | null; allowCustom?: boolean; priceDelta?: number }
@@ -41,6 +42,11 @@ interface Order {
   fulfillment?: string; shippingFee?: number; discountAmount?: number;
   recipientName?: string | null; recipientPhone?: string | null; shippingAddress?: string | null;
   sellerName?: string | null;
+  // Handover tracking (src/lib/shop-fulfillment.ts).
+  fulfillmentStatus?: string; pickupInfo?: string | null; readyAt?: string | null;
+  carrier?: string | null; carrierName?: string | null; trackingNumber?: string | null; trackingUrl?: string | null;
+  shippedAt?: string | null; fulfilledAt?: string | null; fulfilledVia?: string | null;
+  issueNote?: string | null; issueAt?: string | null;
 }
 interface SellerApplication {
   id: string; displayName: string; status: "pending" | "approved" | "rejected" | "suspended";
@@ -142,7 +148,7 @@ export default function ShopClient() {
             </div>
           )
         ) : (
-          <OrdersList orders={orders} th={th} />
+          <OrdersList orders={orders} th={th} onChanged={load} />
         )}
       </main>
 
@@ -754,18 +760,18 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
   );
 }
 
-function OrdersList({ orders, th }: { orders: Order[]; th: boolean }) {
+function OrdersList({ orders, th, onChanged }: { orders: Order[]; th: boolean; onChanged: () => void }) {
   if (orders.length === 0) {
     return <EmptyState icon={<ReceiptText size={40} />} text={th ? "ยังไม่มีคำสั่งซื้อ" : "No orders yet."} />;
   }
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      {orders.map((o) => <OrderRow key={o.id} order={o} th={th} />)}
+      {orders.map((o) => <OrderRow key={o.id} order={o} th={th} onChanged={onChanged} />)}
     </div>
   );
 }
 
-function OrderRow({ order, th }: { order: Order; th: boolean }) {
+function OrderRow({ order, th, onChanged }: { order: Order; th: boolean; onChanged: () => void }) {
   const [showSlip, setShowSlip] = useState(false);
   const badge = STATUS_BADGE[order.status] ?? STATUS_BADGE.pending;
   return (
@@ -819,6 +825,163 @@ function OrderRow({ order, th }: { order: Order; th: boolean }) {
       {showSlip && order.hasSlip && (
         <img src={`/api/shop/orders/${order.id}/slip`} alt="slip" style={{ marginTop: 12, width: "100%", maxHeight: 360, objectFit: "contain", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)", background: "var(--bg-base)" }} />
       )}
+      {order.status === "approved" && <OrderHandover order={order} th={th} onChanged={onChanged} />}
+    </div>
+  );
+}
+
+// Where the item is after payment was approved: the pickup instructions and
+// "show your Digital ID", or the carrier + tracking number with "I received it"
+// / "Report a problem". Buttons follow nextFulfillmentStatus — the same rules
+// the server enforces.
+function OrderHandover({ order, th, onChanged }: { order: Order; th: boolean; onChanged: () => void }) {
+  const [reporting, setReporting] = useState(false);
+  const [problem, setProblem] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const s = order.fulfillmentStatus ?? "awaiting";
+  const state = { status: order.status, fulfillment: order.fulfillment ?? "pickup", fulfillmentStatus: s };
+  const when = (d?: string | null) => (d ? new Date(d).toLocaleString(th ? "th-TH" : "en-GB", { dateStyle: "medium", timeStyle: "short" }) : "");
+  const link = trackingLinkFor(order.carrier, order.trackingUrl);
+
+  const act = async (body: { action: "confirm" } | { action: "report"; note: string }) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/shop/orders/${order.id}/fulfillment`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || (th ? "ไม่สำเร็จ ลองอีกครั้ง" : "Something went wrong — try again."));
+      }
+      setReporting(false);
+      setProblem("");
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : (th ? "ไม่สำเร็จ ลองอีกครั้ง" : "Something went wrong — try again."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Copy first so the buyer can paste it on the carrier's page, which we open
+  // as-is (carriers don't document a stable deep link with the number in it).
+  const copyNumber = async () => {
+    if (!order.trackingNumber) return;
+    try {
+      await navigator.clipboard.writeText(order.trackingNumber);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard blocked — the number is still selectable on screen.
+    }
+  };
+
+  const box = (bg: string, border: string): React.CSSProperties => ({ marginTop: 12, fontSize: 13, padding: "10px 12px", borderRadius: 8, background: bg, border: `1px solid ${border}`, display: "flex", flexDirection: "column", gap: 6 });
+
+  if (s === "picked_up" || s === "delivered") {
+    return (
+      <p style={{ ...box("rgba(22,163,74,0.08)", "rgba(22,163,74,0.2)"), color: "#15803d", flexDirection: "row", alignItems: "center", gap: 6, fontWeight: 600 }}>
+        <CheckCircle2 size={15} />
+        {s === "picked_up" ? (th ? "รับสินค้าแล้ว" : "Picked up") : (th ? "ได้รับสินค้าแล้ว" : "Delivered")} · {when(order.fulfilledAt)}
+      </p>
+    );
+  }
+
+  if (order.fulfillment !== "delivery") {
+    const ready = s === "ready";
+    return (
+      <div style={ready ? box("rgba(124,58,237,0.08)", "rgba(124,58,237,0.25)") : box("var(--bg-base)", "var(--border-subtle)")}>
+        <p style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: ready ? "#6d28d9" : "var(--text-secondary)" }}>
+          {ready ? <Package size={15} /> : <Clock size={15} />}
+          {ready ? (th ? "สินค้าพร้อมให้รับแล้ว!" : "Ready for pickup!") : (th ? "ผู้ขายกำลังเตรียมสินค้า" : "The seller is preparing your order")}
+        </p>
+        {order.pickupInfo?.trim() && <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{th ? "รับที่: " : "Pick up at: "}{order.pickupInfo}</p>}
+        <p style={{ color: "var(--text-muted)" }}>
+          {th ? "ตอนไปรับ ให้เปิด Digital ID ให้ผู้ขายสแกน" : "When you collect it, show your Digital ID for the seller to scan."}
+        </p>
+        <Link href="/dashboard/id" className="btn btn-ghost" style={{ fontSize: 13, padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 6, alignSelf: "flex-start" }}>
+          <QrCode size={14} />{th ? "เปิด Digital ID" : "Open Digital ID"}
+        </Link>
+      </div>
+    );
+  }
+
+  if (s === "awaiting") {
+    return (
+      <p style={{ ...box("var(--bg-base)", "var(--border-subtle)"), flexDirection: "row", alignItems: "center", gap: 6, color: "var(--text-secondary)" }}>
+        <Clock size={15} />{th ? "ผู้ขายกำลังเตรียมจัดส่ง" : "The seller is preparing to send it"}
+      </p>
+    );
+  }
+
+  // shipped / issue
+  const issue = s === "issue";
+  return (
+    <div style={issue ? box("rgba(239,68,68,0.06)", "rgba(239,68,68,0.25)") : box("rgba(59,130,246,0.06)", "rgba(59,130,246,0.25)")}>
+      <p style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: issue ? "#dc2626" : "#1d4ed8" }}>
+        <Truck size={15} />{th ? "จัดส่งแล้ว" : "Shipped"} · {carrierLabel(order.carrier, order.carrierName, th)}
+      </p>
+      {order.trackingNumber && (
+        <p style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ color: "var(--text-muted)" }}>{th ? "เลขพัสดุ" : "Tracking no."}</span>
+          <span style={{ fontFamily: "monospace", fontSize: 15, fontWeight: 700, userSelect: "all", overflowWrap: "anywhere" }}>{order.trackingNumber}</span>
+          <button onClick={copyNumber} className="btn btn-ghost" style={{ fontSize: 12, padding: "4px 10px", display: "inline-flex", alignItems: "center", gap: 4 }}>
+            {copied ? <Check size={13} /> : <Copy size={13} />}{copied ? (th ? "คัดลอกแล้ว" : "Copied") : (th ? "คัดลอก" : "Copy")}
+          </button>
+        </p>
+      )}
+      {link && (
+        <a href={link} target="_blank" rel="noopener noreferrer" onClick={() => { void copyNumber(); }} className="btn btn-ghost" style={{ fontSize: 13, padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 6, alignSelf: "flex-start" }}>
+          <ExternalLink size={14} />{th ? "ติดตามพัสดุ" : "Track parcel"}
+        </a>
+      )}
+      {link && order.trackingNumber && !order.trackingUrl && (
+        <p style={{ fontSize: 12, color: "var(--text-muted)" }}>{th ? "ระบบคัดลอกเลขพัสดุให้แล้ว วางในหน้าติดตามของขนส่งได้เลย" : "The tracking number is copied for you — paste it on the carrier's page."}</p>
+      )}
+
+      {issue ? (
+        <p style={{ color: "#dc2626", overflowWrap: "anywhere" }}>
+          <AlertTriangle size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />
+          {th ? "คุณแจ้งปัญหาแล้ว: " : "You reported: "}{order.issueNote} — {th ? "ผู้ขายจะติดต่อกลับ" : "the seller will follow up."}
+        </p>
+      ) : (
+        <p style={{ fontSize: 12, color: "var(--text-muted)" }}>
+          {th
+            ? `ถ้าได้รับแล้วกด "ได้รับสินค้าแล้ว" — ถ้าไม่กด ระบบจะยืนยันให้อัตโนมัติในอีก ${daysUntilAutoConfirm(order.shippedAt ?? null)} วัน`
+            : `Tap "I received it" when it arrives — otherwise it's confirmed automatically in ${daysUntilAutoConfirm(order.shippedAt ?? null)} day(s).`}
+        </p>
+      )}
+
+      {reporting ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <textarea value={problem} onChange={(e) => setProblem(e.target.value)} rows={3} maxLength={500} autoFocus placeholder={th ? "เกิดอะไรขึ้น? เช่น ยังไม่ได้รับของ / ของเสียหาย / ได้ของผิด" : "What happened? e.g. not arrived / damaged / wrong item"} style={{ ...customInputStyle, resize: "vertical" }} />
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => { setReporting(false); setError(null); }} disabled={busy} className="btn btn-ghost" style={{ flex: 1, fontSize: 13 }}>{th ? "ยกเลิก" : "Cancel"}</button>
+            <button onClick={() => act({ action: "report", note: problem.trim() })} disabled={busy || !problem.trim()} className="btn btn-primary" style={{ flex: 2, fontSize: 13, background: "#dc2626", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              {busy && <Loader2 size={14} className="animate-spin" />}{th ? "ส่งเรื่องให้ผู้ขาย" : "Send to seller"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {nextFulfillmentStatus(state, "confirm") && (
+            <button onClick={() => act({ action: "confirm" })} disabled={busy} className="btn btn-primary" style={{ fontSize: 13, padding: "8px 14px", display: "inline-flex", alignItems: "center", gap: 6 }}>
+              {busy ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}{th ? "ได้รับสินค้าแล้ว" : "I received it"}
+            </button>
+          )}
+          {nextFulfillmentStatus(state, "report") && (
+            <button onClick={() => setReporting(true)} disabled={busy} className="btn btn-ghost" style={{ fontSize: 13, padding: "8px 14px", color: "#dc2626" }}>
+              {th ? "แจ้งปัญหา" : "Report a problem"}
+            </button>
+          )}
+        </div>
+      )}
+      {error && <p style={{ fontSize: 12, color: "#dc2626" }}>{error}</p>}
     </div>
   );
 }

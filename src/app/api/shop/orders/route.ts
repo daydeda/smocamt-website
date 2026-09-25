@@ -5,6 +5,7 @@ import { buildViewer, isEligibleFor } from "@/lib/event-access";
 import { validateCustomAnswers } from "@/lib/shop-custom-fields";
 import { computeProductDeliveryFee } from "@/lib/shop-delivery";
 import { computeBundleDiscount } from "@/lib/shop-promotions";
+import { autoConfirmDueShipments } from "@/lib/shop-fulfillment-server";
 import { classifySlip, decodeSlipQr, hashSlip, verifySlipMeta } from "@/lib/shop-slip-verify";
 import { downloadSlip } from "@/lib/shop-storage";
 import { getShopOrderAudienceUserIds } from "@/modules/notifications/push-audience";
@@ -57,6 +58,10 @@ export async function GET() {
     }
     const buyerId = session.user.id!;
 
+    // Complete this buyer's mailed orders past the auto-confirm window before
+    // reading them (no scheduler on the self-hosted deploy — see the helper).
+    await autoConfirmDueShipments(eq(shopOrders.buyerId, buyerId));
+
     const orders = await db
       .select()
       .from(shopOrders)
@@ -67,11 +72,16 @@ export async function GET() {
     const sellerIds = [...new Set(orders.map((o) => o.sellerId).filter((id): id is string => !!id))];
     const sellers = sellerIds.length
       ? await db
-          .select({ id: shopSellers.id, displayName: shopSellers.displayName })
+          .select({ id: shopSellers.id, displayName: shopSellers.displayName, pickupInfo: shopSellers.pickupInfo })
           .from(shopSellers)
           .where(inArray(shopSellers.id, sellerIds))
       : [];
     const sellerNameById = new Map(sellers.map((seller) => [seller.id, seller.displayName]));
+    const sellerPickupById = new Map(sellers.map((seller) => [seller.id, seller.pickupInfo]));
+    // Central (SMO) orders fall back to the shop-wide pickup instructions.
+    const centralPickupInfo = orders.some((o) => !o.sellerId && o.fulfillment === "pickup")
+      ? (await db.select({ pickupInfo: shopSettings.pickupInfo }).from(shopSettings).orderBy(desc(shopSettings.updatedAt)).limit(1))[0]?.pickupInfo ?? ""
+      : "";
     const items = orderIds.length
       ? await db.select().from(shopOrderItems).where(inArray(shopOrderItems.orderId, orderIds))
       : [];
@@ -91,6 +101,20 @@ export async function GET() {
       recipientPhone: o.recipientPhone,
       shippingAddress: o.shippingAddress,
       sellerName: o.sellerId ? sellerNameById.get(o.sellerId) ?? null : "SMO / CAMT",
+      // Handover tracking (see src/lib/shop-fulfillment.ts). shippedBy /
+      // fulfilledBy (staff ids) are deliberately not exposed to the buyer.
+      fulfillmentStatus: o.fulfillmentStatus,
+      pickupInfo: o.fulfillment === "pickup" ? (o.sellerId ? sellerPickupById.get(o.sellerId) ?? "" : centralPickupInfo) : null,
+      readyAt: o.readyAt,
+      carrier: o.carrier,
+      carrierName: o.carrierName,
+      trackingNumber: o.trackingNumber,
+      trackingUrl: o.trackingUrl,
+      shippedAt: o.shippedAt,
+      fulfilledAt: o.fulfilledAt,
+      fulfilledVia: o.fulfilledVia,
+      issueNote: o.issueNote,
+      issueAt: o.issueAt,
       items: items
         .filter((i) => i.orderId === o.id)
         .map((i) => ({

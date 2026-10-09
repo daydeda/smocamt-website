@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { effectiveRoles } from "@/lib/admin-access";
 import { canAccessBattle } from "@/lib/battle-access";
 import { BattleTestingNotice } from "./BattleTestingNotice";
+import { StudentFooter } from "@/components/layout/StudentFooter";
 
 // Staged rollout: P2P Battle is open to SMO/ANUSMO/Admin only while it's being
 // tested on prod. Everyone else gets an "in testing" notice instead of a
@@ -18,8 +19,18 @@ export default async function BattleLayout({
 
   const roles = effectiveRoles(session.user.role, session.user.roles);
   if (!canAccessBattle(roles)) {
-    return <BattleTestingNotice />;
+    return (
+      <>
+        <BattleTestingNotice />
+        <StudentFooter />
+      </>
+    );
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <StudentFooter />
+    </>
+  );
 }

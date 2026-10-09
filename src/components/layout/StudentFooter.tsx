@@ -26,7 +26,16 @@ loading="lazy"
 <div className="footer-text">
 <p className="footer-credit">{t.footerCredit}</p>
 <p className="footer-copyright">
-© {year} SMO CAMT. {t.footerRights}
+<span>© {year} SMO CAMT. {t.footerRights}</span>
+<span className="footer-sep" aria-hidden="true">·</span>
+<span>{t.footerConceptBy} {t.footerConceptName}</span>
+<span className="footer-sep" aria-hidden="true">·</span>
+<span>
+{t.footerDevBy}{" "}
+<a href="https://github.com/daydeda" target="_blank" rel="noopener noreferrer" className="footer-dev-link">
+{t.footerDevName}
+</a>
+</span>
 </p>
 </div>
 </div>
@@ -70,6 +79,18 @@ font-size: 12px;
 font-weight: 700;
 color: var(--text-muted);
 letter-spacing: 0.02em;
+display: flex;
+flex-wrap: wrap;
+column-gap: 8px;
+row-gap: 2px;
+}
+.footer-dev-link {
+color: var(--text-secondary);
+text-decoration: underline;
+text-underline-offset: 2px;
+}
+.footer-dev-link:hover {
+color: var(--accent-primary);
 }
 /* Mobile: stack centered, and leave room at the bottom so the fixed
    battle FAB (bottom-right, see StudentNav) never sits on the text. */
@@ -81,6 +102,14 @@ padding-bottom: calc(88px + var(--safe-bottom, 0px));
 flex-direction: column;
 text-align: center;
 gap: 12px;
+}
+/* On a phone each credit gets its own line, so the dots are dropped. */
+.footer-copyright {
+flex-direction: column;
+align-items: center;
+}
+.footer-sep {
+display: none;
 }
 }
 `}</style>

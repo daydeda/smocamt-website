@@ -202,6 +202,8 @@ describe("isScannerOnlyAllowedPath", () => {
 
   it("confines a seller-only role to /admin/shop", () => {
     expect(isScannerOnlyAllowedPath("/admin/shop", ["student", "shop_seller"])).toBe(true);
+    expect(isScannerOnlyAllowedPath("/admin/shop/abc-123", ["student", "shop_seller"])).toBe(true);
+    expect(isScannerOnlyAllowedPath("/admin/shop/abc/x", ["student", "shop_seller"])).toBe(false);
     expect(isScannerOnlyAllowedPath("/admin/events", ["student", "shop_seller"])).toBe(false);
     expect(isScannerOnlyAllowedPath("/admin/scanner", ["student", "shop_seller"])).toBe(false);
     expect(adminLandingHrefForRoles(["student", "shop_seller"])).toBe("/admin/shop");

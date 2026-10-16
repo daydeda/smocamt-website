@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useLanguage } from "@/lib/LanguageContext";
 import { compressImageFile } from "@/lib/compress-image";
 import { RichTextEditor } from "@/components/RichTextEditor";
@@ -12,7 +13,7 @@ import {
   ShoppingBag, Package, ReceiptText, Settings as SettingsIcon, Plus, Trash2, Pencil,
   Upload, Loader2, X, CheckCircle2, XCircle, Clock, GripVertical, Save, RotateCcw, Download,
   Check, FileText, Truck, Store, Users, ChevronLeft, ChevronRight, ChevronDown,
-  AlertTriangle, ExternalLink, Tag, Wallet, ScanLine,
+  AlertTriangle, ExternalLink, Tag, Wallet, ScanLine, Search,
 } from "lucide-react";
 import { isItemHandedOver, type StaffFulfillmentAction } from "@/lib/shop-fulfillment";
 import ShopHandoverScanner from "./ShopHandoverScanner";
@@ -77,6 +78,13 @@ function ownerLabel(
   return [...clubNames, ...majors].join(", ");
 }
 
+// Local-date "YYYY-MM-DD" for N days ago (for the date-range presets).
+function ymdDaysAgo(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 // Shared page size for the admin Products and Orders lists.
 const PAGE_SIZE = 10;
 
@@ -116,7 +124,7 @@ interface AdminProduct {
 // (all of them for a full admin; just their own for a president). From
 // GET /api/admin/shop/context and the products list response.
 type OwnerOptions = { clubs: { id: string; name: string }[]; majors: string[] };
-interface ShopContext {
+export interface ShopContext {
   scoped: boolean;
   ownerOptions: OwnerOptions;
   canEditSettings: boolean;
@@ -537,6 +545,9 @@ function ProductsTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
                   <button onClick={() => reviewProduct(p, "approve")} disabled={reviewingId === p.id} className="btn btn-ghost" style={{ padding: 8, color: "#15803d" }} title={th ? "อนุมัติ" : "Approve"} aria-label={th ? `อนุมัติ ${p.name}` : `Approve ${p.name}`}>{reviewingId === p.id ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}</button>
                 </div>
               )}
+              <Link href={`/admin/shop/${p.id}`} className="btn btn-ghost" style={{ padding: "8px 10px", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13 }} title={th ? "ดูคำสั่งซื้อ/สลิปของสินค้านี้" : "View this product's orders & slips"}>
+                <ReceiptText size={16} />{th ? "คำสั่งซื้อ" : "Orders"}
+              </Link>
               <button onClick={() => exportProduct(p)} disabled={exportingId === p.id} className="btn btn-ghost" style={{ padding: 8 }} title={th ? "ส่งออกคำสั่งซื้อเป็น .xlsx" : "Export orders to .xlsx"}>
                 {exportingId === p.id ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
               </button>
@@ -1098,7 +1109,9 @@ function ProductForm({ th, product, ownerOptions, scoped, requiresOwner, onClose
 
 /* -------------------------------- Orders -------------------------------- */
 
-function OrdersTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
+// `productId` pins the tab to a single product (the /admin/shop/[productId] page):
+// only orders with a line for that product are shown and the product dropdown is hidden.
+export function OrdersTab({ th, ctx, productId }: { th: boolean; ctx: ShopContext | null; productId?: string }) {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   // Product configs (variants + personalization fields), fetched once so the
   // edit-order modal can offer the right option list / custom fields per item.
@@ -1111,6 +1124,8 @@ function OrdersTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
   const [productFilter, setProductFilter] = useState<string>("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  // Free-text search over buyer name / nickname / student ID / recipient name.
+  const [search, setSearch] = useState("");
   // Free automated pre-filter (see shop-slip-verify.ts) — narrows to orders whose
   // slip is a duplicate or has no readable QR, so the review queue doesn't require
   // opening every slip one by one to find the ones that actually need a look.
@@ -1225,25 +1240,32 @@ function OrdersTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
   // Product dropdown options: every distinct product name across all orders.
   const productNames = Array.from(new Set(orders.flatMap((o) => o.items.map((i) => i.productName)))).sort((a, b) => a.localeCompare(b));
 
-  // Product + date filters apply before status, so the status tab counts reflect
-  // the active product/date filter. Date bounds are inclusive (datetime-local).
-  const fromMs = fromDate ? new Date(fromDate).getTime() : null;
-  const toMs = toDate ? new Date(toDate).getTime() : null;
+  // Product + date + search filters apply before status, so the status tab counts
+  // reflect them. Dates are whole local days, both ends inclusive.
+  const fromMs = fromDate ? new Date(`${fromDate}T00:00:00`).getTime() : null;
+  const toMs = toDate ? new Date(`${toDate}T23:59:59.999`).getTime() : null;
+  const q = search.trim().toLowerCase();
   const preFlag = orders.filter((o) => {
+    if (productId && !o.items.some((i) => i.productId === productId)) return false;
     if (productFilter !== "all" && !o.items.some((i) => i.productName === productFilter)) return false;
     const created = new Date(o.createdAt).getTime();
     if (fromMs != null && created < fromMs) return false;
     if (toMs != null && created > toMs) return false;
+    if (q) {
+      const hay = [o.buyer.name, o.buyer.nickname, o.buyer.studentId, o.recipientName].filter(Boolean).join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
     return true;
   });
   const flaggedCount = preFlag.filter((o) => o.slipFlag).length;
   const base = flaggedOnly ? preFlag.filter((o) => o.slipFlag) : preFlag;
   const shown = base.filter((o) => matchesOrderFilter(o, filter));
-  const hasExtraFilter = productFilter !== "all" || !!fromDate || !!toDate || flaggedOnly;
+  const hasExtraFilter = (!productId && productFilter !== "all") || !!fromDate || !!toDate || !!q || flaggedOnly;
+  const pinnedProduct = productId ? productById.get(productId) : undefined;
 
   // Reset to page 1 whenever the filter combination changes (adjust-state-during-render
   // pattern), then clamp to a derived page so an emptied last page falls back.
-  const curKey = `${filter}|${productFilter}|${fromDate}|${toDate}|${flaggedOnly}`;
+  const curKey = `${filter}|${productFilter}|${fromDate}|${toDate}|${flaggedOnly}|${q}`;
   let effectivePage = page;
   if (curKey !== filterKey) {
     setFilterKey(curKey);
@@ -1264,6 +1286,11 @@ function OrdersTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
 
   return (
     <div>
+      {productId && (
+        <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 14, overflowWrap: "anywhere" }}>
+          {pinnedProduct?.name ?? (productsLoaded ? (th ? "สินค้า" : "Product") : "…")} · {th ? "คำสั่งซื้อ" : "Orders"}
+        </h2>
+      )}
       {/* The pickup-counter action: its own row so it's the obvious big button on a phone. */}
       <button onClick={() => setScanning(true)} className="btn btn-primary" style={{ width: "100%", maxWidth: 360, marginBottom: 14, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
         <ScanLine size={16} />{th ? "ส่งมอบสินค้า (สแกน Digital ID)" : "Hand over items (scan Digital ID)"}
@@ -1302,24 +1329,52 @@ function OrdersTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
       </div>
 
       <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap", alignItems: "flex-end" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "1 1 240px", maxWidth: 360 }}>
+          <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>{th ? "ค้นหา" : "Search"}</label>
+          <div style={{ position: "relative" }}>
+            <Search size={15} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none" }} />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={th ? "ชื่อ หรือ รหัสนักศึกษา" : "Name or student ID"}
+              style={{ ...inputStyle, paddingLeft: 32 }}
+            />
+          </div>
+        </div>
+        {!productId && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>{th ? "สินค้า" : "Product"}</label>
+            <FilterDropdown
+              value={productFilter}
+              onChange={setProductFilter}
+              options={[{ value: "all", label: th ? "ทุกสินค้า" : "All products" }, ...productNames.map((n) => ({ value: n, label: n }))]}
+            />
+          </div>
+        )}
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>{th ? "สินค้า" : "Product"}</label>
-          <FilterDropdown
-            value={productFilter}
-            onChange={setProductFilter}
-            options={[{ value: "all", label: th ? "ทุกสินค้า" : "All products" }, ...productNames.map((n) => ({ value: n, label: n }))]}
-          />
+          <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>{th ? "ตั้งแต่วันที่" : "From date"}</label>
+          <input type="date" value={fromDate} max={toDate || undefined} onChange={(e) => setFromDate(e.target.value)} style={{ ...inputStyle, width: "auto" }} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>{th ? "ตั้งแต่" : "From"}</label>
-          <input type="datetime-local" value={fromDate} max={toDate || undefined} onChange={(e) => setFromDate(e.target.value)} style={{ ...inputStyle, width: "auto" }} />
+          <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>{th ? "ถึงวันที่" : "To date"}</label>
+          <input type="date" value={toDate} min={fromDate || undefined} onChange={(e) => setToDate(e.target.value)} style={{ ...inputStyle, width: "auto" }} />
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>{th ? "ถึง" : "To"}</label>
-          <input type="datetime-local" value={toDate} min={fromDate || undefined} onChange={(e) => setToDate(e.target.value)} style={{ ...inputStyle, width: "auto" }} />
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {([
+            [0, th ? "วันนี้" : "Today"],
+            [6, th ? "7 วัน" : "7 days"],
+            [29, th ? "30 วัน" : "30 days"],
+          ] as const).map(([back, label]) => {
+            const from = ymdDaysAgo(back), to = ymdDaysAgo(0);
+            const active = fromDate === from && toDate === to;
+            return (
+              <button key={back} onClick={() => { setFromDate(from); setToDate(to); }} className={active ? "btn btn-primary" : "btn btn-ghost"} style={{ fontSize: 13, padding: "9px 12px" }}>{label}</button>
+            );
+          })}
         </div>
         {hasExtraFilter && (
-          <button onClick={() => { setProductFilter("all"); setFromDate(""); setToDate(""); }} className="btn btn-ghost" style={{ fontSize: 13, padding: "9px 12px", display: "inline-flex", alignItems: "center", gap: 4 }}><X size={14} />{th ? "ล้างตัวกรอง" : "Clear"}</button>
+          <button onClick={() => { setProductFilter("all"); setFromDate(""); setToDate(""); setSearch(""); setFlaggedOnly(false); }} className="btn btn-ghost" style={{ fontSize: 13, padding: "9px 12px", display: "inline-flex", alignItems: "center", gap: 4 }}><X size={14} />{th ? "ล้างตัวกรอง" : "Clear"}</button>
         )}
       </div>
 
@@ -2256,12 +2311,43 @@ function Pagination({ th, page, total, onPage }: { th: boolean; page: number; to
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 20, flexWrap: "wrap" }}>
       <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{th ? `${from}–${to} จาก ${total}` : `${from}–${to} of ${total}`}</span>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <button onClick={() => onPage(1)} disabled={page <= 1} className="btn btn-ghost" style={btn} aria-label={th ? "หน้าแรก" : "First page"}>«</button>
         <button onClick={() => onPage(page - 1)} disabled={page <= 1} className="btn btn-ghost" style={btn}><ChevronLeft size={15} />{th ? "ก่อนหน้า" : "Prev"}</button>
-        <span style={{ fontSize: 13, fontWeight: 600 }}>{th ? `หน้า ${page}/${pages}` : `Page ${page}/${pages}`}</span>
+        <PageJump key={page} th={th} page={page} pages={pages} onPage={onPage} />
         <button onClick={() => onPage(page + 1)} disabled={page >= pages} className="btn btn-ghost" style={btn}>{th ? "ถัดไป" : "Next"}<ChevronRight size={15} /></button>
+        <button onClick={() => onPage(pages)} disabled={page >= pages} className="btn btn-ghost" style={btn} aria-label={th ? "หน้าสุดท้าย" : "Last page"}>»</button>
       </div>
     </div>
+  );
+}
+
+// "Page [ n ] / N" — type a page number and press Enter (or leave the box) to jump.
+// Remounted via `key={page}` so the draft resets whenever the page changes elsewhere.
+function PageJump({ th, page, pages, onPage }: { th: boolean; page: number; pages: number; onPage: (p: number) => void }) {
+  const [draft, setDraft] = useState(String(page));
+  const commit = () => {
+    const n = parseInt(draft, 10);
+    if (!Number.isFinite(n)) { setDraft(String(page)); return; }
+    const clamped = Math.min(pages, Math.max(1, n));
+    setDraft(String(clamped));
+    if (clamped !== page) onPage(clamped);
+  };
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600 }}>
+      {th ? "หน้า" : "Page"}
+      <input
+        type="text"
+        inputMode="numeric"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value.replace(/\D/g, "").slice(0, 6))}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } }}
+        aria-label={th ? "ไปยังหน้า" : "Go to page"}
+        style={{ ...inputStyle, width: 56, textAlign: "center", padding: "6px 4px" }}
+      />
+      / {pages}
+    </span>
   );
 }
 

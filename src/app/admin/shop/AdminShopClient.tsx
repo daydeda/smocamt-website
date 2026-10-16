@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/LanguageContext";
 import { compressImageFile } from "@/lib/compress-image";
 import { RichTextEditor } from "@/components/RichTextEditor";
@@ -1112,6 +1113,7 @@ function ProductForm({ th, product, ownerOptions, scoped, requiresOwner, onClose
 // `productId` pins the tab to a single product (the /admin/shop/[productId] page):
 // only orders with a line for that product are shown and the product dropdown is hidden.
 export function OrdersTab({ th, ctx, productId }: { th: boolean; ctx: ShopContext | null; productId?: string }) {
+  const router = useRouter();
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   // Product configs (variants + personalization fields), fetched once so the
   // edit-order modal can offer the right option list / custom fields per item.
@@ -1239,6 +1241,14 @@ export function OrdersTab({ th, ctx, productId }: { th: boolean; ctx: ShopContex
 
   // Product dropdown options: every distinct product name across all orders.
   const productNames = Array.from(new Set(orders.flatMap((o) => o.items.map((i) => i.productName)))).sort((a, b) => a.localeCompare(b));
+  // Picking a product opens its own page (/admin/shop/[productId]). A product that
+  // was deleted has no id left, so it falls back to the in-page name filter.
+  const productIdByName = new Map<string, string>();
+  for (const o of orders) for (const i of o.items) if (i.productId) productIdByName.set(i.productName, i.productId);
+  const pickProduct = (name: string) => {
+    const id = name === "all" ? undefined : productIdByName.get(name);
+    if (id) router.push(`/admin/shop/${id}`); else setProductFilter(name);
+  };
 
   // Product + date + search filters apply before status, so the status tab counts
   // reflect them. Dates are whole local days, both ends inclusive.
@@ -1347,7 +1357,7 @@ export function OrdersTab({ th, ctx, productId }: { th: boolean; ctx: ShopContex
             <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>{th ? "สินค้า" : "Product"}</label>
             <FilterDropdown
               value={productFilter}
-              onChange={setProductFilter}
+              onChange={pickProduct}
               options={[{ value: "all", label: th ? "ทุกสินค้า" : "All products" }, ...productNames.map((n) => ({ value: n, label: n }))]}
             />
           </div>

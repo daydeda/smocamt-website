@@ -84,7 +84,7 @@ export const PRIZE_MANAGE_ROLES = ["super_admin", "admin", "registration", "orga
 export const SCANNER_ONLY_PAGES = ["/admin", SCANNER_HREF, "/admin/events", "/admin/clubs", "/admin/majors", "/admin/appeals", "/admin/shop", PRIZES_HREF] as const;
 
 // May a scanner-only role reach this exact (page) path? Used by the proxy to
-// confine these roles. Exact-match only — no /admin/events/* sub-pages exist.
+// confine these roles. Exact-match, except the single-segment /admin/shop/<productId> page.
 export function isScannerOnlyAllowedPath(
   pathname: string,
   roles?: string[],
@@ -96,8 +96,10 @@ export function isScannerOnlyAllowedPath(
   const sellerOnly = !!roles?.includes("shop_seller") &&
     !roles.some((r) => ["smo", "club_president", "major_president"].includes(r)) &&
     !hasStaffPosition;
-  if (sellerOnly) return pathname === "/admin" || pathname === "/admin/shop";
-  return (SCANNER_ONLY_PAGES as readonly string[]).includes(pathname);
+  // /admin/shop/<productId> is the per-product order view (same page-level gate as /admin/shop).
+  const isShopProductPage = /^\/admin\/shop\/[^/]+$/.test(pathname);
+  if (sellerOnly) return pathname === "/admin" || pathname === "/admin/shop" || isShopProductPage;
+  return (SCANNER_ONLY_PAGES as readonly string[]).includes(pathname) || isShopProductPage;
 }
 
 export function canEnterAdmin(role?: string | null): boolean {

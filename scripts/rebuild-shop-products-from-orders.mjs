@@ -13,9 +13,12 @@
 //      variant_label seen on those lines (exact text, never parsed: an
 //      "Other (specify)" line is stored as "<label>: <typed>", and splitting on
 //      ": " once corrupted real data, see backfill-shop-order-item-names.mjs).
-//   3. Set product_id on those order lines. NOTHING else on the line or the order
-//      is touched: variant_id stays NULL, handover stamps, slips, statuses,
-//      prices and totals are unchanged.
+//   3. Set product_id on those order lines, and variant_id where it is empty and
+//      the line's stored label matches exactly ONE option of that product (so
+//      "sold" counts per option and the order-edit screen work again). A line
+//      with no unique match keeps variant_id NULL and is listed in the report.
+//      NOTHING else on the line or the order is touched: handover stamps,
+//      slips, statuses, prices and totals are unchanged.
 //
 // Defaults for fields the order data can't supply (see DEFAULTS below):
 //   - price: lowest of each option's most recent unit_price; the difference
@@ -61,7 +64,7 @@ async function buildPlan(tx) {
   // Every orphaned line, with its order's seller and date (newest first so the
   // first price seen per option is its most recent one).
   const lines = await tx`
-    SELECT oi.id, oi.order_id, oi.product_name, oi.variant_label, oi.unit_price,
+    SELECT oi.id, oi.order_id, oi.product_name, oi.variant_label, oi.variant_id, oi.unit_price,
            oi.quantity, oi.custom_values, o.seller_id, o.created_at
     FROM shop_order_items oi
     JOIN shop_orders o ON o.id = oi.order_id
@@ -69,6 +72,7 @@ async function buildPlan(tx) {
     ORDER BY o.created_at DESC, oi.id
   `;
   const existing = await tx`SELECT id, name FROM shop_products`;
+  const existingVariants = await tx`SELECT id, product_id, label FROM shop_variants`;
   const existingByName = new Map();
   for (const p of existing) existingByName.set(p.name, [...(existingByName.get(p.name) ?? []), p.id]);
 
@@ -97,6 +101,14 @@ async function buildPlan(tx) {
     const matches = existingByName.get(g.name) ?? [];
     if (matches.length > 1) { skipped.push({ ...g, reason: `${matches.length} existing products share this exact name` }); continue; }
     const options = [...g.options.values()].sort((a, b) => a.label.localeCompare(b.label));
+    // For a reused product, which line labels match exactly one existing option?
+    // (A product we create gets one option per label, so every line matches.)
+    let unmatchedVariantLines = [];
+    if (matches[0]) {
+      const byLabel = new Map();
+      for (const v of existingVariants.filter((v) => v.product_id === matches[0])) byLabel.set(v.label, (byLabel.get(v.label) ?? 0) + 1);
+      unmatchedVariantLines = g.lines.filter((l) => !l.variant_id && byLabel.get(l.variant_label) !== 1);
+    }
     const price = Math.min(...options.map((o) => o.latestUnitPrice));
     const sellers = [...g.sellers];
     plan.push({
@@ -104,6 +116,7 @@ async function buildPlan(tx) {
       reuseId: matches[0] ?? null,
       price,
       options: options.map((o) => ({ ...o, priceDelta: o.latestUnitPrice - price })),
+      unmatchedVariantLines,
       sellerId: sellers.length === 1 ? sellers[0] : null,
       mixedSellers: sellers.length > 1,
     });
@@ -131,6 +144,9 @@ function printPlan({ lines, plan, skipped, nearDuplicates }) {
       for (const o of p.options) console.log(`    - "${o.label}"  ${o.priceDelta ? `+฿${o.priceDelta}  ` : ""}(${o.lines} line(s), qty ${o.qty})`);
       if (p.fieldLabels.length) console.log(`  custom text fields: ${p.fieldLabels.map((l) => `"${l}"`).join(", ")}`);
     }
+    const needOption = p.lines.filter((l) => !l.variant_id).length;
+    const variantLinks = needOption - p.unmatchedVariantLines.length;
+    console.log(`  option links (variant_id): ${variantLinks} of ${needOption} line(s) without one${p.unmatchedVariantLines.length ? `, ${p.unmatchedVariantLines.length} with no unique matching option` : ""}`);
     console.log("");
   }
   if (nearDuplicates.length) {
@@ -139,7 +155,7 @@ function printPlan({ lines, plan, skipped, nearDuplicates }) {
     console.log("");
   }
   const toLink = plan.reduce((n, p) => n + p.lines.length, 0);
-  console.log(`Summary: create ${plan.filter((p) => !p.reuseId).length} product(s), reuse ${plan.filter((p) => p.reuseId).length}, link ${toLink} line(s), skip ${skipped.reduce((n, s) => n + s.lines.length, 0)} line(s).`);
+  console.log(`Summary: create ${plan.filter((p) => !p.reuseId).length} product(s), reuse ${plan.filter((p) => p.reuseId).length}, link ${toLink} line(s) to a product (${plan.reduce((n, p) => n + p.lines.filter((l) => !l.variant_id).length - p.unmatchedVariantLines.length, 0)} also to an option), skip ${skipped.reduce((n, s) => n + s.lines.length, 0)} line(s).`);
 }
 
 function printUnmatched(skipped) {
@@ -160,7 +176,7 @@ try {
     const report = await sql.begin(async (tx) => {
       const result = await buildPlan(tx);
       printPlan(result);
-      let created = 0, linked = 0;
+      let created = 0, linked = 0, linkedVariants = 0;
       for (const [i, p] of result.plan.entries()) {
         let productId = p.reuseId;
         if (!productId) {
@@ -194,13 +210,37 @@ try {
         const updated = await tx`
           UPDATE shop_order_items SET product_id = ${productId}
           WHERE product_id IS NULL AND product_name = ${p.name}
+          RETURNING id
         `;
-        linked += updated.count;
+        linked += updated.length;
+        // Option link: only for the lines just linked, only where variant_id is
+        // still empty, only on an exact, unambiguous label match.
+        const variantLinked = updated.length === 0 ? [] : await tx`
+          UPDATE shop_order_items oi SET variant_id = v.id
+          FROM shop_variants v
+          WHERE oi.id IN ${tx(updated.map((r) => r.id))}
+            AND oi.variant_id IS NULL
+            AND v.product_id = ${productId}
+            AND v.label = oi.variant_label
+            AND (SELECT count(*) FROM shop_variants v2 WHERE v2.product_id = ${productId} AND v2.label = oi.variant_label) = 1
+          RETURNING oi.id
+        `;
+        linkedVariants += variantLinked.length;
       }
       const [left] = await tx`SELECT count(*)::int AS n FROM shop_order_items WHERE product_id IS NULL`;
-      return { created, linked, stillUnlinked: left.n, skipped: result.skipped };
+      const noOption = result.plan.length === 0 ? [] : await tx`
+        SELECT oi.id, oi.order_id, oi.product_name, oi.variant_label, oi.quantity
+        FROM shop_order_items oi
+        WHERE oi.product_id IS NOT NULL AND oi.variant_id IS NULL
+          AND oi.product_name IN ${tx(result.plan.map((p) => p.name))}
+      `;
+      return { created, linked, linkedVariants, noOption, stillUnlinked: left.n, skipped: result.skipped };
     });
-    console.log(`\nDone. Products created: ${report.created}. Order lines linked: ${report.linked}. Lines still without a product: ${report.stillUnlinked}.`);
+    console.log(`\nDone. Products created: ${report.created}. Order lines linked to a product: ${report.linked}. Linked to an option: ${report.linkedVariants}. Lines still without a product: ${report.stillUnlinked}.`);
+    if (report.noOption.length) {
+      console.log("Lines linked to a product but with no unique matching option (variant_id left empty):");
+      for (const l of report.noOption) console.log(`    line ${l.id}  order ${l.order_id}  "${l.product_name}" / "${l.variant_label}" x${l.quantity}`);
+    }
     printUnmatched(report.skipped);
   }
 } finally {

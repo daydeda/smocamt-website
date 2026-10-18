@@ -37,7 +37,8 @@ const isHttpUrl = (s: string | null): s is string => {
 // see shop-slip-verify.ts). Free/offline signals only, not bank confirmation:
 // duplicate_* means this slip (or its QR) was already seen on another order;
 // no_qr means the automated pass couldn't find a QR to cross-check at all;
-// amount_mismatch means the OCR'd amount on the slip isn't the order total.
+// amount_mismatch means the OCR'd amount on the slip isn't the order total;
+// amount_unreadable means no amount could be read, so it wasn't compared.
 const SLIP_FLAG_COPY: Record<string, { th: string; en: string; severity: "high" | "low" }> = {
   duplicate_image: {
     th: "สลิปรูปนี้ถูกใช้กับคำสั่งซื้ออื่นมาแล้ว — ตรวจสอบก่อนอนุมัติ",
@@ -58,6 +59,11 @@ const SLIP_FLAG_COPY: Record<string, { th: string; en: string; severity: "high" 
     th: "จำนวนเงินที่อ่านได้จากสลิปไม่ตรงกับยอดที่ต้องชำระ — ตรวจสอบยอดในสลิปก่อนอนุมัติ (อ่านอัตโนมัติ อาจคลาดเคลื่อน)",
     en: "The amount read from this slip doesn't match the order total — check the slip yourself before approving (read automatically, may be wrong).",
     severity: "high",
+  },
+  amount_unreadable: {
+    th: "ระบบอ่านจำนวนเงินจากสลิปนี้ไม่ได้ จึงเทียบกับยอดที่ต้องชำระไม่ได้ — กรุณาตรวจยอดในสลิปด้วยตนเอง",
+    en: "The amount couldn't be read from this slip, so it wasn't checked against the order total — please check it yourself.",
+    severity: "low",
   },
 };
 

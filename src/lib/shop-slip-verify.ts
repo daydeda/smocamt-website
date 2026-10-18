@@ -14,7 +14,7 @@
 
 import { createHash, createHmac, timingSafeEqual } from "crypto";
 
-export type SlipFlag = "duplicate_image" | "duplicate_qr" | "no_qr" | "amount_mismatch" | null;
+export type SlipFlag = "duplicate_image" | "duplicate_qr" | "no_qr" | "amount_mismatch" | "amount_unreadable" | null;
 
 // sha256 of the slip's own bytes (the hardened/re-encoded webp, not the original
 // upload) — cheap, exact-match duplicate detection.

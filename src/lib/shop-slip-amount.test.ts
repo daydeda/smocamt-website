@@ -26,8 +26,8 @@ describe("classifySlipAmount", () => {
     expect(classifySlipAmount(1250, [125001])).toBe("amount_mismatch");
   });
 
-  it("raises nothing when the amount couldn't be read or OCR didn't run", () => {
-    expect(classifySlipAmount(1250, null)).toBeNull();
-    expect(classifySlipAmount(1250, [])).toBeNull();
+  it("flags unreadable when OCR failed or found no amount, so silence always means a match", () => {
+    expect(classifySlipAmount(1250, null)).toBe("amount_unreadable");
+    expect(classifySlipAmount(1250, [])).toBe("amount_unreadable");
   });
 });

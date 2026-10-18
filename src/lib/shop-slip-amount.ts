@@ -1,8 +1,9 @@
 // Free, offline check that the amount printed on a payment slip matches what the
 // order charged. Like the rest of shop-slip-verify.ts this is a PRE-FILTER, not
 // proof: OCR on a phone screenshot is fallible, so a mismatch only raises a flag
-// for the admin review queue — it never rejects an order, and a slip we can't
-// read at all raises nothing (we can't tell a bad photo from an OCR miss).
+// for the admin review queue — it never rejects an order. A slip we can't read
+// at all raises a softer "check it yourself" flag, so that no label at all means
+// the amount genuinely matched rather than "OCR silently did nothing".
 //
 // We read every money-formatted number off the slip ("1,250.00") rather than
 // trying to find the one next to "จำนวนเงิน": Tesseract's English model garbles
@@ -14,7 +15,7 @@ import os from "os";
 import path from "path";
 import type { Worker } from "tesseract.js";
 
-export type SlipAmountFlag = "amount_mismatch" | null;
+export type SlipAmountFlag = "amount_mismatch" | "amount_unreadable" | null;
 
 // Money as banks print it: optional thousands commas, always exactly 2 decimals.
 const MONEY_RE = /(?<![\d,.])(\d{1,3}(?:,\d{3})+|\d+)\.(\d{2})(?!\d)/g;
@@ -30,11 +31,11 @@ export function parseSlipAmounts(text: string): number[] {
   return out;
 }
 
-// amounts: null = the check didn't run (OCR unavailable/timed out/old token) —
-// no signal. [] = OCR ran but found no amount — also no signal (see header).
-// Only "read some amounts and none is the total" is a mismatch.
+// amounts: null = OCR failed or timed out, [] = OCR ran but found no amount.
+// Both mean we couldn't check, so both are "unreadable"; "read some amounts and
+// none is the total" is the mismatch.
 export function classifySlipAmount(totalBaht: number, amounts: number[] | null): SlipAmountFlag {
-  if (!amounts || amounts.length === 0) return null;
+  if (!amounts || amounts.length === 0) return "amount_unreadable";
   return amounts.includes(Math.round(totalBaht * 100)) ? null : "amount_mismatch";
 }
 
@@ -79,12 +80,21 @@ export async function readSlipAmounts(buffer: Buffer): Promise<number[] | null> 
     const prepared = await sharp(buffer).rotate().grayscale().normalize().png().toBuffer();
     const worker = await getWorker();
     const { data } = await worker.recognize(prepared);
-    return parseSlipAmounts(data.text);
+    const amounts = parseSlipAmounts(data.text);
+    // Visible in the container logs so "why no warning?" can be answered.
+    console.log(`Slip amount OCR: read ${amounts.length} amount(s) in ${Date.now() - startedAt}ms`);
+    return amounts;
   };
+  const startedAt = Date.now();
   const job = queue.then(() =>
     Promise.race([
       run(),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), OCR_TIMEOUT_MS)),
+      new Promise<null>((resolve) =>
+        setTimeout(() => {
+          console.error(`Slip amount OCR timed out after ${OCR_TIMEOUT_MS}ms`);
+          resolve(null);
+        }, OCR_TIMEOUT_MS),
+      ),
     ]),
   );
   queue = job.catch(() => null);

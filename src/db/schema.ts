@@ -835,7 +835,7 @@ export const shopOrders = pgTable("shop_orders", {
   // re-scanning the photo.
   slipQrPayload: text("slip_qr_payload"),
   // NULL when the slip passed the automated pre-filter above, otherwise one of:
-  // 'duplicate_image' | 'duplicate_qr' | 'no_qr' | 'amount_mismatch'. Set at order-creation time by
+  // 'duplicate_image' | 'duplicate_qr' | 'no_qr' | 'amount_mismatch' | 'amount_unreadable'. Set at order-creation time by
   // comparing this order's slip against previously submitted slips.
   slipFlag: text("slip_flag"),
   // Snapshot of the order total (฿) at purchase time.

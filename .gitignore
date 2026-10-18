@@ -56,3 +56,8 @@ CLAUDE.md
 
 # House logo source masters (multi-MB originals; app uses optimized versions)
 public/house_logo/original/
+
+# Local-only: reference docs, generated diagrams, Codex config
+docs/workload/
+docs/manual-tor-srs/
+.archify/

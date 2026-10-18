@@ -1,6 +1,6 @@
 {
   "name": "activecamt",
-  "version": "2.21.3",
+  "version": "2.22.0",
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
@@ -24,6 +24,7 @@
     "@electric-sql/pglite": "^0.5.3",
     "@hookform/resolvers": "^5.2.2",
     "@supabase/supabase-js": "^2.107.0",
+    "@tesseract.js-data/eng": "^1.0.0",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
     "class-variance-authority": "^0.7.1",
@@ -45,6 +46,7 @@
     "react-hook-form": "^7.74.0",
     "sharp": "^0.35.4",
     "tailwind-merge": "^3.5.0",
+    "tesseract.js": "^7.0.0",
     "web-push": "^3.6.7",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^4.4.1"

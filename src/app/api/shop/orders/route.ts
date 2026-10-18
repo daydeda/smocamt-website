@@ -6,6 +6,7 @@ import { validateCustomAnswers } from "@/lib/shop-custom-fields";
 import { computeProductDeliveryFee } from "@/lib/shop-delivery";
 import { computeBundleDiscount } from "@/lib/shop-promotions";
 import { autoConfirmDueShipments } from "@/lib/shop-fulfillment-server";
+import { classifySlipAmount, readSlipAmounts } from "@/lib/shop-slip-amount";
 import { classifySlip, decodeSlipQr, hashSlip, verifySlipMeta } from "@/lib/shop-slip-verify";
 import { downloadSlip } from "@/lib/shop-storage";
 import { getShopOrderAudienceUserIds } from "@/modules/notifications/push-audience";
@@ -159,9 +160,10 @@ export async function POST(req: Request) {
     // client or an expired token degrades gracefully rather than failing the order.
     let slipHash: string;
     let slipQrPayload: string | null;
+    let slipAmounts: number[] | null;
     const carried = verifySlipMeta(data.slipPath, data.slipMeta);
     if (carried) {
-      ({ slipHash, slipQrPayload } = carried);
+      ({ slipHash, slipQrPayload, slipAmounts } = carried);
     } else {
       let slipBuffer: Buffer;
       try {
@@ -172,6 +174,7 @@ export async function POST(req: Request) {
       }
       slipHash = hashSlip(slipBuffer);
       slipQrPayload = await decodeSlipQr(slipBuffer);
+      slipAmounts = await readSlipAmounts(slipBuffer);
     }
     const priorSlips = await db
       .select({ slipHash: shopOrders.slipHash, slipQrPayload: shopOrders.slipQrPayload })
@@ -430,7 +433,9 @@ export async function POST(req: Request) {
           slipPath: data.slipPath,
           slipHash,
           slipQrPayload,
-          slipFlag,
+          // Duplicate/no-QR outrank an amount mismatch: reuse is the stronger signal.
+          // The total is only final here, after discount + shipping.
+          slipFlag: slipFlag ?? classifySlipAmount(total, slipAmounts),
           totalAmount: total,
           note: data.note ?? null,
           fulfillment: data.fulfillment,

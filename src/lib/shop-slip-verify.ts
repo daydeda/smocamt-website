@@ -14,7 +14,7 @@
 
 import { createHash, createHmac, timingSafeEqual } from "crypto";
 
-export type SlipFlag = "duplicate_image" | "duplicate_qr" | "no_qr" | null;
+export type SlipFlag = "duplicate_image" | "duplicate_qr" | "no_qr" | "amount_mismatch" | null;
 
 // sha256 of the slip's own bytes (the hardened/re-encoded webp, not the original
 // upload) — cheap, exact-match duplicate detection.
@@ -84,16 +84,27 @@ function slipMetaSecret(): string {
   return s;
 }
 
-// Signs {slipPath, slipHash, slipQrPayload} so it can travel with the client
+// Signs {slipPath, slipHash, slipQrPayload, slipAmounts} so it can travel with the client
 // and be trusted later without re-downloading the image. Bound to the exact
 // slipPath (can't be replayed onto a different object key). "|" is a safe
 // field separator here since it never appears in a slipPath (uuid + extension),
 // a hex hash, or base64url — unlike "." (already used inside slipPath's
 // extension), which is why this doesn't reuse qr-token.ts's dot-joined format.
-export function signSlipMeta(slipPath: string, slipHash: string, slipQrPayload: string | null): string {
+//
+// slipAmounts are the OCR'd amounts (satang) printed on the slip (see
+// shop-slip-amount.ts). The order total isn't known at upload time, so the
+// amounts travel here and are compared when the order is created. null = OCR
+// didn't run/failed (encoded "-"); [] = ran, found none (encoded "").
+export function signSlipMeta(
+  slipPath: string,
+  slipHash: string,
+  slipQrPayload: string | null,
+  slipAmounts: number[] | null = null
+): string {
   const exp = Date.now() + SLIP_META_TTL_MS;
   const qrPart = slipQrPayload ? Buffer.from(slipQrPayload, "utf8").toString("base64url") : "-";
-  const payload = `${slipPath}|${slipHash}|${qrPart}|${exp}`;
+  const amountPart = slipAmounts ? `a${slipAmounts.join(",")}` : "-";
+  const payload = `${slipPath}|${slipHash}|${qrPart}|${amountPart}|${exp}`;
   const sig = createHmac("sha256", slipMetaSecret()).update(payload).digest("hex").slice(0, SLIP_META_SIG_LEN);
   return `${payload}|${sig}`;
 }
@@ -105,16 +116,16 @@ export function signSlipMeta(slipPath: string, slipHash: string, slipQrPayload: 
 export function verifySlipMeta(
   slipPath: string,
   token: string | null | undefined
-): { slipHash: string; slipQrPayload: string | null } | null {
+): { slipHash: string; slipQrPayload: string | null; slipAmounts: number[] | null } | null {
   if (!token) return null;
   const parts = token.split("|");
-  if (parts.length !== 5) return null;
-  const [tokenSlipPath, slipHash, qrPart, expStr, sig] = parts;
+  if (parts.length !== 6) return null;
+  const [tokenSlipPath, slipHash, qrPart, amountPart, expStr, sig] = parts;
   if (tokenSlipPath !== slipPath || !slipHash) return null;
   const exp = Number(expStr);
   if (!Number.isFinite(exp) || Date.now() > exp) return null;
 
-  const payload = `${tokenSlipPath}|${slipHash}|${qrPart}|${expStr}`;
+  const payload = `${tokenSlipPath}|${slipHash}|${qrPart}|${amountPart}|${expStr}`;
   const expected = createHmac("sha256", slipMetaSecret()).update(payload).digest("hex").slice(0, SLIP_META_SIG_LEN);
   try {
     if (!timingSafeEqual(Buffer.from(sig, "utf8"), Buffer.from(expected, "utf8"))) return null;
@@ -123,7 +134,10 @@ export function verifySlipMeta(
   }
 
   const slipQrPayload = qrPart === "-" ? null : Buffer.from(qrPart, "base64url").toString("utf8");
-  return { slipHash, slipQrPayload };
+  const slipAmounts =
+    amountPart === "-" ? null : amountPart.slice(1) === "" ? [] : amountPart.slice(1).split(",").map(Number);
+  if (slipAmounts?.some((n) => !Number.isSafeInteger(n))) return null;
+  return { slipHash, slipQrPayload, slipAmounts };
 }
 
 // True when a decoded QR payload is a clickable bank-verify link the admin can

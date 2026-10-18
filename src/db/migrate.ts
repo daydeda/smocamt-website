@@ -891,7 +891,7 @@ async function migrate() {
   console.log("  ✅ rate_limit table + idx_rate_limit_expires_at");
 
   // 55. Index shop_order_items.product_id. The per-product order export
-  // (/api/admin/shop/products/[id]/orders) filters WHERE product_id = ? to list
+  // (/api/admin/shop/products/[id]/export) filters WHERE product_id = ? to list
   // every line item bought for one product; product_id had an FK but no index,
   // so that query full-scanned shop_order_items, which grows with every purchased
   // line item. Mirrors the index now declared in schema.ts. CREATE INDEX IF NOT

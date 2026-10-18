@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { hardenImageUpload, ImageValidationError } from "@/lib/image-upload";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { readSlipAmounts } from "@/lib/shop-slip-amount";
 import { decodeSlipQr, hashSlip, signSlipMeta } from "@/lib/shop-slip-verify";
 import { uploadSlip, StorageError } from "@/lib/shop-storage";
 import { NextResponse } from "next/server";
@@ -9,7 +10,7 @@ import { NextResponse } from "next/server";
 // object key ({ path }) which the buyer then submits with their order. The slip is
 // re-encoded (no raw bytes stored) and never exposed by public URL.
 //
-// Also hashes + QR-decodes the slip HERE, while its bytes are already in memory
+// Also hashes + QR-decodes + OCRs the amount of the slip HERE, while its bytes are already in memory
 // (see shop-slip-verify.ts's "Carrying the hash/QR..." comment), and signs the
 // result into `slipMeta` so order creation can trust it without re-downloading
 // the image from storage just to recompute the same thing.
@@ -62,7 +63,8 @@ export async function POST(req: Request) {
 
     const slipHash = hashSlip(buffer);
     const slipQrPayload = await decodeSlipQr(buffer);
-    const slipMeta = signSlipMeta(path, slipHash, slipQrPayload);
+    const slipAmounts = await readSlipAmounts(buffer);
+    const slipMeta = signSlipMeta(path, slipHash, slipQrPayload, slipAmounts);
 
     return NextResponse.json({ path, slipMeta });
   } catch (error) {

@@ -71,7 +71,7 @@ const nextConfig: NextConfig = {
     ? ".next.nosync"
     : undefined,
   allowedDevOrigins: getLocalIPs(),
-  serverExternalPackages: ["@electric-sql/pglite"],
+  serverExternalPackages: ["@electric-sql/pglite", "tesseract.js"],
   turbopack: {},
   // Tree-shake large barrel-export packages so each route only ships the icons
   // it actually uses instead of the whole library.

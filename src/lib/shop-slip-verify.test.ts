@@ -91,12 +91,25 @@ describe("signSlipMeta / verifySlipMeta", () => {
 
   it("round-trips the hash and QR payload it was signed with", () => {
     const token = signSlipMeta(slipPath, "hash-abc", "https://bank.example/verify/1");
-    expect(verifySlipMeta(slipPath, token)).toEqual({ slipHash: "hash-abc", slipQrPayload: "https://bank.example/verify/1" });
+    expect(verifySlipMeta(slipPath, token)).toEqual({ slipHash: "hash-abc", slipQrPayload: "https://bank.example/verify/1", slipAmounts: null });
   });
 
   it("round-trips a null QR payload (no QR found on the slip)", () => {
     const token = signSlipMeta(slipPath, "hash-abc", null);
-    expect(verifySlipMeta(slipPath, token)).toEqual({ slipHash: "hash-abc", slipQrPayload: null });
+    expect(verifySlipMeta(slipPath, token)).toEqual({ slipHash: "hash-abc", slipQrPayload: null, slipAmounts: null });
+  });
+
+  it("round-trips OCR'd amounts, an empty read, and 'OCR didn't run'", () => {
+    const withAmounts = signSlipMeta(slipPath, "h", null, [125000, 0]);
+    expect(verifySlipMeta(slipPath, withAmounts)?.slipAmounts).toEqual([125000, 0]);
+    const readNothing = signSlipMeta(slipPath, "h", null, []);
+    expect(verifySlipMeta(slipPath, readNothing)?.slipAmounts).toEqual([]);
+    expect(verifySlipMeta(slipPath, signSlipMeta(slipPath, "h", null))?.slipAmounts).toBeNull();
+  });
+
+  it("rejects tampered amounts (can't edit the amount to match the total)", () => {
+    const token = signSlipMeta(slipPath, "h", null, [99900]);
+    expect(verifySlipMeta(slipPath, token.replace("a99900", "a12300"))).toBeNull();
   });
 
   it("rejects a missing token (caller must fall back to re-deriving)", () => {

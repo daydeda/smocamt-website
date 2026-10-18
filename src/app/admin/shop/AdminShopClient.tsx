@@ -33,10 +33,11 @@ const isHttpUrl = (s: string | null): s is string => {
   }
 };
 
-// Copy for the three automated slip pre-filter flags (shop_orders.slip_flag —
+// Copy for the automated slip pre-filter flags (shop_orders.slip_flag —
 // see shop-slip-verify.ts). Free/offline signals only, not bank confirmation:
 // duplicate_* means this slip (or its QR) was already seen on another order;
-// no_qr means the automated pass couldn't find a QR to cross-check at all.
+// no_qr means the automated pass couldn't find a QR to cross-check at all;
+// amount_mismatch means the OCR'd amount on the slip isn't the order total.
 const SLIP_FLAG_COPY: Record<string, { th: string; en: string; severity: "high" | "low" }> = {
   duplicate_image: {
     th: "สลิปรูปนี้ถูกใช้กับคำสั่งซื้ออื่นมาแล้ว — ตรวจสอบก่อนอนุมัติ",
@@ -52,6 +53,11 @@ const SLIP_FLAG_COPY: Record<string, { th: string; en: string; severity: "high" 
     th: "ตรวจไม่พบ QR บนสลิปนี้ — ระบบยืนยันอัตโนมัติไม่ได้ กรุณาตรวจสอบด้วยตนเอง",
     en: "No QR code was found on this slip — the automated check couldn't run. Please review it yourself.",
     severity: "low",
+  },
+  amount_mismatch: {
+    th: "จำนวนเงินที่อ่านได้จากสลิปไม่ตรงกับยอดที่ต้องชำระ — ตรวจสอบยอดในสลิปก่อนอนุมัติ (อ่านอัตโนมัติ อาจคลาดเคลื่อน)",
+    en: "The amount read from this slip doesn't match the order total — check the slip yourself before approving (read automatically, may be wrong).",
+    severity: "high",
   },
 };
 
@@ -226,108 +232,28 @@ async function uploadImage(file: File): Promise<string> {
   return d.url as string;
 }
 
-interface ProductOrderRow {
-  orderId: string; status: string; createdAt: string; reviewedAt: string | null;
-  rejectionReason: string | null; orderTotal: number; slipPath: string | null; note: string | null;
-  fulfillment: string; shippingFee: number; discountAmount: number;
-  recipientName: string | null; recipientPhone: string | null; shippingAddress: string | null;
-  variantLabel: string; customValues: ShopCustomValue[] | null; quantity: number; unitPrice: number;
-  buyerName: string | null; nickname: string | null; studentId: string | null;
-  email: string | null; phone: string | null; major: string | null; houseId: string | null;
-}
-
-// Export every order for one product to a real .xlsx with two sheets: a "Summary"
-// of quantities per option (so admins can see how many of each size to make) and
-// an "Orders" sheet (one row per buyer line, with autofilter) so they can filter
-// by status/option in Excel. Times are rendered in Bangkok regardless of device
-// timezone. xlsx is imported lazily (same pattern as the events export).
+// Export every order for one product to .xlsx: "Summary" (quantity per option),
+// "Orders" (one row per buyer line, autofiltered) and "Slips" (each order's
+// payment slip embedded as a picture). Built server-side — the SheetJS build the
+// other exports use can't embed images; see the route for why slips get their
+// own sheet.
 async function exportProductXlsx(p: AdminProduct) {
-  const XLSX = await import("xlsx");
-  const data = await fetch(`/api/admin/shop/products/${p.id}/orders`).then((r) => r.json()).catch(() => null);
-  const rows: ProductOrderRow[] = data?.rows ?? [];
-  const dt = (d: string | null) => (d ? new Date(d).toLocaleString("en-GB", { timeZone: "Asia/Bangkok" }) : "");
-
-  // Summary sheet: quantity per option, split by status (rejected excluded from the active total).
-  const byOption = new Map<string, { approved: number; pending: number; rejected: number }>();
-  for (const r of rows) {
-    const k = r.variantLabel || "—";
-    const cur = byOption.get(k) ?? { approved: 0, pending: 0, rejected: 0 };
-    if (r.status === "rejected") cur.rejected += r.quantity;
-    else if (r.status === "approved") cur.approved += r.quantity;
-    else cur.pending += r.quantity;
-    byOption.set(k, cur);
+  const res = await fetch(`/api/admin/shop/products/${p.id}/export`);
+  if (!res.ok) {
+    const d = await res.json().catch(() => null);
+    throw new Error(d?.error || "Export failed");
   }
-  const sumAoa: (string | number)[][] = [["Option", "Approved", "Pending", "Rejected", "Active total (Approved+Pending)"]];
-  let tA = 0, tP = 0, tR = 0;
-  for (const [k, v] of byOption) {
-    sumAoa.push([k, v.approved, v.pending, v.rejected, v.approved + v.pending]);
-    tA += v.approved; tP += v.pending; tR += v.rejected;
-  }
-  sumAoa.push(["TOTAL", tA, tP, tR, tA + tP]);
-  const wsSum = XLSX.utils.aoa_to_sheet(sumAoa);
-  wsSum["!cols"] = [{ wch: 28 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 30 }];
-
-  // Custom-field columns (e.g. jersey Name / Number) — the union of every label
-  // seen across this product's lines, in first-seen order, inserted after "Option".
-  const customLabels: string[] = [];
-  for (const r of rows) for (const cv of r.customValues ?? []) if (!customLabels.includes(cv.label)) customLabels.push(cv.label);
-
-  // Orders sheet: one row per order line with every detail, autofilter on for easy filtering.
-  const header = [
-    "Name", "Nickname", "Student ID", "Major", "House", "Email", "Phone",
-    "Option", ...customLabels, "Qty", "Unit price (THB)", "Subtotal (THB)",
-    "Status", "Ordered (Bangkok)", "Reviewed (Bangkok)", "Rejection reason",
-    "Slip uploaded", "Order total (THB)", "Fulfillment", "Shipping (THB)",
-    "Recipient", "Recipient phone", "Delivery address", "Note", "Order ID",
-  ];
-  const wsRows = rows.map((r) => {
-    const customCols: Record<string, string> = {};
-    for (const label of customLabels) {
-      customCols[label] = (r.customValues ?? []).find((cv) => cv.label === label)?.value ?? "";
-    }
-    return {
-    "Name": r.buyerName ?? "",
-    "Nickname": r.nickname ?? "",
-    "Student ID": r.studentId ?? "",
-    "Major": r.major ?? "",
-    "House": r.houseId ?? "",
-    "Email": r.email ?? "",
-    "Phone": r.phone ?? "",
-    "Option": r.variantLabel,
-    ...customCols,
-    "Qty": r.quantity,
-    "Unit price (THB)": r.unitPrice,
-    "Subtotal (THB)": r.unitPrice * r.quantity,
-    "Status": r.status,
-    "Ordered (Bangkok)": dt(r.createdAt),
-    "Reviewed (Bangkok)": dt(r.reviewedAt),
-    "Rejection reason": r.rejectionReason ?? "",
-    "Slip uploaded": r.slipPath ? "Yes" : "No",
-    "Promotion discount (THB)": r.discountAmount ?? 0,
-    "Order total (THB)": r.orderTotal,
-    "Fulfillment": r.fulfillment === "delivery" ? "Delivery" : "Self-pickup",
-    "Shipping (THB)": r.shippingFee,
-    "Recipient": r.recipientName ?? "",
-    "Recipient phone": r.recipientPhone ?? "",
-    "Delivery address": r.shippingAddress ?? "",
-    "Note": r.note ?? "",
-    "Order ID": r.orderId,
-    };
-  });
-  const ws = XLSX.utils.json_to_sheet(wsRows, { header });
-  ws["!autofilter"] = { ref: ws["!ref"] || "A1" };
-  ws["!cols"] = header.map((h) => ({ wch: Math.min(40, Math.max(10, h.length + 2)) }));
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, wsSum, "Summary");
-  XLSX.utils.book_append_sheet(wb, ws, "Orders");
-  // Keep Unicode (Thai) intact; strip only filename-illegal chars and collapse whitespace.
-  const safe = (data?.productName || p.name)
-    .replace(/[\\/:*?"<>|]+/g, "")
-    .replace(/\s+/g, "_")
-    .slice(0, 40)
-    .replace(/^_+|_+$/g, "") || "product";
-  XLSX.writeFile(wb, `product_${safe}.xlsx`);
+  const blob = await res.blob();
+  // Filename comes from the server's Content-Disposition (Thai-safe, RFC 5987).
+  const cd = res.headers.get("Content-Disposition") ?? "";
+  const m = cd.match(/filename\*=UTF-8''([^;]+)/);
+  const filename = m ? decodeURIComponent(m[1]) : "product.xlsx";
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export default function AdminShopClient() {
@@ -422,7 +348,13 @@ function ProductsTab({ th, ctx }: { th: boolean; ctx: ShopContext | null }) {
 
   const exportProduct = async (p: AdminProduct) => {
     setExportingId(p.id);
-    try { await exportProductXlsx(p); } catch { /* surfaced via empty file is unlikely; ignore */ } finally { setExportingId(null); }
+    try {
+      await exportProductXlsx(p);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Export failed");
+    } finally {
+      setExportingId(null);
+    }
   };
 
   const load = useCallback(async () => {

@@ -351,6 +351,8 @@ export function LandingUI({
         <p style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "0.02em", lineHeight: 1.4 }}>© SMO CAMT 2026</p>
         <div className="hidden lg:block" style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--text-muted)" }} />
         <p style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 500, textAlign: "center", lineHeight: 1.5 }}>{t.modernizing}</p>
+        <div className="hidden lg:block" style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--text-muted)" }} />
+        <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 600, textDecoration: "underline", textUnderlineOffset: 2 }}>{t.footerPrivacy}</a>
       </footer>
     </div>
   );

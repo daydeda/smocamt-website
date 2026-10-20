@@ -28,6 +28,10 @@ loading="lazy"
 <p className="footer-copyright">
 <span>© {year} SMO CAMT. {t.footerRights}</span>
 <span className="footer-sep" aria-hidden="true">·</span>
+<a href="/privacy" target="_blank" rel="noopener noreferrer" className="footer-dev-link">
+{t.footerPrivacy}
+</a>
+<span className="footer-sep" aria-hidden="true">·</span>
 <span>{t.footerConceptBy} {t.footerConceptName}</span>
 <span className="footer-sep" aria-hidden="true">·</span>
 <span>

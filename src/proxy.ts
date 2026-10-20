@@ -32,6 +32,7 @@ export async function proxy(req: NextRequest) {
     // submission form) is NOT listed here — it needs a session, and the
     // default (redirect-to-login below) already enforces that correctly.
     pathname === "/feedback/track" ||
+    pathname === "/privacy" ||
     pathname === "/api/events" ||
     pathname === "/api/houses" ||
     pathname.startsWith("/api/auth") ||
@@ -46,6 +47,17 @@ export async function proxy(req: NextRequest) {
     pathname.startsWith("/icons/");
 
   if (isPublicPath) {
+    // "/", "/dashboard" and "/dashboard/id" stay reachable logged-out (they render
+    // their own sign-in prompt), but a signed-in student who hasn't finished
+    // onboarding must not use them to skip the profile + PDPA consent step.
+    const isSignedInEntryPath =
+      pathname === "/" || pathname === "/dashboard" || pathname === "/dashboard/id";
+    if (isSignedInEntryPath) {
+      const entrySession = await auth();
+      if (entrySession?.user && !entrySession.user.profileCompleted) {
+        return NextResponse.redirect(new URL("/onboarding", req.url));
+      }
+    }
     return NextResponse.next();
   }
 

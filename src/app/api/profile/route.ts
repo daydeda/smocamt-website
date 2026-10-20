@@ -42,6 +42,13 @@ const profileSchema = z.object({
   studentId: z.string().optional().nullable(), // Allow empty or null for admins
 });
 
+// Onboarding (POST) only: the PDPA consent tick is enforced server-side, not just by
+// the form, and `true` is persisted to users.pdpa_consent. PATCH keeps the base schema
+// (its body doesn't carry consent, and zod strips unknown keys).
+const onboardingSchema = profileSchema.extend({
+  pdpaConsent: z.literal(true),
+});
+
 // Sensitive medical/emergency fields. Self-edits to these are recorded (field NAMES
 // only, never values) as a PDPA change-trail — the actor here is the data subject.
 const SENSITIVE_FIELDS = [
@@ -95,9 +102,9 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const data = profileSchema.parse(body);
+    const data = onboardingSchema.parse(body);
 
-    const isAdmin = ["super_admin", "admin", "registration", "organizer"].includes(session.user.role || "")
+    const isAdmin =["super_admin", "admin", "registration", "organizer"].includes(session.user.role || "")
       || isGlobalRegistrationPosition(effectiveRoles(session.user.role, session.user.roles), session.user.smoPosition, session.user.anusmoPosition);
     if (!data.studentId && !isAdmin) {
       return NextResponse.json({ error: "Student ID is required" }, { status: 400 });

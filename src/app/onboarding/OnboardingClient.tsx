@@ -2,11 +2,12 @@
 
 import { useSession, signOut } from "next-auth/react";
 import type { Session } from "next-auth";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Camera, Check, Loader2, LogOut, User, Menu, X, AlertTriangle, Lock } from "lucide-react";
 import { useLanguage } from "@/lib/LanguageContext";
 import { compressImageFile } from "@/lib/compress-image";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
+import { PrivacyPolicyModal } from "@/components/PrivacyPolicyModal";
 import { FACULTIES, majorsForFaculty, facultyFromStudentId } from "@/lib/faculties";
 import { unsubscribePushBeforeSignOut } from "@/lib/push-client";
 
@@ -89,6 +90,8 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
   const [validationTriggered, setValidationTriggered] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
+  const closePrivacy = useCallback(() => setPrivacyOpen(false), []);
 
   const STEPS = [t.personalInfo, t.medicalInfo, t.emergencyContacts, t.reviewSubmit];
   const isTh = t.back === "กลับ";
@@ -679,6 +682,13 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
                 <AlertTriangle size={14} style={{ marginTop: -2, flexShrink: 0 }} />
                 <span style={{ lineHeight: 1.5, color: "var(--text-primary)" }}>{t.pdpaWarning}</span>
               </div>
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPrivacyOpen(true); }}
+                style={{ display: "inline-block", marginTop: 12, padding: 0, border: "none", background: "none", cursor: "pointer", fontSize: 13, fontWeight: 700, color: "var(--accent-primary)", textDecoration: "underline", textAlign: "left" }}
+              >
+                {t.pdpaReadFull}
+              </button>
             </div>
           </label>
 
@@ -700,6 +710,8 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
   ═══════════════════════════════════════════════════════════════════════════ */
   return (
     <>
+      {privacyOpen && <PrivacyPolicyModal onClose={closePrivacy} />}
+
       {/* Mobile Drawer (Side Menu) */}
       {/* Backdrop Overlay */}
       <div

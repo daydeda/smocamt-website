@@ -111,6 +111,9 @@ export const users = pgTable("users", {
   emergencyContacts: jsonb("emergency_contacts"), // [{name, relationship, phone}]
   pdpaConsent: boolean("pdpa_consent").default(false),
   profileCompleted: boolean("profile_completed").default(false),
+  // Last time the student saved or re-confirmed their personal/medical/emergency info
+  // (src/lib/profile-review.ts). NULL = never reviewed, so existing students are due.
+  profileReviewedAt: timestamp("profile_reviewed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 }, (table) => ([

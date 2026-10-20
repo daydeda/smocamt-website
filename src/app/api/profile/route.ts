@@ -134,6 +134,7 @@ export async function POST(req: Request) {
           faculty,
           houseId: sql`COALESCE(${users.houseId}, ${pickedHouseId})`,
           profileCompleted: true,
+          profileReviewedAt: new Date(),
           updatedAt: new Date(),
         })
         // Guard on profileCompleted=false (mirrors provisionStaffBypass) so a
@@ -231,6 +232,8 @@ export async function PATCH(req: Request) {
         .update(users)
         .set({
           ...data,
+          // Saving the form counts as the periodic re-confirmation.
+          profileReviewedAt: new Date(),
           updatedAt: new Date(),
         })
         .where(eq(users.id, session.user!.id!))

@@ -57,6 +57,7 @@ import { parseRichText } from "@/lib/rich-text";
 import { useLanguage } from "@/lib/LanguageContext";
 import { StudentNav } from "@/components/layout/StudentNav";
 import { NotificationModal } from "@/components/NotificationModal";
+import { ProfileReviewGate } from "@/components/ProfileReviewGate";
 import { FormsDueBanner } from "@/components/FormsDueBanner";
 import { useNotifications } from "@/lib/useNotifications";
 import { useRouter } from "next/navigation";
@@ -2534,6 +2535,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
       })()}
 
         <NotificationModal items={notifItems} onDismiss={dismissNotif} />
+        <ProfileReviewGate />
 
         <style jsx global>{`
           .event-card-ig:hover {

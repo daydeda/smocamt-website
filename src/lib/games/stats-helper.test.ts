@@ -50,6 +50,7 @@ describe("OX Game Stats and Finalization", () => {
         emergency_contacts jsonb,
         pdpa_consent boolean DEFAULT false,
         profile_completed boolean DEFAULT false,
+        profile_reviewed_at timestamp with time zone,
         created_at timestamp with time zone DEFAULT now(),
         updated_at timestamp with time zone DEFAULT now()
       );

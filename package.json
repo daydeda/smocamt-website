@@ -1,6 +1,6 @@
 {
   "name": "activecamt",
-  "version": "2.22.2",
+  "version": "2.23.0",
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
@@ -15,6 +15,7 @@
     "db:seed": "tsx --env-file=.env src/db/seed.ts",
     "_comment_container": "*:container variants read DATABASE_URL from the process env (no .env file) — for running inside the Portainer/Swarm container console where env is injected by the stack.",
     "db:migrate:container": "tsx src/db/migrate.ts",
+    "db:seed:test-student": "tsx --env-file=.env.local src/db/seed-test-student.ts",
     "db:seed:container": "tsx src/db/seed.ts",
     "db:reset": "tsx --env-file=.env src/db/reset.ts",
     "db:studio": "drizzle-kit studio"

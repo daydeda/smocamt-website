@@ -267,6 +267,13 @@
       "when": 1790362921917,
       "tag": "0046_safe_captain_midlands",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1792496057998,
+      "tag": "0047_careful_quentin_quire",
+      "breakpoints": true
     }
   ]
 }

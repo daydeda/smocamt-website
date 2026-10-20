@@ -14,6 +14,8 @@ import { useRouter } from "next/navigation";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { FACULTIES, majorsForFaculty, facultyFromStudentId } from "@/lib/faculties";
 import { PushNotificationToggle } from "@/components/PushNotificationToggle";
+import { ProfileReviewModal } from "@/components/ProfileReviewModal";
+import { shouldShowProfileReview } from "@/lib/profile-review";
 
 // Rich CAMT major labels; other faculties show their bare code.
 const MAJOR_LABELS: Record<string, string> = {
@@ -42,6 +44,7 @@ export default function ProfilePage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [validationTriggered, setValidationTriggered] = useState(false);
   const [isProfileCompleted, setIsProfileCompleted] = useState(false);
+  const [reviewDue, setReviewDue] = useState(false);
 
   const [hasFields, setHasFields] = useState<Record<string, boolean>>({
     chronicDiseases: false,
@@ -117,6 +120,9 @@ export default function ProfilePage() {
           });
           if (user.image) setPreviewUrl(user.image);
           setIsProfileCompleted(!!user.profileCompleted);
+          // Arriving from the dashboard modal's "Update" button: they already chose to edit.
+          const fromDashboardModal = new URLSearchParams(window.location.search).get("review") === "update";
+          setReviewDue(!fromDashboardModal && shouldShowProfileReview(user));
         }
         setLoading(false);
       })
@@ -390,6 +396,15 @@ export default function ProfilePage() {
 
   return (
     <div className="profile-page">
+      {reviewDue && (
+        <ProfileReviewModal
+          onUpdate={() => {
+            setReviewDue(false);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          onKept={() => setReviewDue(false)}
+        />
+      )}
       <div className="profile-wrapper">
         {/* Header */}
         <div className="profile-header">

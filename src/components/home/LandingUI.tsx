@@ -213,7 +213,7 @@ export function LandingUI({
                 {t.signInBtn}
               </button>
 
-              {false && process.env.NODE_ENV === "development" && (
+              {process.env.NODE_ENV === "development" && (
                 <div 
                   style={{
                     marginTop: "16px",
@@ -242,6 +242,9 @@ export function LandingUI({
                           onChange={(e) => {
                             const r = e.target.value;
                             setDevRole(r);
+                            // Only swap in the preset address while the field still holds a
+                            // preset; never clobber an email the tester typed (e.g. a seeded account).
+                            if (!/^dev-[a-z_]+@localhost\.test$/.test(devEmail)) return;
                             if (r === "super_admin") {
                               setDevEmail("dev-superadmin@localhost.test");
                             } else if (r === "admin") {

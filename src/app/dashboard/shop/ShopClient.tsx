@@ -773,7 +773,7 @@ function OrdersList({ orders, th, onChanged }: { orders: Order[]; th: boolean; o
 
 function OrderRow({ order, th, onChanged }: { order: Order; th: boolean; onChanged: () => void }) {
   const [showSlip, setShowSlip] = useState(false);
-  const badge = STATUS_BADGE[order.status] ?? STATUS_BADGE.pending;
+  const badge = orderBadge(order);
   return (
     <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-lg)", padding: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 10 }}>
@@ -923,7 +923,7 @@ function OrderHandover({ order, th, onChanged }: { order: Order; th: boolean; on
         </p>
         {order.fulfillment !== "delivery" && order.pickupInfo?.trim() && <PickupInfo th={th} info={order.pickupInfo} />}
         <Link href="/dashboard/id" className="btn btn-ghost" style={{ fontSize: 13, padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 6, alignSelf: "flex-start" }}>
-          <QrCode size={14} />{th ? "เปิด Digital ID" : "Open Digital ID"}
+          <QrCode size={14} />{th ? "เปิดคิวอาร์โค้ดประจำตัว" : "Open Digital ID"}
         </Link>
       </div>
     );
@@ -938,12 +938,17 @@ function OrderHandover({ order, th, onChanged }: { order: Order; th: boolean; on
           {ready ? (th ? "สินค้าพร้อมให้รับแล้ว!" : "Ready for pickup!") : (th ? "ผู้ขายกำลังเตรียมสินค้า" : "The seller is preparing your order")}
         </p>
         {order.pickupInfo?.trim() && <PickupInfo th={th} info={order.pickupInfo} />}
-        <p style={{ color: "var(--text-muted)" }}>
-          {th ? "ตอนไปรับ ให้เปิด Digital ID ให้ผู้ขายสแกน" : "When you collect it, show your Digital ID for the seller to scan."}
-        </p>
-        <Link href="/dashboard/id" className="btn btn-ghost" style={{ fontSize: 13, padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 6, alignSelf: "flex-start" }}>
-          <QrCode size={14} />{th ? "เปิด Digital ID" : "Open Digital ID"}
-        </Link>
+        {/* Only once the seller marks it ready: before that, "show your QR" reads as "go collect it now". */}
+        {ready && (
+          <>
+            <p style={{ color: "var(--text-muted)" }}>
+              {th ? "ตอนไปรับ ให้เปิดคิวอาร์โค้ดประจำตัวให้ผู้ขายสแกน" : "When you collect it, show your Digital ID for the seller to scan."}
+            </p>
+            <Link href="/dashboard/id" className="btn btn-ghost" style={{ fontSize: 13, padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 6, alignSelf: "flex-start" }}>
+              <QrCode size={14} />{th ? "เปิดคิวอาร์โค้ดประจำตัว" : "Open Digital ID"}
+            </Link>
+          </>
+        )}
       </div>
     );
   }
@@ -1023,11 +1028,33 @@ function OrderHandover({ order, th, onChanged }: { order: Order; th: boolean; on
   );
 }
 
-const STATUS_BADGE: Record<string, { th: string; en: string; bg: string; color: string; icon: React.ReactNode }> = {
-  pending: { th: "รอตรวจสอบ", en: "Pending", bg: "rgba(245,158,11,0.12)", color: "#b45309", icon: <Clock size={13} /> },
-  approved: { th: "อนุมัติแล้ว", en: "Approved", bg: "rgba(22,163,74,0.12)", color: "#15803d", icon: <CheckCircle2 size={13} /> },
-  rejected: { th: "ถูกปฏิเสธ", en: "Rejected", bg: "rgba(239,68,68,0.12)", color: "#dc2626", icon: <XCircle size={13} /> },
+type Badge = { th: string; en: string; bg: string; color: string; icon: React.ReactNode };
+
+const STATUS_BADGE: Record<string, Badge> = {
+  pending: { th: "รอตรวจสลิป", en: "Checking payment", bg: "rgba(245,158,11,0.12)", color: "#b45309", icon: <Clock size={13} /> },
+  approved: { th: "ชำระเงินแล้ว", en: "Payment confirmed", bg: "rgba(22,163,74,0.12)", color: "#15803d", icon: <CheckCircle2 size={13} /> },
+  rejected: { th: "ชำระเงินไม่ผ่าน", en: "Payment rejected", bg: "rgba(239,68,68,0.12)", color: "#dc2626", icon: <XCircle size={13} /> },
 };
+
+// "Approved" only means the payment slip was accepted — not that the item can be
+// collected. Once approved, the badge follows the fulfilment stage so the buyer
+// can tell "preparing" from "ready to pick up" at a glance.
+function orderBadge(order: Order): Badge {
+  const base = STATUS_BADGE[order.status] ?? STATUS_BADGE.pending;
+  if (order.status !== "approved") return base;
+  const s = order.fulfillmentStatus ?? "awaiting";
+  const delivery = order.fulfillment === "delivery";
+  const amber = { bg: "rgba(245,158,11,0.12)", color: "#b45309" };
+  if (s === "picked_up") return { th: "รับสินค้าแล้ว", en: "Picked up", bg: base.bg, color: base.color, icon: <CheckCircle2 size={13} /> };
+  if (s === "delivered") return { th: "ได้รับสินค้าแล้ว", en: "Delivered", bg: base.bg, color: base.color, icon: <CheckCircle2 size={13} /> };
+  if (s === "ready") return { th: "พร้อมรับสินค้า", en: "Ready for pickup", bg: "rgba(124,58,237,0.12)", color: "#6d28d9", icon: <Package size={13} /> };
+  if (s === "partial") return { th: "รับสินค้าบางส่วน", en: "Partly collected", ...amber, icon: <Package size={13} /> };
+  if (s === "shipped") return { th: "จัดส่งแล้ว", en: "Shipped", bg: "rgba(59,130,246,0.12)", color: "#1d4ed8", icon: <Truck size={13} /> };
+  if (s === "issue") return { th: "แจ้งปัญหาแล้ว", en: "Problem reported", bg: "rgba(239,68,68,0.12)", color: "#dc2626", icon: <AlertTriangle size={13} /> };
+  return delivery
+    ? { th: "ชำระแล้ว · กำลังเตรียมจัดส่ง", en: "Paid · preparing to ship", ...amber, icon: <Clock size={13} /> }
+    : { th: "ชำระแล้ว · กำลังเตรียมสินค้า", en: "Paid · being prepared", ...amber, icon: <Clock size={13} /> };
+}
 
 const customInputStyle: React.CSSProperties = {
   width: "100%", padding: "10px 12px", borderRadius: "var(--radius-md)",

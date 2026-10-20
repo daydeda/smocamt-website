@@ -1616,6 +1616,12 @@ async function migrate() {
   await sql`ALTER TABLE shop_order_items ADD COLUMN IF NOT EXISTS handed_over_by text REFERENCES users(id) ON DELETE SET NULL`;
   console.log("  ✅ shop_order_items per-line handover (handed_over_at/by)");
 
+  // 99. Periodic (3-month) profile check-in (src/lib/profile-review.ts). Nullable:
+  // NULL means never reviewed, so every existing student is prompted once.
+  // Mirrors drizzle/0047_careful_quentin_quire.sql. Additive, idempotent, non-destructive.
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_reviewed_at timestamptz`;
+  console.log("  ✅ users.profile_reviewed_at (3-month profile check-in)");
+
   console.log("✅ Migration complete!");
   await sql.end();
   process.exit(0);

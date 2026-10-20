@@ -111,7 +111,7 @@ export default function ShopClient() {
         </p>
 
         {/* Tabs */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 24 }}>
           {(["shop", "orders"] as const).map((tk) => (
             <button
               key={tk}
@@ -143,7 +143,7 @@ export default function ShopClient() {
           ) : data.products.length === 0 ? (
             <EmptyState icon={<Package size={40} />} text={th ? "ยังไม่มีสินค้า" : "No products yet."} />
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 20 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(min(220px,100%),1fr))", gap: 20 }}>
               {data.products.map((p) => <ProductCard key={p.id} product={p} th={th} onOpen={() => setActive(p)} />)}
             </div>
           )
@@ -495,7 +495,7 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 2500, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg-surface)", borderRadius: "var(--radius-lg)", width: "100%", maxWidth: 560, maxHeight: "94vh", border: "1px solid var(--border-subtle)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg-surface)", borderRadius: "var(--radius-lg)", width: "100%", maxWidth: 560, maxHeight: "94dvh", border: "1px solid var(--border-subtle)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
         <div style={{ flexShrink: 0, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: "1px solid var(--border-subtle)" }}>
           <p style={{ fontWeight: 800, fontSize: 16, paddingRight: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{step === "select" ? product.name : (th ? "ชำระเงิน & แนบสลิป" : "Pay & upload slip")}</p>
           <button onClick={onClose} className="btn btn-ghost" style={{ padding: 6, flexShrink: 0 }}><X size={20} /></button>
@@ -835,6 +835,18 @@ function OrderRow({ order, th, onChanged }: { order: Order; th: boolean; onChang
   );
 }
 
+// Seller pickup instructions are authored with the rich-text markup (**bold**,
+// {{color:#hex|text}}), so they must go through parseRichText like the checkout
+// step does — printing the raw string shows the markers as literal text.
+function PickupInfo({ th, info }: { th: boolean; info: string }) {
+  return (
+    <div style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
+      <span>{th ? "รับที่: " : "Pick up at: "}</span>
+      <div style={{ lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: parseRichText(info) }} />
+    </div>
+  );
+}
+
 // Where the item is after payment was approved: the pickup instructions and
 // "show your Digital ID", or the carrier + tracking number with "I received it"
 // / "Report a problem". Buttons follow nextFulfillmentStatus — the same rules
@@ -909,7 +921,7 @@ function OrderHandover({ order, th, onChanged }: { order: Order; th: boolean; on
           {th ? "ยังต้องรับ: " : "Still to collect: "}
           <strong>{left.map((i) => `${i.productName}${i.variantLabel && i.variantLabel !== "Standard" ? ` · ${i.variantLabel}` : ""} ×${i.quantity}`).join(", ")}</strong>
         </p>
-        {order.fulfillment !== "delivery" && order.pickupInfo?.trim() && <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{th ? "รับที่: " : "Pick up at: "}{order.pickupInfo}</p>}
+        {order.fulfillment !== "delivery" && order.pickupInfo?.trim() && <PickupInfo th={th} info={order.pickupInfo} />}
         <Link href="/dashboard/id" className="btn btn-ghost" style={{ fontSize: 13, padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 6, alignSelf: "flex-start" }}>
           <QrCode size={14} />{th ? "เปิด Digital ID" : "Open Digital ID"}
         </Link>
@@ -925,7 +937,7 @@ function OrderHandover({ order, th, onChanged }: { order: Order; th: boolean; on
           {ready ? <Package size={15} /> : <Clock size={15} />}
           {ready ? (th ? "สินค้าพร้อมให้รับแล้ว!" : "Ready for pickup!") : (th ? "ผู้ขายกำลังเตรียมสินค้า" : "The seller is preparing your order")}
         </p>
-        {order.pickupInfo?.trim() && <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{th ? "รับที่: " : "Pick up at: "}{order.pickupInfo}</p>}
+        {order.pickupInfo?.trim() && <PickupInfo th={th} info={order.pickupInfo} />}
         <p style={{ color: "var(--text-muted)" }}>
           {th ? "ตอนไปรับ ให้เปิด Digital ID ให้ผู้ขายสแกน" : "When you collect it, show your Digital ID for the seller to scan."}
         </p>

@@ -1,87 +1,85 @@
 ---
 name: ship
-description: Ship the current changes end-to-end for ActiveCAMT. Branch off main, commit, push, open a PR, merge it into main, delete the branch (local + remote), tag the merge with a semver version + description, cut a GitHub release, and record the day's entry in updates/. Use when the user says "ship this", "commit + PR + merge", "open a PR and merge", or otherwise wants the full feature-branch → PR → merge → tag → release → cleanup flow in one go. For deploys that touch the DB schema or read a new column, run /safe-deploy first.
+description: Ship the current changes end-to-end for ActiveCAMT. Commit straight to main, push, tag the commit with a semver version + description, cut a GitHub release, and record the day's entry in updates/. No feature branch and no PR. Use when the user says "ship this", "commit and push", or otherwise wants the commit → push → tag → release flow in one go. For deploys that touch the DB schema or read a new column, run /safe-deploy first.
 ---
 
 # Ship (ActiveCAMT)
 
-Takes working-tree changes from "done on `main`'s worktree" to "merged into `main`,
-tagged, and released" without ever pushing to `main` directly. The merge happens
-through a PR, and that is the only sanctioned path to `main` (see CLAUDE.md: **never
-push to `main`**). Every ship ends with a new `vX.Y.Z` tag and a matching GitHub
-release. That's not optional, it's the last two steps of the flow, same as the
-changelog entry.
+Takes working-tree changes from "done on `main`" to "pushed to `main`, tagged, and
+released". By the user's standing decision (to save tokens and time) there is **no
+feature branch and no PR**: commit on `main` and push it directly. Every ship ends
+with a new `vX.Y.Z` tag and a matching GitHub release. That's not optional, it's the
+last two steps of the flow, same as the changelog entry.
+
+**A push to `main` redeploys production** (the Portainer webhook fires on every main
+push). With no PR gate left, the preconditions below are the only safety net, so do
+not skip them.
 
 ## When to use
-- The user asks to "ship", "commit and open a PR and merge", or lists the full
-  branch → PR → merge → delete-branch sequence.
+- The user asks to "ship", "commit and push", or wants the whole commit → push →
+  tag → release sequence.
 - The change is already implemented and reviewed enough to land.
 
 ## When NOT to use (or do something first)
 - **Schema / new-column changes:** run **/safe-deploy** first. Prod must be
-  migrated before code that reads a new column merges. This skill does not migrate.
+  migrated before code that reads a new column is pushed. This skill does not migrate.
 - **Unreviewed or risky diffs:** run **/recheck** first.
-- The user only wants a commit, or only a PR (no merge): just do that step.
+- The user only wants a commit, or only a PR: just do that step.
 
-## Preconditions (verify before branching)
-1. **Build + lint pass.** Run `npm run build` and `npm run lint`. Pre-existing
+## Preconditions (verify before committing)
+1. **On `main` and up to date.** `git branch --show-current` is `main`, and
+   `git pull --ff-only` succeeds. Stop on any divergence; never force-push.
+2. **Build + lint pass.** Run `npm run build` and `npm run lint`. Pre-existing
    warnings/errors in files you didn't touch are fine; do not let *new* ones land.
-2. Know what's staged. `git status --short`, and commit only the intended files.
+3. **Schema/new-column changes are migrated on prod first** (see /safe-deploy),
+   because the push redeploys immediately.
+4. Know what's staged. `git status --short`, and commit only the intended files.
+   Unrelated local edits (for example tooling or settings changes that are not part
+   of this ship) stay out of the commit.
 
 ## Steps
 
-1. **Branch off main.** Pick a descriptive name: `feat/...`, `fix/...`, `chore/...`.
-   ```bash
-   git checkout -b feat/<short-description>
-   ```
+1. **Bump the version** to the next semver (see step 5 for how to pick it), so
+   `package.json` matches the tag the same commit gets. Use
+   `npm version X.Y.Z --no-git-tag-version` (it updates `package-lock.json` too). If
+   `package.json` holds unrelated local edits, commit only the version line, never
+   those edits.
 
-2. **Stage + commit.** Quote any path containing `[` `]`. This repo has routes like
-   `src/app/api/events/[id]/register/route.ts`, and **zsh glob-expands the brackets**
-   (`no matches found`) unless the path is single-quoted.
+2. **Stage + commit on `main`.** Quote any path containing `[` `]`. This repo has
+   routes like `src/app/api/events/[id]/register/route.ts`, and **zsh glob-expands
+   the brackets** (`no matches found`) unless the path is single-quoted.
    ```bash
    git add 'src/app/api/events/[id]/.../route.ts' 'src/app/...'
+   git commit -m "<conventional commit subject>" -m "<body>"
    ```
-   Commit with a clear subject + body, ending with the trailer:
-   ```
-   Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
-   ```
+   Commits use the user's own git identity only. Do not add any `Co-Authored-By`
+   trailer, and do not mention the AI tooling in the message.
 
-3. **Push** and set upstream:
+3. **Scan, then push to `main`.** Before any push, scan the new commits and the
+   tracked files you changed for any AI-tool attribution (the words listed in the
+   user's global no-attribution rules) and remove what you find. Then:
    ```bash
-   git push -u origin feat/<short-description>
+   git push origin main
    ```
+   If the push is rejected because `main` moved, `git pull --rebase`, re-run the
+   build, and push again. Never `--force`.
 
-4. **Open the PR** against `main` with `gh`. End the body with:
-   ```
-   🤖 Generated with [Claude Code](https://claude.com/claude-code)
-   ```
-   ```bash
-   gh pr create --base main --head feat/<short-description> \
-     --title "<conventional commit title>" --body "<summary>"
-   ```
-
-5. **Merge + delete the branch** (deletes both remote and local, returns you to
-   `main`):
-   ```bash
-   gh pr merge <PR#> --merge --delete-branch
-   ```
-   Use `--merge` (a real merge commit, matching this repo's history) unless the user
-   asks for `--squash` or `--rebase`.
-
-6. **Confirm clean state:**
+4. **Confirm clean state:**
    ```bash
    git branch --show-current   # -> main
-   git branch                  # the feature branch is gone
-   git log --oneline -1        # -> the merge commit
+   git status --short          # nothing left that belonged to this ship
+   git log --oneline -1        # -> your commit
    ```
 
-7. **Tag the release (always).** This repo tags every ship with an annotated
+5. **Pick the version** (used in step 1, tag, release, and changelog header). Bump
+   from the latest tag (`git describe --tags --abbrev=0`): patch (`x.y.Z`) for
+   fixes/small UX changes, minor (`x.Y.0`) for new features/modules, major
+   (`X.0.0`) only if the user says so or it's a breaking change.
+
+6. **Tag the release (always).** This repo tags every ship with an annotated
    semver tag and a matching GitHub release. Check `git tag -l | sort -V | tail`
    and `gh release list --limit 5` for the current pattern before assuming. The
-   tag points at the merge commit already sitting on `main`; nothing here pushes
-   new code to `main`. (If you also want `package.json`'s `"version"` field to
-   match the tag, bump it inside the feature branch back in step 2 so it rides
-   through the normal PR, never as a separate direct commit to `main`.)
+   tag points at the commit you just pushed to `main`.
 
    - **Pick the version.** Bump from the latest tag (`git describe --tags
      --abbrev=0`), following semver: patch (`x.y.Z`) for fixes/small UX changes,
@@ -91,7 +89,7 @@ changelog entry.
      genuinely ambiguous.
    - **The tag message and GitHub release notes are English only, never Thai.**
      This is the opposite language choice from the `updates/` changelog entry
-     in step 8, which stays Thai — don't let that house style bleed into the
+     in step 7, which stays Thai — don't let that house style bleed into the
      tag/release. **No em dashes (—) anywhere in them either.** Write natural,
      human sentences instead of dash-stitched fragments; join clauses with
      "and"/"since"/"which", a comma, or split into two sentences, whichever
@@ -99,7 +97,7 @@ changelog entry.
    - **Write the tag message.** Follow the existing style: `Release vX.Y.Z:
      <short description>` (same format for a date-range cycle too, just a
      colon, not a dash), then a blank line and a few bullet highlights pulled
-     from the PR(s) since the last tag (`git log <last-tag>..HEAD --oneline`).
+     from the commits since the last tag (`git log <last-tag>..HEAD --oneline`).
      Look at recent tags (`git tag -l -n99 <tag>`) to match tone, but write the
      actual sentences as natural prose per the rule above, not terse
      dash-joined fragments.
@@ -122,24 +120,23 @@ changelog entry.
      ship (e.g. a hotfix bundled into the next release); otherwise it's
      mandatory, same as the changelog entry below.
 
-8. **Record the changelog (always, as the last step, done inline, no subagent).**
-   After the merge lands, write/extend today's entry in `updates/` yourself, in
+7. **Record the changelog (always, as the last step, done inline, no subagent).**
+   After the push lands, write/extend today's entry in `updates/` yourself, in
    the established Thai house style (ฝั่งนักศึกษา + ฝั่งทีม, plus ฝั่งแอดมิน/
    ทีมงาน when relevant, see below). This is not optional and not automatic
    anywhere else: shipping without a changelog entry is incomplete. This step
    only touches Markdown under `updates/`, never code or `main` history.
-   **Commit and push this directly to `main`**, with no separate branch/PR for
+   **Commit and push this directly to `main`**, with no separate branch or PR for
    it (CLAUDE.md's documented exception for docs-only `updates/*.md` entries).
-   Don't repeat the full branch → PR → merge cycle just to land the changelog
-   file.
+   It rides the same direct-to-main flow as the code, as its own small commit.
    - **Find the date.** `date +%Y-%m-%d`. Buddhist year for the header =
      Gregorian year + 543, shown as last two digits (2026 → "69"). Thai month
      abbreviations: ม.ค. ก.พ. มี.ค. เม.ย. พ.ค. มิ.ย. ก.ค. ส.ค. ก.ย. ต.ค. พ.ย. ธ.ค.
    - **Read the existing log.** `ls updates/` and read the latest 1–2 files to
      copy their structure, heading wording, date format, and bullet style
      exactly.
-   - **Derive content from what actually shipped**: the commit(s)/PR just
-     merged in step 5, not guesswork. Never invent a bullet that doesn't trace
+   - **Derive content from what actually shipped**: the commit(s) just
+     pushed in step 3, not guesswork. Never invent a bullet that doesn't trace
      to a real change.
    - **Choose the file.** Default: a new `updates/YYYY-MM-DD.md` for today.
      Only extend the latest existing file instead if it's an open period range
@@ -153,7 +150,7 @@ changelog entry.
      flowing prose ("อัปเดตรอบนี้รวม PR #X (…) และ PR #Y (…)"), not a
      dot-separated data dump.
    - **Write the entry:** first line is the version header `# ActiveCAMT vX.Y.Z 🎉`
-     using the tag just created in step 7 (this is the natural source of truth
+     using the tag just created in step 6 (this is the natural source of truth
      here, since it was just tagged). Then the existing Thai title line
      `# อัปเดต ActiveCAMT ประจำวันที่ <date> 69` below it, a
      one-line subtitle like "สรุปสำหรับวันที่ … เอาไว้ลง Discord และให้ทีมที่
@@ -180,12 +177,11 @@ changelog entry.
      the bullets so the user can sanity-check before sharing.
 
 ## Notes
-- If branch protection blocks `gh pr merge` (required reviews/checks), stop and tell
-  the user; do not try to bypass it or push to `main`.
-- If the merge is not a fast-forward and conflicts arise, stop and surface the
-  conflict rather than force-anything.
-- This skill is git mechanics only. It does **not** deploy or migrate. Vercel
-  deploys on merge to `main`, so make sure prod is already migrated (via
-  /safe-deploy) for any schema-dependent change *before* you run step 5 (the merge).
-- Tagging (step 7) always happens after the merge (step 5) lands, never before:
-  the tag must point at a commit that's actually on `main`.
+- If `git push origin main` is refused (branch protection, rejected non-fast-forward
+  that a plain rebase cannot resolve), stop and tell the user; do not force-push or
+  try to bypass it.
+- This skill is git mechanics only. It does **not** deploy or migrate, but pushing
+  to `main` triggers the production redeploy, so prod must already be migrated (via
+  /safe-deploy) for any schema-dependent change *before* you push in step 3.
+- Tagging (step 6) always happens after the push (step 3) lands, never before: the
+  tag must point at a commit that's actually on `main`.

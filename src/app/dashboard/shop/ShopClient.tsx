@@ -937,10 +937,16 @@ function OrderHandover({ order, th, onChanged }: { order: Order; th: boolean; on
           {ready ? <Package size={15} /> : <Clock size={15} />}
           {ready ? (th ? "สินค้าพร้อมให้รับแล้ว!" : "Ready for pickup!") : (th ? "ผู้ขายกำลังเตรียมสินค้า" : "The seller is preparing your order")}
         </p>
-        {order.pickupInfo?.trim() && <PickupInfo th={th} info={order.pickupInfo} />}
-        {/* Only once the seller marks it ready: before that, "show your QR" reads as "go collect it now". */}
+        {/* Where and how to collect only appear once the seller marks it ready:
+            before that, a location or "show your QR" reads as "go collect it now". */}
+        {!ready && (
+          <p style={{ color: "var(--text-muted)" }}>
+            {th ? "สถานที่รับสินค้าจะแสดงที่นี่เมื่อสินค้าพร้อมให้รับ" : "The pickup location will appear here once your order is ready."}
+          </p>
+        )}
         {ready && (
           <>
+            {order.pickupInfo?.trim() && <PickupInfo th={th} info={order.pickupInfo} />}
             <p style={{ color: "var(--text-muted)" }}>
               {th ? "ตอนไปรับ ให้เปิดคิวอาร์โค้ดประจำตัวให้ผู้ขายสแกน" : "When you collect it, show your Digital ID for the seller to scan."}
             </p>

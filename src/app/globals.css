@@ -2,12 +2,13 @@
 
 /* ── Design Tokens ─────────────────────────────────────────────────────────── */
 :root {
-  /* This app is light-only by design. The `only` keyword forbids the user agent
-     from auto-darkening the page — without it, a phone in dark mode (e.g. Android
-     Chrome "Auto Dark Theme", Samsung Internet) algorithmically inverts the whole
-     page INCLUDING the QR code, turning the black-on-white attendance QR into
-     light-on-dark, which scanners cannot read. Keep this until a real dark theme
-     exists. See /dashboard/id and DashboardClient QR cards. */
+  /* Light theme: the `only` keyword forbids the user agent from auto-darkening
+     the page — without it, a phone in dark mode (e.g. Android Chrome "Auto Dark
+     Theme", Samsung Internet) algorithmically inverts the whole page INCLUDING
+     the QR code, turning the black-on-white attendance QR into light-on-dark,
+     which scanners cannot read. Dark mode is our own theme (below), never the
+     UA's, and the QR cards hard-code a white background so they stay scannable
+     in both. See /dashboard/id and DashboardClient QR cards. */
   color-scheme: only light;
 
   --bg-base:        #fcfcfd;
@@ -21,6 +22,15 @@
   --text-primary:   #111827;
   --text-secondary: #4b5563;
   --text-muted:     #9ca3af;
+
+  --bg-glass-strong: rgb(var(--surface-rgb) / 0.7);
+
+  --error-bg:     var(--red-50);
+  --error-border: var(--red-100);
+  --error-text:   var(--red-800);
+  --warn-bg:      var(--amber-50);
+  --warn-border:  var(--amber-100);
+  --warn-text:    var(--amber-700);
 
   --accent-primary:  #ff6b00;
   --accent-hover:    #ff8533;
@@ -43,6 +53,225 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
+}
+
+/* ── Dark theme ─────────────────────────────────────────────────────────────── */
+/* Set on <html> by the inline script in layout.tsx (saved choice, else the OS
+   preference) and by ThemeToggle. Only the tokens change — components read them. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg-base:        #0f1115;
+  --bg-surface:     #181b21;
+  --bg-elevated:    #232730;
+  --bg-glass:       rgba(255,255,255,0.04);
+
+  --border-subtle:  rgba(255,255,255,0.09);
+  --border-medium:  rgba(255,255,255,0.18);
+
+  --text-primary:   #f3f4f6;
+  --text-secondary: #c2c8d2;
+  --text-muted:     #9aa3b2;
+
+  --accent-glow:     rgba(255,107,0,0.22);
+
+  --green-house:  #cbd5e1;
+}
+
+/* ── Colour palette ─────────────────────────────────────────────────────────── */
+/* Every colour in the app comes from here or from the semantic tokens above —
+   never write a hex/rgba literal in a component. Pick by role:
+
+   --{hue}-{shade}  Tailwind-named shades. Light values are the Tailwind hex.
+                    They are ROLE-stable, not value-stable: in dark mode the
+                    50–200 tints become dim translucent washes (they are
+                    backgrounds) and 600–900 become light (they are text), so
+                    `color: var(--red-700)` stays readable in both themes.
+                    300–500 are the same in both themes.
+   --{hue}-{shade}-rgb  Space-separated channels for translucent tints:
+                    `rgb(var(--red-500-rgb) / 0.12)`. Never flip.
+   --*-fill         A dark shade used as a solid fill behind white text; never
+                    flips (a flipped fill would put white text on a light fill).
+   --ink-rgb        Black on light, white on dark — for faint tints/hairlines
+                    that should darken a light surface and lighten a dark one.
+   --surface-rgb    The card surface, for translucent "frosted" panels.
+   --shadow-rgb, --scrim-rgb  Black in both themes (shadows, modal backdrops).
+   --white, --black, --text-on-color, --qr-surface, --media-bg  Fixed in both
+                    themes: text on coloured fills, QR backgrounds (scanners
+                    need black-on-white), camera/video and image letterboxes.
+
+   For a transparent version of a colour held in a JS variable, use
+   `alpha(color, opacity)` from src/lib/color.ts — never append hex alpha
+   digits, which breaks as soon as the colour is a var(). */
+:root {
+  --white: #ffffff;
+  --black: #000000;
+  --text-on-color: #ffffff;
+  --qr-surface: #ffffff;
+  --media-bg: #1a1a1a;
+
+  --accent-deep:   #ff3d00;
+  --rating-star:   #ffb000;
+  --brand-line:    #06c755;
+  --medal-gold:    #ffd700;
+  --medal-silver:  #c0c0c0;
+  --medal-bronze:  #cd7f32;
+  --medal-bronze-light: #d6a06a;
+
+  --red-50:  #fef2f2;
+  --red-100: #fee2e2;
+  --red-300: #fca5a5;
+  --red-400: #f87171;
+  --red-500: #ef4444;
+  --red-600: #dc2626;
+  --red-700: #b91c1c;
+  --red-800: #991b1b;
+  --rose-600: #e11d48;
+  --orange-100: #ffedd5;
+  --orange-400: #fb923c;
+  --orange-500: #f97316;
+  --orange-700: #c2410c;
+  --orange-800: #9a3412;
+  --amber-50:  #fffbeb;
+  --amber-100: #fef3c7;
+  --amber-400: #fbbf24;
+  --amber-500: #f59e0b;
+  --amber-700: #b45309;
+  --amber-800: #92400e;
+  --yellow-200: #fef08a;
+  --yellow-400: #facc15;
+  --yellow-500: #eab308;
+  --yellow-600: #ca8a04;
+  --yellow-700: #a16207;
+  --yellow-800: #854d0e;
+  --green-400: #4ade80;
+  --green-500: #22c55e;
+  --green-600: #16a34a;
+  --green-700: #15803d;
+  --emerald-500: #10b981;
+  --emerald-600: #059669;
+  --teal-500: #14b8a6;
+  --teal-600: #0d9488;
+  --cyan-500: #06b6d4;
+  --blue-500: #3b82f6;
+  --blue-700: #1d4ed8;
+  --indigo-500: #6366f1;
+  --indigo-600: #4f46e5;
+  --violet-500: #8b5cf6;
+  --violet-600: #7c3aed;
+  --violet-700: #6d28d9;
+  --purple-500: #a855f7;
+  --purple-600: #9333ea;
+  --pink-500: #ec4899;
+  --slate-100: #f1f5f9;
+  --slate-300: #cbd5e1;
+  --slate-400: #94a3b8;
+  --slate-500: #64748b;
+  --slate-600: #475569;
+  --slate-800: #1e293b;
+  --gray-500: #6b7280;
+  --neutral-50:  #fafafa;
+  --neutral-100: #f5f5f5;
+  --neutral-200: #e5e5e5;
+  --neutral-300: #d4d4d4;
+  --neutral-400: #a3a3a3;
+  --neutral-500: #737373;
+  --neutral-600: #525252;
+  --neutral-700: #404040;
+  --neutral-800: #262626;
+  --neutral-900: #171717;
+
+  --red-600-fill:     #dc2626;
+  --emerald-600-fill: #059669;
+  --slate-800-fill:   #1e293b;
+
+  --accent-rgb:      255 107 0;
+  --accent-deep-rgb: 255 61 0;
+  --rating-star-rgb: 255 176 0;
+  --red-500-rgb:     239 68 68;
+  --red-600-rgb:     220 38 38;
+  --rose-600-rgb:    225 29 72;
+  --orange-500-rgb:  249 115 22;
+  --amber-400-rgb:   251 191 36;
+  --amber-500-rgb:   245 158 11;
+  --amber-700-rgb:   180 83 9;
+  --yellow-500-rgb:  234 179 8;
+  --green-500-rgb:   34 197 94;
+  --green-600-rgb:   22 163 74;
+  --emerald-500-rgb: 16 185 129;
+  --teal-500-rgb:    20 184 166;
+  --cyan-500-rgb:    6 182 212;
+  --blue-500-rgb:    59 130 246;
+  --indigo-500-rgb:  99 102 241;
+  --indigo-600-rgb:  79 70 229;
+  --violet-500-rgb:  139 92 246;
+  --violet-600-rgb:  124 58 237;
+  --purple-500-rgb:  168 85 247;
+  --pink-500-rgb:    236 72 153;
+  --slate-400-rgb:   148 163 184;
+  --slate-900-rgb:   15 23 42;
+  --gray-500-rgb:    107 114 128;
+  --brand-line-rgb:  6 199 85;
+  --white-rgb:       255 255 255;
+  --shadow-rgb:      0 0 0;
+  --scrim-rgb:       0 0 0;
+
+  --ink-rgb:     0 0 0;
+  --surface-rgb: 255 255 255;
+  --bg-base-rgb: 252 252 253;
+}
+
+:root[data-theme="dark"] {
+  /* tints → dim washes */
+  --red-50:     rgb(var(--red-500-rgb) / 0.12);
+  --red-100:    rgb(var(--red-500-rgb) / 0.2);
+  --orange-100: rgb(var(--orange-500-rgb) / 0.2);
+  --amber-50:   rgb(var(--amber-500-rgb) / 0.12);
+  --amber-100:  rgb(var(--amber-500-rgb) / 0.2);
+  --yellow-200: rgb(var(--yellow-500-rgb) / 0.3);
+
+  /* text shades → light */
+  --red-600: #f87171;
+  --red-700: #fca5a5;
+  --red-800: #fecaca;
+  --orange-700: #fdba74;
+  --orange-800: #fed7aa;
+  --amber-700: #fcd34d;
+  --amber-800: #fde68a;
+  --yellow-600: #facc15;
+  --yellow-700: #fde047;
+  --yellow-800: #fef08a;
+  --green-600: #4ade80;
+  --green-700: #86efac;
+  --emerald-600: #34d399;
+  --teal-600: #2dd4bf;
+  --blue-700: #93c5fd;
+  --indigo-600: #818cf8;
+  --violet-600: #a78bfa;
+  --violet-700: #c4b5fd;
+  --purple-600: #c084fc;
+
+  /* greys flip end-for-end */
+  --slate-100: #1e293b;
+  --slate-300: #475569;
+  --slate-500: #94a3b8;
+  --slate-600: #cbd5e1;
+  --slate-800: #e2e8f0;
+  --gray-500:  #9ca3af;
+  --neutral-50:  #1c1c1f;
+  --neutral-100: #26262a;
+  --neutral-200: #333338;
+  --neutral-300: #404046;
+  --neutral-400: #8a8a8f;
+  --neutral-500: #a3a3a3;
+  --neutral-600: #c4c4c4;
+  --neutral-700: #d4d4d4;
+  --neutral-800: #e5e5e5;
+  --neutral-900: #f5f5f5;
+
+  --ink-rgb:     255 255 255;
+  --surface-rgb: 24 27 33;
+  --bg-base-rgb: 15 17 21;
 }
 
 /* ── Base ───────────────────────────────────────────────────────────────────── */
@@ -86,7 +315,7 @@ html {
 ::-webkit-scrollbar              { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track        { background: transparent; }
 ::-webkit-scrollbar-thumb        { background: var(--border-medium); border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover  { background: rgba(255,255,255,0.2); }
+::-webkit-scrollbar-thumb:hover  { background: var(--text-muted); }
 
 /* ── Glass Card ─────────────────────────────────────────────────────────────── */
 .glass {
@@ -120,12 +349,12 @@ html {
 
 .btn-primary {
   background: var(--accent-primary);
-  color: #fff;
+  color: var(--text-on-color);
   box-shadow: 0 0 20px var(--accent-glow);
 }
 .btn-primary:hover:not(:disabled) {
   background: var(--accent-hover);
-  box-shadow: 0 0 30px var(--accent-glow), 0 4px 12px rgba(0,0,0,0.4);
+  box-shadow: 0 0 30px var(--accent-glow), 0 4px 12px rgb(var(--shadow-rgb) / 0.4);
   transform: translateY(-1px);
 }
 .btn-primary:active:not(:disabled) { transform: scale(0.97); }
@@ -142,28 +371,28 @@ html {
 }
 
 .btn-danger {
-  background: rgba(239,68,68,0.12);
-  color: #f87171;
-  border: 1px solid rgba(239,68,68,0.25);
+  background: rgb(var(--red-500-rgb) / 0.12);
+  color: var(--red-400);
+  border: 1px solid rgb(var(--red-500-rgb) / 0.25);
 }
 .btn-danger:hover:not(:disabled) {
-  background: rgba(239,68,68,0.2);
-  box-shadow: 0 0 16px rgba(239,68,68,0.2);
+  background: rgb(var(--red-500-rgb) / 0.2);
+  box-shadow: 0 0 16px rgb(var(--red-500-rgb) / 0.2);
 }
 
 .btn-success {
-  background: rgba(34,197,94,0.12);
-  color: #4ade80;
-  border: 1px solid rgba(34,197,94,0.25);
+  background: rgb(var(--green-500-rgb) / 0.12);
+  color: var(--green-400);
+  border: 1px solid rgb(var(--green-500-rgb) / 0.25);
 }
-.btn-success:hover:not(:disabled) { background: rgba(34,197,94,0.2); }
+.btn-success:hover:not(:disabled) { background: rgb(var(--green-500-rgb) / 0.2); }
 .btn-success-solid {
-  background: #10b981;
-  color: #fff;
-  box-shadow: 0 0 20px rgba(16,185,129,0.2);
+  background: var(--emerald-500);
+  color: var(--text-on-color);
+  box-shadow: 0 0 20px rgb(var(--emerald-500-rgb) / 0.2);
 }
 .btn-success-solid:hover:not(:disabled) {
-  background: #059669;
+  background: var(--emerald-600-fill);
   transform: translateY(-1px);
 }
 
@@ -267,11 +496,11 @@ select.input { cursor: pointer; }
   line-height: 1.4;
   white-space: nowrap;
 }
-.badge-green   { background: rgba(20,184,166,0.12);  color: #0d9488;  border: 1px solid rgba(20,184,166,0.25); }
-.badge-yellow  { background: rgba(245,158,11,0.12);  color: #b45309;  border: 1px solid rgba(245,158,11,0.25); }
-.badge-red     { background: rgba(239,68,68,0.12);  color: #dc2626;  border: 1px solid rgba(239,68,68,0.25); }
-.badge-blue    { background: rgba(99,102,241,0.12); color: #4f46e5;  border: 1px solid rgba(99,102,241,0.25); }
-.badge-purple  { background: rgba(168,85,247,0.12); color: #9333ea;  border: 1px solid rgba(168,85,247,0.25); }
+.badge-green   { background: rgb(var(--teal-500-rgb) / 0.12);  color: var(--teal-600);  border: 1px solid rgb(var(--teal-500-rgb) / 0.25); }
+.badge-yellow  { background: rgb(var(--amber-500-rgb) / 0.12);  color: var(--amber-700);  border: 1px solid rgb(var(--amber-500-rgb) / 0.25); }
+.badge-red     { background: rgb(var(--red-500-rgb) / 0.12);  color: var(--red-600);  border: 1px solid rgb(var(--red-500-rgb) / 0.25); }
+.badge-blue    { background: rgb(var(--indigo-500-rgb) / 0.12); color: var(--indigo-600);  border: 1px solid rgb(var(--indigo-500-rgb) / 0.25); }
+.badge-purple  { background: rgb(var(--purple-500-rgb) / 0.12); color: var(--purple-600);  border: 1px solid rgb(var(--purple-500-rgb) / 0.25); }
 
 /* Event-card image overlays (restriction tags + status badges). On phones the
    28px insets and full-size badges wrap into several rows and bury the image,
@@ -395,7 +624,7 @@ select.input { cursor: pointer; }
 }
 @keyframes pulse-glow {
   0%, 100% { box-shadow: 0 0 12px var(--accent-glow); }
-  50%       { box-shadow: 0 0 32px var(--accent-glow), 0 0 48px rgba(255,107,0,0.15); }
+  50%       { box-shadow: 0 0 32px var(--accent-glow), 0 0 48px rgb(var(--accent-rgb) / 0.15); }
 }
 @keyframes spin {
   to { transform: rotate(360deg); }
@@ -460,7 +689,7 @@ select.input { cursor: pointer; }
 .nav-link.active {
   background: var(--accent-glow);
   color: var(--accent-primary);
-  border: 1px solid rgba(255,107,0,0.2);
+  border: 1px solid rgb(var(--accent-rgb) / 0.2);
 }
 
 /* ── Divider ────────────────────────────────────────────────────────────────── */
@@ -480,10 +709,10 @@ select.input { cursor: pointer; }
   align-items: flex-start;
   gap: 12px;
 }
-.alert-success { background: rgba(34,197,94,0.08);  border: 1px solid rgba(34,197,94,0.2);  color: #4ade80; }
-.alert-warning { background: rgba(234,179,8,0.08);  border: 1px solid rgba(234,179,8,0.2);  color: #facc15; }
-.alert-error   { background: rgba(239,68,68,0.08);  border: 1px solid rgba(239,68,68,0.2);  color: #f87171; }
-.alert-info    { background: rgba(255,107,0,0.08); border: 1px solid rgba(255,107,0,0.2); color: #fb923c; }
+.alert-success { background: rgb(var(--green-500-rgb) / 0.08);  border: 1px solid rgb(var(--green-500-rgb) / 0.2);  color: var(--green-400); }
+.alert-warning { background: rgb(var(--yellow-500-rgb) / 0.08);  border: 1px solid rgb(var(--yellow-500-rgb) / 0.2);  color: var(--yellow-400); }
+.alert-error   { background: rgb(var(--red-500-rgb) / 0.08);  border: 1px solid rgb(var(--red-500-rgb) / 0.2);  color: var(--red-400); }
+.alert-info    { background: rgb(var(--accent-rgb) / 0.08); border: 1px solid rgb(var(--accent-rgb) / 0.2); color: var(--orange-400); }
 
 /* ── Thai Typography Fixes ─────────────────────────────────────────────────── */
 .lang-th,

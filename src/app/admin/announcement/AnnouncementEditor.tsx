@@ -168,7 +168,7 @@ export function AnnouncementEditor() {
                 <Link2 size={15} /> Link
               </button>
               <label style={{ ...toolBtn, position: "relative" }} title="Text color — {{color:#HEX|text}}">
-                <span style={{ width: 15, height: 15, borderRadius: 4, background: "linear-gradient(135deg,#ef4444,#6366f1)", display: "inline-block" }} />
+                <span style={{ width: 15, height: 15, borderRadius: 4, background: "linear-gradient(135deg,var(--red-500),var(--indigo-500))", display: "inline-block" }} />
                 Color
                 <input
                   type="color"
@@ -209,8 +209,8 @@ export function AnnouncementEditor() {
               <label style={{ display: "block", fontWeight: 700, fontSize: 13, marginBottom: 8, color: "var(--text-muted)" }}>
                 Preview
               </label>
-              <div className="alert alert-info" style={{ borderRadius: "var(--radius-lg)", padding: 20, background: "rgba(255,107,0,0.04)", border: "1px solid rgba(255,107,0,0.1)" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-surface)", padding: 8, borderRadius: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.05)", color: "var(--accent-primary)", width: 40, height: 40, flexShrink: 0 }}>
+              <div className="alert alert-info" style={{ borderRadius: "var(--radius-lg)", padding: 20, background: "rgb(var(--accent-rgb) / 0.04)", border: "1px solid rgb(var(--accent-rgb) / 0.1)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-surface)", padding: 8, borderRadius: 12, boxShadow: "0 4px 12px rgb(var(--shadow-rgb) / 0.05)", color: "var(--accent-primary)", width: 40, height: 40, flexShrink: 0 }}>
                   <Megaphone size={22} />
                 </div>
                 <div>
@@ -256,7 +256,7 @@ export function AnnouncementEditor() {
                 {saving ? t.saving : t.saveChanges}
               </button>
               {savedAt && !saving && (
-                <span style={{ fontSize: 13, color: "var(--accent-success, #16a34a)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <span style={{ fontSize: 13, color: "var(--accent-success)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
                   <Check size={14} style={{ flexShrink: 0 }} /> {t.announcementSaved}
                 </span>
               )}

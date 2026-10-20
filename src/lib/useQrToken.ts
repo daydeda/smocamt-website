@@ -53,7 +53,7 @@ export function useQrToken(userId: string | undefined) {
   const countdownMM = String(Math.floor(secsLeft / 60)).padStart(2, "0");
   const countdownSS = String(secsLeft % 60).padStart(2, "0");
   const countdownColor =
-    secsLeft > 60 ? "#22c55e" : secsLeft > 30 ? "#f59e0b" : "#ef4444";
+    secsLeft > 60 ? "var(--green-500)" : secsLeft > 30 ? "var(--amber-500)" : "var(--red-500)";
 
   return { qrValue, secsLeft, countdownMM, countdownSS, countdownColor };
 }

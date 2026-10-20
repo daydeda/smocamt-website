@@ -18,6 +18,7 @@ import { useLanguage } from "@/lib/LanguageContext";
 import { usePolling } from "@/lib/usePolling";
 import { EventFormBuilderModal } from "@/components/admin/EventFormBuilderModal";
 import { isGlobalRegistrationPosition } from "@/lib/admin-access";
+import { alpha } from "@/lib/color";
 
 interface AdminEvent {
   id: string;
@@ -1598,7 +1599,7 @@ export default function AdminEventsPage() {
       key: "checkedIn",
       label: lang === "th" ? "เช็คอินแล้ว" : lang === "cn" ? "已签到" : lang === "mm" ? "ချက်အင်ပြီး" : "Checked In",
       value: checkInCount,
-      color: "#10b981",
+      color: "var(--emerald-500)",
     },
     {
       key: "preReg",
@@ -1610,14 +1611,14 @@ export default function AdminEventsPage() {
       key: "walkIn",
       label: lang === "th" ? "วอล์กอิน" : lang === "cn" ? "现场加入" : lang === "mm" ? "ဝင်ရောက်" : "Walk-ins",
       value: summaryWalkIns,
-      color: "#3b82f6",
+      color: "var(--blue-500)",
     },
     {
       key: "noShow",
       label: lang === "th" ? "ไม่มา" : lang === "cn" ? "缺席" : lang === "mm" ? "မလာသူ" : "No-shows",
       value: summaryNoShows,
       sub: summaryPreRegistered > 0 ? `${summaryNoShowPct}%` : null,
-      color: "#ef4444",
+      color: "var(--red-500)",
     },
   ];
 
@@ -1822,9 +1823,9 @@ export default function AdminEventsPage() {
   // and each day-row of a collapsed multi-day card.
   const renderMedsBadge = (option: string | null, badgeKey?: string) => {
     if (!canSeeRawMedicalDetail || !option) return null;
-    const color = option === "brought" ? "#10b981" : option === "forgot" ? "#ef4444" : "#3b82f6";
-    const bg = option === "brought" ? "rgba(16, 185, 129, 0.12)" : option === "forgot" ? "rgba(239, 68, 68, 0.12)" : "rgba(59, 130, 246, 0.12)";
-    const border = option === "brought" ? "rgba(16, 185, 129, 0.2)" : option === "forgot" ? "rgba(239, 68, 68, 0.2)" : "rgba(59, 130, 246, 0.2)";
+    const color = option === "brought" ? "var(--emerald-500)" : option === "forgot" ? "var(--red-500)" : "var(--blue-500)";
+    const bg = option === "brought" ? "rgb(var(--emerald-500-rgb) / 0.12)" : option === "forgot" ? "rgb(var(--red-500-rgb) / 0.12)" : "rgb(var(--blue-500-rgb) / 0.12)";
+    const border = option === "brought" ? "rgb(var(--emerald-500-rgb) / 0.2)" : option === "forgot" ? "rgb(var(--red-500-rgb) / 0.2)" : "rgb(var(--blue-500-rgb) / 0.2)";
     const label = option === "brought"
       ? "Brought Meds / พกยามาด้วย"
       : option === "forgot"
@@ -1864,7 +1865,7 @@ export default function AdminEventsPage() {
         flexDirection: "column",
         gap: 14,
         transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.02)"
+        boxShadow: "0 4px 12px rgb(var(--shadow-rgb) / 0.02)"
       }}>
         {/* Header: identity on the left, actions + status on the right. */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
@@ -1877,7 +1878,7 @@ export default function AdminEventsPage() {
                   display: "inline-flex", alignItems: "center", gap: 4,
                   padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 800,
                   textTransform: "uppercase", letterSpacing: "0.03em",
-                  background: "rgba(99, 102, 241, 0.12)", color: "#6366f1", border: "1px solid rgba(99, 102, 241, 0.25)",
+                  background: "rgb(var(--indigo-500-rgb) / 0.12)", color: "var(--indigo-500)", border: "1px solid rgb(var(--indigo-500-rgb) / 0.25)",
                 }}>
                   <ShieldCheck size={10} />
                   {primaryRoleLabel(m.user)}
@@ -1898,7 +1899,7 @@ export default function AdminEventsPage() {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
             {!unregistered && hasMedicalSignal(m.user) && (
-              <div style={{ color: "#ef4444", animation: "pulse-glow 2s infinite" }} title="Medical Condition">
+              <div style={{ color: "var(--red-500)", animation: "pulse-glow 2s infinite" }} title="Medical Condition">
                 <Activity size={20} />
               </div>
             )}
@@ -1921,7 +1922,7 @@ export default function AdminEventsPage() {
             {!unregistered && canRemoveRegistrant && m.user?.id && (
               <button
                 className="btn btn-ghost"
-                style={{ padding: 8, borderRadius: 10, color: "#ef4444" }}
+                style={{ padding: 8, borderRadius: 10, color: "var(--red-500)" }}
                 title={lang === "th" ? "ลบการลงทะเบียน" : "Remove registration"}
                 disabled={removingStudentId === m.user.id}
                 onClick={() => removeRegistrant(m.user!.id, m.user!.name || m.user!.studentId || "this student")}
@@ -1930,12 +1931,12 @@ export default function AdminEventsPage() {
               </button>
             )}
             {multiDay ? (
-              <div style={{ minWidth: 50, height: 32, padding: "0 10px", borderRadius: 16, background: attendedDays > 0 ? "rgba(16,185,129,0.1)" : "rgba(255,107,0,0.08)", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, color: attendedDays > 0 ? "#10b981" : "var(--accent-primary)", fontSize: 13, fontWeight: 800, border: attendedDays > 0 ? "none" : "1px dashed var(--accent-primary)" }} title={`${attendedDays} / ${unit.rows.length} ${lang === "th" ? "วันเช็คอินแล้ว" : "days checked in"}`}>
+              <div style={{ minWidth: 50, height: 32, padding: "0 10px", borderRadius: 16, background: attendedDays > 0 ? "rgb(var(--emerald-500-rgb) / 0.1)" : "rgb(var(--accent-rgb) / 0.08)", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, color: attendedDays > 0 ? "var(--emerald-500)" : "var(--accent-primary)", fontSize: 13, fontWeight: 800, border: attendedDays > 0 ? "none" : "1px dashed var(--accent-primary)" }} title={`${attendedDays} / ${unit.rows.length} ${lang === "th" ? "วันเช็คอินแล้ว" : "days checked in"}`}>
                 <CheckCircle2 size={14} />
                 {attendedDays}/{unit.rows.length}
               </div>
             ) : m.status === "attended" ? (
-              <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(16,185,129,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#10b981" }} title="Checked In">
+              <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgb(var(--emerald-500-rgb) / 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--emerald-500)" }} title="Checked In">
                 <CheckCircle2 size={16} />
               </div>
             ) : unregistered ? (
@@ -1943,7 +1944,7 @@ export default function AdminEventsPage() {
                 <User size={14} />
               </div>
             ) : (
-              <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(255,107,0,0.08)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-primary)", border: "1px dashed var(--accent-primary)" }} title="Registered (Not Checked In)">
+              <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgb(var(--accent-rgb) / 0.08)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-primary)", border: "1px dashed var(--accent-primary)" }} title="Registered (Not Checked In)">
                 <Clock size={14} className="animate-pulse" />
               </div>
             )}
@@ -1971,7 +1972,7 @@ export default function AdminEventsPage() {
                       <Calendar size={12} />
                       {dayLabel}
                     </span>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700, color: checked ? "#10b981" : "var(--accent-primary)", flexShrink: 0 }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700, color: checked ? "var(--emerald-500)" : "var(--accent-primary)", flexShrink: 0 }}>
                       {checked ? <CheckCircle2 size={13} /> : <Clock size={13} className="animate-pulse" />}
                       {checked
                         ? (r.checkInTime ? new Date(r.checkInTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Bangkok' }) : (lang === "th" ? "เช็คอินแล้ว" : lang === "cn" ? "已签到" : lang === "mm" ? "ချက်အင်ပြီး" : "Checked in"))
@@ -2112,7 +2113,7 @@ export default function AdminEventsPage() {
             borderRadius: "clamp(20px, 4vw, 32px)",
             padding: "clamp(20px, 5vw, 40px)",
             marginBottom: 48,
-            boxShadow: "0 40px 80px rgba(0,0,0,0.1)",
+            boxShadow: "0 40px 80px rgb(var(--shadow-rgb) / 0.1)",
             position: "relative",
             overflow: "hidden"
           }}
@@ -2133,12 +2134,12 @@ export default function AdminEventsPage() {
             events.find((e) => e.id === editingId)?.pendingDetailsChanges && (
             <div style={{
               display: "flex", alignItems: "flex-start", gap: 10,
-              background: "rgba(245, 158, 11, 0.08)", border: "1px solid rgba(245, 158, 11, 0.25)",
+              background: "rgb(var(--amber-500-rgb) / 0.08)", border: "1px solid rgb(var(--amber-500-rgb) / 0.25)",
               borderRadius: 16, padding: "16px 20px", marginBottom: 24,
             }}>
-              <AlertTriangle size={16} style={{ color: "#f59e0b", flexShrink: 0, marginTop: 2 }} />
+              <AlertTriangle size={16} style={{ color: "var(--amber-500)", flexShrink: 0, marginTop: 2 }} />
               <div>
-                <p style={{ fontWeight: 800, fontSize: 13, color: "#f59e0b" }}>
+                <p style={{ fontWeight: 800, fontSize: 13, color: "var(--amber-500)" }}>
                   {t.eventDetailsPendingBannerTitle || "Pending staff review"}
                 </p>
                 <p style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 2, lineHeight: 1.5 }}>
@@ -2171,14 +2172,14 @@ export default function AdminEventsPage() {
             return (
               <div style={{
                 display: "flex", flexDirection: "column", gap: 12,
-                background: "rgba(245, 158, 11, 0.08)", border: "1px solid rgba(245, 158, 11, 0.25)",
+                background: "rgb(var(--amber-500-rgb) / 0.08)", border: "1px solid rgb(var(--amber-500-rgb) / 0.25)",
                 borderRadius: 16, padding: "16px 20px", marginBottom: 24,
               }}>
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                    <AlertTriangle size={16} style={{ color: "#f59e0b", flexShrink: 0, marginTop: 2 }} />
+                    <AlertTriangle size={16} style={{ color: "var(--amber-500)", flexShrink: 0, marginTop: 2 }} />
                     <div>
-                      <p style={{ fontWeight: 800, fontSize: 13, color: "#f59e0b" }}>
+                      <p style={{ fontWeight: 800, fontSize: 13, color: "var(--amber-500)" }}>
                         {t.eventDetailsPendingStaffLabel || "President edited this event"}
                       </p>
                       <p style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 2, lineHeight: 1.5 }}>
@@ -2197,7 +2198,7 @@ export default function AdminEventsPage() {
                       type="button"
                       className="btn btn-sm"
                       style={{
-                        background: "transparent", color: "#f59e0b", border: "1px solid rgba(245, 158, 11, 0.4)",
+                        background: "transparent", color: "var(--amber-500)", border: "1px solid rgb(var(--amber-500-rgb) / 0.4)",
                       }}
                       disabled={detailsReviewToggling}
                       onClick={discardPendingDetails}
@@ -2209,8 +2210,8 @@ export default function AdminEventsPage() {
                       type="button"
                       className="btn btn-sm"
                       style={{
-                        background: "#f59e0b", color: "#fff", border: "none",
-                        boxShadow: "0 2px 8px rgba(245, 158, 11, 0.35)",
+                        background: "var(--amber-500)", color: "var(--text-on-color)", border: "none",
+                        boxShadow: "0 2px 8px rgb(var(--amber-500-rgb) / 0.35)",
                       }}
                       disabled={detailsReviewToggling}
                       onClick={approveEventDetails}
@@ -2228,7 +2229,7 @@ export default function AdminEventsPage() {
                     {diffRows.map((row) => (
                       <p key={row.key} style={{ fontSize: 12.5, color: "var(--text-secondary)", margin: 0, lineHeight: 1.5 }}>
                         <strong style={{ color: "var(--text-primary)" }}>{row.label}:</strong>{" "}
-                        {row.oldText} <span style={{ color: "#f59e0b", fontWeight: 700 }}>→</span> {row.newText}
+                        {row.oldText} <span style={{ color: "var(--amber-500)", fontWeight: 700 }}>→</span> {row.newText}
                       </p>
                     ))}
                   </div>
@@ -2260,10 +2261,10 @@ export default function AdminEventsPage() {
                   <div className="field">
                     <label className="label">{t.eventPointsLabel}</label>
                     <div style={{ position: "relative", opacity: canEditRestrictedFields ? 1 : 0.5 }}>
-                      <Trophy size={18} style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", color: "#fbbf24" }} />
+                      <Trophy size={18} style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", color: "var(--amber-400)" }} />
                       <input className="input" type="number" min={0} disabled={!canEditRestrictedFields} value={formData.pointsAwarded} onChange={(e) => set("pointsAwarded", Number(e.target.value))} style={{ paddingLeft: 44 }} />
                     </div>
-                    <p style={{ fontSize: 11, color: canEditRestrictedFields ? "var(--text-muted)" : "#f59e0b", fontWeight: canEditRestrictedFields ? 400 : 700, marginTop: 6 }}>
+                    <p style={{ fontSize: 11, color: canEditRestrictedFields ? "var(--text-muted)" : "var(--amber-500)", fontWeight: canEditRestrictedFields ? 400 : 700, marginTop: 6 }}>
                       {canEditRestrictedFields ? t.eventHousePointsHint : t.eventStaffOnlyFieldHint}
                     </p>
                   </div>
@@ -2273,7 +2274,7 @@ export default function AdminEventsPage() {
                       <Sparkles size={18} style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", color: "var(--accent-primary)" }} />
                       <input className="input" type="number" min={0} disabled={!canEditRestrictedFields} value={formData.individualPointsAwarded} onChange={(e) => set("individualPointsAwarded", Number(e.target.value))} style={{ paddingLeft: 44 }} />
                     </div>
-                    <p style={{ fontSize: 11, color: canEditRestrictedFields ? "var(--text-muted)" : "#f59e0b", fontWeight: canEditRestrictedFields ? 400 : 700, marginTop: 6 }}>
+                    <p style={{ fontSize: 11, color: canEditRestrictedFields ? "var(--text-muted)" : "var(--amber-500)", fontWeight: canEditRestrictedFields ? 400 : 700, marginTop: 6 }}>
                       {canEditRestrictedFields ? t.eventIndividualPointsHint : t.eventStaffOnlyFieldHint}
                     </p>
                   </div>
@@ -2333,11 +2334,11 @@ export default function AdminEventsPage() {
                 {registrationMode === null && sessionSpansTooLong(formData.startTime, formData.endTime) && (
                   <div style={{
                     display: "flex", gap: 10, alignItems: "flex-start",
-                    background: "color-mix(in srgb, #f59e0b 12%, transparent)",
-                    border: "1px solid color-mix(in srgb, #f59e0b 40%, transparent)",
+                    background: "color-mix(in srgb, var(--amber-500) 12%, transparent)",
+                    border: "1px solid color-mix(in srgb, var(--amber-500) 40%, transparent)",
                     borderRadius: 12, padding: "10px 14px",
                   }}>
-                    <AlertCircle size={16} style={{ color: "#f59e0b", flexShrink: 0, marginTop: 2 }} />
+                    <AlertCircle size={16} style={{ color: "var(--amber-500)", flexShrink: 0, marginTop: 2 }} />
                     <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1, minWidth: 0 }}>
                       <span style={{ fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.45 }}>
                         {t.multiDaySessionWarning}
@@ -2677,20 +2678,20 @@ export default function AdminEventsPage() {
                       <div style={{
                         marginTop: 20,
                         padding: "16px 20px",
-                        background: "rgba(245, 158, 11, 0.1)",
-                        border: "1px solid rgba(245, 158, 11, 0.2)",
+                        background: "rgb(var(--amber-500-rgb) / 0.1)",
+                        border: "1px solid rgb(var(--amber-500-rgb) / 0.2)",
                         borderRadius: 16,
-                        color: "#f59e0b",
+                        color: "var(--amber-500)",
                         fontSize: 13,
                         fontWeight: 600,
                         display: "flex",
                         flexDirection: "column",
                         gap: 8,
-                        boxShadow: "0 4px 12px rgba(245, 158, 11, 0.05)"
+                        boxShadow: "0 4px 12px rgb(var(--amber-500-rgb) / 0.05)"
                       }}>
                         {warnings.map((w, idx) => (
                           <div key={idx} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                            <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2, color: "#f59e0b" }} />
+                            <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2, color: "var(--amber-500)" }} />
                             <span>{w}</span>
                           </div>
                         ))}
@@ -2843,7 +2844,7 @@ export default function AdminEventsPage() {
                           onChange={(e) => set("requireCheckOut", e.target.checked)}
                           style={{ position: "absolute", inset: 0, width: "100%", height: "100%", margin: 0, opacity: 0, cursor: "pointer" }}
                         />
-                        {formData.requireCheckOut && <Check size={13} strokeWidth={3} style={{ color: "#fff", pointerEvents: "none" }} />}
+                        {formData.requireCheckOut && <Check size={13} strokeWidth={3} style={{ color: "var(--text-on-color)", pointerEvents: "none" }} />}
                       </span>
                       <ShieldCheck size={16} style={{ color: "var(--accent-primary)" }} />
                       {lang === "th" ? "ต้องเช็คเอาท์ (สแกน 2 ครั้ง: เข้า + ออกพร้อมหลักฐาน)" : lang === "cn" ? "需要签退（两次扫码：签到 + 附证据签退）" : lang === "mm" ? "checkout လိုအပ်သည် (scan ၂ ကြိမ် - ဝင်ရောက်ခြင်း + သက်သေဖြင့် ထွက်ခွာခြင်း)" : "Require check-out (2 scans: arrival + evidence-reviewed departure)"}
@@ -2887,7 +2888,7 @@ export default function AdminEventsPage() {
                             onChange={(e) => set("checkOutEvidenceRequired", e.target.checked)}
                             style={{ position: "absolute", inset: 0, width: "100%", height: "100%", margin: 0, opacity: 0, cursor: "pointer" }}
                           />
-                          {formData.checkOutEvidenceRequired && <Check size={12} strokeWidth={3} style={{ color: "#fff", pointerEvents: "none" }} />}
+                          {formData.checkOutEvidenceRequired && <Check size={12} strokeWidth={3} style={{ color: "var(--text-on-color)", pointerEvents: "none" }} />}
                         </span>
                         <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>
                           {lang === "th"
@@ -3088,7 +3089,7 @@ export default function AdminEventsPage() {
                               borderRadius: 12,
                               border: "1px solid var(--border-medium)",
                               background: "transparent",
-                              color: sessions.length <= 1 ? "var(--text-muted)" : "#ef4444",
+                              color: sessions.length <= 1 ? "var(--text-muted)" : "var(--red-500)",
                               cursor: sessions.length <= 1 ? "not-allowed" : "pointer",
                               opacity: sessions.length <= 1 ? 0.4 : 1,
                               display: "flex",
@@ -3124,11 +3125,11 @@ export default function AdminEventsPage() {
                         {sessionSpansTooLong(s.startTime, s.endTime) && (
                           <div style={{
                             display: "flex", gap: 10, alignItems: "flex-start",
-                            background: "color-mix(in srgb, #f59e0b 12%, transparent)",
-                            border: "1px solid color-mix(in srgb, #f59e0b 40%, transparent)",
+                            background: "color-mix(in srgb, var(--amber-500) 12%, transparent)",
+                            border: "1px solid color-mix(in srgb, var(--amber-500) 40%, transparent)",
                             borderRadius: 12, padding: "10px 14px",
                           }}>
-                            <AlertCircle size={16} style={{ color: "#f59e0b", flexShrink: 0, marginTop: 2 }} />
+                            <AlertCircle size={16} style={{ color: "var(--amber-500)", flexShrink: 0, marginTop: 2 }} />
                             <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1, minWidth: 0 }}>
                               <span style={{ fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.45 }}>
                                 {t.multiDaySessionWarning}
@@ -3223,47 +3224,47 @@ export default function AdminEventsPage() {
                       : "Select which roles can see & join this event. Leave all unchecked = visible to everyone."}
                   </p>
                   {!canEditRestrictedFields && (
-                    <p style={{ fontSize: 11, color: "#f59e0b", fontWeight: 700, marginBottom: 10 }}>{t.eventStaffOnlyFieldHint}</p>
+                    <p style={{ fontSize: 11, color: "var(--amber-500)", fontWeight: 700, marginBottom: 10 }}>{t.eventStaffOnlyFieldHint}</p>
                   )}
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                     {ALL_PARTICIPANT_ROLES.map((role) => {
                       const isSelected = formData.allowedRoles.includes(role);
                       const roleColors: Record<string, { bg: string; border: string; text: string; badge: string }> = {
                         student: {
-                          bg: isSelected ? "rgba(99,102,241,0.12)" : "var(--bg-elevated)",
-                          border: isSelected ? "rgba(99,102,241,0.5)" : "transparent",
-                          text: isSelected ? "#6366f1" : "var(--text-secondary)",
-                          badge: "#6366f1",
+                          bg: isSelected ? "rgb(var(--indigo-500-rgb) / 0.12)" : "var(--bg-elevated)",
+                          border: isSelected ? "rgb(var(--indigo-500-rgb) / 0.5)" : "transparent",
+                          text: isSelected ? "var(--indigo-500)" : "var(--text-secondary)",
+                          badge: "var(--indigo-500)",
                         },
                         staff: {
-                          bg: isSelected ? "rgba(20,184,166,0.12)" : "var(--bg-elevated)",
-                          border: isSelected ? "rgba(20,184,166,0.5)" : "transparent",
-                          text: isSelected ? "#14b8a6" : "var(--text-secondary)",
-                          badge: "#14b8a6",
+                          bg: isSelected ? "rgb(var(--teal-500-rgb) / 0.12)" : "var(--bg-elevated)",
+                          border: isSelected ? "rgb(var(--teal-500-rgb) / 0.5)" : "transparent",
+                          text: isSelected ? "var(--teal-500)" : "var(--text-secondary)",
+                          badge: "var(--teal-500)",
                         },
                         smo: {
-                          bg: isSelected ? "rgba(139,92,246,0.12)" : "var(--bg-elevated)",
-                          border: isSelected ? "rgba(139,92,246,0.5)" : "transparent",
-                          text: isSelected ? "#8b5cf6" : "var(--text-secondary)",
-                          badge: "#8b5cf6",
+                          bg: isSelected ? "rgb(var(--violet-500-rgb) / 0.12)" : "var(--bg-elevated)",
+                          border: isSelected ? "rgb(var(--violet-500-rgb) / 0.5)" : "transparent",
+                          text: isSelected ? "var(--violet-500)" : "var(--text-secondary)",
+                          badge: "var(--violet-500)",
                         },
                         anusmo: {
-                          bg: isSelected ? "rgba(236,72,153,0.12)" : "var(--bg-elevated)",
-                          border: isSelected ? "rgba(236,72,153,0.5)" : "transparent",
-                          text: isSelected ? "#ec4899" : "var(--text-secondary)",
-                          badge: "#ec4899",
+                          bg: isSelected ? "rgb(var(--pink-500-rgb) / 0.12)" : "var(--bg-elevated)",
+                          border: isSelected ? "rgb(var(--pink-500-rgb) / 0.5)" : "transparent",
+                          text: isSelected ? "var(--pink-500)" : "var(--text-secondary)",
+                          badge: "var(--pink-500)",
                         },
                         club_president: {
-                          bg: isSelected ? "rgba(245,158,11,0.12)" : "var(--bg-elevated)",
-                          border: isSelected ? "rgba(245,158,11,0.5)" : "transparent",
-                          text: isSelected ? "#f59e0b" : "var(--text-secondary)",
-                          badge: "#f59e0b",
+                          bg: isSelected ? "rgb(var(--amber-500-rgb) / 0.12)" : "var(--bg-elevated)",
+                          border: isSelected ? "rgb(var(--amber-500-rgb) / 0.5)" : "transparent",
+                          text: isSelected ? "var(--amber-500)" : "var(--text-secondary)",
+                          badge: "var(--amber-500)",
                         },
                         major_president: {
-                          bg: isSelected ? "rgba(6,182,212,0.12)" : "var(--bg-elevated)",
-                          border: isSelected ? "rgba(6,182,212,0.5)" : "transparent",
-                          text: isSelected ? "#06b6d4" : "var(--text-secondary)",
-                          badge: "#06b6d4",
+                          bg: isSelected ? "rgb(var(--cyan-500-rgb) / 0.12)" : "var(--bg-elevated)",
+                          border: isSelected ? "rgb(var(--cyan-500-rgb) / 0.5)" : "transparent",
+                          text: isSelected ? "var(--cyan-500)" : "var(--text-secondary)",
+                          badge: "var(--cyan-500)",
                         },
                       };
                       const c = roleColors[role];
@@ -3322,10 +3323,10 @@ export default function AdminEventsPage() {
                       fontSize: 11,
                       fontWeight: 800,
                       background: formData.allowedRoles.length === 0
-                        ? "rgba(16,185,129,0.1)"
-                        : "rgba(99,102,241,0.1)",
-                      color: formData.allowedRoles.length === 0 ? "#10b981" : "#6366f1",
-                      border: `1px solid ${formData.allowedRoles.length === 0 ? "rgba(16,185,129,0.2)" : "rgba(99,102,241,0.2)"}`,
+                        ? "rgb(var(--emerald-500-rgb) / 0.1)"
+                        : "rgb(var(--indigo-500-rgb) / 0.1)",
+                      color: formData.allowedRoles.length === 0 ? "var(--emerald-500)" : "var(--indigo-500)",
+                      border: `1px solid ${formData.allowedRoles.length === 0 ? "rgb(var(--emerald-500-rgb) / 0.2)" : "rgb(var(--indigo-500-rgb) / 0.2)"}`,
                     }}>
                       {formData.allowedRoles.length === 0
                         ? (lang === "th" ? "✓ เปิดให้ทุกบทบาท" : "✓ Open to all roles")
@@ -3348,7 +3349,7 @@ export default function AdminEventsPage() {
                       : "Select which majors can see & join this event. Leave all unchecked = open to every major."}
                   </p>
                   {!canEditRestrictedFields && (
-                    <p style={{ fontSize: 11, color: "#f59e0b", fontWeight: 700, marginBottom: 10 }}>{t.eventStaffOnlyFieldHint}</p>
+                    <p style={{ fontSize: 11, color: "var(--amber-500)", fontWeight: 700, marginBottom: 10 }}>{t.eventStaffOnlyFieldHint}</p>
                   )}
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                     {ALL_MAJORS.map((major) => {
@@ -3369,8 +3370,8 @@ export default function AdminEventsPage() {
                             gap: 10,
                             padding: "10px 16px",
                             borderRadius: 14,
-                            background: isSelected ? "rgba(255,107,0,0.12)" : "var(--bg-elevated)",
-                            border: `1px solid ${isSelected ? "rgba(255,107,0,0.5)" : "transparent"}`,
+                            background: isSelected ? "rgb(var(--accent-rgb) / 0.12)" : "var(--bg-elevated)",
+                            border: `1px solid ${isSelected ? "rgb(var(--accent-rgb) / 0.5)" : "transparent"}`,
                             cursor: "pointer",
                             transition: "all 0.2s",
                             minWidth: 80,
@@ -3411,10 +3412,10 @@ export default function AdminEventsPage() {
                       fontSize: 11,
                       fontWeight: 800,
                       background: formData.allowedMajors.length === 0
-                        ? "rgba(16,185,129,0.1)"
-                        : "rgba(255,107,0,0.1)",
-                      color: formData.allowedMajors.length === 0 ? "#10b981" : "var(--accent-primary)",
-                      border: `1px solid ${formData.allowedMajors.length === 0 ? "rgba(16,185,129,0.2)" : "rgba(255,107,0,0.2)"}`,
+                        ? "rgb(var(--emerald-500-rgb) / 0.1)"
+                        : "rgb(var(--accent-rgb) / 0.1)",
+                      color: formData.allowedMajors.length === 0 ? "var(--emerald-500)" : "var(--accent-primary)",
+                      border: `1px solid ${formData.allowedMajors.length === 0 ? "rgb(var(--emerald-500-rgb) / 0.2)" : "rgb(var(--accent-rgb) / 0.2)"}`,
                     }}>
                       {formData.allowedMajors.length === 0
                         ? (lang === "th" ? "✓ เปิดให้ทุกสาขา" : "✓ Open to all majors")
@@ -3439,7 +3440,7 @@ export default function AdminEventsPage() {
                       : "Restrict this event to members of the selected club(s) (add members under Admin > Clubs). Leave unchecked = no club restriction."}
                   </p>
                   {!canEditRestrictedFields && (
-                    <p style={{ fontSize: 11, color: "#f59e0b", fontWeight: 700, marginBottom: 10 }}>{t.eventStaffOnlyFieldHint}</p>
+                    <p style={{ fontSize: 11, color: "var(--amber-500)", fontWeight: 700, marginBottom: 10 }}>{t.eventStaffOnlyFieldHint}</p>
                   )}
                   {clubs.filter((c) => !c.isArchived).length === 0 ? (
                     <p style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>
@@ -3465,8 +3466,8 @@ export default function AdminEventsPage() {
                               gap: 10,
                               padding: "10px 16px",
                               borderRadius: 14,
-                              background: isSelected ? "rgba(139,92,246,0.12)" : "var(--bg-elevated)",
-                              border: `1px solid ${isSelected ? "rgba(139,92,246,0.5)" : "transparent"}`,
+                              background: isSelected ? "rgb(var(--violet-500-rgb) / 0.12)" : "var(--bg-elevated)",
+                              border: `1px solid ${isSelected ? "rgb(var(--violet-500-rgb) / 0.5)" : "transparent"}`,
                               cursor: "pointer",
                               transition: "all 0.2s",
                               minWidth: 80,
@@ -3476,8 +3477,8 @@ export default function AdminEventsPage() {
                               width: 20,
                               height: 20,
                               borderRadius: 6,
-                              background: isSelected ? "#8b5cf6" : "transparent",
-                              border: `2px solid ${isSelected ? "#8b5cf6" : "var(--border-medium)"}`,
+                              background: isSelected ? "var(--violet-500)" : "transparent",
+                              border: `2px solid ${isSelected ? "var(--violet-500)" : "var(--border-medium)"}`,
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
@@ -3486,7 +3487,7 @@ export default function AdminEventsPage() {
                             }}>
                               {isSelected && <CheckCircle2 size={13} color="white" />}
                             </div>
-                            <span style={{ fontSize: 13, fontWeight: 800, color: isSelected ? "#8b5cf6" : "var(--text-secondary)" }}>
+                            <span style={{ fontSize: 13, fontWeight: 800, color: isSelected ? "var(--violet-500)" : "var(--text-secondary)" }}>
                               {club.name}
                             </span>
                           </div>
@@ -3505,10 +3506,10 @@ export default function AdminEventsPage() {
                       fontSize: 11,
                       fontWeight: 800,
                       background: formData.allowedClubs.length === 0
-                        ? "rgba(16,185,129,0.1)"
-                        : "rgba(139,92,246,0.1)",
-                      color: formData.allowedClubs.length === 0 ? "#10b981" : "#8b5cf6",
-                      border: `1px solid ${formData.allowedClubs.length === 0 ? "rgba(16,185,129,0.2)" : "rgba(139,92,246,0.2)"}`,
+                        ? "rgb(var(--emerald-500-rgb) / 0.1)"
+                        : "rgb(var(--violet-500-rgb) / 0.1)",
+                      color: formData.allowedClubs.length === 0 ? "var(--emerald-500)" : "var(--violet-500)",
+                      border: `1px solid ${formData.allowedClubs.length === 0 ? "rgb(var(--emerald-500-rgb) / 0.2)" : "rgb(var(--violet-500-rgb) / 0.2)"}`,
                     }}>
                       {formData.allowedClubs.length === 0
                         ? (lang === "th" ? "✓ ไม่จำกัดตามชมรม" : "✓ No club restriction")
@@ -3533,12 +3534,12 @@ export default function AdminEventsPage() {
                       : "Choose which president(s) manage this event (view it, see attendance, scan, export). Does NOT affect which students can join."}
                   </p>
                   {!canEditRestrictedFields && (
-                    <p style={{ fontSize: 11, color: "#f59e0b", fontWeight: 700, marginBottom: 10 }}>{t.eventStaffOnlyFieldHint}</p>
+                    <p style={{ fontSize: 11, color: "var(--amber-500)", fontWeight: 700, marginBottom: 10 }}>{t.eventStaffOnlyFieldHint}</p>
                   )}
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                     {(["club_president", "major_president"] as const).map((role) => {
                       const isSelected = formData.managedByRoles.includes(role);
-                      const accent = role === "club_president" ? "#f59e0b" : "#06b6d4";
+                      const accent = role === "club_president" ? "var(--amber-500)" : "var(--cyan-500)";
                       return (
                         <div
                           key={role}
@@ -3555,8 +3556,8 @@ export default function AdminEventsPage() {
                             gap: 10,
                             padding: "10px 16px",
                             borderRadius: 14,
-                            background: isSelected ? `${accent}1f` : "var(--bg-elevated)",
-                            border: `1px solid ${isSelected ? `${accent}80` : "transparent"}`,
+                            background: isSelected ? alpha(accent, 0.12) : "var(--bg-elevated)",
+                            border: `1px solid ${isSelected ? alpha(accent, 0.5) : "transparent"}`,
                             cursor: "pointer",
                             transition: "all 0.2s",
                             minWidth: 100,
@@ -3594,10 +3595,10 @@ export default function AdminEventsPage() {
                       fontSize: 11,
                       fontWeight: 800,
                       background: formData.managedByRoles.length === 0
-                        ? "rgba(148,163,184,0.12)"
-                        : "rgba(99,102,241,0.1)",
-                      color: formData.managedByRoles.length === 0 ? "var(--text-muted)" : "#6366f1",
-                      border: `1px solid ${formData.managedByRoles.length === 0 ? "var(--border-subtle)" : "rgba(99,102,241,0.2)"}`,
+                        ? "rgb(var(--slate-400-rgb) / 0.12)"
+                        : "rgb(var(--indigo-500-rgb) / 0.1)",
+                      color: formData.managedByRoles.length === 0 ? "var(--text-muted)" : "var(--indigo-500)",
+                      border: `1px solid ${formData.managedByRoles.length === 0 ? "var(--border-subtle)" : "rgb(var(--indigo-500-rgb) / 0.2)"}`,
                     }}>
                       {formData.managedByRoles.length === 0
                         ? (lang === "th" ? "จัดการโดยทีมงานเท่านั้น" : "Staff-managed only")
@@ -3638,9 +3639,9 @@ export default function AdminEventsPage() {
                                   fontSize: 12,
                                   fontWeight: 700,
                                   cursor: "pointer",
-                                  background: isSelected ? "rgba(245,158,11,0.15)" : "var(--bg-elevated)",
-                                  color: isSelected ? "#f59e0b" : "var(--text-secondary)",
-                                  border: `1px solid ${isSelected ? "rgba(245,158,11,0.4)" : "var(--border-subtle)"}`,
+                                  background: isSelected ? "rgb(var(--amber-500-rgb) / 0.15)" : "var(--bg-elevated)",
+                                  color: isSelected ? "var(--amber-500)" : "var(--text-secondary)",
+                                  border: `1px solid ${isSelected ? "rgb(var(--amber-500-rgb) / 0.4)" : "var(--border-subtle)"}`,
                                 }}
                               >
                                 {club.name}
@@ -3650,7 +3651,7 @@ export default function AdminEventsPage() {
                         </div>
                       )}
                       {formData.ownerClubIds.length === 0 && (
-                        <p style={{ fontSize: 11, color: "#f59e0b", fontWeight: 700, marginTop: 6 }}>
+                        <p style={{ fontSize: 11, color: "var(--amber-500)", fontWeight: 700, marginTop: 6 }}>
                           {lang === "th"
                             ? "⚠ ยังไม่ได้กำหนดชมรม — จะไม่แสดงกับประธานชมรมคนใดจนกว่าจะเลือก"
                             : "⚠ No club assigned yet — hidden from every club president until you pick one."}
@@ -3682,9 +3683,9 @@ export default function AdminEventsPage() {
                                 fontSize: 12,
                                 fontWeight: 700,
                                 cursor: "pointer",
-                                background: isSelected ? "rgba(6,182,212,0.15)" : "var(--bg-elevated)",
-                                color: isSelected ? "#06b6d4" : "var(--text-secondary)",
-                                border: `1px solid ${isSelected ? "rgba(6,182,212,0.4)" : "var(--border-subtle)"}`,
+                                background: isSelected ? "rgb(var(--cyan-500-rgb) / 0.15)" : "var(--bg-elevated)",
+                                color: isSelected ? "var(--cyan-500)" : "var(--text-secondary)",
+                                border: `1px solid ${isSelected ? "rgb(var(--cyan-500-rgb) / 0.4)" : "var(--border-subtle)"}`,
                               }}
                             >
                               {major}
@@ -3693,7 +3694,7 @@ export default function AdminEventsPage() {
                         })}
                       </div>
                       {formData.ownerMajors.length === 0 && (
-                        <p style={{ fontSize: 11, color: "#06b6d4", fontWeight: 700, marginTop: 6 }}>
+                        <p style={{ fontSize: 11, color: "var(--cyan-500)", fontWeight: 700, marginTop: 6 }}>
                           {lang === "th"
                             ? "⚠ ยังไม่ได้กำหนดสาขา — จะไม่แสดงกับประธานสาขาคนใดจนกว่าจะเลือก"
                             : "⚠ No major assigned yet — hidden from every major president until you pick one."}
@@ -3712,7 +3713,7 @@ export default function AdminEventsPage() {
                     field, like Managed By. */}
                 <div className="field" style={{ opacity: canEditRestrictedFields ? 1 : 0.5, pointerEvents: canEditRestrictedFields ? "auto" : "none" }}>
                   <label className="label" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <ShieldCheck size={16} style={{ color: "#6366f1" }} />
+                    <ShieldCheck size={16} style={{ color: "var(--indigo-500)" }} />
                     {lang === "th" ? "ทีมงานของกิจกรรมนี้" : "Event Staff"}
                   </label>
                   <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 10, fontWeight: 600 }}>
@@ -3721,16 +3722,16 @@ export default function AdminEventsPage() {
                       : "Pick specific people staffing this event. Their registration/check-in won't count against the participant quota and they're exempt from no-show strikes."}
                   </p>
                   {!canEditRestrictedFields && (
-                    <p style={{ fontSize: 11, color: "#f59e0b", fontWeight: 700, marginBottom: 10 }}>{t.eventStaffOnlyFieldHint}</p>
+                    <p style={{ fontSize: 11, color: "var(--amber-500)", fontWeight: 700, marginBottom: 10 }}>{t.eventStaffOnlyFieldHint}</p>
                   )}
                   {formData.staffUserIds.length > 0 && (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
                       {formData.staffUserIds.map((uid) => {
                         const u = assigneeUsers.find((x) => x.id === uid);
                         return (
-                          <span key={uid} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 99, fontSize: 12, fontWeight: 800, background: "rgba(99,102,241,0.1)", color: "#6366f1", border: "1px solid rgba(99,102,241,0.25)" }}>
+                          <span key={uid} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 99, fontSize: 12, fontWeight: 800, background: "rgb(var(--indigo-500-rgb) / 0.1)", color: "var(--indigo-500)", border: "1px solid rgb(var(--indigo-500-rgb) / 0.25)" }}>
                             {u ? (u.name || u.studentId || uid) : uid}
-                            <button type="button" disabled={!canEditRestrictedFields} onClick={() => setFormData({ ...formData, staffUserIds: formData.staffUserIds.filter((x) => x !== uid) })} style={{ background: "none", border: "none", color: "#6366f1", cursor: "pointer", fontWeight: 900, fontSize: 13, lineHeight: 1 }}>✕</button>
+                            <button type="button" disabled={!canEditRestrictedFields} onClick={() => setFormData({ ...formData, staffUserIds: formData.staffUserIds.filter((x) => x !== uid) })} style={{ background: "none", border: "none", color: "var(--indigo-500)", cursor: "pointer", fontWeight: 900, fontSize: 13, lineHeight: 1 }}>✕</button>
                           </span>
                         );
                       })}
@@ -3764,10 +3765,10 @@ export default function AdminEventsPage() {
                                 ...formData,
                                 staffUserIds: on ? formData.staffUserIds.filter((x) => x !== u.id) : [...formData.staffUserIds, u.id],
                               })}
-                              style={{ display: "flex", width: "100%", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 14px", border: "none", borderBottom: "1px solid var(--border-subtle)", background: on ? "rgba(99,102,241,0.06)" : "transparent", cursor: "pointer", textAlign: "left", fontSize: 13 }}
+                              style={{ display: "flex", width: "100%", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 14px", border: "none", borderBottom: "1px solid var(--border-subtle)", background: on ? "rgb(var(--indigo-500-rgb) / 0.06)" : "transparent", cursor: "pointer", textAlign: "left", fontSize: 13 }}
                             >
                               <span style={{ fontWeight: 700 }}>{u.name || "—"} <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>· {u.studentId || u.role}</span></span>
-                              <span style={{ fontSize: 12, fontWeight: 900, color: on ? "#6366f1" : "var(--accent-primary)" }}>{on ? "✓ Added" : "+ Add"}</span>
+                              <span style={{ fontSize: 12, fontWeight: 900, color: on ? "var(--indigo-500)" : "var(--accent-primary)" }}>{on ? "✓ Added" : "+ Add"}</span>
                             </button>
                           );
                         })}
@@ -3827,7 +3828,7 @@ export default function AdminEventsPage() {
                     </div>
                   </div>
                   {!canEditRestrictedFields && (
-                    <p style={{ fontSize: 11, color: "#f59e0b", fontWeight: 700, marginTop: 8 }}>{t.eventStaffOnlyFieldHint}</p>
+                    <p style={{ fontSize: 11, color: "var(--amber-500)", fontWeight: 700, marginTop: 8 }}>{t.eventStaffOnlyFieldHint}</p>
                   )}
                   {canEditRestrictedFields && editingId && formData.songsueLinked && (
                     <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -3851,7 +3852,7 @@ export default function AdminEventsPage() {
                   <label className="label" style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     {t.eventPosterLabel}
                     {formData.imageUrls.length > 0 && (
-                      <span style={{ fontSize: 11, fontWeight: 800, color: "var(--accent-primary)", background: "rgba(255,107,0,0.1)", padding: "2px 8px", borderRadius: 99 }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: "var(--accent-primary)", background: "rgb(var(--accent-rgb) / 0.1)", padding: "2px 8px", borderRadius: 99 }}>
                         {formData.imageUrls.length}
                       </span>
                     )}
@@ -3867,13 +3868,13 @@ export default function AdminEventsPage() {
                           aspectRatio: "4/5",
                           borderRadius: 16,
                           overflow: "hidden",
-                          background: "#000",
+                          background: "var(--black)",
                           border: idx === 0 ? "2px solid var(--accent-primary)" : "1px solid var(--border-medium)"
                         }}>
                           <img src={url} alt={`Poster ${idx + 1}`} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
 
                           {idx === 0 && (
-                            <span style={{ position: "absolute", top: 6, left: 6, fontSize: 9, fontWeight: 900, color: "#fff", background: "var(--accent-primary)", padding: "3px 7px", borderRadius: 99, letterSpacing: "0.05em", boxShadow: "0 2px 8px rgba(0,0,0,0.3)" }}>
+                            <span style={{ position: "absolute", top: 6, left: 6, fontSize: 9, fontWeight: 900, color: "var(--text-on-color)", background: "var(--accent-primary)", padding: "3px 7px", borderRadius: 99, letterSpacing: "0.05em", boxShadow: "0 2px 8px rgb(var(--shadow-rgb) / 0.3)" }}>
                               {lang === "th" ? "ปก" : "COVER"}
                             </span>
                           )}
@@ -3883,7 +3884,7 @@ export default function AdminEventsPage() {
                             type="button"
                             onClick={() => removePoster(idx)}
                             title={lang === "th" ? "ลบ" : "Remove"}
-                            style={{ position: "absolute", top: 6, right: 6, width: 24, height: 24, borderRadius: "50%", border: "none", background: "rgba(0,0,0,0.6)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", backdropFilter: "blur(4px)" }}
+                            style={{ position: "absolute", top: 6, right: 6, width: 24, height: 24, borderRadius: "50%", border: "none", background: "rgb(var(--scrim-rgb) / 0.6)", color: "var(--text-on-color)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", backdropFilter: "blur(4px)" }}
                           >
                             <X size={14} />
                           </button>
@@ -3895,7 +3896,7 @@ export default function AdminEventsPage() {
                               onClick={() => movePoster(idx, -1)}
                               disabled={idx === 0}
                               title={lang === "th" ? "ย้ายไปด้านหน้า" : "Move left"}
-                              style={{ width: 26, height: 26, borderRadius: 8, border: "none", background: "rgba(0,0,0,0.6)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: idx === 0 ? "not-allowed" : "pointer", opacity: idx === 0 ? 0.35 : 1, backdropFilter: "blur(4px)" }}
+                              style={{ width: 26, height: 26, borderRadius: 8, border: "none", background: "rgb(var(--scrim-rgb) / 0.6)", color: "var(--text-on-color)", display: "flex", alignItems: "center", justifyContent: "center", cursor: idx === 0 ? "not-allowed" : "pointer", opacity: idx === 0 ? 0.35 : 1, backdropFilter: "blur(4px)" }}
                             >
                               <ChevronLeft size={15} />
                             </button>
@@ -3904,7 +3905,7 @@ export default function AdminEventsPage() {
                               onClick={() => movePoster(idx, 1)}
                               disabled={idx === formData.imageUrls.length - 1}
                               title={lang === "th" ? "ย้ายไปด้านหลัง" : "Move right"}
-                              style={{ width: 26, height: 26, borderRadius: 8, border: "none", background: "rgba(0,0,0,0.6)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: idx === formData.imageUrls.length - 1 ? "not-allowed" : "pointer", opacity: idx === formData.imageUrls.length - 1 ? 0.35 : 1, backdropFilter: "blur(4px)" }}
+                              style={{ width: 26, height: 26, borderRadius: 8, border: "none", background: "rgb(var(--scrim-rgb) / 0.6)", color: "var(--text-on-color)", display: "flex", alignItems: "center", justifyContent: "center", cursor: idx === formData.imageUrls.length - 1 ? "not-allowed" : "pointer", opacity: idx === formData.imageUrls.length - 1 ? 0.35 : 1, backdropFilter: "blur(4px)" }}
                             >
                               <ChevronRight size={15} />
                             </button>
@@ -3991,7 +3992,7 @@ export default function AdminEventsPage() {
                       <div style={{ position: "relative" }}>
                         <input type="color" defaultValue="#ff6b00" style={{ opacity: 0, position: "absolute", inset: 0, cursor: "pointer" }} onChange={(e) => injectMarkup(`{{color:${e.target.value}|`, "}}")} />
                         <button type="button" className="btn btn-ghost btn-sm" style={{ padding: 6, border: "none" }}>
-                          <span style={{ width: 14, height: 14, borderRadius: 4, background: "linear-gradient(135deg,#ef4444,#6366f1)", display: "inline-block" }} />
+                          <span style={{ width: 14, height: 14, borderRadius: 4, background: "linear-gradient(135deg,var(--red-500),var(--indigo-500))", display: "inline-block" }} />
                         </button>
                       </div>
                     </div>
@@ -4028,7 +4029,7 @@ export default function AdminEventsPage() {
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6" style={{ marginTop: 40, paddingTop: 32, borderTop: "1px solid var(--border-subtle)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                {error && <div style={{ color: "#ef4444", fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}><AlertCircle size={16} /> {error}</div>}
+                {error && <div style={{ color: "var(--red-500)", fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}><AlertCircle size={16} /> {error}</div>}
               </div>
               <div className="flex flex-col-reverse sm:flex-row gap-3 w-full sm:w-auto">
                 <button type="button" className="btn btn-ghost btn-lg w-full sm:w-auto" style={{ borderRadius: 16 }} onClick={() => { setShowForm(false); setEditingId(null); setFormData(EMPTY_FORM); setSourceProposalId(null); setRegistrationMode(null); setSessions([]); }}>{t.discardBtn}</button>
@@ -4090,7 +4091,7 @@ export default function AdminEventsPage() {
                 flexDirection: "column",
                 transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                 position: "relative",
-                boxShadow: "0 10px 40px rgba(0,0,0,0.04)",
+                boxShadow: "0 10px 40px rgb(var(--shadow-rgb) / 0.04)",
                 filter: isPast ? "grayscale(0.85)" : "none",
                 opacity: isPast ? 0.6 : 1
               }}>
@@ -4119,16 +4120,16 @@ export default function AdminEventsPage() {
                           alignItems: "center",
                           gap: 5,
                           maxWidth: "100%",
-                          background: "rgba(99,102,241,0.85)",
+                          background: "rgb(var(--indigo-500-rgb) / 0.85)",
                           backdropFilter: "blur(6px)",
-                          color: "#fff",
+                          color: "var(--text-on-color)",
                           padding: "5px 10px",
                           borderRadius: 99,
                           fontSize: 10,
                           fontWeight: 900,
                           letterSpacing: "0.04em",
-                          border: "1px solid rgba(255,255,255,0.15)",
-                          boxShadow: "0 2px 8px rgba(99,102,241,0.3)",
+                          border: "1px solid rgb(var(--white-rgb) / 0.15)",
+                          boxShadow: "0 2px 8px rgb(var(--indigo-500-rgb) / 0.3)",
                           textTransform: "uppercase",
                         }}>
                           <Users size={10} style={{ flexShrink: 0 }} />
@@ -4143,16 +4144,16 @@ export default function AdminEventsPage() {
                           alignItems: "center",
                           gap: 5,
                           maxWidth: "100%",
-                          background: "rgba(255,107,0,0.85)",
+                          background: "rgb(var(--accent-rgb) / 0.85)",
                           backdropFilter: "blur(6px)",
-                          color: "#fff",
+                          color: "var(--text-on-color)",
                           padding: "5px 10px",
                           borderRadius: 99,
                           fontSize: 10,
                           fontWeight: 900,
                           letterSpacing: "0.04em",
-                          border: "1px solid rgba(255,255,255,0.15)",
-                          boxShadow: "0 2px 8px rgba(255,107,0,0.3)",
+                          border: "1px solid rgb(var(--white-rgb) / 0.15)",
+                          boxShadow: "0 2px 8px rgb(var(--accent-rgb) / 0.3)",
                           textTransform: "uppercase",
                         }}>
                           <Users size={10} style={{ flexShrink: 0 }} />
@@ -4167,16 +4168,16 @@ export default function AdminEventsPage() {
                           alignItems: "center",
                           gap: 5,
                           maxWidth: "100%",
-                          background: "rgba(139,92,246,0.85)",
+                          background: "rgb(var(--violet-500-rgb) / 0.85)",
                           backdropFilter: "blur(6px)",
-                          color: "#fff",
+                          color: "var(--text-on-color)",
                           padding: "5px 10px",
                           borderRadius: 99,
                           fontSize: 10,
                           fontWeight: 900,
                           letterSpacing: "0.04em",
-                          border: "1px solid rgba(255,255,255,0.15)",
-                          boxShadow: "0 2px 8px rgba(139,92,246,0.3)",
+                          border: "1px solid rgb(var(--white-rgb) / 0.15)",
+                          boxShadow: "0 2px 8px rgb(var(--violet-500-rgb) / 0.3)",
                           textTransform: "uppercase",
                         }}>
                           <Building2 size={10} style={{ flexShrink: 0 }} />
@@ -4193,16 +4194,16 @@ export default function AdminEventsPage() {
                           alignItems: "center",
                           gap: 5,
                           maxWidth: "100%",
-                          background: "rgba(16,185,129,0.85)",
+                          background: "rgb(var(--emerald-500-rgb) / 0.85)",
                           backdropFilter: "blur(6px)",
-                          color: "#fff",
+                          color: "var(--text-on-color)",
                           padding: "5px 10px",
                           borderRadius: 99,
                           fontSize: 10,
                           fontWeight: 900,
                           letterSpacing: "0.04em",
-                          border: "1px solid rgba(255,255,255,0.15)",
-                          boxShadow: "0 2px 8px rgba(16,185,129,0.3)",
+                          border: "1px solid rgb(var(--white-rgb) / 0.15)",
+                          boxShadow: "0 2px 8px rgb(var(--emerald-500-rgb) / 0.3)",
                           textTransform: "uppercase",
                         }}>
                           <GraduationCap size={10} style={{ flexShrink: 0 }} />
@@ -4219,16 +4220,16 @@ export default function AdminEventsPage() {
                           alignItems: "center",
                           gap: 5,
                           maxWidth: "100%",
-                          background: "rgba(15,23,42,0.78)",
+                          background: "rgb(var(--slate-900-rgb) / 0.78)",
                           backdropFilter: "blur(6px)",
-                          color: "#fff",
+                          color: "var(--text-on-color)",
                           padding: "5px 10px",
                           borderRadius: 99,
                           fontSize: 10,
                           fontWeight: 900,
                           letterSpacing: "0.04em",
-                          border: "1px solid rgba(255,255,255,0.15)",
-                          boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+                          border: "1px solid rgb(var(--white-rgb) / 0.15)",
+                          boxShadow: "0 2px 8px rgb(var(--shadow-rgb) / 0.3)",
                           textTransform: "uppercase",
                         }}>
                           <ShieldCheck size={10} style={{ flexShrink: 0 }} />
@@ -4242,21 +4243,21 @@ export default function AdminEventsPage() {
                     {/* Status badges */}
                     <div className="event-card-status" style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", minWidth: 0, flexShrink: 1, marginLeft: "auto" }}>
                       {evt.walkInsEnabled && (
-                        <div className="badge" style={{ background: "rgba(99, 102, 241, 0.2)", color: "#6366f1", border: "1px solid rgba(99, 102, 241, 0.3)", padding: "6px 12px", backdropFilter: "blur(4px)" }}>
+                        <div className="badge" style={{ background: "rgb(var(--indigo-500-rgb) / 0.2)", color: "var(--indigo-500)", border: "1px solid rgb(var(--indigo-500-rgb) / 0.3)", padding: "6px 12px", backdropFilter: "blur(4px)" }}>
                           <Zap size={12} style={{ marginRight: 4 }} />
                           Walk-in
                         </div>
                       )}
                       {(evt.targetThai !== false && evt.targetInternational !== false) || (evt.targetThai === false && evt.targetInternational === false) ? (
-                        <div className="badge" style={{ background: "rgba(16, 185, 129, 0.2)", color: "#10b981", border: "1px solid rgba(16, 185, 129, 0.3)", padding: "6px 12px", backdropFilter: "blur(4px)" }}>
+                        <div className="badge" style={{ background: "rgb(var(--emerald-500-rgb) / 0.2)", color: "var(--emerald-500)", border: "1px solid rgb(var(--emerald-500-rgb) / 0.3)", padding: "6px 12px", backdropFilter: "blur(4px)" }}>
                           All Students
                         </div>
                       ) : evt.targetThai !== false ? (
-                        <div className="badge" style={{ background: "rgba(59, 130, 246, 0.2)", color: "#3b82f6", border: "1px solid rgba(59, 130, 246, 0.3)", padding: "6px 12px", backdropFilter: "blur(4px)" }}>
+                        <div className="badge" style={{ background: "rgb(var(--blue-500-rgb) / 0.2)", color: "var(--blue-500)", border: "1px solid rgb(var(--blue-500-rgb) / 0.3)", padding: "6px 12px", backdropFilter: "blur(4px)" }}>
                           Thai Only
                         </div>
                       ) : evt.targetInternational !== false ? (
-                        <div className="badge" style={{ background: "rgba(245, 158, 11, 0.2)", color: "#f59e0b", border: "1px solid rgba(245, 158, 11, 0.3)", padding: "6px 12px", backdropFilter: "blur(4px)" }}>
+                        <div className="badge" style={{ background: "rgb(var(--amber-500-rgb) / 0.2)", color: "var(--amber-500)", border: "1px solid rgb(var(--amber-500-rgb) / 0.3)", padding: "6px 12px", backdropFilter: "blur(4px)" }}>
                           {"Int'l Only"}
                         </div>
                       ) : null}
@@ -4277,23 +4278,23 @@ export default function AdminEventsPage() {
                           type="button"
                           onClick={() => handleEdit(evt)}
                           className="badge animate-pulse-glow"
-                          style={{ background: "#f59e0b", color: "#fff", border: "none", padding: "6px 12px", cursor: "pointer" }}
+                          style={{ background: "var(--amber-500)", color: "var(--text-on-color)", border: "none", padding: "6px 12px", cursor: "pointer" }}
                         >
                           <AlertTriangle size={12} style={{ marginRight: 4 }} />
                           {t.eventDetailsPendingStaffLabel || "President edited this event"}
                         </button>
                       )}
                       {isLive && (
-                        <div className="badge animate-pulse-glow" style={{ background: "#10b981", color: "#fff", border: "none", padding: "6px 12px" }}>
-                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff", marginRight: 6 }} />
+                        <div className="badge animate-pulse-glow" style={{ background: "var(--emerald-500)", color: "var(--text-on-color)", border: "none", padding: "6px 12px" }}>
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--white)", marginRight: 6 }} />
                           {t.statusLive.toUpperCase()}
                         </div>
                       )}
                       {!isLive && !isPast && (
-                        <div className="badge" style={{ background: "var(--accent-primary)", color: "#fff", border: "none", padding: "6px 12px" }}>{t.statusUpcoming.toUpperCase()}</div>
+                        <div className="badge" style={{ background: "var(--accent-primary)", color: "var(--text-on-color)", border: "none", padding: "6px 12px" }}>{t.statusUpcoming.toUpperCase()}</div>
                       )}
                       {isPast && (
-                        <div className="badge" style={{ background: "rgba(0,0,0,0.4)", color: "#fff", border: "none", padding: "6px 12px", backdropFilter: "blur(4px)" }}>{t.statusPast.toUpperCase()}</div>
+                        <div className="badge" style={{ background: "rgb(var(--scrim-rgb) / 0.4)", color: "var(--text-on-color)", border: "none", padding: "6px 12px", backdropFilter: "blur(4px)" }}>{t.statusPast.toUpperCase()}</div>
                       )}
                     </div>
                   </div>
@@ -4302,9 +4303,9 @@ export default function AdminEventsPage() {
                   <div style={{ position: "absolute", bottom: 28, left: 28, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                     {evt.pointsAwarded !== undefined && (
                       <div style={{
-                        background: "rgba(0, 0, 0, 0.7)",
+                        background: "rgb(var(--scrim-rgb) / 0.7)",
                         backdropFilter: "blur(8px)",
-                        color: "#fff",
+                        color: "var(--text-on-color)",
                         padding: "6px 12px",
                         borderRadius: 14,
                         fontSize: 11,
@@ -4312,18 +4313,18 @@ export default function AdminEventsPage() {
                         display: "inline-flex",
                         alignItems: "center",
                         gap: 6,
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                        border: "1px solid rgba(255, 255, 255, 0.1)"
+                        boxShadow: "0 4px 12px rgb(var(--shadow-rgb) / 0.15)",
+                        border: "1px solid rgb(var(--white-rgb) / 0.1)"
                       }} title={t.eventHousePointsHint}>
-                        <Trophy size={12} style={{ color: "#fbbf24" }} />
+                        <Trophy size={12} style={{ color: "var(--amber-400)" }} />
                         <span>{evt.pointsAwarded} PTS</span>
                       </div>
                     )}
                     {evt.individualPointsAwarded > 0 && (
                       <div style={{
-                        background: "rgba(0, 0, 0, 0.7)",
+                        background: "rgb(var(--scrim-rgb) / 0.7)",
                         backdropFilter: "blur(8px)",
-                        color: "#fff",
+                        color: "var(--text-on-color)",
                         padding: "6px 12px",
                         borderRadius: 14,
                         fontSize: 11,
@@ -4331,8 +4332,8 @@ export default function AdminEventsPage() {
                         display: "inline-flex",
                         alignItems: "center",
                         gap: 6,
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                        border: "1px solid rgba(255, 255, 255, 0.1)"
+                        boxShadow: "0 4px 12px rgb(var(--shadow-rgb) / 0.15)",
+                        border: "1px solid rgb(var(--white-rgb) / 0.1)"
                       }} title={t.eventIndividualPointsHint}>
                         <Sparkles size={12} style={{ color: "var(--accent-primary)" }} />
                         <span>+{evt.individualPointsAwarded} {t.eventIndividualPointsBadge}</span>
@@ -4398,18 +4399,18 @@ export default function AdminEventsPage() {
                     return (
                       <div style={{
                         display: "flex", flexDirection: "column", gap: 6,
-                        background: "rgba(245, 158, 11, 0.08)", border: "1px solid rgba(245, 158, 11, 0.25)",
+                        background: "rgb(var(--amber-500-rgb) / 0.08)", border: "1px solid rgb(var(--amber-500-rgb) / 0.25)",
                         borderRadius: 14, padding: "12px 14px", marginBottom: 20,
                       }}>
                         {evt.pendingSubmitter && (
-                          <p style={{ fontSize: 11, fontWeight: 800, color: "#f59e0b", margin: 0 }}>
+                          <p style={{ fontSize: 11, fontWeight: 800, color: "var(--amber-500)", margin: 0 }}>
                             {t.eventDetailsPendingSubmittedByLabel || "Submitted by:"} {evt.pendingSubmitter.name}
                           </p>
                         )}
                         {diffRows.map((row) => (
                           <p key={row.key} style={{ fontSize: 12, color: "var(--text-secondary)", margin: 0, lineHeight: 1.5 }}>
                             <strong style={{ color: "var(--text-primary)" }}>{row.label}:</strong>{" "}
-                            {row.oldText} <span style={{ color: "#f59e0b", fontWeight: 700 }}>→</span> {row.newText}
+                            {row.oldText} <span style={{ color: "var(--amber-500)", fontWeight: 700 }}>→</span> {row.newText}
                           </p>
                         ))}
                       </div>
@@ -4466,14 +4467,14 @@ export default function AdminEventsPage() {
                             height: 44,
                             borderRadius: 12,
                             fontSize: 13,
-                            background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
-                            color: "#fff",
+                            background: "linear-gradient(135deg, var(--indigo-500) 0%, var(--indigo-600) 100%)",
+                            color: "var(--text-on-color)",
                             border: "none",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
                             gap: 6,
-                            boxShadow: "0 4px 12px rgba(79, 70, 229, 0.2)",
+                            boxShadow: "0 4px 12px rgb(var(--indigo-600-rgb) / 0.2)",
                             cursor: "pointer"
                           }}
                           onClick={() => openFormBuilder(evt.id, evt.title)}
@@ -4487,7 +4488,7 @@ export default function AdminEventsPage() {
                        {canEditEventDetails && (
                        <button
                          className="btn btn-ghost"
-                         style={{ flex: 1, height: 44, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "rgba(0,0,0,0.03)", fontSize: 13 }}
+                         style={{ flex: 1, height: 44, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "rgb(var(--ink-rgb) / 0.03)", fontSize: 13 }}
                          onClick={() => handleEdit(evt)}
                        >
                          <Edit2 size={13} /> {t.eventEditBtnLabel || "Edit"}
@@ -4519,7 +4520,7 @@ export default function AdminEventsPage() {
         .event-card-premium:hover {
           transform: translateY(-8px);
           border-color: var(--accent-primary);
-          box-shadow: 0 30px 60px rgba(255,107,0,0.1);
+          box-shadow: 0 30px 60px rgb(var(--accent-rgb) / 0.1);
         }
         .event-card-premium:hover .hover-overlay {
           opacity: 1;
@@ -4547,7 +4548,7 @@ export default function AdminEventsPage() {
         .attendance-modal-overlay {
           position: fixed;
           inset: 0;
-          background: rgba(0,0,0,0.7);
+          background: rgb(var(--scrim-rgb) / 0.7);
           backdrop-filter: blur(16px);
           z-index: 2000;
           display: flex;
@@ -4569,7 +4570,7 @@ export default function AdminEventsPage() {
           display: flex;
           flex-direction: column;
           border: 1px solid var(--border-medium);
-          box-shadow: 0 50px 120px rgba(0,0,0,0.4);
+          box-shadow: 0 50px 120px rgb(var(--shadow-rgb) / 0.4);
           position: relative;
         }
         .attendance-modal-header {
@@ -4688,7 +4689,7 @@ export default function AdminEventsPage() {
         <div style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(0,0,0,0.6)",
+          background: "rgb(var(--scrim-rgb) / 0.6)",
           backdropFilter: "blur(12px)",
           zIndex: 2400,
           display: "flex",
@@ -4703,15 +4704,15 @@ export default function AdminEventsPage() {
             borderRadius: 28,
             padding: 32,
             textAlign: "center",
-            boxShadow: "0 30px 60px rgba(0,0,0,0.3)",
+            boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.3)",
             border: "1px solid var(--border-medium)"
           }} onClick={e => e.stopPropagation()}>
             <div style={{
               width: 56,
               height: 56,
               borderRadius: "50%",
-              background: confirmModal.isDanger ? "rgba(239, 68, 68, 0.1)" : "rgba(255, 107, 0, 0.1)",
-              color: confirmModal.isDanger ? "#ef4444" : "var(--accent-primary)",
+              background: confirmModal.isDanger ? "rgb(var(--red-500-rgb) / 0.1)" : "rgb(var(--accent-rgb) / 0.1)",
+              color: confirmModal.isDanger ? "var(--red-500)" : "var(--accent-primary)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -4742,13 +4743,13 @@ export default function AdminEventsPage() {
                   fontSize: 14,
                   fontWeight: 800,
                   background: confirmModal.isDanger 
-                    ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)" 
-                    : "linear-gradient(135deg, #ff6b00 0%, #ff3d00 100%)",
-                  color: "#fff",
+                    ? "linear-gradient(135deg, var(--red-500) 0%, var(--red-600) 100%)" 
+                    : "linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-deep) 100%)",
+                  color: "var(--text-on-color)",
                   border: "none",
                   boxShadow: confirmModal.isDanger 
-                    ? "0 4px 14px rgba(239, 68, 68, 0.3)" 
-                    : "0 4px 14px rgba(255, 107, 0, 0.3)"
+                    ? "0 4px 14px rgb(var(--red-500-rgb) / 0.3)" 
+                    : "0 4px 14px rgb(var(--accent-rgb) / 0.3)"
                 }}
                 onClick={confirmModal.onConfirm}
               >
@@ -4764,7 +4765,7 @@ export default function AdminEventsPage() {
         <div style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(0,0,0,0.6)",
+          background: "rgb(var(--scrim-rgb) / 0.6)",
           backdropFilter: "blur(12px)",
           zIndex: 2500,
           display: "flex",
@@ -4779,15 +4780,15 @@ export default function AdminEventsPage() {
             borderRadius: 28,
             padding: 32,
             textAlign: "center",
-            boxShadow: "0 30px 60px rgba(0,0,0,0.3)",
+            boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.3)",
             border: "1px solid var(--border-medium)"
           }} onClick={e => e.stopPropagation()}>
             <div style={{
               width: 56,
               height: 56,
               borderRadius: "50%",
-              background: "rgba(239, 68, 68, 0.1)",
-              color: "#ef4444",
+              background: "rgb(var(--red-500-rgb) / 0.1)",
+              color: "var(--red-500)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -4817,7 +4818,7 @@ export default function AdminEventsPage() {
         <div style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(0,0,0,0.6)",
+          background: "rgb(var(--scrim-rgb) / 0.6)",
           backdropFilter: "blur(12px)",
           zIndex: 2500,
           display: "flex",
@@ -4832,15 +4833,15 @@ export default function AdminEventsPage() {
             borderRadius: 28,
             padding: 32,
             textAlign: "center",
-            boxShadow: "0 30px 60px rgba(0,0,0,0.3)",
+            boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.3)",
             border: "1px solid var(--border-medium)"
           }} onClick={e => e.stopPropagation()}>
             <div style={{
               width: 56,
               height: 56,
               borderRadius: "50%",
-              background: "rgba(245, 158, 11, 0.1)",
-              color: "#f59e0b",
+              background: "rgb(var(--amber-500-rgb) / 0.1)",
+              color: "var(--amber-500)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -4881,8 +4882,8 @@ export default function AdminEventsPage() {
                     width: 10,
                     height: 10,
                     borderRadius: "50%",
-                    background: "#10b981",
-                    boxShadow: "0 0 12px rgba(16,185,129,0.6)",
+                    background: "var(--emerald-500)",
+                    boxShadow: "0 0 12px rgb(var(--emerald-500-rgb) / 0.6)",
                     animation: "pulse-glow 2s infinite",
                     flexShrink: 0,
                   }} />
@@ -4920,10 +4921,10 @@ export default function AdminEventsPage() {
                         : "Export attendees to Excel (.xlsx) — name, ID, and check-in only. Ask an admin for phone, medical, or emergency-contact detail."
                     }
                     style={{
-                      color: "#fff",
-                      background: "linear-gradient(135deg, #10b981, #059669)",
-                      border: "1px solid #059669",
-                      boxShadow: "0 8px 20px rgba(16,185,129,0.35)",
+                      color: "var(--text-on-color)",
+                      background: "linear-gradient(135deg, var(--emerald-500), var(--emerald-600))",
+                      border: "1px solid var(--emerald-600)",
+                      boxShadow: "0 8px 20px rgb(var(--emerald-500-rgb) / 0.35)",
                     }}
                   >
                     <Download size={16} />
@@ -4936,10 +4937,10 @@ export default function AdminEventsPage() {
                     onClick={openStrikesModal}
                     title="Deduct points and record a strike for every student who registered but never checked in"
                     style={{
-                      color: "#fff",
-                      background: "linear-gradient(135deg, #ef4444, #dc2626)",
-                      border: "1px solid #dc2626",
-                      boxShadow: "0 8px 20px rgba(239,68,68,0.35)",
+                      color: "var(--text-on-color)",
+                      background: "linear-gradient(135deg, var(--red-500), var(--red-600))",
+                      border: "1px solid var(--red-600)",
+                      boxShadow: "0 8px 20px rgb(var(--red-500-rgb) / 0.35)",
                     }}
                   >
                     <AlertTriangle size={16} />
@@ -5043,9 +5044,9 @@ export default function AdminEventsPage() {
                       alignItems: "center",
                       gap: 8,
                       transition: "all 0.2s",
-                      border: filterMedical ? "1px solid #ef4444" : "1px solid var(--border-subtle)",
-                      background: filterMedical ? "rgba(239, 68, 68, 0.1)" : "var(--bg-surface)",
-                      color: filterMedical ? "#ef4444" : "var(--text-secondary)"
+                      border: filterMedical ? "1px solid var(--red-500)" : "1px solid var(--border-subtle)",
+                      background: filterMedical ? "rgb(var(--red-500-rgb) / 0.1)" : "var(--bg-surface)",
+                      color: filterMedical ? "var(--red-500)" : "var(--text-secondary)"
                     }}
                   >
                     <HeartPulse size={16} />
@@ -5089,9 +5090,9 @@ export default function AdminEventsPage() {
                       alignItems: "center",
                       gap: 8,
                       transition: "all 0.2s",
-                      border: filterStrikeHistory ? "1px solid #ef4444" : "1px solid var(--border-subtle)",
-                      background: filterStrikeHistory ? "rgba(239, 68, 68, 0.1)" : "var(--bg-surface)",
-                      color: filterStrikeHistory ? "#ef4444" : "var(--text-secondary)"
+                      border: filterStrikeHistory ? "1px solid var(--red-500)" : "1px solid var(--border-subtle)",
+                      background: filterStrikeHistory ? "rgb(var(--red-500-rgb) / 0.1)" : "var(--bg-surface)",
+                      color: filterStrikeHistory ? "var(--red-500)" : "var(--text-secondary)"
                     }}
                   >
                     <AlertCircle size={16} />
@@ -5110,9 +5111,9 @@ export default function AdminEventsPage() {
                       alignItems: "center",
                       gap: 8,
                       transition: "all 0.2s",
-                      border: filterEventNoShow ? "1px solid #ef4444" : "1px solid var(--border-subtle)",
-                      background: filterEventNoShow ? "rgba(239, 68, 68, 0.1)" : "var(--bg-surface)",
-                      color: filterEventNoShow ? "#ef4444" : "var(--text-secondary)"
+                      border: filterEventNoShow ? "1px solid var(--red-500)" : "1px solid var(--border-subtle)",
+                      background: filterEventNoShow ? "rgb(var(--red-500-rgb) / 0.1)" : "var(--bg-surface)",
+                      color: filterEventNoShow ? "var(--red-500)" : "var(--text-secondary)"
                     }}
                   >
                     <AlertTriangle size={16} />
@@ -5224,7 +5225,7 @@ export default function AdminEventsPage() {
                     cursor: "pointer",
                     padding: "8px 16px",
                     borderRadius: 99,
-                    background: filterThai ? "rgba(255, 107, 0, 0.08)" : "var(--bg-surface)",
+                    background: filterThai ? "rgb(var(--accent-rgb) / 0.08)" : "var(--bg-surface)",
                     border: filterThai ? "1px solid var(--accent-primary)" : "1px solid var(--border-subtle)",
                     transition: "all 0.2s"
                   }}>
@@ -5247,7 +5248,7 @@ export default function AdminEventsPage() {
                     cursor: "pointer",
                     padding: "8px 16px",
                     borderRadius: 99,
-                    background: filterInternational ? "rgba(255, 107, 0, 0.08)" : "var(--bg-surface)",
+                    background: filterInternational ? "rgb(var(--accent-rgb) / 0.08)" : "var(--bg-surface)",
                     border: filterInternational ? "1px solid var(--accent-primary)" : "1px solid var(--border-subtle)",
                     transition: "all 0.2s"
                   }}>
@@ -5279,7 +5280,7 @@ export default function AdminEventsPage() {
             ) : attendanceError ? (
               <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, textAlign: "center", maxWidth: 420 }}>
-                  <div style={{ width: 80, height: 80, borderRadius: "50%", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", display: "flex", alignItems: "center", justifyContent: "center", color: "#ef4444" }}>
+                  <div style={{ width: 80, height: 80, borderRadius: "50%", background: "rgb(var(--red-500-rgb) / 0.1)", border: "1px solid rgb(var(--red-500-rgb) / 0.2)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--red-500)" }}>
                     <AlertTriangle size={36} />
                   </div>
                   <h3 style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)" }}>Couldn&apos;t load the roster</h3>
@@ -5326,7 +5327,7 @@ export default function AdminEventsPage() {
                       color: "var(--text-muted)",
                       border: "1px solid var(--border-subtle)"
                     }}>
-                      {filterMedical ? <HeartPulse size={40} style={{ color: "#ef4444" }} /> : <Search size={40} />}
+                      {filterMedical ? <HeartPulse size={40} style={{ color: "var(--red-500)" }} /> : <Search size={40} />}
                     </div>
                     <div>
                       <h3 style={{ fontSize: 24, fontWeight: 800, color: "var(--text-primary)" }}>
@@ -5355,12 +5356,12 @@ export default function AdminEventsPage() {
                           justifyContent: "space-between",
                           marginBottom: 20,
                           padding: "12px 20px",
-                          background: "rgba(99, 102, 241, 0.08)",
+                          background: "rgb(var(--indigo-500-rgb) / 0.08)",
                           borderRadius: 16,
-                          border: "1px solid rgba(99, 102, 241, 0.2)"
+                          border: "1px solid rgb(var(--indigo-500-rgb) / 0.2)"
                         }}>
                           <div>
-                            <h4 style={{ fontSize: 18, fontWeight: 800, display: "flex", alignItems: "center", gap: 12, color: "#6366f1" }}>
+                            <h4 style={{ fontSize: 18, fontWeight: 800, display: "flex", alignItems: "center", gap: 12, color: "var(--indigo-500)" }}>
                               <ShieldCheck size={18} />
                               Staff
                             </h4>
@@ -5395,7 +5396,7 @@ export default function AdminEventsPage() {
                               height: 16,
                               borderRadius: 4,
                               background: members[0]?.primary.user?.house?.color || "var(--accent-primary)",
-                              boxShadow: `0 0 15px ${members[0]?.primary.user?.house?.color}55`
+                              boxShadow: `0 0 15px ${alpha(members[0]?.primary.user?.house?.color || "var(--accent-primary)", 0.33)}`
                             }} />
                             {house === "red" ? t.houseMom : house === "green" ? t.houseTo : house === "yellow" ? t.houseLuang : house === "blue" ? t.houseMakara : house}
                           </h4>
@@ -5427,7 +5428,7 @@ export default function AdminEventsPage() {
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.5)",
+            background: "rgb(var(--scrim-rgb) / 0.5)",
             zIndex: 2300,
             display: "flex",
             alignItems: "center",
@@ -5451,10 +5452,10 @@ export default function AdminEventsPage() {
           >
             <div style={{ padding: "24px 28px 16px", display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{
-                width: 44, height: 44, borderRadius: 12, background: "rgba(239,68,68,0.12)",
+                width: 44, height: 44, borderRadius: 12, background: "rgb(var(--red-500-rgb) / 0.12)",
                 display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
               }}>
-                <AlertTriangle size={22} color="#ef4444" />
+                <AlertTriangle size={22} color="var(--red-500)" />
               </div>
               <div style={{ minWidth: 0 }}>
                 <h3 style={{ fontSize: 18, fontWeight: 900, color: "var(--text-primary)" }}>
@@ -5503,7 +5504,7 @@ export default function AdminEventsPage() {
                 </div>
               ) : strikesResult ? (
                 <div style={{ padding: "8px 0 20px", display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#10b981", fontWeight: 800, fontSize: 15 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--emerald-500)", fontWeight: 800, fontSize: 15 }}>
                     <CheckCircle2 size={18} />
                     {lang === "th" ? "ดำเนินการเสร็จสิ้น" : "Strikes applied"}
                   </div>
@@ -5561,7 +5562,7 @@ export default function AdminEventsPage() {
                               if (next.has(s.id)) next.delete(s.id); else next.add(s.id);
                               return next;
                             })}
-                            style={{ width: 16, height: 16, flexShrink: 0, accentColor: "#ef4444" }}
+                            style={{ width: 16, height: 16, flexShrink: 0, accentColor: "var(--red-500)" }}
                           />
                           <div style={{ minWidth: 0 }}>
                             <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{s.name}{s.nickname ? ` (${s.nickname})` : ""}</div>
@@ -5570,7 +5571,7 @@ export default function AdminEventsPage() {
                         </div>
                         {s.noShowCount > 0 && (
                           <span style={{
-                            fontSize: 11, fontWeight: 800, color: "#ef4444", background: "rgba(239,68,68,0.12)",
+                            fontSize: 11, fontWeight: 800, color: "var(--red-500)", background: "rgb(var(--red-500-rgb) / 0.12)",
                             borderRadius: 99, padding: "3px 10px", flexShrink: 0,
                           }}>
                             {s.noShowCount + 1}/{NO_SHOW_STRIKE_THRESHOLD}
@@ -5594,7 +5595,7 @@ export default function AdminEventsPage() {
               {!strikesResult && strikesPreview.length > 0 && (
                 <button
                   className="btn btn-primary"
-                  style={{ borderRadius: 12, height: 42, paddingInline: 18, fontWeight: 700, background: "linear-gradient(135deg, #ef4444, #dc2626)", border: "1px solid #dc2626" }}
+                  style={{ borderRadius: 12, height: 42, paddingInline: 18, fontWeight: 700, background: "linear-gradient(135deg, var(--red-500), var(--red-600))", border: "1px solid var(--red-600)" }}
                   disabled={strikesSubmitting || strikesSelected.size === 0}
                   onClick={confirmApplyStrikes}
                 >
@@ -5613,7 +5614,7 @@ export default function AdminEventsPage() {
         <div style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(0,0,0,0.4)",
+          background: "rgb(var(--scrim-rgb) / 0.4)",
           backdropFilter: "blur(8px)",
           zIndex: 2100,
           display: "flex",
@@ -5627,7 +5628,7 @@ export default function AdminEventsPage() {
             maxWidth: 500,
             borderRadius: 32,
             overflow: "hidden",
-            boxShadow: "0 30px 60px rgba(0,0,0,0.2)",
+            boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.2)",
             border: "1px solid var(--border-medium)"
           }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: 32, borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-elevated)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -5670,18 +5671,18 @@ export default function AdminEventsPage() {
               {canSeeAttendeeContactAndMedical && (
               <div style={{
                 background: hasMedicalSignal(selectedStudent)
-                  ? "rgba(239, 68, 68, 0.05)"
+                  ? "rgb(var(--red-500-rgb) / 0.05)"
                   : "var(--bg-elevated)",
                 padding: 20,
                 borderRadius: 20,
                 border: hasMedicalSignal(selectedStudent)
-                  ? "1px solid rgba(239, 68, 68, 0.1)"
+                  ? "1px solid rgb(var(--red-500-rgb) / 0.1)"
                   : "1px solid transparent"
               }}>
                 <p style={{
                   fontSize: 12,
                   fontWeight: 800,
-                  color: hasMedicalSignal(selectedStudent) ? "#ef4444" : "var(--text-muted)",
+                  color: hasMedicalSignal(selectedStudent) ? "var(--red-500)" : "var(--text-muted)",
                   textTransform: "uppercase",
                   marginBottom: 12,
                   letterSpacing: "0.05em",
@@ -5698,11 +5699,11 @@ export default function AdminEventsPage() {
                     <>
                       {selectedStudent.chronicDiseases && selectedStudent.chronicDiseases.trim() !== "-" && <p style={{ fontSize: 14 }}><b>{t.chronicDiseases}:</b> {selectedStudent.chronicDiseases}</p>}
                       {selectedStudent.medicalHistory && selectedStudent.medicalHistory.trim() !== "-" && <p style={{ fontSize: 14 }}><b>{t.medicalHistory}:</b> {selectedStudent.medicalHistory}</p>}
-                      {selectedStudent.drugAllergies && selectedStudent.drugAllergies.trim() !== "-" && <p style={{ fontSize: 14 }}><b>{t.drugAllergies}:</b> <span style={{ color: "#ef4444", fontWeight: 700 }}>{selectedStudent.drugAllergies}</span></p>}
-                      {selectedStudent.foodAllergies && selectedStudent.foodAllergies.trim() !== "-" && <p style={{ fontSize: 14 }}><b>{t.foodAllergies}:</b> <span style={{ color: "#ef4444", fontWeight: 700 }}>{selectedStudent.foodAllergies}</span></p>}
+                      {selectedStudent.drugAllergies && selectedStudent.drugAllergies.trim() !== "-" && <p style={{ fontSize: 14 }}><b>{t.drugAllergies}:</b> <span style={{ color: "var(--red-500)", fontWeight: 700 }}>{selectedStudent.drugAllergies}</span></p>}
+                      {selectedStudent.foodAllergies && selectedStudent.foodAllergies.trim() !== "-" && <p style={{ fontSize: 14 }}><b>{t.foodAllergies}:</b> <span style={{ color: "var(--red-500)", fontWeight: 700 }}>{selectedStudent.foodAllergies}</span></p>}
                       {selectedStudent.dietaryRestrictions && selectedStudent.dietaryRestrictions.trim() !== "-" && <p style={{ fontSize: 14 }}><b>{t.dietaryRestrictions}:</b> {selectedStudent.dietaryRestrictions}</p>}
-                      {selectedStudent.emergencyMedication && selectedStudent.emergencyMedication.trim() !== "-" && <p style={{ fontSize: 14 }}><b>{t.emergencyMed}:</b> <span style={{ color: "#ef4444", fontWeight: 700 }}>{selectedStudent.emergencyMedication}</span></p>}
-                      {selectedStudent.faintingHistory && <p style={{ fontSize: 14, color: "#ef4444", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={14} style={{ flexShrink: 0 }} /> {t.faintingHistory}</p>}
+                      {selectedStudent.emergencyMedication && selectedStudent.emergencyMedication.trim() !== "-" && <p style={{ fontSize: 14 }}><b>{t.emergencyMed}:</b> <span style={{ color: "var(--red-500)", fontWeight: 700 }}>{selectedStudent.emergencyMedication}</span></p>}
+                      {selectedStudent.faintingHistory && <p style={{ fontSize: 14, color: "var(--red-500)", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={14} style={{ flexShrink: 0 }} /> {t.faintingHistory}</p>}
 
                       {!hasActualMedicalInfo(selectedStudent) && (
                         <p style={{ fontSize: 14, color: "var(--text-muted)", fontStyle: "italic" }}>{t.noMedicalConditions}</p>
@@ -5714,7 +5715,7 @@ export default function AdminEventsPage() {
                     <>
                       <ul style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 4 }}>
                         {(selectedStudent.medicalCategories ?? []).map((cat) => (
-                          <li key={cat} style={{ fontSize: 14, color: "#ef4444", fontWeight: 700 }}>
+                          <li key={cat} style={{ fontSize: 14, color: "var(--red-500)", fontWeight: 700 }}>
                             {t[cat as keyof typeof t] ?? cat}
                           </li>
                         ))}

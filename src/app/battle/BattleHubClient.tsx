@@ -118,10 +118,10 @@ export function BattleHubClient({ initialSession }: BattleHubClientProps) {
   // Helper to format house colors
   const getHouseColor = (houseId: string | null | undefined) => {
     switch (houseId?.toLowerCase()) {
-      case "red": return "var(--red-house, #ef4444)";
-      case "blue": return "var(--yellow-house, #3b82f6)";
-      case "green": return "var(--blue-house, #22c55e)";
-      case "yellow": return "var(--green-house, #94a3b8)"; // Green house in schema is named White/Pewter but colored green, etc.
+      case "red": return "var(--red-house)";
+      case "blue": return "var(--yellow-house)";
+      case "green": return "var(--blue-house)";
+      case "yellow": return "var(--green-house)"; // Green house in schema is named White/Pewter but colored green, etc.
       default: return "var(--text-secondary)";
     }
   };
@@ -142,7 +142,7 @@ export function BattleHubClient({ initialSession }: BattleHubClientProps) {
       
       <main className="battle-hub-container" style={{ padding: "80px max(16px, env(safe-area-inset-right)) 80px max(16px, env(safe-area-inset-left))", maxWidth: 1200, margin: "0 auto", width: "100%" }}>
         {/* Banner Header */}
-        <div className="hero-banner" style={{ background: "radial-gradient(ellipse at top, var(--accent-glow) 0%, rgba(252, 252, 253, 0) 70%)", borderRadius: "var(--radius-xl)", padding: "40px 24px", textAlign: "center", marginBottom: 32, border: "1px solid var(--border-subtle)", position: "relative", overflow: "hidden" }}>
+        <div className="hero-banner" style={{ background: "radial-gradient(ellipse at top, var(--accent-glow) 0%, rgb(var(--bg-base-rgb) / 0) 70%)", borderRadius: "var(--radius-xl)", padding: "40px 24px", textAlign: "center", marginBottom: 32, border: "1px solid var(--border-subtle)", position: "relative", overflow: "hidden" }}>
           <div style={{ display: "inline-flex", padding: 12, borderRadius: "50%", background: "var(--accent-glow)", color: "var(--accent-primary)", marginBottom: 16 }}>
             <Swords size={36} className="pulse" />
           </div>
@@ -154,7 +154,7 @@ export function BattleHubClient({ initialSession }: BattleHubClientProps) {
           </p>
 
           {error && (
-            <div style={{ maxWidth: 500, margin: "24px auto 0", background: "#fef2f2", border: "1px solid #fee2e2", padding: "12px 16px", borderRadius: "var(--radius-md)", color: "#991b1b", display: "flex", alignItems: "center", gap: 10, justifyContent: "center" }}>
+            <div style={{ maxWidth: 500, margin: "24px auto 0", background: "var(--error-bg)", border: "1px solid var(--error-border)", padding: "12px 16px", borderRadius: "var(--radius-md)", color: "var(--error-text)", display: "flex", alignItems: "center", gap: 10, justifyContent: "center" }}>
               <AlertTriangle size={18} />
               <span style={{ fontSize: 14 }}>{error}</span>
             </div>
@@ -174,7 +174,7 @@ export function BattleHubClient({ initialSession }: BattleHubClientProps) {
             </p>
             <button
               className="btn"
-              style={{ background: "var(--accent-primary)", color: "#fff", width: "100%", height: 48 }}
+              style={{ background: "var(--accent-primary)", color: "var(--text-on-color)", width: "100%", height: 48 }}
               onClick={handleCreateRoom}
               disabled={creating}
             >
@@ -184,7 +184,7 @@ export function BattleHubClient({ initialSession }: BattleHubClientProps) {
 
           {/* Join Card */}
           <div className="glass" style={{ padding: 32, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", transition: "transform 0.2s" }}>
-            <div style={{ width: 64, height: 64, borderRadius: "var(--radius-lg)", background: "rgba(59, 130, 246, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#3b82f6", marginBottom: 20 }}>
+            <div style={{ width: 64, height: 64, borderRadius: "var(--radius-lg)", background: "rgb(var(--blue-500-rgb) / 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--blue-500)", marginBottom: 20 }}>
               <Users size={32} />
             </div>
             <h2 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: 10 }}>{t.battleJoinGameTitle}</h2>
@@ -194,7 +194,7 @@ export function BattleHubClient({ initialSession }: BattleHubClientProps) {
             <Link
               href="/battle/join"
               className="btn"
-              style={{ border: "2px solid #3b82f6", color: "#3b82f6", background: "transparent", width: "100%", height: 48, boxSizing: "border-box" }}
+              style={{ border: "2px solid var(--blue-500)", color: "var(--blue-500)", background: "transparent", width: "100%", height: 48, boxSizing: "border-box" }}
             >
               {t.battleEnterJoinCodeBtn}
             </Link>
@@ -209,19 +209,19 @@ export function BattleHubClient({ initialSession }: BattleHubClientProps) {
             </h3>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 16 }}>
               {/* Win Card */}
-              <div style={{ padding: 16, borderRadius: "var(--radius-md)", background: "rgba(34, 197, 94, 0.05)", border: "1px solid rgba(34, 197, 94, 0.1)", textAlign: "center" }}>
+              <div style={{ padding: 16, borderRadius: "var(--radius-md)", background: "rgb(var(--green-500-rgb) / 0.05)", border: "1px solid rgb(var(--green-500-rgb) / 0.1)", textAlign: "center" }}>
                 <p style={{ color: "var(--text-secondary)", fontSize: 13, fontWeight: 500 }}>{t.battleStatWins}</p>
-                <p style={{ fontSize: 32, fontWeight: 900, color: "#22c55e", marginTop: 4 }}>{stats.wins}</p>
+                <p style={{ fontSize: 32, fontWeight: 900, color: "var(--green-500)", marginTop: 4 }}>{stats.wins}</p>
               </div>
 
               {/* Loss Card */}
-              <div style={{ padding: 16, borderRadius: "var(--radius-md)", background: "rgba(239, 68, 68, 0.05)", border: "1px solid rgba(239, 68, 68, 0.1)", textAlign: "center" }}>
+              <div style={{ padding: 16, borderRadius: "var(--radius-md)", background: "rgb(var(--red-500-rgb) / 0.05)", border: "1px solid rgb(var(--red-500-rgb) / 0.1)", textAlign: "center" }}>
                 <p style={{ color: "var(--text-secondary)", fontSize: 13, fontWeight: 500 }}>{t.battleStatLosses}</p>
-                <p style={{ fontSize: 32, fontWeight: 900, color: "#ef4444", marginTop: 4 }}>{stats.losses}</p>
+                <p style={{ fontSize: 32, fontWeight: 900, color: "var(--red-500)", marginTop: 4 }}>{stats.losses}</p>
               </div>
 
               {/* Draw Card */}
-              <div style={{ padding: 16, borderRadius: "var(--radius-md)", background: "rgba(107, 114, 128, 0.05)", border: "1px solid rgba(107, 114, 128, 0.1)", textAlign: "center" }}>
+              <div style={{ padding: 16, borderRadius: "var(--radius-md)", background: "rgb(var(--gray-500-rgb) / 0.05)", border: "1px solid rgb(var(--gray-500-rgb) / 0.1)", textAlign: "center" }}>
                 <p style={{ color: "var(--text-secondary)", fontSize: 13, fontWeight: 500 }}>{t.battleStatDraws}</p>
                 <p style={{ fontSize: 32, fontWeight: 900, color: "var(--text-secondary)", marginTop: 4 }}>{stats.draws}</p>
               </div>
@@ -328,13 +328,13 @@ export function BattleHubClient({ initialSession }: BattleHubClientProps) {
                       </thead>
                       <tbody>
                         {leaderboard.map((item, index) => {
-                          const medalColors = ["#ffd700", "#c0c0c0", "#cd7f32"];
+                          const medalColors = ["var(--medal-gold)", "var(--medal-silver)", "var(--medal-bronze)"];
                           const isTop3 = index < 3;
                           return (
                             <tr key={item.id} style={{ borderBottom: "1px solid var(--border-subtle)", transition: "background 0.15s" }} className="table-row-hover">
                               <td style={{ padding: "16px 24px", fontWeight: 700 }}>
                                 {isTop3 ? (
-                                  <span style={{ display: "inline-flex", width: 24, height: 24, borderRadius: "50%", background: medalColors[index], color: "#fff", alignItems: "center", justifyContent: "center", fontSize: 12 }}>
+                                  <span style={{ display: "inline-flex", width: 24, height: 24, borderRadius: "50%", background: medalColors[index], color: "var(--text-on-color)", alignItems: "center", justifyContent: "center", fontSize: 12 }}>
                                     {index + 1}
                                   </span>
                                 ) : (
@@ -362,7 +362,7 @@ export function BattleHubClient({ initialSession }: BattleHubClientProps) {
                                   {getHouseName(item.user.houseId)}
                                 </span>
                               </td>
-                              <td style={{ padding: "16px 24px", fontWeight: 700, fontSize: 16, textAlign: "center", color: "#22c55e" }}>
+                              <td style={{ padding: "16px 24px", fontWeight: 700, fontSize: 16, textAlign: "center", color: "var(--green-500)" }}>
                                 {item.wins}
                               </td>
                               <td style={{ padding: "16px 24px", fontWeight: 600, textAlign: "center", color: "var(--accent-primary)" }}>
@@ -410,17 +410,17 @@ export function BattleHubClient({ initialSession }: BattleHubClientProps) {
 
                           let resultText = t.battleResultDraw;
                           let resultColor = "var(--text-secondary)";
-                          let resultBg = "rgba(107, 114, 128, 0.05)";
+                          let resultBg = "rgb(var(--gray-500-rgb) / 0.05)";
 
                           if (roomItem.winnerId) {
                             if (roomItem.winnerId === user?.id) {
                               resultText = t.battleResultWon;
-                              resultColor = "#22c55e";
-                              resultBg = "rgba(34, 197, 94, 0.05)";
+                              resultColor = "var(--green-500)";
+                              resultBg = "rgb(var(--green-500-rgb) / 0.05)";
                             } else {
                               resultText = t.battleResultLost;
-                              resultColor = "#ef4444";
-                              resultBg = "rgba(239, 68, 68, 0.05)";
+                              resultColor = "var(--red-500)";
+                              resultBg = "rgb(var(--red-500-rgb) / 0.05)";
                             }
                           }
 

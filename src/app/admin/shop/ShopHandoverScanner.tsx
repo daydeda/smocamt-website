@@ -277,7 +277,7 @@ export default function ShopHandoverScanner({ th, product: initialProduct = null
   const lineText = (l: Line) => `${l.productName}${variantOf(l) ? ` · ${variantOf(l)}` : ""} ×${l.quantity}`;
 
   return (
-    <div onClick={safeToDismiss ? onClose : undefined} style={{ position: "fixed", inset: 0, zIndex: 2500, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}>
+    <div onClick={safeToDismiss ? onClose : undefined} style={{ position: "fixed", inset: 0, zIndex: 2500, background: "rgb(var(--scrim-rgb) / 0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg-surface)", borderRadius: 20, width: "100%", maxWidth: 480, maxHeight: "calc(100dvh - 24px)", border: "1px solid var(--border-subtle)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "12px 16px", borderBottom: "1px solid var(--border-subtle)" }}>
           <p style={{ fontWeight: 800, fontSize: 16, display: "inline-flex", alignItems: "center", gap: 8 }}>
@@ -319,7 +319,7 @@ export default function ShopHandoverScanner({ th, product: initialProduct = null
               <p style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center" }}>
                 {th ? "2. ให้ผู้ซื้อเปิด Digital ID แล้วส่องกล้องไปที่ QR" : "2. Ask the buyer to open their Digital ID and point the camera at the QR."}
               </p>
-              {cameraError && <p style={{ fontSize: 13, color: "#b45309", background: "rgba(245,158,11,0.1)", padding: "10px 12px", borderRadius: 10 }}>{cameraError}</p>}
+              {cameraError && <p style={{ fontSize: 13, color: "var(--amber-700)", background: "rgb(var(--amber-500-rgb) / 0.1)", padding: "10px 12px", borderRadius: 10 }}>{cameraError}</p>}
             </>
           )}
 
@@ -329,7 +329,7 @@ export default function ShopHandoverScanner({ th, product: initialProduct = null
 
           {error && !preview && !handed && (
             <>
-              <p style={{ fontSize: 14, color: "#dc2626", background: "rgba(239,68,68,0.08)", padding: "10px 12px", borderRadius: 10, display: "flex", gap: 6 }}>
+              <p style={{ fontSize: 14, color: "var(--red-600)", background: "rgb(var(--red-500-rgb) / 0.08)", padding: "10px 12px", borderRadius: 10, display: "flex", gap: 6 }}>
                 <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 2 }} />{error}
               </p>
               <button onClick={next} className="btn btn-primary" style={{ minHeight: 48 }}>{th ? "สแกนใหม่" : "Scan again"}</button>
@@ -342,8 +342,8 @@ export default function ShopHandoverScanner({ th, product: initialProduct = null
                 <Undo2 size={20} />{th ? `ยกเลิกแล้ว ${buyerLabel(handed.buyer)} ยังไม่ได้รับสินค้า` : `Undone. ${buyerLabel(handed.buyer)} is back to "not received".`}
               </p>
             ) : (
-              <div style={{ background: "rgba(22,163,74,0.1)", border: "1px solid rgba(22,163,74,0.3)", padding: "16px 14px", borderRadius: 12, display: "flex", flexDirection: "column", gap: 6 }}>
-                <p style={{ fontSize: 16, fontWeight: 800, color: "#15803d", display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ background: "rgb(var(--green-600-rgb) / 0.1)", border: "1px solid rgb(var(--green-600-rgb) / 0.3)", padding: "16px 14px", borderRadius: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+                <p style={{ fontSize: 16, fontWeight: 800, color: "var(--green-700)", display: "flex", alignItems: "center", gap: 8 }}>
                   <CheckCircle2 size={22} />{th ? "ส่งมอบแล้ว" : "Handed over"}
                 </p>
                 <p style={{ fontSize: 15, fontWeight: 700 }}>{buyerLabel(handed.buyer)}</p>
@@ -351,7 +351,7 @@ export default function ShopHandoverScanner({ th, product: initialProduct = null
               </div>
             )
           )}
-          {handed && error && <p style={{ fontSize: 13, color: "#dc2626" }}>{error}</p>}
+          {handed && error && <p style={{ fontSize: 13, color: "var(--red-600)" }}>{error}</p>}
 
           {preview && (
             <>
@@ -363,14 +363,14 @@ export default function ShopHandoverScanner({ th, product: initialProduct = null
               {/* Nothing to give: say so FIRST, above the reasons, so a quick
                   glance can't miss it. */}
               {preview.toHand.length === 0 && (
-                <p style={{ fontSize: 16, fontWeight: 800, color: "#b91c1c", background: "rgba(239,68,68,0.1)", border: "2px solid rgba(239,68,68,0.35)", padding: "14px 12px", borderRadius: 10, display: "flex", alignItems: "center", gap: 8 }}>
+                <p style={{ fontSize: 16, fontWeight: 800, color: "var(--red-700)", background: "rgb(var(--red-500-rgb) / 0.1)", border: "2px solid rgb(var(--red-500-rgb) / 0.35)", padding: "14px 12px", borderRadius: 10, display: "flex", alignItems: "center", gap: 8 }}>
                   <X size={20} style={{ flexShrink: 0 }} />
                   {th ? "ไม่ต้องส่งมอบสินค้านี้ให้คนนี้" : "Don't hand over. Nothing of this product is due to this person."}
                 </p>
               )}
 
               {preview.done.length > 0 && (
-                <div style={alertBox("rgba(245,158,11,0.14)", "#92400e")}>
+                <div style={alertBox("rgb(var(--amber-500-rgb) / 0.14)", "var(--amber-800)")}>
                   <p style={{ fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }}><AlertTriangle size={15} />{th ? "คนนี้รับสินค้านี้ไปแล้ว" : "Already received this product"}</p>
                   {preview.done.map((l) => (
                     <p key={l.itemId} style={{ overflowWrap: "anywhere" }}>
@@ -381,14 +381,14 @@ export default function ShopHandoverScanner({ th, product: initialProduct = null
               )}
 
               {preview.unpaid.length > 0 && (
-                <div style={alertBox("rgba(239,68,68,0.1)", "#b91c1c")}>
+                <div style={alertBox("rgb(var(--red-500-rgb) / 0.1)", "var(--red-700)")}>
                   <p style={{ fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }}><Clock size={15} />{th ? "ยังไม่ได้ตรวจสลิป ห้ามส่งมอบ" : "Payment not checked yet. Don't hand over."}</p>
                   {preview.unpaid.map((l) => <p key={l.itemId} style={{ overflowWrap: "anywhere" }}>{lineText(l)}</p>)}
                 </div>
               )}
 
               {preview.mailed.length > 0 && (
-                <div style={alertBox("rgba(59,130,246,0.1)", "#1d4ed8")}>
+                <div style={alertBox("rgb(var(--blue-500-rgb) / 0.1)", "var(--blue-700)")}>
                   <p style={{ fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }}><Truck size={15} />{th ? "ส่งทางไปรษณีย์แล้ว ไม่ต้องส่งมอบที่นี่" : "Sent by mail. Don't hand over here."}</p>
                   {preview.mailed.map((l) => <p key={l.itemId} style={{ overflowWrap: "anywhere" }}>{lineText(l)}</p>)}
                 </div>
@@ -448,7 +448,7 @@ export default function ShopHandoverScanner({ th, product: initialProduct = null
                 </div>
               )}
 
-              {error && <p style={{ fontSize: 13, color: "#dc2626" }}>{error}</p>}
+              {error && <p style={{ fontSize: 13, color: "var(--red-600)" }}>{error}</p>}
             </>
           )}
         </div>

@@ -42,6 +42,7 @@ import dynamic from "next/dynamic";
 import ScannerPrizeTab from "./ScannerPrizeTab";
 import ScannerShopTab from "./ScannerShopTab";
 import { isShopManager } from "@/lib/shop-auth";
+import { alpha } from "@/lib/color";
 
 // Pre-test warning QR — client-only (qrcode.react reads the DOM). Canvas, not
 // SVG: Android/Chrome "force dark" auto-inverts inline <svg> DOM content, but
@@ -155,8 +156,8 @@ function LiveBadge({ label, small }: { label: string; small?: boolean }) {
       gap: 4,
       padding: small ? "2px 6px" : "3px 8px",
       borderRadius: 999,
-      background: "rgba(16, 185, 129, 0.15)",
-      color: "#10b981",
+      background: "rgb(var(--emerald-500-rgb) / 0.15)",
+      color: "var(--emerald-500)",
       fontSize: small ? 10 : 11,
       fontWeight: 800,
       textTransform: "uppercase",
@@ -164,7 +165,7 @@ function LiveBadge({ label, small }: { label: string; small?: boolean }) {
       flexShrink: 0,
       whiteSpace: "nowrap",
     }}>
-      <span className="animate-pulse" style={{ width: 6, height: 6, borderRadius: "50%", background: "#10b981" }} />
+      <span className="animate-pulse" style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--emerald-500)" }} />
       {label}
     </span>
   );
@@ -184,15 +185,15 @@ function SongsueCheckinNotice({ message }: { message: string }) {
         marginTop: 16,
         padding: 16,
         borderRadius: 16,
-        background: "rgba(99, 102, 241, 0.06)",
-        border: "1.5px dashed rgba(99, 102, 241, 0.4)",
+        background: "rgb(var(--indigo-500-rgb) / 0.06)",
+        border: "1.5px dashed rgb(var(--indigo-500-rgb) / 0.4)",
         display: "flex",
         alignItems: "flex-start",
         gap: 10,
         textAlign: "left",
       }}
     >
-      <House size={18} color="#6366f1" style={{ marginTop: 1, flexShrink: 0 }} />
+      <House size={18} color="var(--indigo-500)" style={{ marginTop: 1, flexShrink: 0 }} />
       <p style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 600 }}>
         {message}
       </p>
@@ -964,74 +965,74 @@ export default function QRScannerPage() {
     bg: string;
   }> = {
     success: { 
-      color: "#10b981", 
+      color: "var(--emerald-500)", 
       icon: UserCheck, 
       title: t.scanSuccess, 
       desc: t.scanSuccess,
-      bg: "rgba(16, 185, 129, 0.1)"
+      bg: "rgb(var(--emerald-500-rgb) / 0.1)"
     },
     success_walk_in: {
-      color: "#10b981",
+      color: "var(--emerald-500)",
       icon: UserCheck,
       title: t.scanSuccess + " (Walk-in)",
       desc: t.scanSuccess,
-      bg: "rgba(16, 185, 129, 0.1)"
+      bg: "rgb(var(--emerald-500-rgb) / 0.1)"
     },
     success_checkout: {
-      color: "#10b981",
+      color: "var(--emerald-500)",
       icon: UserCheck,
       title: t.scanCheckoutSuccess,
       desc: t.scanCheckoutSuccess,
-      bg: "rgba(16, 185, 129, 0.1)"
+      bg: "rgb(var(--emerald-500-rgb) / 0.1)"
     },
     pending_confirmation: {
-      color: "#6366f1",
+      color: "var(--indigo-500)",
       icon: AlertCircle,
       title: t.manualCheckinTitle,
       desc: t.manualSearchPlaceholder,
-      bg: "rgba(99, 102, 241, 0.1)"
+      bg: "rgb(var(--indigo-500-rgb) / 0.1)"
     },
     pending_checkout: {
-      color: "#f59e0b",
+      color: "var(--amber-500)",
       icon: Camera,
       title: lang === "th" ? "รอเช็คเอาท์" : lang === "cn" ? "待签退" : lang === "mm" ? "checkout စောင့်ဆိုင်းနေသည်" : "Pending check-out",
       desc: lang === "th" ? "แนบรูปหลักฐานเพื่อยืนยันเช็คเอาท์" : lang === "cn" ? "附上证据照片以确认签退" : lang === "mm" ? "checkout အတည်ပြုရန် သက်သေပုံ ပူးတွဲပါ" : "Attach a proof photo to confirm check-out",
-      bg: "rgba(245, 158, 11, 0.1)"
+      bg: "rgb(var(--amber-500-rgb) / 0.1)"
     },
     already_checked_in: { 
-      color: "#ef4444", 
+      color: "var(--red-500)", 
       icon: RefreshCcw, 
       title: t.scanAlreadyCheckedIn, 
       desc: t.scanAlreadyCheckedIn,
-      bg: "rgba(239, 68, 68, 0.1)"
+      bg: "rgb(var(--red-500-rgb) / 0.1)"
     },
     already_checked_out: {
-      color: "#3b82f6",
+      color: "var(--blue-500)",
       icon: CheckCircle2,
       title: lang === "th" ? "เช็คเอาท์ไปแล้ว" : lang === "cn" ? "已签退" : lang === "mm" ? "checkout ပြီးသားဖြစ်သည်" : "Already Checked Out",
       desc: lang === "th" ? "นักศึกษาเช็คอินและเช็คเอาท์ครบแล้ว" : lang === "cn" ? "该学生已完成签到和签退" : lang === "mm" ? "ဤကျောင်းသားသည် check-in နှင့် checkout ပြီးပါပြီ" : "This student has already checked in and out",
-      bg: "rgba(59, 130, 246, 0.1)"
+      bg: "rgb(var(--blue-500-rgb) / 0.1)"
     },
     walk_ins_disabled: {
-      color: "#f59e0b",
+      color: "var(--amber-500)",
       icon: UserMinus,
       title: t.walkInsDisabledLabel || "Walk-ins Not Allowed",
       desc: t.walkInsDisabledError,
-      bg: "rgba(245, 158, 11, 0.1)"
+      bg: "rgb(var(--amber-500-rgb) / 0.1)"
     },
     not_found: { 
-      color: "#ef4444", 
+      color: "var(--red-500)", 
       icon: XCircle, 
       title: t.scanNotFound, 
       desc: t.scanNotFound,
-      bg: "rgba(239, 68, 68, 0.1)"
+      bg: "rgb(var(--red-500-rgb) / 0.1)"
     },
     quota_full: {
-      color: "#f59e0b",
+      color: "var(--amber-500)",
       icon: UserX,
       title: t.eventFull || "Event Full",
       desc: t.eventFull || "Event Full",
-      bg: "rgba(245, 158, 11, 0.1)"
+      bg: "rgb(var(--amber-500-rgb) / 0.1)"
     },
     // Score-mode student lookup (no check-in). Always overridden by the score-mode
     // cfg block below; this entry just satisfies the Record<ScanStatus> type.
@@ -1040,21 +1041,21 @@ export default function QRScannerPage() {
       icon: Award,
       title: t.scanModeScore,
       desc: t.scanModeScore,
-      bg: "rgba(99, 102, 241, 0.1)"
+      bg: "rgb(var(--indigo-500-rgb) / 0.1)"
     },
     not_registered: {
-      color: "#ef4444",
+      color: "var(--red-500)",
       icon: UserX,
       title: lang === "th" ? "ยังไม่ได้ลงทะเบียน" : lang === "cn" ? "未报名此活动" : lang === "mm" ? "ဤပွဲအတွက် စာရင်းမသွင်းရသေးပါ" : "Not Registered",
       desc: lang === "th" ? "นักศึกษายังไม่ได้ลงทะเบียนกิจกรรมนี้" : lang === "cn" ? "该学生未报名此活动" : lang === "mm" ? "ဤကျောင်းသားသည် ဤပွဲတွင် စာရင်းမသွင်းထားပါ" : "This student is not registered for this event",
-      bg: "rgba(239, 68, 68, 0.1)"
+      bg: "rgb(var(--red-500-rgb) / 0.1)"
     },
     error: { 
-      color: "#ef4444", 
+      color: "var(--red-500)", 
       icon: AlertCircle, 
       title: t.scanError, 
       desc: t.scanError,
-      bg: "rgba(239, 68, 68, 0.1)"
+      bg: "rgb(var(--red-500-rgb) / 0.1)"
     },
   };
 
@@ -1118,7 +1119,7 @@ export default function QRScannerPage() {
   if (cfg && scanMode === "score") {
     if (scanResult?.status === "success") {
       cfg = {
-        color: "#10b981",
+        color: "var(--emerald-500)",
         icon: CheckCircle2,
         title: scoreSign === -1
           ? (lang === "th" ? "หักคะแนนสำเร็จ" : lang === "cn" ? "扣分成功" : lang === "mm" ? "အမှတ်နှုတ်ပြီး" : "Points Deducted")
@@ -1126,7 +1127,7 @@ export default function QRScannerPage() {
         desc: scoreSign === -1
           ? (lang === "th" ? "หักคะแนนเรียบร้อยแล้ว" : lang === "cn" ? "已成功扣分" : lang === "mm" ? "အမှတ်ကို အောင်မြင်စွာ နှုတ်ပြီးပါပြီ" : "The score has been deducted successfully")
           : (lang === "th" ? "มอบคะแนนเรียบร้อยแล้ว" : "The score has been added successfully"),
-        bg: "rgba(16, 185, 129, 0.1)"
+        bg: "rgb(var(--emerald-500-rgb) / 0.1)"
       };
     } else if (scanResult?.status === "not_registered") {
       // Keep the "Not Registered" error styling — don't fall through to the score prompt.
@@ -1137,15 +1138,15 @@ export default function QRScannerPage() {
         icon: Award,
         title: lang === "th" ? "มอบคะแนนรายบุคคล" : "Individual Score",
         desc: lang === "th" ? "กรอกคะแนนที่ต้องการมอบให้แก่นักศึกษา" : "Enter the score to award to this student",
-        bg: "rgba(99, 102, 241, 0.1)"
+        bg: "rgb(var(--indigo-500-rgb) / 0.1)"
       };
     }
   } else if (cfg && showMedicalCheck) {
     cfg = {
       ...cfg,
-      color: "#ef4444",
+      color: "var(--red-500)",
       icon: AlertCircle,
-      bg: "rgba(239, 68, 68, 0.12)",
+      bg: "rgb(var(--red-500-rgb) / 0.12)",
       title: lang === "th" ? "คำเตือนด้านสุขภาพ!" : lang === "cn" ? "健康警告！" : lang === "mm" ? "ကျန်းမာရေး သတိပေးချက်!" : "Medical Warning!",
       desc: lang === "th" ? "นักศึกษามีข้อมูลสุขภาพที่ลงทะเบียนไว้ โปรดตรวจสอบข้อมูลยาฉุกเฉินและข้อจำกัดสุขภาพ" : lang === "cn" ? "学生有已记录的健康状况。请核对药品与健康限制。" : lang === "mm" ? "ကျောင်းသားတွင် ကျန်းမာရေးအခြေအနေရှိသည်။ ဆေးဝါးและ ကျန်းမာရေးကန့်สတ်ချက်များကို สစ်ဆေးပါ။" : "Student has a recorded health condition. Please verify medication.",
     };
@@ -1187,7 +1188,7 @@ export default function QRScannerPage() {
                 fontWeight: 700,
                 background: scanMode === m.mode ? "var(--bg-surface)" : "transparent",
                 color: scanMode === m.mode ? "var(--text-primary)" : "var(--text-muted)",
-                boxShadow: scanMode === m.mode ? "0 4px 12px rgba(0,0,0,0.05)" : "none",
+                boxShadow: scanMode === m.mode ? "0 4px 12px rgb(var(--shadow-rgb) / 0.05)" : "none",
                 border: "none",
                 cursor: "pointer",
                 transition: "all 0.2s"
@@ -1281,7 +1282,7 @@ export default function QRScannerPage() {
                     background: "var(--bg-surface)",
                     border: "1px solid var(--border-medium)",
                     borderRadius: "var(--radius-md)",
-                    boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+                    boxShadow: "0 10px 25px -5px rgb(var(--shadow-rgb) / 0.1), 0 8px 10px -6px rgb(var(--shadow-rgb) / 0.1)",
                     maxHeight: 240,
                     overflowY: "auto",
                     padding: 4
@@ -1369,11 +1370,11 @@ export default function QRScannerPage() {
                 alignItems: "center",
                 gap: 12,
                 flexWrap: "wrap",
-                background: "rgba(245, 158, 11, 0.08)",
-                border: "1.5px solid rgba(245, 158, 11, 0.35)",
+                background: "rgb(var(--amber-500-rgb) / 0.08)",
+                border: "1.5px solid rgb(var(--amber-500-rgb) / 0.35)",
               }}
             >
-              <AlertCircle size={20} color="#f59e0b" style={{ flexShrink: 0 }} />
+              <AlertCircle size={20} color="var(--amber-500)" style={{ flexShrink: 0 }} />
               {otherLiveEvent && (
               <p style={{ flex: 1, minWidth: 200, fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
                 {lang === "th"
@@ -1404,7 +1405,7 @@ export default function QRScannerPage() {
                   setSessionId(pickCurrentSessionId(otherLiveEvent.sessions));
                 }}
                 className="btn btn-primary"
-                style={{ padding: "8px 16px", fontSize: 12, flexShrink: 0, background: "#f59e0b", border: "none" }}
+                style={{ padding: "8px 16px", fontSize: 12, flexShrink: 0, background: "var(--amber-500)", border: "none" }}
               >
                 {lang === "th" ? "เปลี่ยนไปกิจกรรมที่กำลังจัดอยู่" : lang === "cn" ? "切换到进行中的活动" : lang === "mm" ? "ကျင်းပနေသော ပွဲသို့ ပြောင်းရန်" : "Switch to live event"}
               </button>
@@ -1414,7 +1415,7 @@ export default function QRScannerPage() {
                   type="button"
                   onClick={() => { setGoLiveConfirmFor(eventId); setGoLiveError(null); }}
                   className="btn btn-ghost"
-                  style={{ padding: "8px 16px", fontSize: 12, flexShrink: 0, border: "1.5px solid #f59e0b", color: "#b45309" }}
+                  style={{ padding: "8px 16px", fontSize: 12, flexShrink: 0, border: "1.5px solid var(--amber-500)", color: "var(--amber-700)" }}
                 >
                   {lang === "th" ? "เริ่มกิจกรรมนี้ตอนนี้" : lang === "cn" ? "立即开始此活动" : lang === "mm" ? "ဤပွဲကို ယခု စတင်ရန်" : "Go live now"}
                 </button>
@@ -1444,7 +1445,7 @@ export default function QRScannerPage() {
                     onClick={goLiveNow}
                     disabled={goLiveBusy}
                     className="btn btn-primary"
-                    style={{ padding: "8px 16px", fontSize: 12, flexShrink: 0, background: "#f59e0b", border: "none", display: "flex", alignItems: "center", gap: 6 }}
+                    style={{ padding: "8px 16px", fontSize: 12, flexShrink: 0, background: "var(--amber-500)", border: "none", display: "flex", alignItems: "center", gap: 6 }}
                   >
                     {goLiveBusy && <Loader2 size={14} className="animate-spin" />}
                     {lang === "th" ? "ยืนยัน เริ่มเลย" : lang === "cn" ? "确认开始" : lang === "mm" ? "အတည်ပြု၍ စတင်ရန်" : "Confirm, go live"}
@@ -1452,7 +1453,7 @@ export default function QRScannerPage() {
                 </div>
               )}
               {goLiveErrorMsg && (
-                <p role="alert" style={{ flexBasis: "100%", fontSize: 12, fontWeight: 600, color: "#ef4444" }}>{goLiveErrorMsg}</p>
+                <p role="alert" style={{ flexBasis: "100%", fontSize: 12, fontWeight: 600, color: "var(--red-500)" }}>{goLiveErrorMsg}</p>
               )}
             </div>
           )}
@@ -1528,7 +1529,7 @@ export default function QRScannerPage() {
                       background: "var(--bg-surface)",
                       border: "1px solid var(--border-medium)",
                       borderRadius: "var(--radius-md)",
-                      boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+                      boxShadow: "0 10px 25px -5px rgb(var(--shadow-rgb) / 0.1), 0 8px 10px -6px rgb(var(--shadow-rgb) / 0.1)",
                       maxHeight: 240,
                       overflowY: "auto",
                       padding: 4,
@@ -1589,11 +1590,11 @@ export default function QRScannerPage() {
           {/* QR Camera Box */}
           <div
             style={{
-              background: "#000",
+              background: "var(--black)",
               borderRadius: "var(--radius-xl)",
               overflow: "hidden",
               border: "8px solid var(--bg-surface)",
-              boxShadow: "0 40px 80px rgba(0,0,0,0.15)",
+              boxShadow: "0 40px 80px rgb(var(--shadow-rgb) / 0.15)",
               position: "relative",
               minHeight: 320,
               display: "flex",
@@ -1605,7 +1606,7 @@ export default function QRScannerPage() {
             
             {/* 1. Loading Events State */}
             {loadingEvents && (
-              <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#000", color: "#fff", gap: 16 }}>
+              <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "var(--black)", color: "var(--text-on-color)", gap: 16 }}>
                 <div className="spinner" />
                 <p style={{ fontSize: 14, fontWeight: 600 }}>{t.eventLoadingLabel}</p>
               </div>
@@ -1613,10 +1614,10 @@ export default function QRScannerPage() {
 
             {/* 2. Events Fetch Error State */}
             {(!loadingEvents && eventsError) && (
-              <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.95)", color: "#fff", padding: 40, textAlign: "center" }}>
-                <AlertCircle size={48} color="#ef4444" style={{ marginBottom: 16 }} />
+              <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "rgb(var(--scrim-rgb) / 0.95)", color: "var(--text-on-color)", padding: 40, textAlign: "center" }}>
+                <AlertCircle size={48} color="var(--red-500)" style={{ marginBottom: 16 }} />
                 <p style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Failed to Load Events</p>
-                <p style={{ fontSize: 14, color: "#94a3b8", marginBottom: 24 }}>{eventsError}</p>
+                <p style={{ fontSize: 14, color: "var(--slate-400)", marginBottom: 24 }}>{eventsError}</p>
                 <button 
                     className="btn btn-primary" 
                     style={{ borderRadius: 12 }}
@@ -1629,10 +1630,10 @@ export default function QRScannerPage() {
 
             {/* 3. Empty Events State */}
             {(!loadingEvents && !eventsError && events.length === 0) && (
-              <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#1e293b", color: "#fff", padding: 24, textAlign: "center", gap: 16 }}>
-                <AlertCircle size={48} color="#f59e0b" />
+              <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "var(--slate-800-fill)", color: "var(--text-on-color)", padding: 24, textAlign: "center", gap: 16 }}>
+                <AlertCircle size={48} color="var(--amber-500)" />
                 <p style={{ fontSize: 16, fontWeight: 700 }}>No Events Available</p>
-                <p style={{ fontSize: 14, color: "#cbd5e1", maxWidth: 320, lineHeight: 1.5 }}>
+                <p style={{ fontSize: 14, color: "var(--slate-300)", maxWidth: 320, lineHeight: 1.5 }}>
                   You must define at least one event in the database before you can scan student QR codes.
                 </p>
                 <a href="/admin/events" className="btn btn-primary" style={{ borderRadius: 12, display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 20px" }}>
@@ -1643,7 +1644,7 @@ export default function QRScannerPage() {
 
             {/* 4. Scanner Loading State (when we have events but scanner has not started yet and no error) */}
             {(!loadingEvents && !eventsError && events.length > 0 && !isScanning && !scannerError) && (
-              <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#000", color: "#fff", gap: 16 }}>
+              <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "var(--black)", color: "var(--text-on-color)", gap: 16 }}>
                 <div className="spinner" />
                 <p style={{ fontSize: 14, fontWeight: 600 }}>{t.eventLoadingLabel}</p>
               </div>
@@ -1651,10 +1652,10 @@ export default function QRScannerPage() {
 
             {/* 5. Scanner Startup Error State */}
             {(!loadingEvents && !eventsError && events.length > 0 && scannerError) && (
-              <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.9)", color: "#fff", padding: 40, textAlign: "center" }}>
-                <AlertCircle size={48} color="#ef4444" style={{ marginBottom: 16 }} />
+              <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "rgb(var(--scrim-rgb) / 0.9)", color: "var(--text-on-color)", padding: 40, textAlign: "center" }}>
+                <AlertCircle size={48} color="var(--red-500)" style={{ marginBottom: 16 }} />
                 <p style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>{t.scanError}</p>
-                <p style={{ fontSize: 14, color: "#94a3b8", marginBottom: 24 }}>{scannerError}</p>
+                <p style={{ fontSize: 14, color: "var(--slate-400)", marginBottom: 24 }}>{scannerError}</p>
                 <button 
                     className="btn btn-primary" 
                     style={{ borderRadius: 12 }}
@@ -1682,7 +1683,7 @@ export default function QRScannerPage() {
                     alignItems: "center",
                     justifyContent: "space-between",
                     gap: 10,
-                    background: selectedEventIsLive ? "rgba(0,0,0,0.55)" : "rgba(180, 83, 9, 0.75)",
+                    background: selectedEventIsLive ? "rgb(var(--scrim-rgb) / 0.55)" : "rgb(var(--amber-700-rgb) / 0.75)",
                     padding: "8px 14px",
                     backdropFilter: "blur(4px)",
                   }}>
@@ -1693,7 +1694,7 @@ export default function QRScannerPage() {
                       minWidth: 0,
                       fontSize: 12,
                       fontWeight: 800,
-                      color: "#fff",
+                      color: "var(--text-on-color)",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
@@ -1704,8 +1705,8 @@ export default function QRScannerPage() {
                     </span>
                     <span style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <div className="animate-pulse" style={{ width: 7, height: 7, borderRadius: "50%", background: "#10b981" }} />
-                        <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t.scanningActive}</span>
+                        <div className="animate-pulse" style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--emerald-500)" }} />
+                        <span style={{ fontSize: 10, fontWeight: 800, color: "var(--text-on-color)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t.scanningActive}</span>
                       </div>
                     </span>
                   </div>
@@ -1727,7 +1728,7 @@ export default function QRScannerPage() {
                 </h3>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span className="animate-pulse" style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981" }} />
+                <span className="animate-pulse" style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--emerald-500)" }} />
                 <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                   {lang === "th" ? "สด" : lang === "cn" ? "实时" : lang === "mm" ? "တိုက်ရိုက်" : "Live"}
                 </span>
@@ -1811,7 +1812,7 @@ export default function QRScannerPage() {
             position: "fixed",
             inset: 0,
             zIndex: 1000,
-            background: "rgba(0,0,0,0.6)",
+            background: "rgb(var(--scrim-rgb) / 0.6)",
             backdropFilter: "blur(8px)",
             display: "flex",
             alignItems: "center",
@@ -1831,7 +1832,7 @@ export default function QRScannerPage() {
               display: "flex",
               flexDirection: "column",
               overflow: "hidden",
-              boxShadow: "0 50px 100px rgba(0,0,0,0.3)",
+              boxShadow: "0 50px 100px rgb(var(--shadow-rgb) / 0.3)",
               border: `1px solid var(--border-subtle)`
             }}
             onClick={e => e.stopPropagation()}
@@ -1847,7 +1848,7 @@ export default function QRScannerPage() {
                 alignItems: "center", 
                 justifyContent: "center",
                 color: cfg.color,
-                boxShadow: `0 10px 30px ${cfg.color}30`,
+                boxShadow: `0 10px 30px ${alpha(cfg.color, 0.19)}`,
                 border: `4px solid var(--bg-surface)`
               }}>
                 <cfg.icon size={36} strokeWidth={3} />
@@ -1914,17 +1915,17 @@ export default function QRScannerPage() {
                       marginTop: 8,
                       padding: 16, 
                       borderRadius: 16, 
-                      background: "rgba(239, 68, 68, 0.04)", 
-                      border: "1.5px dashed rgba(239, 68, 68, 0.25)",
+                      background: "rgb(var(--red-500-rgb) / 0.04)", 
+                      border: "1.5px dashed rgb(var(--red-500-rgb) / 0.25)",
                       display: "flex",
                       flexDirection: "column",
                       gap: 12,
                       textAlign: "left"
                     }}>
                       <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                        <AlertCircle size={18} color="#ef4444" style={{ marginTop: 2, flexShrink: 0 }} />
+                        <AlertCircle size={18} color="var(--red-500)" style={{ marginTop: 2, flexShrink: 0 }} />
                         <div>
-                          <p style={{ fontSize: 13, fontWeight: 800, color: "#ef4444", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                          <p style={{ fontSize: 13, fontWeight: 800, color: "var(--red-500)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                             {lang === "th" ? "ข้อมูลสุขภาพสำคัญ" : lang === "cn" ? "重要健康信息" : lang === "mm" ? "ကျန်းမာရေး သတိပေးချက်" : "Important Health Information"}
                           </p>
                           <div style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 500, marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}>
@@ -1965,9 +1966,9 @@ export default function QRScannerPage() {
                            alignItems: "center", 
                            gap: 10, 
                            padding: "10px 12px", 
-                           background: medsCheckOption === "brought" ? "rgba(16, 185, 129, 0.08)" : "var(--bg-elevated)", 
+                           background: medsCheckOption === "brought" ? "rgb(var(--emerald-500-rgb) / 0.08)" : "var(--bg-elevated)", 
                            borderRadius: 12, 
-                           border: medsCheckOption === "brought" ? "1.5px solid #10b981" : "1.5px solid var(--border-subtle)", 
+                           border: medsCheckOption === "brought" ? "1.5px solid var(--emerald-500)" : "1.5px solid var(--border-subtle)", 
                            cursor: "pointer",
                            userSelect: "none",
                            transition: "all 0.2s"
@@ -1975,12 +1976,12 @@ export default function QRScannerPage() {
                           <input 
                             type="radio" 
                             name="meds-check-radio"
-                            style={{ width: 16, height: 16, accentColor: "#10b981", cursor: "pointer" }} 
+                            style={{ width: 16, height: 16, accentColor: "var(--emerald-500)", cursor: "pointer" }} 
                             checked={medsCheckOption === "brought"}
                             onChange={() => setMedsCheckOption("brought")}
                           />
                           <div style={{ textAlign: "left" }}>
-                            <p style={{ fontSize: 12, fontWeight: 800, color: medsCheckOption === "brought" ? "#10b981" : "var(--text-primary)" }}>
+                            <p style={{ fontSize: 12, fontWeight: 800, color: medsCheckOption === "brought" ? "var(--emerald-500)" : "var(--text-primary)" }}>
                               {lang === "th" ? "พกยาส่วนตัว/ยาฉุกเฉินมาด้วยแล้ว" : lang === "cn" ? "已携带个人/紧急药品" : lang === "mm" ? "ကိုယ်ပိုင်/အရေးပေါ်ဆေးဝါး ယူဆောင်လာပြီး" : "Brought personal/emergency medication"}
                             </p>
                             <p style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 1 }}>
@@ -1995,9 +1996,9 @@ export default function QRScannerPage() {
                            alignItems: "center", 
                            gap: 10, 
                            padding: "10px 12px", 
-                           background: medsCheckOption === "forgot" ? "rgba(245, 158, 11, 0.08)" : "var(--bg-elevated)", 
+                           background: medsCheckOption === "forgot" ? "rgb(var(--amber-500-rgb) / 0.08)" : "var(--bg-elevated)", 
                            borderRadius: 12, 
-                           border: medsCheckOption === "forgot" ? "1.5px solid #f59e0b" : "1.5px solid var(--border-subtle)", 
+                           border: medsCheckOption === "forgot" ? "1.5px solid var(--amber-500)" : "1.5px solid var(--border-subtle)", 
                            cursor: "pointer",
                            userSelect: "none",
                            transition: "all 0.2s"
@@ -2005,12 +2006,12 @@ export default function QRScannerPage() {
                           <input 
                             type="radio" 
                             name="meds-check-radio"
-                            style={{ width: 16, height: 16, accentColor: "#f59e0b", cursor: "pointer" }} 
+                            style={{ width: 16, height: 16, accentColor: "var(--amber-500)", cursor: "pointer" }} 
                             checked={medsCheckOption === "forgot"}
                             onChange={() => setMedsCheckOption("forgot")}
                           />
                           <div style={{ textAlign: "left" }}>
-                            <p style={{ fontSize: 12, fontWeight: 800, color: medsCheckOption === "forgot" ? "#f59e0b" : "var(--text-primary)" }}>
+                            <p style={{ fontSize: 12, fontWeight: 800, color: medsCheckOption === "forgot" ? "var(--amber-500)" : "var(--text-primary)" }}>
                               {lang === "th" ? "ไม่ได้พกยามาด้วย / รับทราบความเสี่ยง" : lang === "cn" ? "未携带药品 / 已知悉风险" : lang === "mm" ? "ဆေးဝါးယူမလာပါ / အန္တရာယ်ရှိနိုင်မှုကို သိရှိပြီး" : "Didn't bring medication / Acknowledged risk"}
                             </p>
                             <p style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 1 }}>
@@ -2024,9 +2025,9 @@ export default function QRScannerPage() {
                            alignItems: "center", 
                            gap: 10, 
                            padding: "10px 12px", 
-                           background: medsCheckOption === "acknowledge" ? "rgba(99, 102, 241, 0.08)" : "var(--bg-elevated)", 
+                           background: medsCheckOption === "acknowledge" ? "rgb(var(--indigo-500-rgb) / 0.08)" : "var(--bg-elevated)", 
                            borderRadius: 12, 
-                           border: medsCheckOption === "acknowledge" ? "1.5px solid #6366f1" : "1.5px solid var(--border-subtle)", 
+                           border: medsCheckOption === "acknowledge" ? "1.5px solid var(--indigo-500)" : "1.5px solid var(--border-subtle)", 
                            cursor: "pointer",
                            userSelect: "none",
                            transition: "all 0.2s"
@@ -2034,12 +2035,12 @@ export default function QRScannerPage() {
                           <input 
                             type="radio" 
                             name="meds-check-radio"
-                            style={{ width: 16, height: 16, accentColor: "#6366f1", cursor: "pointer" }} 
+                            style={{ width: 16, height: 16, accentColor: "var(--indigo-500)", cursor: "pointer" }} 
                             checked={medsCheckOption === "acknowledge"}
                             onChange={() => setMedsCheckOption("acknowledge")}
                           />
                           <div style={{ textAlign: "left" }}>
-                            <p style={{ fontSize: 12, fontWeight: 800, color: medsCheckOption === "acknowledge" ? "#6366f1" : "var(--text-primary)" }}>
+                            <p style={{ fontSize: 12, fontWeight: 800, color: medsCheckOption === "acknowledge" ? "var(--indigo-500)" : "var(--text-primary)" }}>
                               {lang === "th" ? "รับทราบข้อมูล (กรณีข้อจำกัดอาหาร / ข้อมูลทั่วไป)" : lang === "cn" ? "仅确认信息（饮食/过敏限制）" : lang === "mm" ? "အချက်အလက်ကို သိရှိပြီး (အစားအသောက်/ဓာတ်မတည့်မှု ကန့်သတ်ချက်)" : "Acknowledge info only (Dietary/Allergy restrictions)"}
                             </p>
                             <p style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 1 }}>
@@ -2073,7 +2074,7 @@ export default function QRScannerPage() {
                   disabled={isConfirming || (scanResult?.student?.hasMedicalCondition && !medsCheckOption)}
                   style={{ 
                     marginTop: 24, 
-                    background: (scanResult?.student?.hasMedicalCondition && !medsCheckOption) ? "var(--bg-elevated)" : "#6366f1", 
+                    background: (scanResult?.student?.hasMedicalCondition && !medsCheckOption) ? "var(--bg-elevated)" : "var(--indigo-500)", 
                     color: (scanResult?.student?.hasMedicalCondition && !medsCheckOption) ? "var(--text-muted)" : "white",
                     minHeight: 56, 
                     borderRadius: 16, 
@@ -2140,14 +2141,14 @@ export default function QRScannerPage() {
                     </label>
                   ))}
 
-                  {checkoutFileError && <p style={{ fontSize: 12.5, color: "#ef4444", textAlign: "center" }}>{checkoutFileError}</p>}
+                  {checkoutFileError && <p style={{ fontSize: 12.5, color: "var(--red-500)", textAlign: "center" }}>{checkoutFileError}</p>}
 
                   <button
                     className="btn btn-primary btn-full"
                     onClick={() => confirmCheckout(scanResult.rawToken!)}
                     disabled={isConfirmingCheckout || checkoutBlocked}
                     style={{
-                      background: checkoutBlocked ? "var(--bg-elevated)" : "#f59e0b",
+                      background: checkoutBlocked ? "var(--bg-elevated)" : "var(--amber-500)",
                       color: checkoutBlocked ? "var(--text-muted)" : "white",
                       minHeight: 56,
                       borderRadius: 16,
@@ -2171,7 +2172,7 @@ export default function QRScannerPage() {
                     marginTop: 24, 
                     padding: 16, 
                     borderRadius: 16, 
-                    background: (scanResult?.status === "already_checked_in" || scanResult?.status === "already_checked_out") ? "#3b82f6" : "#10b981", 
+                    background: (scanResult?.status === "already_checked_in" || scanResult?.status === "already_checked_out") ? "var(--blue-500)" : "var(--emerald-500)", 
                     color: "white", 
                     textAlign: "center",
                     fontWeight: 800,
@@ -2180,7 +2181,7 @@ export default function QRScannerPage() {
                     alignItems: "center",
                     justifyContent: "center",
                     gap: 12,
-                    boxShadow: (scanResult?.status === "already_checked_in" || scanResult?.status === "already_checked_out") ? "0 10px 20px rgba(59, 130, 246, 0.3)" : "0 10px 20px rgba(16, 185, 129, 0.3)"
+                    boxShadow: (scanResult?.status === "already_checked_in" || scanResult?.status === "already_checked_out") ? "0 10px 20px rgb(var(--blue-500-rgb) / 0.3)" : "0 10px 20px rgb(var(--emerald-500-rgb) / 0.3)"
                   }}
                 >
                   <CheckCircle2 size={24} />
@@ -2212,8 +2213,8 @@ export default function QRScannerPage() {
                       marginTop: 16,
                       padding: 16,
                       borderRadius: 16,
-                      background: "rgba(225, 29, 72, 0.06)",
-                      border: "1.5px dashed rgba(225, 29, 72, 0.4)",
+                      background: "rgb(var(--rose-600-rgb) / 0.06)",
+                      border: "1.5px dashed rgb(var(--rose-600-rgb) / 0.4)",
                       display: "flex",
                       flexDirection: "column",
                       alignItems: "center",
@@ -2222,8 +2223,8 @@ export default function QRScannerPage() {
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <AlertCircle size={18} color="#e11d48" style={{ flexShrink: 0 }} />
-                      <p style={{ fontSize: 13, fontWeight: 800, color: "#e11d48", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      <AlertCircle size={18} color="var(--rose-600)" style={{ flexShrink: 0 }} />
+                      <p style={{ fontSize: 13, fontWeight: 800, color: "var(--rose-600)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                         {lang === "th" ? "ต้องทำแบบทดสอบ Pre-test" : lang === "cn" ? "需要完成前测" : lang === "mm" ? "Pre-Test ဖြေဆိုရန် လိုအပ်သည်" : "Pre-Test Required"}
                       </p>
                     </div>
@@ -2236,7 +2237,7 @@ export default function QRScannerPage() {
                         ? `ဤပွဲတွင် ဤတက်ရောက်သူ မဖြေဆိုရသေးသော Pre-Test「${scanResult.preTestWarning.title}」ရှိသည်။ ဖြေဆိုရန် စကန်ဖတ်ပါ။`
                         : `This event has a pre-test “${scanResult.preTestWarning.title}” the attendee hasn't completed yet. Scan to complete it.`}
                     </p>
-                    <div style={{ background: "#ffffff", padding: 12, borderRadius: 12, lineHeight: 0 }}>
+                    <div style={{ background: "var(--qr-surface)", padding: 12, borderRadius: 12, lineHeight: 0 }}>
                       <QRCodeCanvas value={preTestUrl} size={160} level="M" bgColor="#ffffff" fgColor="#000000" />
                     </div>
                     <a
@@ -2249,7 +2250,7 @@ export default function QRScannerPage() {
                         gap: 8,
                         padding: "10px 18px",
                         borderRadius: 12,
-                        background: "#e11d48",
+                        background: "var(--rose-600)",
                         color: "white",
                         fontSize: 14,
                         fontWeight: 700,
@@ -2270,9 +2271,9 @@ export default function QRScannerPage() {
                     marginTop: 24,
                     padding: 16,
                     borderRadius: 16,
-                    background: "rgba(239, 68, 68, 0.08)",
-                    border: "1.5px dashed rgba(239, 68, 68, 0.35)",
-                    color: "#ef4444",
+                    background: "rgb(var(--red-500-rgb) / 0.08)",
+                    border: "1.5px dashed rgb(var(--red-500-rgb) / 0.35)",
+                    color: "var(--red-500)",
                     textAlign: "center",
                     fontWeight: 700,
                     fontSize: 14,
@@ -2331,9 +2332,9 @@ export default function QRScannerPage() {
                           borderRadius: 12,
                           fontSize: 14,
                           fontWeight: 800,
-                          border: scoreSign === 1 ? "1.5px solid #10b981" : "1.5px solid var(--border-subtle)",
-                          background: scoreSign === 1 ? "rgba(16,185,129,0.08)" : "var(--bg-elevated)",
-                          color: scoreSign === 1 ? "#10b981" : "var(--text-muted)",
+                          border: scoreSign === 1 ? "1.5px solid var(--emerald-500)" : "1.5px solid var(--border-subtle)",
+                          background: scoreSign === 1 ? "rgb(var(--emerald-500-rgb) / 0.08)" : "var(--bg-elevated)",
+                          color: scoreSign === 1 ? "var(--emerald-500)" : "var(--text-muted)",
                           cursor: "pointer",
                           display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                           transition: "all 0.2s"
@@ -2350,9 +2351,9 @@ export default function QRScannerPage() {
                           borderRadius: 12,
                           fontSize: 14,
                           fontWeight: 800,
-                          border: scoreSign === -1 ? "1.5px solid #ef4444" : "1.5px solid var(--border-subtle)",
-                          background: scoreSign === -1 ? "rgba(239,68,68,0.08)" : "var(--bg-elevated)",
-                          color: scoreSign === -1 ? "#ef4444" : "var(--text-muted)",
+                          border: scoreSign === -1 ? "1.5px solid var(--red-500)" : "1.5px solid var(--border-subtle)",
+                          background: scoreSign === -1 ? "rgb(var(--red-500-rgb) / 0.08)" : "var(--bg-elevated)",
+                          color: scoreSign === -1 ? "var(--red-500)" : "var(--text-muted)",
                           cursor: "pointer",
                           display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                           transition: "all 0.2s"
@@ -2369,10 +2370,10 @@ export default function QRScannerPage() {
                       min={1}
                       value={scoreInput}
                       onChange={(e) => setScoreInput(e.target.value)}
-                      style={{ fontSize: 24, fontWeight: 900, textAlign: "center", padding: "12px 16px", color: scoreSign === -1 ? "#ef4444" : "var(--text-primary)" }}
+                      style={{ fontSize: 24, fontWeight: 900, textAlign: "center", padding: "12px 16px", color: scoreSign === -1 ? "var(--red-500)" : "var(--text-primary)" }}
                     />
                     {scoreInput && (parseInt(scoreInput) > 0) && (
-                      <p style={{ fontSize: 13, fontWeight: 800, textAlign: "center", marginTop: 8, color: scoreSign === -1 ? "#ef4444" : "#10b981" }}>
+                      <p style={{ fontSize: 13, fontWeight: 800, textAlign: "center", marginTop: 8, color: scoreSign === -1 ? "var(--red-500)" : "var(--emerald-500)" }}>
                         {scoreSign === -1 ? "−" : "+"}{parseInt(scoreInput)} {lang === "th" ? "คะแนน" : "pts"}
                       </p>
                     )}
@@ -2397,7 +2398,7 @@ export default function QRScannerPage() {
                     onClick={() => confirmScore(scanResult.rawToken!)}
                     disabled={submittingScore || !scoreInput}
                     style={{
-                      background: !scoreInput ? "var(--bg-elevated)" : scoreSign === -1 ? "#ef4444" : "var(--accent-primary)",
+                      background: !scoreInput ? "var(--bg-elevated)" : scoreSign === -1 ? "var(--red-500)" : "var(--accent-primary)",
                       color: !scoreInput ? "var(--text-muted)" : "white",
                       minHeight: 56,
                       borderRadius: 16,
@@ -2422,7 +2423,7 @@ export default function QRScannerPage() {
                     marginTop: 24, 
                     padding: 16, 
                     borderRadius: 16, 
-                    background: "#10b981", 
+                    background: "var(--emerald-500)", 
                     color: "white", 
                     textAlign: "center",
                     fontWeight: 800,
@@ -2431,7 +2432,7 @@ export default function QRScannerPage() {
                     alignItems: "center",
                     justifyContent: "center",
                     gap: 12,
-                    boxShadow: "0 10px 20px rgba(16, 185, 129, 0.3)"
+                    boxShadow: "0 10px 20px rgb(var(--emerald-500-rgb) / 0.3)"
                   }}
                 >
                   <CheckCircle2 size={24} />

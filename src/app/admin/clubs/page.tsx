@@ -487,9 +487,9 @@ export default function ClubsPage() {
             style={{
               padding: "16px 20px",
               borderRadius: 16,
-              background: "rgba(239,68,68,0.08)",
-              border: "1px solid rgba(239,68,68,0.2)",
-              color: "#ef4444",
+              background: "rgb(var(--red-500-rgb) / 0.08)",
+              border: "1px solid rgb(var(--red-500-rgb) / 0.2)",
+              color: "var(--red-500)",
               fontWeight: 600,
               marginBottom: 24,
             }}
@@ -505,7 +505,7 @@ export default function ClubsPage() {
             border: "1px solid var(--border-subtle)",
             borderRadius: 40,
             overflow: "hidden",
-            boxShadow: "0 20px 50px rgba(0,0,0,0.02)",
+            boxShadow: "0 20px 50px rgb(var(--shadow-rgb) / 0.02)",
           }}
         >
           {loading ? (
@@ -585,7 +585,7 @@ export default function ClubsPage() {
                                 </button>
                                 <button
                                   className="btn btn-ghost btn-sm"
-                                  style={{ color: "#ef4444" }}
+                                  style={{ color: "var(--red-500)" }}
                                   disabled={deletingId === club.id}
                                   onClick={() => setConfirmDelete(club)}
                                 >
@@ -612,7 +612,7 @@ export default function ClubsPage() {
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.4)",
+            background: "rgb(var(--scrim-rgb) / 0.4)",
             backdropFilter: "blur(8px)",
             WebkitBackdropFilter: "blur(8px)",
             display: "flex",
@@ -632,7 +632,7 @@ export default function ClubsPage() {
               maxWidth: 440,
               borderRadius: "clamp(20px, 5vw, 32px)",
               overflow: "hidden",
-              boxShadow: "0 30px 60px rgba(0,0,0,0.2)",
+              boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.2)",
               border: "1px solid var(--border-medium)",
             }}
           >
@@ -658,7 +658,7 @@ export default function ClubsPage() {
                 />
               </div>
               {formError && (
-                <p style={{ color: "#ef4444", fontWeight: 600, fontSize: 13 }}>{formError}</p>
+                <p style={{ color: "var(--red-500)", fontWeight: 600, fontSize: 13 }}>{formError}</p>
               )}
             </div>
 
@@ -688,7 +688,7 @@ export default function ClubsPage() {
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.4)",
+            background: "rgb(var(--scrim-rgb) / 0.4)",
             backdropFilter: "blur(8px)",
             WebkitBackdropFilter: "blur(8px)",
             display: "flex",
@@ -711,7 +711,7 @@ export default function ClubsPage() {
               flexDirection: "column",
               borderRadius: "clamp(20px, 5vw, 32px)",
               overflow: "hidden",
-              boxShadow: "0 30px 60px rgba(0,0,0,0.2)",
+              boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.2)",
               border: "1px solid var(--border-medium)",
             }}
           >
@@ -795,7 +795,7 @@ export default function ClubsPage() {
                   </div>
                 )}
                 {addMemberError && (
-                  <p style={{ color: "#ef4444", fontWeight: 600, fontSize: 12, marginTop: 6 }}>{addMemberError}</p>
+                  <p style={{ color: "var(--red-500)", fontWeight: 600, fontSize: 12, marginTop: 6 }}>{addMemberError}</p>
                 )}
               </div>
             )}
@@ -806,7 +806,7 @@ export default function ClubsPage() {
                   <div className="spinner" style={{ width: 28, height: 28, borderWidth: 3 }} />
                 </div>
               ) : membersError ? (
-                <p style={{ color: "#ef4444", fontWeight: 600, fontSize: 13, padding: "12px 12px" }}>{membersError}</p>
+                <p style={{ color: "var(--red-500)", fontWeight: 600, fontSize: 13, padding: "12px 12px" }}>{membersError}</p>
               ) : members.length === 0 ? (
                 <p style={{ color: "var(--text-muted)", fontWeight: 600, fontSize: 13, padding: "12px 12px" }}>
                   {canManageMembers
@@ -898,7 +898,7 @@ export default function ClubsPage() {
                           {canManageMembers && m.role !== "president" && (
                             <button
                               className="btn btn-ghost btn-sm"
-                              style={{ color: "#ef4444", padding: "4px 8px" }}
+                              style={{ color: "var(--red-500)", padding: "4px 8px" }}
                               disabled={removingUserId === m.userId}
                               onClick={() => removeMember(m.userId)}
                               title="Remove from club"
@@ -921,21 +921,21 @@ export default function ClubsPage() {
                               <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
                             </div>
                           ) : !medical ? (
-                            <p style={{ fontSize: 12, color: "#ef4444" }}>{medicalError || "Failed to load medical detail."}</p>
+                            <p style={{ fontSize: 12, color: "var(--red-500)" }}>{medicalError || "Failed to load medical detail."}</p>
                           ) : !hasMedicalDetail ? (
                             <p style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>No medical info on file.</p>
                           ) : (
                             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 800, color: "#ef4444", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 800, color: "var(--red-500)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>
                                 <HeartPulse size={13} /> Medical & Emergency
                               </div>
                               {medical.chronicDiseases && <p style={{ fontSize: 12 }}><b>Chronic:</b> {medical.chronicDiseases}</p>}
                               {medical.medicalHistory && <p style={{ fontSize: 12 }}><b>History:</b> {medical.medicalHistory}</p>}
-                              {medical.drugAllergies && <p style={{ fontSize: 12, color: "#ef4444" }}><b>Drug allergies:</b> {medical.drugAllergies}</p>}
-                              {medical.foodAllergies && <p style={{ fontSize: 12, color: "#ef4444" }}><b>Food allergies:</b> {medical.foodAllergies}</p>}
+                              {medical.drugAllergies && <p style={{ fontSize: 12, color: "var(--red-500)" }}><b>Drug allergies:</b> {medical.drugAllergies}</p>}
+                              {medical.foodAllergies && <p style={{ fontSize: 12, color: "var(--red-500)" }}><b>Food allergies:</b> {medical.foodAllergies}</p>}
                               {medical.dietaryRestrictions && <p style={{ fontSize: 12 }}><b>Dietary:</b> {medical.dietaryRestrictions}</p>}
-                              {medical.faintingHistory && <p style={{ fontSize: 12, color: "#ef4444" }}>History of fainting</p>}
-                              {medical.emergencyMedication && <p style={{ fontSize: 12, color: "#ef4444" }}><b>Emergency medication:</b> {medical.emergencyMedication}</p>}
+                              {medical.faintingHistory && <p style={{ fontSize: 12, color: "var(--red-500)" }}>History of fainting</p>}
+                              {medical.emergencyMedication && <p style={{ fontSize: 12, color: "var(--red-500)" }}><b>Emergency medication:</b> {medical.emergencyMedication}</p>}
                               {medical.emergencyContacts.length > 0 && (
                                 <p style={{ fontSize: 12 }}>
                                   <b>Emergency contact:</b>{" "}
@@ -966,7 +966,7 @@ export default function ClubsPage() {
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.6)",
+            background: "rgb(var(--scrim-rgb) / 0.6)",
             backdropFilter: "blur(12px)",
             zIndex: 2400,
             display: "flex",
@@ -986,7 +986,7 @@ export default function ClubsPage() {
               borderRadius: 28,
               padding: 32,
               textAlign: "center",
-              boxShadow: "0 30px 60px rgba(0,0,0,0.3)",
+              boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.3)",
               border: "1px solid var(--border-medium)",
             }}
           >
@@ -994,8 +994,8 @@ export default function ClubsPage() {
               width: 56,
               height: 56,
               borderRadius: "50%",
-              background: "rgba(239, 68, 68, 0.1)",
-              color: "#ef4444",
+              background: "rgb(var(--red-500-rgb) / 0.1)",
+              color: "var(--red-500)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -1026,10 +1026,10 @@ export default function ClubsPage() {
                   borderRadius: 12,
                   fontSize: 14,
                   fontWeight: 800,
-                  background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
-                  color: "#fff",
+                  background: "linear-gradient(135deg, var(--red-500) 0%, var(--red-600) 100%)",
+                  color: "var(--text-on-color)",
                   border: "none",
-                  boxShadow: "0 4px 14px rgba(239, 68, 68, 0.3)",
+                  boxShadow: "0 4px 14px rgb(var(--red-500-rgb) / 0.3)",
                 }}
                 onClick={confirmAndDelete}
               >

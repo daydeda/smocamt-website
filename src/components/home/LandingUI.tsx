@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useLanguage } from "@/lib/LanguageContext";
 import { ArrowRight, ShieldCheck, Zap, UserCheck, Sparkles, AlertTriangle } from "lucide-react";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { signIn } from "next-auth/react";
 
 
@@ -50,7 +51,7 @@ export function LandingUI({
   return (
     <div
       className="min-h-screen relative flex flex-col items-center overflow-x-hidden"
-      style={{ background: "#f8fafc" }}
+      style={{ background: "var(--bg-base)" }}
     >
       {/* Dynamic Background Elements - Hidden on mobile for performance & click safety */}
       <div className="hidden lg:block absolute inset-0 overflow-hidden pointer-events-none -z-10">
@@ -70,7 +71,7 @@ export function LandingUI({
             width: 800,
             height: 800,
             borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(255,107,0,0.06) 0%, transparent 70%)",
+            background: "radial-gradient(circle, rgb(var(--accent-rgb) / 0.06) 0%, transparent 70%)",
             top: "-10%",
             right: "-5%",
             animationDuration: '8s'
@@ -82,7 +83,7 @@ export function LandingUI({
             width: 600,
             height: 600,
             borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(255,184,0,0.04) 0%, transparent 70%)",
+            background: "radial-gradient(circle, rgb(var(--rating-star-rgb) / 0.04) 0%, transparent 70%)",
             bottom: "-10%",
             left: "-5%",
             animationDuration: '12s',
@@ -119,7 +120,7 @@ export function LandingUI({
           <div className="hidden sm:flex flex-row flex-nowrap gap-6 lg:gap-8 mt-2 lg:mt-4">
             <div className="flex items-center gap-3 lg:gap-4 group">
               <div 
-                style={{ borderRadius: 16, background: "white", boxShadow: "0 8px 20px rgba(0,0,0,0.06)", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.3s ease" }} 
+                style={{ borderRadius: 16, background: "var(--bg-surface)", boxShadow: "0 8px 20px var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.3s ease" }} 
                 className="w-11 h-11 lg:w-12 lg:h-12 group-hover:scale-110 group-hover:shadow-lg"
               >
                 <Zap size={22} color="var(--accent-primary)" />
@@ -128,7 +129,7 @@ export function LandingUI({
             </div>
             <div className="flex items-center gap-3 lg:gap-4 group">
               <div 
-                style={{ borderRadius: 16, background: "white", boxShadow: "0 8px 20px rgba(0,0,0,0.06)", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.3s ease" }} 
+                style={{ borderRadius: 16, background: "var(--bg-surface)", boxShadow: "0 8px 20px var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.3s ease" }} 
                 className="w-11 h-11 lg:w-12 lg:h-12 group-hover:scale-110 group-hover:shadow-lg"
               >
                 <Sparkles size={22} color="var(--accent-secondary)" />
@@ -142,12 +143,12 @@ export function LandingUI({
         <div className="flex justify-center w-full lg:w-full max-w-[360px] lg:max-w-[500px]">
           <div
             style={{
-              background: "#ffffff",
-              border: "1px solid rgba(0,0,0,0.06)",
+              background: "var(--bg-surface)",
+              border: "1px solid rgb(var(--ink-rgb) / 0.06)",
               borderRadius: "clamp(32px, 5vw, 48px)",
               padding: "clamp(24px, 6vw, 64px)",
               width: "100%",
-              boxShadow: "0 50px 140px -20px rgba(0,0,0,0.12), 0 0 0 1px rgba(255,255,255,0.6)",
+              boxShadow: "0 50px 140px -20px rgb(var(--shadow-rgb) / 0.12), 0 0 0 1px rgb(var(--surface-rgb) / 0.6)",
               display: "flex",
               flexDirection: "column",
               gap: "clamp(32px, 5vw, 48px)",
@@ -170,8 +171,8 @@ export function LandingUI({
               <div
                 role="alert"
                 style={{
-                  background: "rgba(239,68,68,0.07)",
-                  border: "1px solid rgba(239,68,68,0.3)",
+                  background: "rgb(var(--red-500-rgb) / 0.07)",
+                  border: "1px solid rgb(var(--red-500-rgb) / 0.3)",
                   borderRadius: 16,
                   padding: "16px 18px",
                   display: "flex",
@@ -180,8 +181,8 @@ export function LandingUI({
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <AlertTriangle size={16} style={{ flexShrink: 0, color: "#b91c1c" }} />
-                  <span style={{ fontSize: 15, fontWeight: 800, color: "#b91c1c" }}>{t.signInErrorTitle}</span>
+                  <AlertTriangle size={16} style={{ flexShrink: 0, color: "var(--red-700)" }} />
+                  <span style={{ fontSize: 15, fontWeight: 800, color: "var(--red-700)" }}>{t.signInErrorTitle}</span>
                 </div>
                 <p style={{ fontSize: 13.5, color: "var(--text-secondary)", lineHeight: 1.55, margin: 0 }}>{t.signInErrorBody}</p>
                 <p style={{ fontSize: 12.5, color: "var(--text-muted)", lineHeight: 1.55, margin: 0 }}>{t.signInErrorHint}</p>
@@ -218,8 +219,8 @@ export function LandingUI({
                   style={{
                     marginTop: "16px",
                     padding: "20px",
-                    background: "rgba(255, 107, 0, 0.04)",
-                    border: "1.5px dashed rgba(255, 107, 0, 0.3)",
+                    background: "rgb(var(--accent-rgb) / 0.04)",
+                    border: "1.5px dashed rgb(var(--accent-rgb) / 0.3)",
                     borderRadius: "20px",
                     display: "flex",
                     flexDirection: "column",
@@ -255,8 +256,8 @@ export function LandingUI({
                           }}
                           style={{
                             padding: "10px 12px",
-                            background: "white",
-                            border: "1px solid rgba(0,0,0,0.1)",
+                            background: "var(--bg-surface)",
+                            border: "1px solid rgb(var(--ink-rgb) / 0.1)",
                             borderRadius: "10px",
                             fontSize: "14px",
                             fontWeight: 500,
@@ -280,8 +281,8 @@ export function LandingUI({
                           onChange={(e) => setDevEmail(e.target.value)}
                           style={{
                             padding: "10px 12px",
-                            background: "white",
-                            border: "1px solid rgba(0,0,0,0.1)",
+                            background: "var(--bg-surface)",
+                            border: "1px solid rgb(var(--ink-rgb) / 0.1)",
                             borderRadius: "10px",
                             fontSize: "14px",
                             fontWeight: 500,
@@ -303,7 +304,7 @@ export function LandingUI({
                           fontWeight: 700,
                           border: "none",
                           cursor: "pointer",
-                          boxShadow: "0 10px 20px -5px rgba(255, 107, 0, 0.3)",
+                          boxShadow: "0 10px 20px -5px rgb(var(--accent-rgb) / 0.3)",
                           transition: "all 0.2s ease"
                         }}
                       >
@@ -311,9 +312,9 @@ export function LandingUI({
                       </button>
                     </>
                   ) : (
-                    <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", background: "rgba(220, 38, 38, 0.05)", border: "1px solid rgba(220, 38, 38, 0.2)", borderRadius: "12px", padding: "12px" }}>
-                      <AlertTriangle size={16} color="rgb(220, 38, 38)" style={{ marginTop: "2px", flexShrink: 0 }} />
-                      <span style={{ fontSize: "12px", fontWeight: 500, color: "rgb(220, 38, 38)", lineHeight: 1.4 }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", background: "rgb(var(--red-600-rgb) / 0.05)", border: "1px solid rgb(var(--red-600-rgb) / 0.2)", borderRadius: "12px", padding: "12px" }}>
+                      <AlertTriangle size={16} color="rgb(var(--red-600-rgb))" style={{ marginTop: "2px", flexShrink: 0 }} />
+                      <span style={{ fontSize: "12px", fontWeight: 500, color: "rgb(var(--red-600-rgb))", lineHeight: 1.4 }}>
                         Dev Bypass Login is disabled. Enable it by setting <strong>ENABLE_DEV_LOGIN=true</strong> in your <strong>.env</strong> file.
                       </span>
                     </div>
@@ -327,16 +328,17 @@ export function LandingUI({
               </div>
             </div>
 
-            <div className="mt-2 pt-8 lg:pt-12 border-t border-black/[0.04] flex flex-col gap-6 lg:gap-8">
+            <div className="mt-2 pt-8 lg:pt-12 border-t border-[var(--border-subtle)] flex flex-col gap-6 lg:gap-8">
               <div className="flex items-center gap-3 justify-center">
-                <UserCheck size={18} className="text-gray-400" />
+                <UserCheck size={18} style={{ color: "var(--text-muted)" }} />
                 <p style={{ fontSize: 14, color: "var(--text-muted)", fontWeight: 600, lineHeight: 1.5 }}>
                   Join {displayCount} active {joinText}
                 </p>
               </div>
 
               {/* Language Switcher in the Card */}
-              <div className="pt-1 flex justify-center">
+              <div className="pt-1 flex justify-center items-center gap-3">
+                <ThemeToggle />
                 <LanguageSwitcher variant="segmented" />
               </div>
             </div>
@@ -345,7 +347,7 @@ export function LandingUI({
       </main>
 
       {/* Footer - Absolute on desktop, relative on mobile */}
-      <footer className="w-full px-8 py-10 lg:py-6 lg:absolute lg:bottom-0 flex flex-col lg:flex-row items-center justify-center gap-4 lg:gap-8 border-t border-black/[0.03] bg-transparent lg:bg-white/30 lg:backdrop-blur-md lg:z-20">
+      <footer className="w-full px-8 py-10 lg:py-6 lg:absolute lg:bottom-0 flex flex-col lg:flex-row items-center justify-center gap-4 lg:gap-8 border-t border-[var(--border-subtle)] bg-transparent lg:bg-[var(--bg-glass)] lg:backdrop-blur-md lg:z-20">
         <p style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "0.02em", lineHeight: 1.4 }}>© SMO CAMT 2026</p>
         <div className="hidden lg:block" style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--text-muted)" }} />
         <p style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 500, textAlign: "center", lineHeight: 1.5 }}>{t.modernizing}</p>

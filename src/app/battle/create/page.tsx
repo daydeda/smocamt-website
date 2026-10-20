@@ -39,10 +39,10 @@ export default function CreateRoomPage() {
       <StudentNav />
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "80vh", padding: "80px 24px", textAlign: "center" }}>
         {error ? (
-          <div style={{ background: "#fef2f2", border: "1px solid #fee2e2", padding: "24px", borderRadius: "var(--radius-lg)", color: "#991b1b", maxWidth: 400 }}>
+          <div style={{ background: "var(--error-bg)", border: "1px solid var(--error-border)", padding: "24px", borderRadius: "var(--radius-lg)", color: "var(--error-text)", maxWidth: 400 }}>
             <h2 style={{ fontWeight: 700, marginBottom: 8, fontSize: "1.25rem" }}>{t.battleCreateErrorTitle}</h2>
             <p style={{ fontSize: 14 }}>{error}</p>
-            <button className="btn" style={{ background: "var(--text-primary)", color: "#fff", marginTop: 16 }} onClick={() => router.push("/battle")}>
+            <button className="btn" style={{ background: "var(--text-primary)", color: "var(--text-on-color)", marginTop: 16 }} onClick={() => router.push("/battle")}>
               {t.battleBackToArenaBtn}
             </button>
           </div>

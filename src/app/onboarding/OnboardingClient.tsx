@@ -41,7 +41,7 @@ function StepIcon({ index, current }: { index: number; current: number }) {
         background: done
           ? "var(--accent-primary)"
           : active
-          ? "rgba(255,107,0,0.12)"
+          ? "rgb(var(--accent-rgb) / 0.12)"
           : "var(--bg-elevated)",
         border: active
           ? "2px solid var(--accent-primary)"
@@ -53,7 +53,7 @@ function StepIcon({ index, current }: { index: number; current: number }) {
       }}
     >
       {done ? (
-        <Check size={15} color="#fff" strokeWidth={3} />
+        <Check size={15} color="var(--text-on-color)" strokeWidth={3} />
       ) : (
         <span
           style={{
@@ -335,12 +335,12 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
   /* ── Shared: field validation helpers ─────────────────────────────────── */
   const errStyle = (bad: boolean) => ({
     minHeight: 48 as const,
-    borderColor: bad ? "#ef4444" : undefined,
-    boxShadow: bad ? "0 0 0 2px rgba(239,68,68,0.2)" : undefined,
+    borderColor: bad ? "var(--red-500)" : undefined,
+    boxShadow: bad ? "0 0 0 2px rgb(var(--red-500-rgb) / 0.2)" : undefined,
   });
   const ErrMsg = ({ show, msg }: { show: boolean; msg: string }) =>
     show ? (
-      <span style={{ color: "#ef4444", fontSize: 11, fontWeight: 600, marginTop: 2, display: "inline-flex", alignItems: "center", gap: 4 }}>
+      <span style={{ color: "var(--red-500)", fontSize: 11, fontWeight: 600, marginTop: 2, display: "inline-flex", alignItems: "center", gap: 4 }}>
         <AlertTriangle size={12} style={{ flexShrink: 0 }} /> {msg}
       </span>
     ) : null;
@@ -408,7 +408,7 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
               }}
             >
               {uploading && (
-                <div style={{ position: "absolute", inset: 0, zIndex: 20, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ position: "absolute", inset: 0, zIndex: 20, background: "rgb(var(--scrim-rgb) / 0.45)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Loader2 className="animate-spin text-white" size={22} />
                 </div>
               )}
@@ -435,7 +435,7 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
               </select>
             </div>
             <div className="field flex-grow" style={{ minWidth: 0 }}>
-              <label className={lbl}>{t.fullName} <span style={{ color: "#ef4444" }}>*</span></label>
+              <label className={lbl}>{t.fullName} <span style={{ color: "var(--red-500)" }}>*</span></label>
               <input className={inp} placeholder={lang === "th" ? "ชื่อ-นามสกุล" : "Full Name"} value={formData.name} onChange={(e) => set("name", e.target.value)} style={errStyle(validationTriggered && !formData.name.trim())} />
               <span style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4, lineHeight: 1.45 }}>
                 {isTh
@@ -449,12 +449,12 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
           {/* Student ID + Nickname */}
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="field flex-1">
-              <label className={lbl}>{t.studentId} <span style={{ color: "#ef4444" }}>*</span></label>
+              <label className={lbl}>{t.studentId} <span style={{ color: "var(--red-500)" }}>*</span></label>
               <input className={inp} maxLength={9} placeholder="640510000" inputMode="numeric" value={formData.studentId} onChange={(e) => set("studentId", e.target.value.replace(/[^0-9]/g, "").slice(0, 9))} style={errStyle(validationTriggered && !!(isStudent && formData.studentId.trim().length !== 9))} />
               <ErrMsg show={validationTriggered && !!(isStudent && formData.studentId.trim().length !== 9)} msg={isTh ? "รหัสนักศึกษาต้องมี 9 หลัก" : "Must be exactly 9 digits"} />
             </div>
             <div className="field flex-1">
-              <label className={lbl}>{t.nickname} <span style={{ color: "#ef4444" }}>*</span></label>
+              <label className={lbl}>{t.nickname} <span style={{ color: "var(--red-500)" }}>*</span></label>
               <input className={inp} placeholder={t.nickname} value={formData.nickname} onChange={(e) => set("nickname", e.target.value)} style={errStyle(validationTriggered && !formData.nickname.trim())} />
               <ErrMsg show={validationTriggered && !formData.nickname.trim()} msg={isTh ? "กรุณากรอกชื่อเล่น" : "This field is required"} />
             </div>
@@ -523,12 +523,12 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
           {/* Phone + Contact */}
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="field flex-1">
-              <label className={lbl}>{t.phone} <span style={{ color: "#ef4444" }}>*</span></label>
+              <label className={lbl}>{t.phone} <span style={{ color: "var(--red-500)" }}>*</span></label>
               <input className={inp} placeholder="0812345678" inputMode="tel" value={formData.phone} onChange={(e) => set("phone", e.target.value.replace(/[^0-9]/g, "").slice(0, 10))} style={errStyle(validationTriggered && (!formData.phone.trim() || !/^[0-9]{10}$/.test(formData.phone.trim())))} />
               <ErrMsg show={validationTriggered && (!formData.phone.trim() || !/^[0-9]{10}$/.test(formData.phone.trim()))} msg={!formData.phone.trim() ? (isTh ? "กรุณากรอกเบอร์โทรศัพท์" : "Required") : (isTh ? "ต้องเป็นตัวเลข 10 หลัก" : "Must be exactly 10 digits")} />
             </div>
             <div className="field flex-1">
-              <label className={lbl}>{t.contactChannels} <span style={{ color: "#ef4444" }}>*</span></label>
+              <label className={lbl}>{t.contactChannels} <span style={{ color: "var(--red-500)" }}>*</span></label>
               <input className={inp} placeholder="IG: smocamt / LINE: smocamt" value={formData.contactChannels} onChange={(e) => set("contactChannels", e.target.value)} style={errStyle(validationTriggered && !formData.contactChannels.trim())} />
               <ErrMsg show={validationTriggered && !formData.contactChannels.trim()} msg={isTh ? "กรุณากรอกช่องทางติดต่อ" : "Required"} />
             </div>
@@ -567,7 +567,7 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
             </div>
             {renderMedicalField("emergencyMedication", t.emergencyMed)}
           </div>
-          <label style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", background: formData.faintingHistory ? "rgba(255,107,0,0.06)" : "var(--bg-elevated)", borderRadius: "var(--radius-md)", border: `1px solid ${formData.faintingHistory ? "rgba(255,107,0,0.3)" : "var(--border-subtle)"}`, cursor: "pointer", transition: "all 0.15s", minHeight: 56 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", background: formData.faintingHistory ? "rgb(var(--accent-rgb) / 0.06)" : "var(--bg-elevated)", borderRadius: "var(--radius-md)", border: `1px solid ${formData.faintingHistory ? "rgb(var(--accent-rgb) / 0.3)" : "var(--border-subtle)"}`, cursor: "pointer", transition: "all 0.15s", minHeight: 56 }}>
             <input type="checkbox" style={{ width: 20, height: 20, accentColor: "var(--accent-primary)", flexShrink: 0 }} checked={formData.faintingHistory} onChange={(e) => set("faintingHistory", e.target.checked)} />
             <span style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.4 }}>{t.faintingHistory}</span>
           </label>
@@ -582,20 +582,20 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
             const partial = i === 1 && !!(contact.name.trim() || contact.relationship.trim() || contact.phone.trim());
             const required = i === 0 || partial;
             return (
-              <div key={i} style={{ background: "var(--bg-surface)", border: "1px solid var(--border-medium)", borderRadius: "var(--radius-xl)", padding: "20px 18px", boxShadow: "0 4px 16px rgba(0,0,0,0.04)" }}>
+              <div key={i} style={{ background: "var(--bg-surface)", border: "1px solid var(--border-medium)", borderRadius: "var(--radius-xl)", padding: "20px 18px", boxShadow: "0 4px 16px rgb(var(--shadow-rgb) / 0.04)" }}>
                 <p style={{ fontSize: 11, fontWeight: 800, color: "var(--accent-primary)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 14 }}>
                   {t.emergencyContacts} #{i + 1}
                   {i === 1 && <span style={{ marginLeft: 8, fontWeight: 500, color: "var(--text-muted)", textTransform: "none", fontSize: 11, letterSpacing: 0 }}>({lang === "th" ? "ไม่บังคับ" : "Optional"})</span>}
                 </p>
                 <div className="flex flex-col gap-4">
                   <div className="field">
-                    <label className={lbl}>{t.fullName} {required && <span style={{ color: "#ef4444" }}>*</span>}</label>
+                    <label className={lbl}>{t.fullName} {required && <span style={{ color: "var(--red-500)" }}>*</span>}</label>
                     <input className={inp} placeholder={t.fullName} value={contact.name} onChange={(e) => setEC(i, "name", e.target.value)} style={errStyle(validationTriggered && required && !contact.name.trim())} />
                     <ErrMsg show={validationTriggered && required && !contact.name.trim()} msg={isTh ? "กรุณากรอกชื่อ-นามสกุล" : "Required"} />
                   </div>
                   <div className="flex flex-col sm:flex-row gap-4">
                     <div className="field flex-1">
-                      <label className={lbl}>{t.relationship} {required && <span style={{ color: "#ef4444" }}>*</span>}</label>
+                      <label className={lbl}>{t.relationship} {required && <span style={{ color: "var(--red-500)" }}>*</span>}</label>
                       <select
                         className={inp}
                         value={["", "Father", "Mother", "Guardian", "Sibling", "Relative", "Friend"].includes(contact.relationship) ? contact.relationship : (contact.relationship ? "Other" : "")}
@@ -627,7 +627,7 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
                       <ErrMsg show={validationTriggered && required && (!contact.relationship.trim() || contact.relationship === "Other:")} msg={isTh ? "กรุณากรอกความสัมพันธ์" : "Required"} />
                     </div>
                     <div className="field flex-1">
-                      <label className={lbl}>{t.phone} {required && <span style={{ color: "#ef4444" }}>*</span>}</label>
+                      <label className={lbl}>{t.phone} {required && <span style={{ color: "var(--red-500)" }}>*</span>}</label>
                       <input className={inp} placeholder="0812345678" inputMode="tel" value={contact.phone} onChange={(e) => setEC(i, "phone", e.target.value.replace(/[^0-9]/g, "").slice(0, 10))} style={errStyle(validationTriggered && required && (!contact.phone.trim() || !/^[0-9]{10}$/.test(contact.phone.trim())))} />
                       <ErrMsg show={validationTriggered && required && (!contact.phone.trim() || !/^[0-9]{10}$/.test(contact.phone.trim()))} msg={!contact.phone.trim() ? (isTh ? "กรุณากรอกเบอร์" : "Required") : (isTh ? "ต้องเป็นตัวเลข 10 หลัก" : "Must be 10 digits")} />
                     </div>
@@ -670,7 +670,7 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
           </div>
 
           {/* PDPA */}
-          <label style={{ display: "flex", alignItems: "flex-start", gap: 14, padding: "18px 16px", background: formData.pdpaConsent ? "rgba(255,107,0,0.05)" : "var(--bg-surface)", borderRadius: "var(--radius-md)", border: `1.5px solid ${formData.pdpaConsent ? "rgba(255,107,0,0.35)" : "var(--border-medium)"}`, cursor: "pointer", transition: "all 0.15s" }}>
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 14, padding: "18px 16px", background: formData.pdpaConsent ? "rgb(var(--accent-rgb) / 0.05)" : "var(--bg-surface)", borderRadius: "var(--radius-md)", border: `1.5px solid ${formData.pdpaConsent ? "rgb(var(--accent-rgb) / 0.35)" : "var(--border-medium)"}`, cursor: "pointer", transition: "all 0.15s" }}>
             <input type="checkbox" style={{ width: 20, height: 20, accentColor: "var(--accent-primary)", flexShrink: 0, marginTop: 2 }} checked={formData.pdpaConsent} onChange={(e) => set("pdpaConsent", e.target.checked)} />
             <div>
               <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", marginBottom: 4 }}>{t.pdpaConsent}</p>
@@ -707,7 +707,7 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
         style={{
           position: "fixed",
           inset: 0,
-          backgroundColor: "rgba(0, 0, 0, 0.4)",
+          backgroundColor: "rgb(var(--scrim-rgb) / 0.4)",
           backdropFilter: "blur(4px)",
           WebkitBackdropFilter: "blur(4px)",
           zIndex: 100,
@@ -727,8 +727,8 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
           height: "100%",
           width: "280px",
           maxWidth: "85vw",
-          backgroundColor: "#ffffff",
-          boxShadow: "4px 0 24px rgba(0, 0, 0, 0.15)",
+          backgroundColor: "var(--bg-surface)",
+          boxShadow: "4px 0 24px rgb(var(--shadow-rgb) / 0.15)",
           zIndex: 101,
           transform: drawerOpen ? "translateX(0)" : "translateX(-100%)",
           transition: "transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
@@ -782,7 +782,7 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
                   padding: "8px 10px",
                   borderRadius: "var(--radius-md)",
                   background: active ? "var(--accent-glow)" : "transparent",
-                  border: active ? "1px solid rgba(255,107,0,0.2)" : "1px solid transparent",
+                  border: active ? "1px solid rgb(var(--accent-rgb) / 0.2)" : "1px solid transparent",
                   transition: "all 0.2s",
                   cursor: "default",
                 }}
@@ -838,7 +838,7 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
               display: "flex",
               flexDirection: "column",
               overflowY: "auto",
-              background: "#ffffff",
+              background: "var(--bg-surface)",
               borderRight: "1px solid var(--border-subtle)",
               padding: "36px clamp(16px, 2vw, 28px)",
               zIndex: 40,
@@ -881,7 +881,7 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
                       padding: "10px 12px",
                       borderRadius: "var(--radius-md)",
                       background: active ? "var(--accent-glow)" : "transparent",
-                      border: active ? "1px solid rgba(255,107,0,0.2)" : "1px solid transparent",
+                      border: active ? "1px solid rgb(var(--accent-rgb) / 0.2)" : "1px solid transparent",
                       transition: "all 0.2s",
                       cursor: "default",
                     }}
@@ -949,11 +949,11 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
             <div
               className="animate-fade-in-up"
               style={{
-                background: "#ffffff",
+                background: "var(--bg-surface)",
                 border: "1px solid var(--border-subtle)",
                 borderRadius: "var(--radius-xl)",
                 padding: "clamp(20px, 3.5vw, 32px)",
-                boxShadow: "0 8px 40px rgba(0,0,0,0.06)",
+                boxShadow: "0 8px 40px rgb(var(--shadow-rgb) / 0.06)",
                 width: "100%",
               }}
             >
@@ -975,7 +975,7 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
         <header
           className="sticky top-0 z-50 w-full border-b border-[var(--border-subtle)]"
           style={{
-            background: "rgba(255, 255, 255, 0.85)",
+            background: "var(--bg-glass-strong)",
             backdropFilter: "blur(16px)",
             WebkitBackdropFilter: "blur(16px)",
             paddingTop: "max(env(safe-area-inset-top), 0px)",
@@ -1086,7 +1086,7 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
                           background: done
                             ? "var(--accent-primary)"
                             : active
-                            ? "#ffffff"
+                            ? "var(--bg-surface)"
                             : "var(--bg-elevated)",
                           border: active
                             ? "2px solid var(--accent-primary)"
@@ -1098,7 +1098,7 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
                         }}
                       >
                         {done ? (
-                          <Check size={14} color="#fff" strokeWidth={3} />
+                          <Check size={14} color="var(--text-on-color)" strokeWidth={3} />
                         ) : (
                           <span
                             style={{
@@ -1130,10 +1130,10 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
             <div
               className="animate-fade-in-up"
               style={{
-                background: "#ffffff",
+                background: "var(--bg-surface)",
                 borderRadius: "var(--radius-xl)",
                 padding: "clamp(18px, 5vw, 28px)",
-                boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
+                boxShadow: "0 4px 24px rgb(var(--shadow-rgb) / 0.08)",
                 width: "100%",
                 maxWidth: "100%",
               }}

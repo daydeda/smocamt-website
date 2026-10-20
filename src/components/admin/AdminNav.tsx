@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ChevronDown, Search, User } from "lucide-react";
 import { useLanguage } from "@/lib/LanguageContext";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import {
   buildAdminNavContext,
   getVisibleAdminGroups,
@@ -197,6 +198,9 @@ export function AdminNav({
         <span style={{ fontWeight: 500, pointerEvents: "none" }}>{t.switchToStudentView}</span>
       </Link>
 
+      <div style={{ padding: "0 12px", marginBottom: 12 }}>
+        <ThemeToggle />
+      </div>
       <AdminLanguageSwitcher />
 
       <style jsx>{`
@@ -302,7 +306,7 @@ function AdminLanguageSwitcher() {
               fontWeight: 800,
               cursor: "pointer",
               background: lang === l ? "var(--accent-primary)" : "transparent",
-              color: lang === l ? "#fff" : "var(--text-muted)",
+              color: lang === l ? "var(--text-on-color)" : "var(--text-muted)",
               transition: "all 0.2s"
             }}
           >

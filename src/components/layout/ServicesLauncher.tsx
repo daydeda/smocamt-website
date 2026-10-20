@@ -228,7 +228,7 @@ export function ServicesLauncher({
           position: fixed;
           inset: 0;
           z-index: 2000;
-          background: rgba(0, 0, 0, 0.45);
+          background: rgb(var(--scrim-rgb) / 0.45);
           backdrop-filter: blur(4px);
           -webkit-backdrop-filter: blur(4px);
           opacity: 0;
@@ -321,12 +321,12 @@ export function ServicesLauncher({
         :global(.launcher-tile:hover) {
           background: var(--accent-glow);
           color: var(--accent-primary);
-          border-color: rgba(255, 107, 0, 0.15);
+          border-color: rgb(var(--accent-rgb) / 0.15);
         }
         :global(.launcher-tile.active) {
           background: var(--accent-glow);
           color: var(--accent-primary);
-          border-color: rgba(255, 107, 0, 0.2);
+          border-color: rgb(var(--accent-rgb) / 0.2);
         }
         :global(.launcher-tile.coming-soon) {
           grid-column: 1 / -1;
@@ -350,7 +350,7 @@ export function ServicesLauncher({
           display: flex;
           align-items: center;
           justify-content: center;
-          background: rgba(255, 107, 0, 0.08);
+          background: rgb(var(--accent-rgb) / 0.08);
           color: var(--accent-primary);
           flex-shrink: 0;
         }
@@ -379,7 +379,7 @@ export function ServicesLauncher({
             max-height: 80vh;
             border-radius: var(--radius-xl);
             border: 1px solid var(--border-subtle);
-            box-shadow: 0 30px 70px rgba(0, 0, 0, 0.25);
+            box-shadow: 0 30px 70px rgb(var(--shadow-rgb) / 0.25);
             transform: translate(-50%, -50%) scale(0.96);
             opacity: 0;
             transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease, visibility 0.2s ease;

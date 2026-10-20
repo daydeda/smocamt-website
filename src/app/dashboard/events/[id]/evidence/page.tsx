@@ -195,11 +195,11 @@ export default function EvidenceCheckinPage() {
   const statusBadge = (status: WindowStatus) => {
     const map: Record<WindowStatus, { color: string; bg: string; label: string }> = {
       upcoming: {
-        color: "#f59e0b", bg: "rgba(245,158,11,0.12)",
+        color: "var(--amber-500)", bg: "rgb(var(--amber-500-rgb) / 0.12)",
         label: lang === "th" ? "ยังไม่เปิด" : lang === "cn" ? "尚未开放" : lang === "mm" ? "မစတင်သေးပါ" : "Not open yet",
       },
       open: {
-        color: "#10b981", bg: "rgba(16,185,129,0.12)",
+        color: "var(--emerald-500)", bg: "rgb(var(--emerald-500-rgb) / 0.12)",
         label: lang === "th" ? "เปิดรับ" : lang === "cn" ? "开放中" : lang === "mm" ? "ဖွင့်ထားသည်" : "Open now",
       },
       closed: {
@@ -258,14 +258,14 @@ export default function EvidenceCheckinPage() {
                 )}
 
                 {s.submitted ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.25)", borderRadius: 12, padding: "10px 14px" }}>
-                    <CheckCircle2 size={18} style={{ color: "#10b981", flexShrink: 0 }} />
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "#10b981", flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, background: "rgb(var(--emerald-500-rgb) / 0.08)", border: "1px solid rgb(var(--emerald-500-rgb) / 0.25)", borderRadius: 12, padding: "10px 14px" }}>
+                    <CheckCircle2 size={18} style={{ color: "var(--emerald-500)", flexShrink: 0 }} />
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--emerald-500)", flex: 1 }}>
                       {lang === "th" ? "ส่งหลักฐานแล้ว" : lang === "cn" ? "已提交证据" : lang === "mm" ? "သက်သေတင်ပြီးပါပြီ" : "Submitted"}
                       {s.submittedAt ? ` · ${fmtDateTime(s.submittedAt, lang)}` : ""}
                     </span>
                     {s.attendanceId && (
-                      <a href={`/api/attendance/evidence/${s.attendanceId}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 800, color: "#10b981" }}>
+                      <a href={`/api/attendance/evidence/${s.attendanceId}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 800, color: "var(--emerald-500)" }}>
                         {lang === "th" ? "ดูไฟล์" : lang === "cn" ? "查看文件" : lang === "mm" ? "ဖိုင်ကြည့်ရန်" : "View file"}
                       </a>
                     )}
@@ -316,7 +316,7 @@ export default function EvidenceCheckinPage() {
                       </label>
                     )}
 
-                    {err && <p style={{ fontSize: 12.5, color: "#ef4444" }}>{err}</p>}
+                    {err && <p style={{ fontSize: 12.5, color: "var(--red-500)" }}>{err}</p>}
 
                     <button
                       type="button"

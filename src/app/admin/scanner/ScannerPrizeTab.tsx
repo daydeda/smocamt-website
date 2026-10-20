@@ -78,9 +78,9 @@ export default function ScannerPrizeTab({ eventId, eventTitle }: { eventId: stri
               {p.quantity !== null
                 ? t.adminPrizesAwardedCountWithTarget.replace("{count}", String(p.claimCount ?? 0)).replace("{target}", String(p.quantity))
                 : t.adminPrizesAwardedCount.replace("{count}", String(p.claimCount ?? 0))}
-              {overQuantity && <span style={{ marginLeft: 8, fontWeight: 700, color: "#b45309" }}>{t.adminPrizesOverQuantity}</span>}
+              {overQuantity && <span style={{ marginLeft: 8, fontWeight: 700, color: "var(--amber-700)" }}>{t.adminPrizesOverQuantity}</span>}
               {!!p.awaitingPhotoCount && (
-                <span style={{ marginLeft: 8, display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 700, color: "#b45309" }}>
+                <span style={{ marginLeft: 8, display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 700, color: "var(--amber-700)" }}>
                   <ImageOff size={13} /> {t.adminPrizesAwaitingPhoto.replace("{count}", String(p.awaitingPhotoCount))}
                 </span>
               )}

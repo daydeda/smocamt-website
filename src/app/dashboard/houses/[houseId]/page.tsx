@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { Users, Trophy, ShieldAlert, Crown, MessageCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { useLanguage } from "@/lib/LanguageContext";
 import { StudentNav } from "@/components/layout/StudentNav";
+import { alpha } from "@/lib/color";
 
 // Shared LINE group everyone joins (same group on the rankings page and every
 // house page).
@@ -123,22 +124,22 @@ export default function HouseMembersPage() {
         <header
           className="house-hero"
           style={{
-            background: `linear-gradient(135deg, ${color}1f 0%, ${color}08 55%, var(--bg-surface) 100%)`,
-            borderColor: `${color}40`,
+            background: `linear-gradient(135deg, ${alpha(color, 0.12)} 0%, ${alpha(color, 0.03)} 55%, var(--bg-surface) 100%)`,
+            borderColor: alpha(color, 0.25),
           }}
         >
           <div className="hero-glow" style={{ background: color }} />
-          <div className="hero-avatar" style={{ background: `${color}14`, boxShadow: `0 16px 40px ${color}33` }}>
+          <div className="hero-avatar" style={{ background: alpha(color, 0.08), boxShadow: `0 16px 40px ${alpha(color, 0.2)}` }}>
             {logo ? <img src={logo} alt="" className="hero-logo-img" /> : <Trophy size={48} style={{ color }} />}
           </div>
           <div className="hero-meta">
             <span className="hero-eyebrow" style={{ color }}>{t.houseMembers}</span>
             <h1 className="hero-name">{displayName}</h1>
             <div className="hero-stats">
-              <span className="hero-chip" style={{ borderColor: `${color}40`, color }}>
+              <span className="hero-chip" style={{ borderColor: alpha(color, 0.25), color }}>
                 <Users size={16} /> {members.length} {t.membersCount}
               </span>
-              <span className="hero-chip" style={{ borderColor: `${color}40`, color }}>
+              <span className="hero-chip" style={{ borderColor: alpha(color, 0.25), color }}>
                 <Trophy size={16} /> {house.points} {t.points}
               </span>
             </div>
@@ -172,7 +173,7 @@ export default function HouseMembersPage() {
                     style={{ borderBottom: `8px solid ${color}` }}
                   >
                     {rankNum[i] === 1 && (
-                      <div className="crown-floating"><Crown size={30} fill="#fbbf24" strokeWidth={1.5} /></div>
+                      <div className="crown-floating"><Crown size={30} fill="var(--amber-400)" strokeWidth={1.5} /></div>
                     )}
                     <div className={`podium-rank-badge rank-${rankNum[i]}`}>{rankNum[i]}</div>
                     <h3 className="podium-name">
@@ -353,10 +354,10 @@ export default function HouseMembersPage() {
           justify-content: center;
           gap: 14px;
           position: relative;
-          box-shadow: 0 10px 30px rgba(0,0,0,0.02);
+          box-shadow: 0 10px 30px rgb(var(--shadow-rgb) / 0.02);
           transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
-        .podium-card:hover { transform: translateY(-4px); box-shadow: 0 20px 40px rgba(0,0,0,0.06); }
+        .podium-card:hover { transform: translateY(-4px); box-shadow: 0 20px 40px rgb(var(--shadow-rgb) / 0.06); }
         .first-place { min-height: 210px; z-index: 2; }
         .second-place, .third-place { min-height: 180px; }
         .crown-floating {
@@ -376,11 +377,11 @@ export default function HouseMembersPage() {
           justify-content: center;
           font-weight: 900;
           font-size: 14px;
-          color: #fff;
+          color: var(--text-on-color);
         }
-        .rank-1 { background: linear-gradient(135deg, #fbbf24, #f59e0b); }
-        .rank-2 { background: linear-gradient(135deg, #cbd5e1, #94a3b8); }
-        .rank-3 { background: linear-gradient(135deg, #d6a06a, #b45309); }
+        .rank-1 { background: linear-gradient(135deg, var(--amber-400), var(--amber-500)); }
+        .rank-2 { background: linear-gradient(135deg, var(--slate-300), var(--slate-400)); }
+        .rank-3 { background: linear-gradient(135deg, var(--medal-bronze-light), var(--amber-700)); }
         .podium-name {
           font-size: 15px;
           font-weight: 800;
@@ -406,11 +407,11 @@ export default function HouseMembersPage() {
           padding: 14px 20px;
           transition: transform 0.2s, box-shadow 0.2s;
         }
-        .member-row:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(0,0,0,0.04); }
+        .member-row:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgb(var(--shadow-rgb) / 0.04); }
         .member-row.is-me {
           border-color: var(--accent-primary);
-          background: rgba(255,107,0,0.05);
-          box-shadow: 0 0 0 1px var(--accent-primary), 0 8px 24px rgba(255,107,0,0.08);
+          background: rgb(var(--accent-rgb) / 0.05);
+          box-shadow: 0 0 0 1px var(--accent-primary), 0 8px 24px rgb(var(--accent-rgb) / 0.08);
         }
         .member-rank {
           width: 28px;
@@ -440,7 +441,7 @@ export default function HouseMembersPage() {
           padding: 2px 8px;
           border-radius: 999px;
           background: var(--accent-primary);
-          color: #fff;
+          color: var(--text-on-color);
           font-size: 10px;
           font-weight: 900;
           letter-spacing: 0.08em;
@@ -498,17 +499,17 @@ export default function HouseMembersPage() {
           max-width: 480px;
           padding: 20px 36px;
           border-radius: 20px;
-          background: #06c755;
-          color: #fff;
+          background: var(--brand-line);
+          color: var(--text-on-color);
           font-size: 18px;
           font-weight: 900;
           text-decoration: none;
-          box-shadow: 0 12px 32px rgba(6,199,85,0.32);
+          box-shadow: 0 12px 32px rgb(var(--brand-line-rgb) / 0.32);
           transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
         .join-line-btn:hover {
           transform: translateY(-2px);
-          box-shadow: 0 18px 40px rgba(6,199,85,0.4);
+          box-shadow: 0 18px 40px rgb(var(--brand-line-rgb) / 0.4);
         }
 
         @media (max-width: 640px) {

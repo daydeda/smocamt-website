@@ -230,7 +230,7 @@ export function AdminCommandPalette({
           position: fixed;
           inset: 0;
           z-index: 2000;
-          background: rgba(0, 0, 0, 0.45);
+          background: rgb(var(--scrim-rgb) / 0.45);
           backdrop-filter: blur(4px);
           -webkit-backdrop-filter: blur(4px);
           opacity: 0;
@@ -251,7 +251,7 @@ export function AdminCommandPalette({
           background: var(--bg-surface);
           border-radius: var(--radius-xl);
           border: 1px solid var(--border-subtle);
-          box-shadow: 0 30px 70px rgba(0, 0, 0, 0.25);
+          box-shadow: 0 30px 70px rgb(var(--shadow-rgb) / 0.25);
           z-index: 2001;
           display: flex;
           flex-direction: column;

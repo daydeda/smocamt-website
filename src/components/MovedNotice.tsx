@@ -12,7 +12,7 @@
  */
 
 const NEW_URL = "https://activecamt.camt.cmu.ac.th/dashboard";
-const ACCENT = "#ff6b00";
+const ACCENT = "var(--accent-primary)";
 
 export function MovedNotice() {
   return (
@@ -25,8 +25,8 @@ export function MovedNotice() {
         justifyContent: "center",
         textAlign: "center",
         padding: "32px 24px",
-        background: "#fcfcfd",
-        color: "#111827",
+        background: "var(--bg-base)",
+        color: "var(--text-primary)",
       }}
     >
       <div style={{ maxWidth: 460, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: 24 }}>
@@ -37,12 +37,12 @@ export function MovedNotice() {
           <h1 style={{ fontSize: 26, fontWeight: 800, lineHeight: 1.2, margin: 0 }}>
             เราย้ายบ้านใหม่แล้ว 🚚
           </h1>
-          <p style={{ fontSize: 16, fontWeight: 700, color: "#4b5563", margin: 0 }}>
+          <p style={{ fontSize: 16, fontWeight: 700, color: "var(--text-secondary)", margin: 0 }}>
             We&rsquo;ve moved to a new home
           </p>
         </div>
 
-        <p style={{ fontSize: 15, lineHeight: 1.6, color: "#4b5563", margin: 0 }}>
+        <p style={{ fontSize: 15, lineHeight: 1.6, color: "var(--text-secondary)", margin: 0 }}>
           ActiveCAMT ได้ย้ายไปยังเซิร์ฟเวอร์ใหม่ของมหาวิทยาลัยแล้ว
           กรุณาเข้าใช้งานและบันทึกลิงก์ใหม่นี้
           <br />
@@ -62,17 +62,17 @@ export function MovedNotice() {
             padding: "14px 20px",
             borderRadius: 14,
             background: ACCENT,
-            color: "#ffffff",
+            color: "var(--text-on-color)",
             fontSize: 16,
             fontWeight: 800,
             textDecoration: "none",
-            boxShadow: "0 4px 14px rgba(255,107,0,0.35)",
+            boxShadow: "0 4px 14px rgb(var(--accent-rgb) / 0.35)",
           }}
         >
           ไปยังเว็บไซต์ใหม่ / Go to the new site →
         </a>
 
-        <p style={{ fontSize: 13, color: "#9ca3af", margin: 0, wordBreak: "break-all" }}>
+        <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0, wordBreak: "break-all" }}>
           activecamt.camt.cmu.ac.th
         </p>
       </div>

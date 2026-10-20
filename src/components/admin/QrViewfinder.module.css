@@ -11,7 +11,7 @@
   align-self: center;
   overflow: hidden;
   border-radius: 20px;
-  background: #000;
+  background: var(--black);
   isolation: isolate;
 }
 
@@ -59,9 +59,9 @@
   aspect-ratio: 1;
   transform: translate(-50%, -50%);
   pointer-events: none;
-  border: 3px solid #fff;
+  border: 3px solid var(--white);
   border-radius: 14px;
-  box-shadow: 0 0 0 100vmax rgb(0 0 0 / 25%);
+  box-shadow: 0 0 0 100vmax rgb(var(--shadow-rgb) / 0.25);
 }
 
 @media (max-height: 500px) {

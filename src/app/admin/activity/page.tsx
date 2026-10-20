@@ -220,7 +220,7 @@ export default function AdminActivityPage() {
                           <span style={{ 
                             fontSize: 16, 
                             fontWeight: 800, 
-                            color: a.delta > 0 ? "#10b981" : a.delta === 0 ? "var(--text-muted)" : "#ef4444" 
+                            color: a.delta > 0 ? "var(--emerald-500)" : a.delta === 0 ? "var(--text-muted)" : "var(--red-500)" 
                           }}>
                             {a.delta > 0 ? `+${a.delta}` : a.delta} {t.points.toLowerCase()}
                           </span>

@@ -237,7 +237,7 @@ export function MajorTeamSection({ major }: { major: string }) {
           <div className="spinner" style={{ width: 28, height: 28, borderWidth: 3 }} />
         </div>
       ) : error ? (
-        <p style={{ color: "#ef4444", fontWeight: 600, fontSize: 13 }}>{error}</p>
+        <p style={{ color: "var(--red-500)", fontWeight: 600, fontSize: 13 }}>{error}</p>
       ) : (
         <>
           {/* Add-to-team search — scoped to `members`, which is already this
@@ -393,21 +393,21 @@ export function MajorTeamSection({ major }: { major: string }) {
                       <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
                     </div>
                   ) : !medical ? (
-                    <p style={{ fontSize: 12, color: "#ef4444" }}>{medicalError || "Failed to load medical detail."}</p>
+                    <p style={{ fontSize: 12, color: "var(--red-500)" }}>{medicalError || "Failed to load medical detail."}</p>
                   ) : !hasMedicalDetail ? (
                     <p style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>No medical info on file.</p>
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 800, color: "#ef4444", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 800, color: "var(--red-500)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>
                         <HeartPulse size={13} /> Medical & Emergency
                       </div>
                       {medical.chronicDiseases && <p style={{ fontSize: 12 }}><b>Chronic:</b> {medical.chronicDiseases}</p>}
                       {medical.medicalHistory && <p style={{ fontSize: 12 }}><b>History:</b> {medical.medicalHistory}</p>}
-                      {medical.drugAllergies && <p style={{ fontSize: 12, color: "#ef4444" }}><b>Drug allergies:</b> {medical.drugAllergies}</p>}
-                      {medical.foodAllergies && <p style={{ fontSize: 12, color: "#ef4444" }}><b>Food allergies:</b> {medical.foodAllergies}</p>}
+                      {medical.drugAllergies && <p style={{ fontSize: 12, color: "var(--red-500)" }}><b>Drug allergies:</b> {medical.drugAllergies}</p>}
+                      {medical.foodAllergies && <p style={{ fontSize: 12, color: "var(--red-500)" }}><b>Food allergies:</b> {medical.foodAllergies}</p>}
                       {medical.dietaryRestrictions && <p style={{ fontSize: 12 }}><b>Dietary:</b> {medical.dietaryRestrictions}</p>}
-                      {medical.faintingHistory && <p style={{ fontSize: 12, color: "#ef4444" }}>History of fainting</p>}
-                      {medical.emergencyMedication && <p style={{ fontSize: 12, color: "#ef4444" }}><b>Emergency medication:</b> {medical.emergencyMedication}</p>}
+                      {medical.faintingHistory && <p style={{ fontSize: 12, color: "var(--red-500)" }}>History of fainting</p>}
+                      {medical.emergencyMedication && <p style={{ fontSize: 12, color: "var(--red-500)" }}><b>Emergency medication:</b> {medical.emergencyMedication}</p>}
                       {medical.emergencyContacts.length > 0 && (
                         <p style={{ fontSize: 12 }}>
                           <b>Emergency contact:</b>{" "}

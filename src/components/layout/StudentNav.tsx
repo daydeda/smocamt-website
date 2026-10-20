@@ -17,6 +17,7 @@ import { canAccessBattle } from "@/lib/battle-access";
 import { getPinnedItems, resolveHref, type NavContext } from "@/lib/nav-config";
 import { unsubscribePushBeforeSignOut } from "@/lib/push-client";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { ServicesLauncher } from "@/components/layout/ServicesLauncher";
 import { useState, useRef, useEffect } from "react";
 
@@ -126,6 +127,7 @@ onNavigate={() => setIsProfileDropdownOpen(false)}
 </div>
 )}
 </div>
+<ThemeToggle size={36} />
 </div>
 
 {/* Brand wordmark (Desktop Left, Mobile Right) — the SMO CAMT logo itself
@@ -165,6 +167,7 @@ onClick={() => setIsLauncherOpen(true)}
 
 {/* Right: Desktop Actions & User */}
 <div className="nav-right desktop-links">
+<ThemeToggle />
 <LanguageSwitcher />
 
 <div className="user-section">
@@ -253,7 +256,7 @@ ctx={navCtx}
 
 <style jsx>{`
 .student-nav {
-background: rgba(255, 255, 255, 0.85);
+background: rgb(var(--surface-rgb) / 0.85);
 backdrop-filter: blur(16px);
 -webkit-backdrop-filter: blur(16px);
 border-bottom: 1px solid var(--border-subtle);
@@ -365,24 +368,24 @@ display: flex;
 align-items: center;
 justify-content: center;
 text-decoration: none;
-box-shadow: 0 6px 20px rgba(255, 107, 0, 0.35), 0 2px 6px rgba(0,0,0,0.15);
+box-shadow: 0 6px 20px rgb(var(--accent-rgb) / 0.35), 0 2px 6px rgb(var(--shadow-rgb) / 0.15);
 z-index: 998;
 transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 :global(.battle-fab:hover) {
 transform: translateY(-2px) scale(1.05);
-box-shadow: 0 10px 26px rgba(255, 107, 0, 0.45), 0 3px 8px rgba(0,0,0,0.18);
+box-shadow: 0 10px 26px rgb(var(--accent-rgb) / 0.45), 0 3px 8px rgb(var(--shadow-rgb) / 0.18);
 }
 :global(.battle-fab.active) {
 background: var(--text-primary);
-box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+box-shadow: 0 6px 20px rgb(var(--shadow-rgb) / 0.25);
 }
 :global(.battle-fab::after) {
 content: '';
 position: absolute;
 inset: -4px;
 border-radius: 50%;
-border: 2px solid rgba(255, 107, 0, 0.35);
+border: 2px solid rgb(var(--accent-rgb) / 0.35);
 animation: fab-pulse 2.2s ease-out infinite;
 }
 :global(.battle-fab.active::after) {
@@ -403,12 +406,12 @@ position: relative;
 position: absolute;
 min-width: 220px;
 width: max-content;
-background: rgba(255, 255, 255, 0.96);
+background: rgb(var(--surface-rgb) / 0.96);
 backdrop-filter: blur(16px);
 -webkit-backdrop-filter: blur(16px);
 border-radius: 16px;
 border: 1px solid var(--border-subtle);
-box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+box-shadow: 0 10px 40px rgb(var(--shadow-rgb) / 0.08);
 z-index: 999;
 padding: 8px 0;
 margin-top: 8px;
@@ -422,7 +425,7 @@ position: absolute;
 top: -6px;
 width: 10px;
 height: 10px;
-background: rgba(255, 255, 255, 0.96);
+background: rgb(var(--surface-rgb) / 0.96);
 border-left: 1px solid var(--border-subtle);
 border-top: 1px solid var(--border-subtle);
 transform: rotate(45deg);
@@ -498,16 +501,16 @@ transform: translateX(3px);
 }
 :global(.dropdown-item.admin-item) {
 color: var(--accent-primary);
-background: rgba(255, 107, 0, 0.03);
+background: rgb(var(--accent-rgb) / 0.03);
 }
 :global(.dropdown-item.admin-item:hover) {
 background: var(--accent-glow);
 }
 :global(.dropdown-item.text-danger) {
-color: #ef4444;
+color: var(--red-500);
 }
 :global(.dropdown-item.text-danger:hover) {
-background: rgba(239, 68, 68, 0.05);
+background: rgb(var(--red-500-rgb) / 0.05);
 }
 
 /* Mobile Controls */
@@ -519,7 +522,7 @@ gap: 12px;
 .mobile-toggle {
 padding: 8px;
 border-radius: 12px;
-background: rgba(0,0,0,0.03);
+background: rgb(var(--ink-rgb) / 0.03);
 border: none;
 cursor: pointer;
 color: var(--text-primary);
@@ -546,12 +549,12 @@ white-space: nowrap;
 }
 :global(.nav-link:hover) {
 color: var(--accent-primary);
-background: rgba(255,107,0,0.05);
+background: rgb(var(--accent-rgb) / 0.05);
 }
 :global(.nav-link.active) {
 background: var(--accent-glow) !important;
 color: var(--accent-primary) !important;
-border: 1px solid rgba(255, 107, 0, 0.15) !important;
+border: 1px solid rgb(var(--accent-rgb) / 0.15) !important;
 }
 
 @media (max-width: 1400px) {

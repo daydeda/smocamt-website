@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { houseSlug } from "@/lib/houses";
 import { StudentNav } from "@/components/layout/StudentNav";
+import { alpha } from "@/lib/color";
 
 // Shared LINE group everyone joins (same group on both rankings tabs and every
 // house page).
@@ -355,7 +356,7 @@ export default function HousesPage() {
           borderRadius: 20,
           maxWidth: 400,
           border: "1px solid var(--border-subtle)",
-          boxShadow: "0 4px 20px rgba(0,0,0,0.02)"
+          boxShadow: "0 4px 20px rgb(var(--shadow-rgb) / 0.02)"
         }}>
           <button
             onClick={() => setActiveTab("house")}
@@ -367,7 +368,7 @@ export default function HousesPage() {
               fontWeight: 800,
               background: activeTab === "house" ? "var(--bg-surface)" : "transparent",
               color: activeTab === "house" ? "var(--text-primary)" : "var(--text-muted)",
-              boxShadow: activeTab === "house" ? "0 4px 12px rgba(0,0,0,0.05)" : "none",
+              boxShadow: activeTab === "house" ? "0 4px 12px rgb(var(--shadow-rgb) / 0.05)" : "none",
               border: "none",
               cursor: "pointer",
               transition: "all 0.2s"
@@ -385,7 +386,7 @@ export default function HousesPage() {
               fontWeight: 800,
               background: activeTab === "individual" ? "var(--bg-surface)" : "transparent",
               color: activeTab === "individual" ? "var(--text-primary)" : "var(--text-muted)",
-              boxShadow: activeTab === "individual" ? "0 4px 12px rgba(0,0,0,0.05)" : "none",
+              boxShadow: activeTab === "individual" ? "0 4px 12px rgb(var(--shadow-rgb) / 0.05)" : "none",
               border: "none",
               cursor: "pointer",
               transition: "all 0.2s"
@@ -404,7 +405,7 @@ export default function HousesPage() {
               {houses[1] && (
                 <div className="podium-card second-place" style={{ borderBottom: `8px solid ${houses[1].color}` }}>
                   <div className="podium-rank-badge rank-second">2</div>
-                  <div className="podium-avatar" style={{ background: `${houses[1].color}10`, color: houses[1].color }}>
+                  <div className="podium-avatar" style={{ background: alpha(houses[1].color, 0.06), color: houses[1].color }}>
                     {houseLogo(houses[1].id) ? (
                       <img src={houseLogo(houses[1].id)!} alt="" className="house-logo-img" />
                     ) : <Trophy size={28} />}
@@ -421,10 +422,10 @@ export default function HousesPage() {
               {houses[0] && (
                 <div className="podium-card first-place" style={{ borderBottom: `8px solid ${houses[0].color}` }}>
                   <div className="crown-floating">
-                    <Crown size={32} fill="#fbbf24" strokeWidth={1.5} />
+                    <Crown size={32} fill="var(--amber-400)" strokeWidth={1.5} />
                   </div>
                   <div className="podium-rank-badge rank-first">1</div>
-                  <div className="podium-avatar" style={{ background: `${houses[0].color}10`, color: houses[0].color, boxShadow: `0 10px 25px ${houses[0].color}25` }}>
+                  <div className="podium-avatar" style={{ background: alpha(houses[0].color, 0.06), color: houses[0].color, boxShadow: `0 10px 25px ${alpha(houses[0].color, 0.14)}` }}>
                     {houseLogo(houses[0].id) ? (
                       <img src={houseLogo(houses[0].id)!} alt="" className="house-logo-img" />
                     ) : <Trophy size={36} />}
@@ -441,7 +442,7 @@ export default function HousesPage() {
               {houses[2] && (
                 <div className="podium-card third-place" style={{ borderBottom: `8px solid ${houses[2].color}` }}>
                   <div className="podium-rank-badge rank-third">3</div>
-                  <div className="podium-avatar" style={{ background: `${houses[2].color}10`, color: houses[2].color }}>
+                  <div className="podium-avatar" style={{ background: alpha(houses[2].color, 0.06), color: houses[2].color }}>
                     {houseLogo(houses[2].id) ? (
                       <img src={houseLogo(houses[2].id)!} alt="" className="house-logo-img" />
                     ) : <Trophy size={24} />}
@@ -504,7 +505,7 @@ export default function HousesPage() {
                     <div className={`standings-rank rank-${idx + 1}`}>
                       {idx + 1}
                     </div>
-                    <div className="standings-avatar" style={{ background: `${h.color}10`, color: h.color }}>
+                    <div className="standings-avatar" style={{ background: alpha(h.color, 0.06), color: h.color }}>
                       {houseLogo(h.id) ? (
                         <img src={houseLogo(h.id)!} alt="" className="house-logo-img" />
                       ) : <Trophy size={18} />}
@@ -542,7 +543,7 @@ export default function HousesPage() {
               {topThreeIndividuals[1] && (
                 <div className="podium-card second-place" style={{ borderBottom: `8px solid ${topThreeIndividuals[1].house?.color || "var(--accent-primary)"}` }}>
                   <div className="podium-rank-badge rank-second">2</div>
-                  <div className="podium-avatar" style={{ background: `${topThreeIndividuals[1].house?.color || "#6366f1"}10`, color: topThreeIndividuals[1].house?.color || "var(--accent-primary)" }}>
+                  <div className="podium-avatar" style={{ background: alpha(topThreeIndividuals[1].house?.color || "var(--indigo-500)", 0.06), color: topThreeIndividuals[1].house?.color || "var(--accent-primary)" }}>
                     <Trophy size={28} />
                   </div>
                   <h3 className="podium-name" style={{ textAlign: "center" }}>
@@ -567,10 +568,10 @@ export default function HousesPage() {
               {topThreeIndividuals[0] && (
                 <div className="podium-card first-place" style={{ borderBottom: `8px solid ${topThreeIndividuals[0].house?.color || "var(--accent-primary)"}` }}>
                   <div className="crown-floating">
-                    <Crown size={32} fill="#fbbf24" strokeWidth={1.5} />
+                    <Crown size={32} fill="var(--amber-400)" strokeWidth={1.5} />
                   </div>
                   <div className="podium-rank-badge rank-first">1</div>
-                  <div className="podium-avatar" style={{ background: `${topThreeIndividuals[0].house?.color || "#6366f1"}10`, color: topThreeIndividuals[0].house?.color || "var(--accent-primary)", boxShadow: `0 10px 25px ${topThreeIndividuals[0].house?.color || "#6366f1"}25` }}>
+                  <div className="podium-avatar" style={{ background: alpha(topThreeIndividuals[0].house?.color || "var(--indigo-500)", 0.06), color: topThreeIndividuals[0].house?.color || "var(--accent-primary)", boxShadow: `0 10px 25px ${alpha(topThreeIndividuals[0].house?.color || "var(--indigo-500)", 0.14)}` }}>
                     <Trophy size={36} />
                   </div>
                   <h3 className="podium-name" style={{ textAlign: "center" }}>
@@ -595,7 +596,7 @@ export default function HousesPage() {
               {topThreeIndividuals[2] && (
                 <div className="podium-card third-place" style={{ borderBottom: `8px solid ${topThreeIndividuals[2].house?.color || "var(--accent-primary)"}` }}>
                   <div className="podium-rank-badge rank-third">3</div>
-                  <div className="podium-avatar" style={{ background: `${topThreeIndividuals[2].house?.color || "#6366f1"}10`, color: topThreeIndividuals[2].house?.color || "var(--accent-primary)" }}>
+                  <div className="podium-avatar" style={{ background: alpha(topThreeIndividuals[2].house?.color || "var(--indigo-500)", 0.06), color: topThreeIndividuals[2].house?.color || "var(--accent-primary)" }}>
                     <Trophy size={24} />
                   </div>
                   <h3 className="podium-name" style={{ textAlign: "center" }}>
@@ -673,7 +674,7 @@ export default function HousesPage() {
                     <div className={`standings-rank rank-${rank <= 4 ? rank : 4}`}>
                       {rank}
                     </div>
-                    <div className="standings-avatar" style={{ background: `${houseColor}10`, color: houseColor }}>
+                    <div className="standings-avatar" style={{ background: alpha(houseColor, 0.06), color: houseColor }}>
                       <Trophy size={18} />
                     </div>
                     <div className="standings-info" style={{ flex: 2 }}>
@@ -777,7 +778,7 @@ export default function HousesPage() {
               const iconColor = a.house?.color ?? "var(--text-muted)";
               return (
               <div key={a.id} className="activity-item hover-scale">
-                 <div className="activity-icon-container" style={{ color: iconColor, background: `${iconColor}10` }}>
+                 <div className="activity-icon-container" style={{ color: iconColor, background: alpha(iconColor, 0.06) }}>
                     <Award className="activity-icon" />
                  </div>
                  <div className="activity-content">
@@ -785,7 +786,7 @@ export default function HousesPage() {
                       <p className="activity-reason">
                         <span>{translateActivityReason(a.reason)}</span>
                       </p>
-                      <span className="activity-points" style={{ color: a.delta > 0 ? "#10b981" : a.delta === 0 ? "var(--text-muted)" : "#ef4444" }}>
+                      <span className="activity-points" style={{ color: a.delta > 0 ? "var(--emerald-500)" : a.delta === 0 ? "var(--text-muted)" : "var(--red-500)" }}>
                         {a.delta > 0 ? `+${a.delta}` : a.delta}
                       </span>
                     </div>
@@ -833,29 +834,29 @@ export default function HousesPage() {
           align-items: center;
           gap: 16px;
           position: relative;
-          box-shadow: 0 10px 30px rgba(0,0,0,0.02);
+          box-shadow: 0 10px 30px rgb(var(--shadow-rgb) / 0.02);
           transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
         .podium-card:hover {
           transform: translateY(-4px);
-          box-shadow: 0 20px 40px rgba(0,0,0,0.06);
+          box-shadow: 0 20px 40px rgb(var(--shadow-rgb) / 0.06);
         }
         .first-place {
           min-height: 280px;
           z-index: 2;
-          background: linear-gradient(180deg, var(--bg-surface) 0%, rgba(251,191,36,0.02) 100%);
-          border: 1.5px solid rgba(251,191,36,0.3);
-          box-shadow: 0 15px 35px rgba(251,191,36,0.06);
+          background: linear-gradient(180deg, var(--bg-surface) 0%, rgb(var(--amber-400-rgb) / 0.02) 100%);
+          border: 1.5px solid rgb(var(--amber-400-rgb) / 0.3);
+          box-shadow: 0 15px 35px rgb(var(--amber-400-rgb) / 0.06);
         }
         .second-place {
           min-height: 230px;
           z-index: 1;
-          border: 1.5px solid rgba(148,163,184,0.25);
+          border: 1.5px solid rgb(var(--slate-400-rgb) / 0.25);
         }
         .third-place {
           min-height: 200px;
           z-index: 0;
-          border: 1.5px solid rgba(180,83,9,0.2);
+          border: 1.5px solid rgb(var(--amber-700-rgb) / 0.2);
         }
         .crown-floating {
           position: absolute;
@@ -882,9 +883,9 @@ export default function HousesPage() {
           font-weight: 900;
           color: white;
         }
-        .rank-first { background: linear-gradient(135deg, #facc15, #eab308); }
-        .rank-second { background: linear-gradient(135deg, #cbd5e1, #94a3b8); }
-        .rank-third { background: linear-gradient(135deg, #ca8a04, #854d0e); }
+        .rank-first { background: linear-gradient(135deg, var(--yellow-400), var(--yellow-500)); }
+        .rank-second { background: linear-gradient(135deg, var(--slate-300), var(--slate-400)); }
+        .rank-third { background: linear-gradient(135deg, var(--yellow-600), var(--yellow-800)); }
         
         .podium-avatar {
           width: 64px;
@@ -905,7 +906,7 @@ export default function HousesPage() {
           height: 100%;
           object-fit: contain;
           padding: 4px;
-          filter: drop-shadow(0 2px 4px rgba(0,0,0,0.12));
+          filter: drop-shadow(0 2px 4px rgb(var(--shadow-rgb) / 0.12));
         }
         .podium-name {
           font-size: 18px;
@@ -928,7 +929,7 @@ export default function HousesPage() {
         .highlight-points {
           font-size: 34px;
           color: var(--text-primary);
-          background: linear-gradient(135deg, var(--text-primary), #4b5563);
+          background: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
         }
@@ -953,17 +954,17 @@ export default function HousesPage() {
           gap: 10px;
           padding: 14px 28px;
           border-radius: 16px;
-          background: #06c755;
-          color: #fff;
+          background: var(--brand-line);
+          color: var(--text-on-color);
           font-size: 15px;
           font-weight: 800;
           text-decoration: none;
-          box-shadow: 0 8px 24px rgba(6,199,85,0.28);
+          box-shadow: 0 8px 24px rgb(var(--brand-line-rgb) / 0.28);
           transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
         :global(a.join-line-btn:hover) {
           transform: translateY(-2px);
-          box-shadow: 0 14px 32px rgba(6,199,85,0.36);
+          box-shadow: 0 14px 32px rgb(var(--brand-line-rgb) / 0.36);
         }
 
         /* Standings list */
@@ -984,19 +985,19 @@ export default function HousesPage() {
         }
         .standings-row:hover {
           transform: translateY(-2px);
-          box-shadow: 0 10px 30px rgba(0,0,0,0.03);
-          border-color: rgba(255,107,0,0.15);
+          box-shadow: 0 10px 30px rgb(var(--shadow-rgb) / 0.03);
+          border-color: rgb(var(--accent-rgb) / 0.15);
         }
         .standings-row.is-me {
           border-color: var(--accent-primary);
-          background: rgba(255,107,0,0.05);
-          box-shadow: 0 0 0 1px var(--accent-primary), 0 8px 24px rgba(255,107,0,0.08);
+          background: rgb(var(--accent-rgb) / 0.05);
+          box-shadow: 0 0 0 1px var(--accent-primary), 0 8px 24px rgb(var(--accent-rgb) / 0.08);
         }
         /* The student's own house row — a quiet locator highlight only; the real
            call-to-action lives in the "Your House" card above the list. */
         .standings-row.is-my-house {
-          border-color: rgba(255,107,0,0.35);
-          background: rgba(255,107,0,0.04);
+          border-color: rgb(var(--accent-rgb) / 0.35);
+          background: rgb(var(--accent-rgb) / 0.04);
         }
 
         /* "Your House" card — branded entry point into the member roster */
@@ -1016,7 +1017,7 @@ export default function HousesPage() {
             linear-gradient(135deg, color-mix(in srgb, var(--house-color) 8%, transparent), transparent 60%),
             var(--bg-surface);
           border: 1.5px solid color-mix(in srgb, var(--house-color) 30%, var(--border-subtle));
-          box-shadow: 0 10px 30px rgba(0,0,0,0.03);
+          box-shadow: 0 10px 30px rgb(var(--shadow-rgb) / 0.03);
           transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
         :global(a.my-house-card:hover) {
@@ -1092,7 +1093,7 @@ export default function HousesPage() {
           padding: 12px 20px;
           border-radius: 14px;
           background: var(--accent-primary);
-          color: #fff;
+          color: var(--text-on-color);
           font-size: 14px;
           font-weight: 800;
           white-space: nowrap;
@@ -1107,7 +1108,7 @@ export default function HousesPage() {
           padding: 2px 8px;
           border-radius: 999px;
           background: var(--accent-primary);
-          color: #fff;
+          color: var(--text-on-color);
           font-size: 10px;
           font-weight: 900;
           letter-spacing: 0.08em;
@@ -1123,7 +1124,7 @@ export default function HousesPage() {
           text-align: left;
           padding: 16px 24px;
           margin-bottom: 20px;
-          background: linear-gradient(135deg, rgba(255,107,0,0.10), rgba(255,107,0,0.03));
+          background: linear-gradient(135deg, rgb(var(--accent-rgb) / 0.1), rgb(var(--accent-rgb) / 0.03));
           border: 1.5px solid var(--accent-primary);
           border-radius: 20px;
           cursor: pointer;
@@ -1131,7 +1132,7 @@ export default function HousesPage() {
         }
         .my-rank-banner:hover {
           transform: translateY(-2px);
-          box-shadow: 0 10px 30px rgba(255,107,0,0.12);
+          box-shadow: 0 10px 30px rgb(var(--accent-rgb) / 0.12);
         }
         .my-rank-badge {
           min-width: 44px;
@@ -1139,7 +1140,7 @@ export default function HousesPage() {
           padding: 0 10px;
           border-radius: 14px;
           background: var(--accent-primary);
-          color: #fff;
+          color: var(--text-on-color);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -1196,9 +1197,9 @@ export default function HousesPage() {
           font-weight: 800;
           font-size: 14px;
         }
-        .standings-rank.rank-1 { background: #fef08a; color: #a16207; }
-        .standings-rank.rank-2 { background: #f1f5f9; color: #475569; }
-        .standings-rank.rank-3 { background: #ffedd5; color: #9a3412; }
+        .standings-rank.rank-1 { background: var(--yellow-200); color: var(--yellow-700); }
+        .standings-rank.rank-2 { background: var(--slate-100); color: var(--slate-600); }
+        .standings-rank.rank-3 { background: var(--orange-100); color: var(--orange-800); }
         .standings-rank.rank-4 { background: var(--bg-elevated); color: var(--text-muted); }
  
         .standings-avatar {
@@ -1264,8 +1265,8 @@ export default function HousesPage() {
         }
         :global(.hover-scale:hover) {
           transform: translateY(-2px);
-          box-shadow: 0 10px 30px rgba(0,0,0,0.03);
-          border-color: rgba(255,107,0,0.15);
+          box-shadow: 0 10px 30px rgb(var(--shadow-rgb) / 0.03);
+          border-color: rgb(var(--accent-rgb) / 0.15);
         }
 
         /* Recent Activity */

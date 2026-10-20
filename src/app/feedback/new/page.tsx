@@ -143,11 +143,11 @@ export default function FeedbackNewPage() {
                     style={{
                       display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 8,
                       padding: 14, borderRadius: 14, textAlign: "left", cursor: "pointer",
-                      background: urgent ? "rgba(239,68,68,0.06)" : "var(--bg-surface)",
-                      border: `1px solid ${urgent ? "rgba(239,68,68,0.25)" : "var(--border-subtle)"}`,
+                      background: urgent ? "rgb(var(--red-500-rgb) / 0.06)" : "var(--bg-surface)",
+                      border: `1px solid ${urgent ? "rgb(var(--red-500-rgb) / 0.25)" : "var(--border-subtle)"}`,
                     }}
                   >
-                    <Icon size={20} color={urgent ? "#dc2626" : "var(--accent-primary)"} />
+                    <Icon size={20} color={urgent ? "var(--red-600)" : "var(--accent-primary)"} />
                     <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{tt(c.i18nKey, c.fallback)}</span>
                     <span style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.4 }}>{tt(c.descI18nKey, c.descFallback)}</span>
                   </button>
@@ -186,8 +186,8 @@ export default function FeedbackNewPage() {
             </div>
 
             {category === "harassment_safety" && (
-              <div style={{ display: "flex", gap: 10, padding: 12, borderRadius: 12, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)" }}>
-                <ShieldAlert size={18} color="#dc2626" style={{ flexShrink: 0, marginTop: 1 }} />
+              <div style={{ display: "flex", gap: 10, padding: 12, borderRadius: 12, background: "rgb(var(--red-500-rgb) / 0.08)", border: "1px solid rgb(var(--red-500-rgb) / 0.25)" }}>
+                <ShieldAlert size={18} color="var(--red-600)" style={{ flexShrink: 0, marginTop: 1 }} />
                 <p style={{ fontSize: 13, color: "var(--text-primary)", lineHeight: 1.5, margin: 0 }}>
                   {tt(
                     "feedbackSafetyNotice",
@@ -323,7 +323,7 @@ export default function FeedbackNewPage() {
               )}
             </div>
 
-            {error && <p style={{ color: "#dc2626", fontSize: 13, margin: 0 }}>{error}</p>}
+            {error && <p style={{ color: "var(--red-600)", fontSize: 13, margin: 0 }}>{error}</p>}
 
             <button
               type="button"
@@ -340,8 +340,8 @@ export default function FeedbackNewPage() {
 
         {step === "done" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16, alignItems: "center", textAlign: "center", paddingTop: 12 }}>
-            <div style={{ width: 56, height: 56, borderRadius: "50%", background: "rgba(20,184,166,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Check size={28} color="#0d9488" />
+            <div style={{ width: 56, height: 56, borderRadius: "50%", background: "rgb(var(--teal-500-rgb) / 0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Check size={28} color="var(--teal-600)" />
             </div>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>
               {tt("feedbackConfirmTitle", "Sent — thank you")}

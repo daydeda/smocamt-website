@@ -50,9 +50,9 @@ export function AppealsClient() {
   const [reason, setReason] = useState("");
 
   const STATUS_BADGE: Record<Appeal["status"], { bg: string; color: string; label: string }> = {
-    pending: { bg: "rgba(245,158,11,0.1)", color: "#f59e0b", label: t.adminAppealsFilterPending },
-    approved: { bg: "rgba(34,197,94,0.1)", color: "#22c55e", label: t.adminAppealsFilterApproved },
-    rejected: { bg: "rgba(239,68,68,0.1)", color: "#ef4444", label: t.adminAppealsFilterRejected },
+    pending: { bg: "rgb(var(--amber-500-rgb) / 0.1)", color: "var(--amber-500)", label: t.adminAppealsFilterPending },
+    approved: { bg: "rgb(var(--green-500-rgb) / 0.1)", color: "var(--green-500)", label: t.adminAppealsFilterApproved },
+    rejected: { bg: "rgb(var(--red-500-rgb) / 0.1)", color: "var(--red-500)", label: t.adminAppealsFilterRejected },
   };
 
   const FILTER_LABEL: Record<Filter, string> = {
@@ -135,7 +135,7 @@ export function AppealsClient() {
               fontWeight: 700,
               fontSize: 12,
               background: filter === f ? "var(--accent-primary)" : "var(--bg-surface)",
-              color: filter === f ? "#fff" : "var(--text-secondary)",
+              color: filter === f ? "var(--text-on-color)" : "var(--text-secondary)",
               border: "1px solid var(--border-subtle)",
             }}
           >
@@ -207,7 +207,7 @@ export function AppealsClient() {
                       onClick={() => openResolveModal(a, "reject")}
                       disabled={busyId === a.id}
                       className="btn btn-ghost"
-                      style={{ flex: 1, color: "#ef4444", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                      style={{ flex: 1, color: "var(--red-500)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}
                     >
                       <XCircle size={16} /> {t.adminAppealsRejectButton}
                     </button>
@@ -262,7 +262,7 @@ export function AppealsClient() {
 
       {resolveModal && (
         <div
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 16 }}
+          style={{ position: "fixed", inset: 0, background: "rgb(var(--scrim-rgb) / 0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 16 }}
           onClick={() => setResolveModal(null)}
         >
           <div
@@ -311,7 +311,7 @@ export function AppealsClient() {
                 className="btn btn-primary"
                 style={{
                   flex: 1,
-                  background: resolveModal.action === "reject" ? "#ef4444" : undefined,
+                  background: resolveModal.action === "reject" ? "var(--red-500)" : undefined,
                 }}
               >
                 {t.adminAppealsConfirmButton}

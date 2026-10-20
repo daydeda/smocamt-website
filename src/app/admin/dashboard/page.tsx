@@ -15,6 +15,7 @@ import {
   ArrowUpRight,
   User
 } from "lucide-react";
+import { alpha } from "@/lib/color";
 
 type DashboardStats = {
   totalUsers: number;
@@ -29,10 +30,10 @@ type DashboardStats = {
 };
 
 const HOUSE_GRADIENT: Record<string, string> = {
-  red: "linear-gradient(135deg, #ef4444, #b91c1c)", // Red (Mom)
-  green: "linear-gradient(135deg, #94a3b8, #64748b)", // White → silver/pewter (To)
-  yellow: "linear-gradient(135deg, #3b82f6, #1d4ed8)", // Blue (Luang)
-  blue: "linear-gradient(135deg, #22c55e, #15803d)", // Green (Makon)
+  red: "linear-gradient(135deg, var(--red-500), var(--red-700))", // Red (Mom)
+  green: "linear-gradient(135deg, var(--slate-400), var(--slate-500))", // White → silver/pewter (To)
+  yellow: "linear-gradient(135deg, var(--blue-500), var(--blue-700))", // Blue (Luang)
+  blue: "linear-gradient(135deg, var(--green-500), var(--green-700))", // Green (Makon)
 };
 
 export default function AdminDashboardOverview() {
@@ -235,7 +236,7 @@ export default function AdminDashboardOverview() {
         <div style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(0,0,0,0.55)",
+          background: "rgb(var(--scrim-rgb) / 0.55)",
           backdropFilter: "blur(12px)",
           zIndex: 100,
           display: "flex",
@@ -244,12 +245,12 @@ export default function AdminDashboardOverview() {
           padding: "clamp(16px, 5vw, 32px)"
         }}>
           <div className="animate-fade-in-up" style={{
-            background: "white",
+            background: "var(--bg-surface)",
             padding: "clamp(24px, 6vw, 40px)",
             borderRadius: 32,
             width: "100%",
             maxWidth: 480,
-            boxShadow: "0 40px 120px rgba(0,0,0,0.25)"
+            boxShadow: "0 40px 120px rgb(var(--shadow-rgb) / 0.25)"
           }}>
             <div style={{ marginBottom: 24 }}>
               <h3 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8 }}>
@@ -337,8 +338,8 @@ export default function AdminDashboardOverview() {
           <p style={{ color: "var(--text-muted)", fontWeight: 500 }}>Fetching latest analytics...</p>
         </div>
       ) : ("error" in stats) ? (
-        <div style={{ padding: 40, background: "rgba(239, 68, 68, 0.1)", borderRadius: 24, textAlign: "center", border: "1px solid rgba(239, 68, 68, 0.2)" }}>
-          <p style={{ color: "#ef4444", fontWeight: 700 }}>Failed to load dashboard data</p>
+        <div style={{ padding: 40, background: "rgb(var(--red-500-rgb) / 0.1)", borderRadius: 24, textAlign: "center", border: "1px solid rgb(var(--red-500-rgb) / 0.2)" }}>
+          <p style={{ color: "var(--red-500)", fontWeight: 700 }}>Failed to load dashboard data</p>
           <p style={{ color: "var(--text-secondary)", fontSize: 14, marginTop: 4 }}>{(stats as { error: string }).error}</p>
           <button className="btn btn-ghost" style={{ marginTop: 16 }} onClick={() => fetchStats()}>Retry</button>
         </div>
@@ -354,7 +355,7 @@ export default function AdminDashboardOverview() {
                   {stats.totalUsers}
                 </p>
                 {stats.userGrowthPct > 0 && (
-                  <span title="New registrations in the last 30 days" style={{ fontSize: 16, fontWeight: 700, color: "#10b981", display: "flex", alignItems: "center", gap: 2 }}>
+                  <span title="New registrations in the last 30 days" style={{ fontSize: 16, fontWeight: 700, color: "var(--emerald-500)", display: "flex", alignItems: "center", gap: 2 }}>
                     <ArrowUpRight size={14} />
                     {stats.userGrowthPct}%
                   </span>
@@ -401,7 +402,7 @@ export default function AdminDashboardOverview() {
                     padding: 0,
                     overflow: "hidden",
                     border: idx === 0 ? "1px solid var(--accent-primary)" : "1px solid var(--border-subtle)",
-                    boxShadow: idx === 0 ? "0 20px 40px rgba(255,107,0,0.08)" : "none",
+                    boxShadow: idx === 0 ? "0 20px 40px rgb(var(--accent-rgb) / 0.08)" : "none",
                     background: "var(--bg-surface)",
                     position: "relative"
                   }}
@@ -457,7 +458,7 @@ export default function AdminDashboardOverview() {
                       </button>
                     </div>
 
-                    <div style={{ marginTop: 20, height: 4, background: "rgba(0,0,0,0.03)", borderRadius: 2, overflow: "hidden" }}>
+                    <div style={{ marginTop: 20, height: 4, background: "rgb(var(--ink-rgb) / 0.03)", borderRadius: 2, overflow: "hidden" }}>
                       <div style={{
                         width: `${(house.points / (sortedHouses[0].points || 1)) * 100}%`,
                         height: "100%",
@@ -499,7 +500,7 @@ export default function AdminDashboardOverview() {
                         width: 32,
                         height: 32,
                         borderRadius: "50%",
-                        background: a.type === "score" ? `${a.houseColor}20` : "var(--bg-glass)",
+                        background: a.type === "score" ? alpha(a.houseColor, 0.12) : "var(--bg-glass)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -529,7 +530,7 @@ export default function AdminDashboardOverview() {
                                    <b>{getTranslatedHouseName(a.houseId || "", a.houseName)}</b> ได้รับ{" "}
                                   <span style={{
                                     margin: "0 4px",
-                                    color: a.delta > 0 ? "#10b981" : "#ef4444",
+                                    color: a.delta > 0 ? "var(--emerald-500)" : "var(--red-500)",
                                     fontWeight: 800
                                   }}>
                                     {a.delta > 0 ? `+${a.delta}` : a.delta}
@@ -541,7 +542,7 @@ export default function AdminDashboardOverview() {
                                   <b>{getTranslatedHouseName(a.houseId || "", a.houseName)}</b> အိမ်သို့{" "}
                                   <span style={{
                                     margin: "0 4px",
-                                    color: a.delta > 0 ? "#10b981" : "#ef4444",
+                                    color: a.delta > 0 ? "var(--emerald-500)" : "var(--red-500)",
                                     fontWeight: 800
                                   }}>
                                     {a.delta > 0 ? `+${a.delta}` : a.delta}
@@ -553,7 +554,7 @@ export default function AdminDashboardOverview() {
                                   <b>{getTranslatedHouseName(a.houseId || "", a.houseName)}</b> 学院获得{" "}
                                   <span style={{
                                     margin: "0 4px",
-                                    color: a.delta > 0 ? "#10b981" : "#ef4444",
+                                    color: a.delta > 0 ? "var(--emerald-500)" : "var(--red-500)",
                                     fontWeight: 800
                                   }}>
                                     {a.delta > 0 ? `+${a.delta}` : a.delta}
@@ -565,7 +566,7 @@ export default function AdminDashboardOverview() {
                                   <b>{getTranslatedHouseName(a.houseId || "", a.houseName)}</b> awarded{" "}
                                   <span style={{
                                     margin: "0 4px",
-                                    color: a.delta > 0 ? "#10b981" : "#ef4444",
+                                    color: a.delta > 0 ? "var(--emerald-500)" : "var(--red-500)",
                                     fontWeight: 800
                                   }}>
                                     {a.delta > 0 ? `+${a.delta}` : a.delta}

@@ -43,7 +43,7 @@ export function ProfileReviewModal({
         position: "fixed",
         inset: 0,
         zIndex: 2000,
-        background: "rgba(0,0,0,0.55)",
+        background: "rgb(var(--scrim-rgb) / 0.55)",
         backdropFilter: "blur(4px)",
         display: "flex",
         alignItems: "center",
@@ -55,12 +55,12 @@ export function ProfileReviewModal({
         className="animate-fade-in-up"
         style={{
           width: "min(92vw, 400px)",
-          background: "var(--bg-surface, #fff)",
+          background: "var(--bg-surface)",
           color: "var(--text-primary)",
           borderRadius: 28,
           padding: "32px 24px 24px",
           textAlign: "center",
-          boxShadow: "0 30px 70px rgba(0,0,0,0.35)",
+          boxShadow: "0 30px 70px rgb(var(--shadow-rgb) / 0.35)",
           border: "1px solid var(--accent-primary)33",
         }}
       >
@@ -72,7 +72,7 @@ export function ProfileReviewModal({
           {t.profileReviewDesc}
         </p>
         {failed && (
-          <p style={{ fontSize: 13, color: "#ef4444", fontWeight: 600, marginBottom: 12 }}>{t.profileReviewError}</p>
+          <p style={{ fontSize: 13, color: "var(--red-500)", fontWeight: 600, marginBottom: 12 }}>{t.profileReviewError}</p>
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <button type="button" className="btn btn-primary" onClick={onUpdate} disabled={busy}>

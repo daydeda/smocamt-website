@@ -126,10 +126,10 @@ export function MajorProposeEventSection({ major }: { major: string }) {
   const { t, lang } = useLanguage();
 
   const STATUS_BADGE: Record<Proposal["status"], { bg: string; color: string; label: string }> = {
-    pending: { bg: "rgba(245,158,11,0.1)", color: "#f59e0b", label: t.adminProposalsFilterPending },
-    approved: { bg: "rgba(34,197,94,0.1)", color: "#22c55e", label: t.adminProposalsFilterApproved },
-    rejected: { bg: "rgba(239,68,68,0.1)", color: "#ef4444", label: t.adminProposalsFilterRejected },
-    withdrawn: { bg: "rgba(148,163,184,0.15)", color: "#64748b", label: t.adminProposalsFilterWithdrawn },
+    pending: { bg: "rgb(var(--amber-500-rgb) / 0.1)", color: "var(--amber-500)", label: t.adminProposalsFilterPending },
+    approved: { bg: "rgb(var(--green-500-rgb) / 0.1)", color: "var(--green-500)", label: t.adminProposalsFilterApproved },
+    rejected: { bg: "rgb(var(--red-500-rgb) / 0.1)", color: "var(--red-500)", label: t.adminProposalsFilterRejected },
+    withdrawn: { bg: "rgb(var(--slate-400-rgb) / 0.15)", color: "var(--slate-500)", label: t.adminProposalsFilterWithdrawn },
   };
 
   const [proposals, setProposals] = useState<Proposal[]>([]);
@@ -625,12 +625,12 @@ export function MajorProposeEventSection({ major }: { major: string }) {
                   {p.reviewNote && p.status === "rejected" ? (
                     <div style={{
                       display: "flex", alignItems: "flex-start", gap: 8, marginTop: 8,
-                      background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)",
+                      background: "rgb(var(--red-500-rgb) / 0.08)", border: "1px solid rgb(var(--red-500-rgb) / 0.2)",
                       borderRadius: 12, padding: "8px 12px",
                     }}>
-                      <AlertCircle size={14} style={{ color: "#ef4444", flexShrink: 0, marginTop: 1 }} />
+                      <AlertCircle size={14} style={{ color: "var(--red-500)", flexShrink: 0, marginTop: 1 }} />
                       <div>
-                        <p style={{ fontSize: 10.5, fontWeight: 800, color: "#ef4444", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                        <p style={{ fontSize: 10.5, fontWeight: 800, color: "var(--red-500)", textTransform: "uppercase", letterSpacing: "0.03em" }}>
                           {t.adminProposalsRejectReasonLabel}
                         </p>
                         <p style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 2, lineHeight: 1.4 }}>{p.reviewNote}</p>
@@ -642,7 +642,7 @@ export function MajorProposeEventSection({ major }: { major: string }) {
                   {p.status === "pending" && (
                     <button
                       className="btn btn-ghost btn-sm"
-                      style={{ marginTop: 8, color: "#ef4444" }}
+                      style={{ marginTop: 8, color: "var(--red-500)" }}
                       disabled={withdrawingId === p.id}
                       onClick={(e) => { e.stopPropagation(); withdraw(p.id); }}
                     >
@@ -675,7 +675,7 @@ export function MajorProposeEventSection({ major }: { major: string }) {
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.4)",
+            background: "rgb(var(--scrim-rgb) / 0.4)",
             backdropFilter: "blur(8px)",
             WebkitBackdropFilter: "blur(8px)",
             display: "flex",
@@ -698,7 +698,7 @@ export function MajorProposeEventSection({ major }: { major: string }) {
               flexDirection: "column",
               borderRadius: "clamp(20px, 4vw, 32px)",
               overflow: "hidden",
-              boxShadow: "0 40px 80px rgba(0,0,0,0.2)",
+              boxShadow: "0 40px 80px rgb(var(--shadow-rgb) / 0.2)",
               border: "1px solid var(--border-medium)",
             }}
           >
@@ -734,7 +734,7 @@ export function MajorProposeEventSection({ major }: { major: string }) {
                     <div style={{ position: "relative" }}>
                       <input type="color" defaultValue="#ff6b00" style={{ opacity: 0, position: "absolute", inset: 0, cursor: "pointer" }} onChange={(e) => injectMarkup(`{{color:${e.target.value}|`, "}}")} />
                       <button type="button" className="btn btn-ghost btn-sm" style={{ padding: 6, border: "none" }}>
-                        <span style={{ width: 14, height: 14, borderRadius: 4, background: "linear-gradient(135deg,#ef4444,#6366f1)", display: "inline-block" }} />
+                        <span style={{ width: 14, height: 14, borderRadius: 4, background: "linear-gradient(135deg,var(--red-500),var(--indigo-500))", display: "inline-block" }} />
                       </button>
                     </div>
                   </div>
@@ -803,11 +803,11 @@ export function MajorProposeEventSection({ major }: { major: string }) {
               {registrationMode === null && sessionSpansTooLong(form.startTime, form.endTime) && (
                 <div style={{
                   display: "flex", gap: 10, alignItems: "flex-start",
-                  background: "color-mix(in srgb, #f59e0b 12%, transparent)",
-                  border: "1px solid color-mix(in srgb, #f59e0b 40%, transparent)",
+                  background: "color-mix(in srgb, var(--amber-500) 12%, transparent)",
+                  border: "1px solid color-mix(in srgb, var(--amber-500) 40%, transparent)",
                   borderRadius: 12, padding: "10px 14px",
                 }}>
-                  <AlertCircle size={16} style={{ color: "#f59e0b", flexShrink: 0, marginTop: 2 }} />
+                  <AlertCircle size={16} style={{ color: "var(--amber-500)", flexShrink: 0, marginTop: 2 }} />
                   <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1, minWidth: 0 }}>
                     <span style={{ fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.45 }}>
                       {t.multiDaySessionWarning}
@@ -1013,7 +1013,7 @@ export function MajorProposeEventSection({ major }: { major: string }) {
                             disabled={sessions.length <= 1}
                             style={{
                               width: 40, height: 40, flexShrink: 0, borderRadius: 12,
-                              border: "1px solid var(--border-medium)", background: "transparent", color: "#ef4444",
+                              border: "1px solid var(--border-medium)", background: "transparent", color: "var(--red-500)",
                               cursor: sessions.length <= 1 ? "not-allowed" : "pointer",
                               opacity: sessions.length <= 1 ? 0.35 : 1,
                               display: "flex", alignItems: "center", justifyContent: "center",
@@ -1035,11 +1035,11 @@ export function MajorProposeEventSection({ major }: { major: string }) {
                         {sessionSpansTooLong(s.startTime, s.endTime) && (
                           <div style={{
                             display: "flex", gap: 10, alignItems: "flex-start",
-                            background: "color-mix(in srgb, #f59e0b 12%, transparent)",
-                            border: "1px solid color-mix(in srgb, #f59e0b 40%, transparent)",
+                            background: "color-mix(in srgb, var(--amber-500) 12%, transparent)",
+                            border: "1px solid color-mix(in srgb, var(--amber-500) 40%, transparent)",
                             borderRadius: 12, padding: "10px 14px",
                           }}>
-                            <AlertCircle size={16} style={{ color: "#f59e0b", flexShrink: 0, marginTop: 2 }} />
+                            <AlertCircle size={16} style={{ color: "var(--amber-500)", flexShrink: 0, marginTop: 2 }} />
                             <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1, minWidth: 0 }}>
                               <span style={{ fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.45 }}>
                                 {t.multiDaySessionWarning}
@@ -1071,7 +1071,7 @@ export function MajorProposeEventSection({ major }: { major: string }) {
                   add/remove people when creating the real event. */}
               <div className="field">
                 <label className="label" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <ShieldCheck size={16} style={{ color: "#6366f1" }} />
+                  <ShieldCheck size={16} style={{ color: "var(--indigo-500)" }} />
                   {lang === "th" ? "ทีมงานของกิจกรรมนี้" : "Event Staff"}
                 </label>
                 <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 10, fontWeight: 600 }}>
@@ -1084,9 +1084,9 @@ export function MajorProposeEventSection({ major }: { major: string }) {
                     {form.staffUserIds.map((uid) => {
                       const u = majorMembers.find((x) => x.id === uid);
                       return (
-                        <span key={uid} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 99, fontSize: 12, fontWeight: 800, background: "rgba(99,102,241,0.1)", color: "#6366f1", border: "1px solid rgba(99,102,241,0.25)" }}>
+                        <span key={uid} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 99, fontSize: 12, fontWeight: 800, background: "rgb(var(--indigo-500-rgb) / 0.1)", color: "var(--indigo-500)", border: "1px solid rgb(var(--indigo-500-rgb) / 0.25)" }}>
                           {u ? (u.name || u.studentId || uid) : uid}
-                          <button type="button" onClick={() => set("staffUserIds", form.staffUserIds.filter((x) => x !== uid))} style={{ background: "none", border: "none", color: "#6366f1", cursor: "pointer", fontWeight: 900, fontSize: 13, lineHeight: 1 }}>✕</button>
+                          <button type="button" onClick={() => set("staffUserIds", form.staffUserIds.filter((x) => x !== uid))} style={{ background: "none", border: "none", color: "var(--indigo-500)", cursor: "pointer", fontWeight: 900, fontSize: 13, lineHeight: 1 }}>✕</button>
                         </span>
                       );
                     })}
@@ -1115,10 +1115,10 @@ export function MajorProposeEventSection({ major }: { major: string }) {
                             key={u.id}
                             type="button"
                             onClick={() => set("staffUserIds", on ? form.staffUserIds.filter((x) => x !== u.id) : [...form.staffUserIds, u.id])}
-                            style={{ display: "flex", width: "100%", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 14px", border: "none", borderBottom: "1px solid var(--border-subtle)", background: on ? "rgba(99,102,241,0.06)" : "transparent", cursor: "pointer", textAlign: "left", fontSize: 13 }}
+                            style={{ display: "flex", width: "100%", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 14px", border: "none", borderBottom: "1px solid var(--border-subtle)", background: on ? "rgb(var(--indigo-500-rgb) / 0.06)" : "transparent", cursor: "pointer", textAlign: "left", fontSize: 13 }}
                           >
                             <span style={{ fontWeight: 700 }}>{u.name || "—"} <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>· {u.studentId || ""}{u.position ? ` · ${t[POSITION_I18N_KEY[u.position as keyof typeof POSITION_I18N_KEY] as keyof typeof t]}` : ""}</span></span>
-                            <span style={{ fontSize: 12, fontWeight: 900, color: on ? "#6366f1" : "var(--accent-primary)" }}>{on ? "✓ Added" : "+ Add"}</span>
+                            <span style={{ fontSize: 12, fontWeight: 900, color: on ? "var(--indigo-500)" : "var(--accent-primary)" }}>{on ? "✓ Added" : "+ Add"}</span>
                           </button>
                         );
                       })}
@@ -1142,7 +1142,7 @@ export function MajorProposeEventSection({ major }: { major: string }) {
                   identical block in ProposeEventSection.tsx. */}
               <div className="field">
                 <label className="label" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Users size={16} style={{ color: "#6366f1" }} />
+                  <Users size={16} style={{ color: "var(--indigo-500)" }} />
                   {lang === "th" ? "สิทธิ์การเข้าร่วมที่แนะนำ" : lang === "cn" ? "建议的访问权限" : lang === "mm" ? "အကြံပြု ဝင်ရောက်ခွင့်" : "Suggested Access"}
                 </label>
                 <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12, fontWeight: 600 }}>
@@ -1169,9 +1169,9 @@ export function MajorProposeEventSection({ major }: { major: string }) {
                         style={{
                           display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 99,
                           fontSize: 12, fontWeight: 800, cursor: "pointer",
-                          background: isSelected ? "rgba(99,102,241,0.12)" : "var(--bg-elevated)",
-                          color: isSelected ? "#6366f1" : "var(--text-secondary)",
-                          border: `1px solid ${isSelected ? "rgba(99,102,241,0.5)" : "transparent"}`,
+                          background: isSelected ? "rgb(var(--indigo-500-rgb) / 0.12)" : "var(--bg-elevated)",
+                          color: isSelected ? "var(--indigo-500)" : "var(--text-secondary)",
+                          border: `1px solid ${isSelected ? "rgb(var(--indigo-500-rgb) / 0.5)" : "transparent"}`,
                         }}
                       >
                         {isSelected && <CheckCircle2 size={12} />}
@@ -1195,9 +1195,9 @@ export function MajorProposeEventSection({ major }: { major: string }) {
                         style={{
                           display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 99,
                           fontSize: 12, fontWeight: 800, cursor: "pointer",
-                          background: isSelected ? "rgba(255,107,0,0.12)" : "var(--bg-elevated)",
+                          background: isSelected ? "rgb(var(--accent-rgb) / 0.12)" : "var(--bg-elevated)",
                           color: isSelected ? "var(--accent-primary)" : "var(--text-secondary)",
-                          border: `1px solid ${isSelected ? "rgba(255,107,0,0.5)" : "transparent"}`,
+                          border: `1px solid ${isSelected ? "rgb(var(--accent-rgb) / 0.5)" : "transparent"}`,
                         }}
                       >
                         {isSelected && <CheckCircle2 size={12} />}
@@ -1213,7 +1213,7 @@ export function MajorProposeEventSection({ major }: { major: string }) {
                 <label className="label" style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   {t.eventPosterLabel}
                   {form.imageUrls.length > 0 && (
-                    <span style={{ fontSize: 11, fontWeight: 800, color: "var(--accent-primary)", background: "rgba(255,107,0,0.1)", padding: "2px 8px", borderRadius: 99 }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: "var(--accent-primary)", background: "rgb(var(--accent-rgb) / 0.1)", padding: "2px 8px", borderRadius: 99 }}>
                       {form.imageUrls.length}
                     </span>
                   )}
@@ -1222,21 +1222,21 @@ export function MajorProposeEventSection({ major }: { major: string }) {
                 {form.imageUrls.length > 0 && (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 12, marginBottom: 12 }}>
                     {form.imageUrls.map((url, idx) => (
-                      <div key={url + idx} style={{ position: "relative", aspectRatio: "4/5", borderRadius: 16, overflow: "hidden", background: "#000", border: idx === 0 ? "2px solid var(--accent-primary)" : "1px solid var(--border-medium)" }}>
+                      <div key={url + idx} style={{ position: "relative", aspectRatio: "4/5", borderRadius: 16, overflow: "hidden", background: "var(--black)", border: idx === 0 ? "2px solid var(--accent-primary)" : "1px solid var(--border-medium)" }}>
                         <img src={url} alt={`Poster ${idx + 1}`} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                         {idx === 0 && (
-                          <span style={{ position: "absolute", top: 6, left: 6, fontSize: 9, fontWeight: 900, color: "#fff", background: "var(--accent-primary)", padding: "3px 7px", borderRadius: 99, letterSpacing: "0.05em", boxShadow: "0 2px 8px rgba(0,0,0,0.3)" }}>
+                          <span style={{ position: "absolute", top: 6, left: 6, fontSize: 9, fontWeight: 900, color: "var(--text-on-color)", background: "var(--accent-primary)", padding: "3px 7px", borderRadius: 99, letterSpacing: "0.05em", boxShadow: "0 2px 8px rgb(var(--shadow-rgb) / 0.3)" }}>
                             {lang === "th" ? "ปก" : "COVER"}
                           </span>
                         )}
-                        <button type="button" onClick={() => removePoster(idx)} title={lang === "th" ? "ลบ" : "Remove"} style={{ position: "absolute", top: 6, right: 6, width: 24, height: 24, borderRadius: "50%", border: "none", background: "rgba(0,0,0,0.6)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", backdropFilter: "blur(4px)" }}>
+                        <button type="button" onClick={() => removePoster(idx)} title={lang === "th" ? "ลบ" : "Remove"} style={{ position: "absolute", top: 6, right: 6, width: 24, height: 24, borderRadius: "50%", border: "none", background: "rgb(var(--scrim-rgb) / 0.6)", color: "var(--text-on-color)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", backdropFilter: "blur(4px)" }}>
                           <X size={14} />
                         </button>
                         <div style={{ position: "absolute", bottom: 6, left: 6, right: 6, display: "flex", justifyContent: "space-between", gap: 6 }}>
-                          <button type="button" onClick={() => movePoster(idx, -1)} disabled={idx === 0} title={lang === "th" ? "ย้ายไปด้านหน้า" : "Move left"} style={{ width: 26, height: 26, borderRadius: 8, border: "none", background: "rgba(0,0,0,0.6)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: idx === 0 ? "not-allowed" : "pointer", opacity: idx === 0 ? 0.35 : 1, backdropFilter: "blur(4px)" }}>
+                          <button type="button" onClick={() => movePoster(idx, -1)} disabled={idx === 0} title={lang === "th" ? "ย้ายไปด้านหน้า" : "Move left"} style={{ width: 26, height: 26, borderRadius: 8, border: "none", background: "rgb(var(--scrim-rgb) / 0.6)", color: "var(--text-on-color)", display: "flex", alignItems: "center", justifyContent: "center", cursor: idx === 0 ? "not-allowed" : "pointer", opacity: idx === 0 ? 0.35 : 1, backdropFilter: "blur(4px)" }}>
                             <ChevronLeftIcon />
                           </button>
-                          <button type="button" onClick={() => movePoster(idx, 1)} disabled={idx === form.imageUrls.length - 1} title={lang === "th" ? "ย้ายไปด้านหลัง" : "Move right"} style={{ width: 26, height: 26, borderRadius: 8, border: "none", background: "rgba(0,0,0,0.6)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: idx === form.imageUrls.length - 1 ? "not-allowed" : "pointer", opacity: idx === form.imageUrls.length - 1 ? 0.35 : 1, backdropFilter: "blur(4px)" }}>
+                          <button type="button" onClick={() => movePoster(idx, 1)} disabled={idx === form.imageUrls.length - 1} title={lang === "th" ? "ย้ายไปด้านหลัง" : "Move right"} style={{ width: 26, height: 26, borderRadius: 8, border: "none", background: "rgb(var(--scrim-rgb) / 0.6)", color: "var(--text-on-color)", display: "flex", alignItems: "center", justifyContent: "center", cursor: idx === form.imageUrls.length - 1 ? "not-allowed" : "pointer", opacity: idx === form.imageUrls.length - 1 ? 0.35 : 1, backdropFilter: "blur(4px)" }}>
                             <ChevronRightIcon />
                           </button>
                         </div>
@@ -1288,7 +1288,7 @@ export function MajorProposeEventSection({ major }: { major: string }) {
                 </div>
               </div>
 
-              {formError && <p style={{ color: "#ef4444", fontWeight: 600, fontSize: 13 }}>{formError}</p>}
+              {formError && <p style={{ color: "var(--red-500)", fontWeight: 600, fontSize: 13 }}>{formError}</p>}
             </div>
             <div style={{ padding: "16px 32px", background: "var(--bg-elevated)", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "flex-end", gap: 10, flexShrink: 0 }}>
               <button className="btn btn-ghost" onClick={() => setShowForm(false)} disabled={submitting}>
@@ -1310,7 +1310,7 @@ export function MajorProposeEventSection({ major }: { major: string }) {
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.4)",
+            background: "rgb(var(--scrim-rgb) / 0.4)",
             backdropFilter: "blur(8px)",
             WebkitBackdropFilter: "blur(8px)",
             display: "flex",
@@ -1333,7 +1333,7 @@ export function MajorProposeEventSection({ major }: { major: string }) {
               flexDirection: "column",
               borderRadius: "clamp(20px, 4vw, 32px)",
               overflow: "hidden",
-              boxShadow: "0 40px 80px rgba(0,0,0,0.2)",
+              boxShadow: "0 40px 80px rgb(var(--shadow-rgb) / 0.2)",
               border: "1px solid var(--border-medium)",
             }}
           >
@@ -1448,12 +1448,12 @@ export function MajorProposeEventSection({ major }: { major: string }) {
               {viewingProposal.reviewNote && viewingProposal.status === "rejected" ? (
                 <div style={{
                   display: "flex", alignItems: "flex-start", gap: 10,
-                  background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)",
+                  background: "rgb(var(--red-500-rgb) / 0.08)", border: "1px solid rgb(var(--red-500-rgb) / 0.2)",
                   borderRadius: 14, padding: "12px 16px",
                 }}>
-                  <AlertCircle size={16} style={{ color: "#ef4444", flexShrink: 0, marginTop: 2 }} />
+                  <AlertCircle size={16} style={{ color: "var(--red-500)", flexShrink: 0, marginTop: 2 }} />
                   <div>
-                    <p style={{ fontSize: 11, fontWeight: 800, color: "#ef4444", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                    <p style={{ fontSize: 11, fontWeight: 800, color: "var(--red-500)", textTransform: "uppercase", letterSpacing: "0.03em" }}>
                       {t.adminProposalsRejectReasonLabel}
                     </p>
                     <p style={{ fontSize: 13.5, color: "var(--text-primary)", marginTop: 4, lineHeight: 1.5, fontWeight: 500 }}>{viewingProposal.reviewNote}</p>
@@ -1471,7 +1471,7 @@ export function MajorProposeEventSection({ major }: { major: string }) {
               {viewingProposal.status === "pending" && (
                 <button
                   className="btn btn-ghost btn-sm"
-                  style={{ color: "#ef4444" }}
+                  style={{ color: "var(--red-500)" }}
                   disabled={withdrawingId === viewingProposal.id}
                   onClick={() => { withdraw(viewingProposal.id); setViewingProposal(null); }}
                 >

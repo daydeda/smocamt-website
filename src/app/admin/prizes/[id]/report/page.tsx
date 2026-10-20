@@ -228,50 +228,50 @@ export default async function PrizeReportPage({ params }: { params: Promise<{ id
 // UNLAYERED `* { margin: 0; padding: 0 }` reset, which beats Tailwind v4's
 // layered p-*/m-* utilities, so they silently do nothing here.
 const REPORT_CSS = `
-.prize-report { background: #e5e5e5; margin: -8px -16px -32px; padding: 16px 16px 40px; min-height: 100%; color: #171717; }
+.prize-report { background: var(--neutral-200); margin: -8px -16px -32px; padding: 16px 16px 40px; min-height: 100%; color: var(--neutral-900); }
 @media (min-width: 640px) { .prize-report { margin: -8px -24px -32px; padding: 20px 24px 48px; } }
 .prize-report p { margin: 0; }
 .pr-toolbar { max-width: 210mm; margin: 0 auto 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
-.pr-back { display: inline-flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 8px; font-size: 14px; font-weight: 600; color: #404040; text-decoration: none; }
-.pr-back:hover { background: rgba(0,0,0,0.06); }
-.pr-hint { flex: 1; min-width: 14rem; font-size: 13px; color: #525252; line-height: 1.5; }
-.pr-paper { max-width: 210mm; margin: 0 auto; background: #fff; padding: 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.12); border-radius: 4px; font-size: 13px; line-height: 1.55; }
+.pr-back { display: inline-flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 8px; font-size: 14px; font-weight: 600; color: var(--neutral-700); text-decoration: none; }
+.pr-back:hover { background: rgb(var(--ink-rgb) / 0.06); }
+.pr-hint { flex: 1; min-width: 14rem; font-size: 13px; color: var(--neutral-600); line-height: 1.5; }
+.pr-paper { max-width: 210mm; margin: 0 auto; background: var(--bg-surface); padding: 20px; box-shadow: 0 8px 30px rgb(var(--shadow-rgb) / 0.12); border-radius: 4px; font-size: 13px; line-height: 1.55; }
 @media (min-width: 640px) { .pr-paper { padding: 14mm 12mm; } }
-.pr-head { border-bottom: 2px solid #171717; padding-bottom: 16px; }
+.pr-head { border-bottom: 2px solid var(--neutral-900); padding-bottom: 16px; }
 .pr-brandrow { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
 .pr-brand { display: flex; align-items: center; gap: 12px; }
 .pr-brand img { width: 44px; height: 44px; object-fit: contain; }
-.pr-eyebrow { font-size: 10.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #737373; }
+.pr-eyebrow { font-size: 10.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--neutral-500); }
 .pr-brand h1 { font-size: 22px; font-weight: 800; line-height: 1.2; margin: 0; }
-.pr-generated { text-align: right; font-size: 11px; color: #737373; }
-.pr-generated b { color: #262626; font-weight: 600; }
+.pr-generated { text-align: right; font-size: 11px; color: var(--neutral-500); }
+.pr-generated b { color: var(--neutral-800); font-weight: 600; }
 .pr-prize { font-size: 19px; font-weight: 800; line-height: 1.3; margin: 18px 0 6px; }
 .pr-meta { display: grid; grid-template-columns: auto 1fr; gap: 2px 16px; margin: 0; }
-.pr-meta dt { color: #737373; }
+.pr-meta dt { color: var(--neutral-500); }
 .pr-meta dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .pr-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
-.pr-stat { border: 1px solid #d4d4d4; border-radius: 6px; padding: 8px; text-align: center; font-size: 11px; color: #525252; }
-.pr-stat-num { font-size: 22px; font-weight: 800; line-height: 1.1; color: #171717; }
-.pr-stat-warn { border-color: #f87171; background: #fef2f2; color: #991b1b; }
-.pr-stat-warn .pr-stat-num { color: #991b1b; }
-.pr-empty { padding: 64px 0; text-align: center; color: #737373; }
+.pr-stat { border: 1px solid var(--neutral-300); border-radius: 6px; padding: 8px; text-align: center; font-size: 11px; color: var(--neutral-600); }
+.pr-stat-num { font-size: 22px; font-weight: 800; line-height: 1.1; color: var(--neutral-900); }
+.pr-stat-warn { border-color: var(--red-400); background: var(--red-50); color: var(--red-800); }
+.pr-stat-warn .pr-stat-num { color: var(--red-800); }
+.pr-empty { padding: 64px 0; text-align: center; color: var(--neutral-500); }
 .pr-table { width: 100%; border-collapse: collapse; margin-top: 18px; text-align: left; }
-.pr-table th { padding: 8px 12px 8px 0; border-bottom: 1.5px solid #171717; font-size: 11px; font-weight: 700; color: #525252; vertical-align: bottom; }
-.pr-table td { padding: 12px 12px 12px 0; border-bottom: 1px solid #d4d4d4; vertical-align: top; }
+.pr-table th { padding: 8px 12px 8px 0; border-bottom: 1.5px solid var(--neutral-900); font-size: 11px; font-weight: 700; color: var(--neutral-600); vertical-align: bottom; }
+.pr-table td { padding: 12px 12px 12px 0; border-bottom: 1px solid var(--neutral-300); vertical-align: top; }
 .pr-table th:last-child, .pr-table td:last-child { padding-right: 0; }
 .pr-col-num { width: 28px; }
 .pr-col-photo { width: 32mm; text-align: center; }
 .pr-name { font-weight: 700; font-size: 14px; line-height: 1.35; }
-.pr-muted { color: #595959; }
-.pr-faint { color: #a3a3a3; }
-.pr-ink { color: #171717; }
+.pr-muted { color: var(--neutral-600); }
+.pr-faint { color: var(--neutral-400); }
+.pr-ink { color: var(--neutral-900); }
 .pr-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.95em; }
 .pr-gap { margin-top: 4px !important; }
-.pr-note { margin-top: 6px !important; padding: 3px 8px; background: #f5f5f5; border-left: 3px solid #a3a3a3; border-radius: 2px; color: #404040; }
-.pr-label { font-weight: 700; color: #737373; font-size: 11px; }
+.pr-note { margin-top: 6px !important; padding: 3px 8px; background: var(--neutral-100); border-left: 3px solid var(--neutral-400); border-radius: 2px; color: var(--neutral-700); }
+.pr-label { font-weight: 700; color: var(--neutral-500); font-size: 11px; }
 .pr-narrow { display: none; }
-.pr-photo { display: block; width: 30mm; height: 30mm; margin: 0 auto; border-radius: 4px; border: 1px solid #d4d4d4; object-fit: cover; }
-.pr-nophoto { display: flex; align-items: center; justify-content: center; border: 2px dashed #fca5a5; background: #fef2f2; color: #b91c1c; font-size: 11px; font-weight: 600; text-align: center; padding: 4px; }
+.pr-photo { display: block; width: 30mm; height: 30mm; margin: 0 auto; border-radius: 4px; border: 1px solid var(--neutral-300); object-fit: cover; }
+.pr-nophoto { display: flex; align-items: center; justify-content: center; border: 2px dashed var(--red-300); background: var(--red-50); color: var(--red-700); font-size: 11px; font-weight: 600; text-align: center; padding: 4px; }
 .sign-off { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 48px; text-align: center; }
 .sign-off p + p { margin-top: 10px; }
 @media screen and (max-width: 639px) {
@@ -287,14 +287,16 @@ const REPORT_CSS = `
 @page {
   size: A4 portrait;
   margin: 12mm 12mm 16mm;
-  @bottom-center { content: "หน้า " counter(page) " / " counter(pages); font-size: 9pt; color: #525252; }
+  /* Literal on purpose: @page margin boxes don't reliably see :root custom
+     properties, and print is always the light theme anyway. */
+  @bottom-center { content: "หน้า " counter(page) " / " counter(pages); font-size: 9pt; color: #595959; }
 }
 @media print {
   /* The admin shell is a fixed-height (h-dvh) overflow-hidden flex box whose
      <main> scrolls — printed as-is, only the visible screenful makes it onto
      paper. Flatten it back into normal document flow and drop the chrome so
      the saved PDF is just the report, every page of it. */
-  html, body { background: #fff !important; height: auto !important; overflow: visible !important; }
+  html, body { background: var(--white) !important; height: auto !important; overflow: visible !important; }
   body:has(.prize-report) header:not(.pr-head),
   body:has(.prize-report) aside,
   body:has(.prize-report) nav,
@@ -302,9 +304,9 @@ const REPORT_CSS = `
   body:has(.prize-report) div:has(> main),
   body:has(.prize-report) main {
     display: block !important; height: auto !important; overflow: visible !important;
-    padding: 0 !important; background: #fff !important;
+    padding: 0 !important; background: var(--white) !important;
   }
-  .prize-report { margin: 0; padding: 0; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .prize-report { margin: 0; padding: 0; background: var(--white); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .pr-paper { max-width: none; padding: 0; box-shadow: none; border-radius: 0; font-size: 10.5pt; }
   /* Never split a student's row across two pages — a name on one page and
      their proof photo on the next is exactly the ambiguity this document

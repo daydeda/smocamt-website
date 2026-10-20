@@ -550,10 +550,10 @@ export function RoomClient({ initialSession, roomCode }: RoomClientProps) {
   // Helper formatting for house classes
   const getHouseColor = (houseId: string | null | undefined) => {
     switch (houseId?.toLowerCase()) {
-      case "red": return "var(--red-house, #ef4444)";
-      case "blue": return "var(--yellow-house, #3b82f6)";
-      case "green": return "var(--blue-house, #22c55e)";
-      case "yellow": return "var(--green-house, #94a3b8)";
+      case "red": return "var(--red-house)";
+      case "blue": return "var(--yellow-house)";
+      case "green": return "var(--blue-house)";
+      case "yellow": return "var(--green-house)";
       default: return "var(--text-secondary)";
     }
   };
@@ -601,7 +601,7 @@ export function RoomClient({ initialSession, roomCode }: RoomClientProps) {
         </div>
 
         {error && (
-          <div style={{ background: "#fef2f2", border: "1px solid #fee2e2", padding: "12px 16px", borderRadius: "var(--radius-md)", color: "#991b1b", display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+          <div style={{ background: "var(--error-bg)", border: "1px solid var(--error-border)", padding: "12px 16px", borderRadius: "var(--radius-md)", color: "var(--error-text)", display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
             <AlertTriangle size={18} />
             <span style={{ fontSize: 14, fontWeight: 500 }}>{error}</span>
           </div>
@@ -624,7 +624,7 @@ export function RoomClient({ initialSession, roomCode }: RoomClientProps) {
             </p>
 
             {/* QR Code */}
-            <div style={{ background: "#fff", display: "inline-block", padding: 24, borderRadius: "var(--radius-lg)", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)", border: "1px solid var(--border-subtle)", marginBottom: 24 }}>
+            <div style={{ background: "var(--qr-surface)", display: "inline-block", padding: 24, borderRadius: "var(--radius-lg)", boxShadow: "0 10px 25px -5px rgb(var(--shadow-rgb) / 0.05)", border: "1px solid var(--border-subtle)", marginBottom: 24 }}>
               <QRCodeCanvas
                 value={`${typeof window !== "undefined" ? window.location.origin : ""}/battle/join?room=${roomCodeUpper}`}
                 size={220}
@@ -652,7 +652,7 @@ export function RoomClient({ initialSession, roomCode }: RoomClientProps) {
         {/* 2. CONNECTING PHASE (Signaling / ICE Candidate Exchange) */}
         {status === "connecting" && (
           <div className="glass" style={{ padding: 40, border: "1px solid var(--border-medium)", textAlign: "center" }}>
-            <div style={{ display: "inline-flex", padding: 16, borderRadius: "50%", background: "rgba(59, 130, 246, 0.1)", color: "#3b82f6", marginBottom: 20 }}>
+            <div style={{ display: "inline-flex", padding: 16, borderRadius: "50%", background: "rgb(var(--blue-500-rgb) / 0.1)", color: "var(--blue-500)", marginBottom: 20 }}>
               <Loader2 size={36} className="spinner" />
             </div>
             <h1 style={{ fontSize: "1.5rem", fontWeight: 800, marginBottom: 8 }}>{t.battleConnectingTitle}</h1>
@@ -660,7 +660,7 @@ export function RoomClient({ initialSession, roomCode }: RoomClientProps) {
               {t.battleConnectingDesc}
             </p>
             <div style={{ fontSize: 13, padding: "8px 16px", borderRadius: 20, background: "var(--bg-elevated)", color: "var(--text-secondary)", display: "inline-block" }}>
-              {t.battleWebrtcStatusLabel} <span style={{ fontWeight: 700, color: "#3b82f6" }}>{webrtcState.toUpperCase()}</span>
+              {t.battleWebrtcStatusLabel} <span style={{ fontWeight: 700, color: "var(--blue-500)" }}>{webrtcState.toUpperCase()}</span>
             </div>
 
             <div style={{ marginTop: 24, fontSize: 12, color: "var(--text-muted)" }}>
@@ -673,7 +673,7 @@ export function RoomClient({ initialSession, roomCode }: RoomClientProps) {
         {(status === "active" || status === "finished") && (
           <div>
             {/* Player Info Card Header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--bg-surface)", border: "1px solid var(--border-medium)", padding: 16, borderRadius: "var(--radius-lg)", marginBottom: 20, boxShadow: "0 4px 6px -1px rgba(0,0,0,0.01)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--bg-surface)", border: "1px solid var(--border-medium)", padding: 16, borderRadius: "var(--radius-lg)", marginBottom: 20, boxShadow: "0 4px 6px -1px rgb(var(--shadow-rgb) / 0.01)" }}>
               {/* Host/X Profile */}
               {host && (
                 <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1 }}>
@@ -691,7 +691,7 @@ export function RoomClient({ initialSession, roomCode }: RoomClientProps) {
               <div style={{ textAlign: "center", padding: "0 16px" }}>
                 <span style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", display: "block" }}>VS</span>
                 {status === "active" ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4, background: timeLeft <= 15 ? "rgba(239, 68, 68, 0.1)" : "var(--accent-glow)", padding: "4px 10px", borderRadius: 12, color: timeLeft <= 15 ? "#ef4444" : "var(--accent-primary)", fontWeight: 700, fontSize: 14 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4, background: timeLeft <= 15 ? "rgb(var(--red-500-rgb) / 0.1)" : "var(--accent-glow)", padding: "4px 10px", borderRadius: 12, color: timeLeft <= 15 ? "var(--red-500)" : "var(--accent-primary)", fontWeight: 700, fontSize: 14 }}>
                     <Hourglass size={14} className={timeLeft <= 15 ? "pulse" : ""} />
                     <span>{timeLeft}s</span>
                   </div>
@@ -707,7 +707,7 @@ export function RoomClient({ initialSession, roomCode }: RoomClientProps) {
                     <p style={{ fontWeight: 700, fontSize: 14 }}>{guest.nickname || guest.name}</p>
                     <p style={{ fontSize: 11, color: "var(--text-muted)" }}>{getHouseName(guest.houseId)}</p>
                   </div>
-                  <div style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--bg-elevated)", border: `3px solid ${getHouseColor(guest.houseId)}`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, color: "#3b82f6", fontSize: 18 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--bg-elevated)", border: `3px solid ${getHouseColor(guest.houseId)}`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, color: "var(--blue-500)", fontSize: 18 }}>
                     O
                   </div>
                 </div>
@@ -722,9 +722,9 @@ export function RoomClient({ initialSession, roomCode }: RoomClientProps) {
                 textAlign: "center",
                 padding: "8px 16px",
                 borderRadius: "var(--radius-md)",
-                background: myTurn ? "rgba(34, 197, 94, 0.08)" : "var(--bg-elevated)",
-                border: "1px solid " + (myTurn ? "rgba(34, 197, 94, 0.2)" : "var(--border-subtle)"),
-                color: myTurn ? "#16a34a" : "var(--text-secondary)",
+                background: myTurn ? "rgb(var(--green-500-rgb) / 0.08)" : "var(--bg-elevated)",
+                border: "1px solid " + (myTurn ? "rgb(var(--green-500-rgb) / 0.2)" : "var(--border-subtle)"),
+                color: myTurn ? "var(--green-600)" : "var(--text-secondary)",
                 fontWeight: 700,
                 fontSize: 14,
                 marginBottom: 20,
@@ -748,7 +748,7 @@ export function RoomClient({ initialSession, roomCode }: RoomClientProps) {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 8px 12px", fontSize: 12 }}>
               <span style={{ color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 4 }}>
                 {t.battleConnTypeLabel}
-                <span style={{ fontWeight: 700, color: connType === "webrtc" ? "#22c55e" : "#f59e0b" }}>
+                <span style={{ fontWeight: 700, color: connType === "webrtc" ? "var(--green-500)" : "var(--amber-500)" }}>
                   {connType === "webrtc" ? t.battleConnTypeWebrtc : t.battleConnTypePolling}
                 </span>
               </span>
@@ -766,7 +766,7 @@ export function RoomClient({ initialSession, roomCode }: RoomClientProps) {
               padding: 12,
               borderRadius: "var(--radius-xl)",
               border: "1px solid var(--border-subtle)",
-              boxShadow: "0 20px 25px -5px rgba(0,0,0,0.05)",
+              boxShadow: "0 20px 25px -5px rgb(var(--shadow-rgb) / 0.05)",
               aspectRatio: "1/1",
               width: "100%",
               boxSizing: "border-box",
@@ -807,7 +807,7 @@ export function RoomClient({ initialSession, roomCode }: RoomClientProps) {
                     )}
 
                     {cellValue === 2 && (
-                      <svg width="62%" height="62%" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="4.5">
+                      <svg width="62%" height="62%" viewBox="0 0 24 24" fill="none" stroke="var(--blue-500)" strokeWidth="4.5">
                         <circle cx="12" cy="12" r="9"></circle>
                       </svg>
                     )}
@@ -816,12 +816,12 @@ export function RoomClient({ initialSession, roomCode }: RoomClientProps) {
                     {cellValue === 0 && myTurn && status === "active" && (
                       <div className="preview-symbol" style={{ opacity: 0, transition: "opacity 0.15s" }}>
                         {myNumber === 1 ? (
-                          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent-glow)" strokeWidth="3" strokeLinecap="round" style={{ stroke: "rgba(255, 107, 0, 0.25)" }}>
+                          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent-glow)" strokeWidth="3" strokeLinecap="round" style={{ stroke: "rgb(var(--accent-rgb) / 0.25)" }}>
                             <line x1="18" y1="6" x2="6" y2="18"></line>
                             <line x1="6" y1="6" x2="18" y2="18"></line>
                           </svg>
                         ) : (
-                          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(59, 130, 246, 0.25)" strokeWidth="3">
+                          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--blue-500-rgb) / 0.25)" strokeWidth="3">
                             <circle cx="12" cy="12" r="9"></circle>
                           </svg>
                         )}
@@ -839,8 +839,8 @@ export function RoomClient({ initialSession, roomCode }: RoomClientProps) {
                   className="btn"
                   onClick={handleResign}
                   style={{
-                    background: "#ef4444",
-                    color: "#fff",
+                    background: "var(--red-500)",
+                    color: "var(--text-on-color)",
                     height: 48,
                     fontWeight: 700,
                     padding: "0 32px"
@@ -861,17 +861,17 @@ export function RoomClient({ initialSession, roomCode }: RoomClientProps) {
             padding: 32,
             border: "2px solid var(--border-medium)",
             textAlign: "center",
-            boxShadow: "0 15px 30px rgba(0,0,0,0.1)",
+            boxShadow: "0 15px 30px rgb(var(--shadow-rgb) / 0.1)",
             background: "linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-elevated) 100%)",
             borderRadius: "var(--radius-xl)"
           }}>
             {winnerId ? (
               winnerId === user?.id ? (
                 <div>
-                  <div style={{ display: "inline-flex", padding: 16, borderRadius: "50%", background: "rgba(34, 197, 94, 0.1)", color: "#22c55e", marginBottom: 16 }}>
+                  <div style={{ display: "inline-flex", padding: 16, borderRadius: "50%", background: "rgb(var(--green-500-rgb) / 0.1)", color: "var(--green-500)", marginBottom: 16 }}>
                     <Award size={48} className="pulse" />
                   </div>
-                  <h2 style={{ fontSize: "2rem", fontWeight: 900, color: "#22c55e", marginBottom: 8, letterSpacing: "-0.03em", display: "inline-flex", alignItems: "center", gap: 10 }}>
+                  <h2 style={{ fontSize: "2rem", fontWeight: 900, color: "var(--green-500)", marginBottom: 8, letterSpacing: "-0.03em", display: "inline-flex", alignItems: "center", gap: 10 }}>
                     <PartyPopper size={28} /> {t.battleWinTitle}
                   </h2>
                   <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem" }}>
@@ -880,10 +880,10 @@ export function RoomClient({ initialSession, roomCode }: RoomClientProps) {
                 </div>
               ) : (
                 <div>
-                  <div style={{ display: "inline-flex", padding: 16, borderRadius: "50%", background: "rgba(239, 68, 68, 0.1)", color: "#ef4444", marginBottom: 16 }}>
+                  <div style={{ display: "inline-flex", padding: 16, borderRadius: "50%", background: "rgb(var(--red-500-rgb) / 0.1)", color: "var(--red-500)", marginBottom: 16 }}>
                     <AlertTriangle size={48} />
                   </div>
-                  <h2 style={{ fontSize: "2rem", fontWeight: 900, color: "#ef4444", marginBottom: 8, letterSpacing: "-0.03em", display: "inline-flex", alignItems: "center", gap: 10 }}>
+                  <h2 style={{ fontSize: "2rem", fontWeight: 900, color: "var(--red-500)", marginBottom: 8, letterSpacing: "-0.03em", display: "inline-flex", alignItems: "center", gap: 10 }}>
                     <Frown size={28} /> {t.battleLoseTitle}
                   </h2>
                   <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem" }}>
@@ -893,7 +893,7 @@ export function RoomClient({ initialSession, roomCode }: RoomClientProps) {
               )
             ) : (
               <div>
-                <div style={{ display: "inline-flex", padding: 16, borderRadius: "50%", background: "rgba(107, 114, 128, 0.1)", color: "var(--text-secondary)", marginBottom: 16 }}>
+                <div style={{ display: "inline-flex", padding: 16, borderRadius: "50%", background: "rgb(var(--gray-500-rgb) / 0.1)", color: "var(--text-secondary)", marginBottom: 16 }}>
                   <RotateCcw size={48} />
                 </div>
                 <h2 style={{ fontSize: "2rem", fontWeight: 900, color: "var(--text-secondary)", marginBottom: 8, letterSpacing: "-0.03em", display: "inline-flex", alignItems: "center", gap: 10 }}>
@@ -906,7 +906,7 @@ export function RoomClient({ initialSession, roomCode }: RoomClientProps) {
             )}
 
             <div style={{ display: "flex", gap: 16, justifyContent: "center", marginTop: 32 }}>
-              <Link href="/battle" className="btn" style={{ background: "var(--text-primary)", color: "#fff", height: 48, padding: "0 24px" }}>
+              <Link href="/battle" className="btn" style={{ background: "var(--text-primary)", color: "var(--text-on-color)", height: 48, padding: "0 24px" }}>
                 {t.battleBackToArenaHomeBtn}
               </Link>
               <button
@@ -915,7 +915,7 @@ export function RoomClient({ initialSession, roomCode }: RoomClientProps) {
                   cleanupWebRTC();
                   router.push("/battle/create");
                 }}
-                style={{ background: "var(--accent-primary)", color: "#fff", height: 48, padding: "0 24px" }}
+                style={{ background: "var(--accent-primary)", color: "var(--text-on-color)", height: 48, padding: "0 24px" }}
               >
                 {t.battleRematchBtn}
               </button>
@@ -930,7 +930,7 @@ export function RoomClient({ initialSession, roomCode }: RoomClientProps) {
         .ox-cell:hover:not(:disabled) {
           background: var(--bg-glass) !important;
           transform: scale(1.03);
-          box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+          box-shadow: 0 4px 12px rgb(var(--shadow-rgb) / 0.03);
         }
         .ox-cell:active:not(:disabled) {
           transform: scale(0.98);

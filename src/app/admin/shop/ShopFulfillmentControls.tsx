@@ -44,13 +44,13 @@ export function FulfillmentChip({ order, th }: { order: FulfillmentFields; th: b
   if (order.status !== "approved") return null;
   const s = order.fulfillmentStatus;
   const c = s === "picked_up" || s === "delivered"
-    ? { bg: "rgba(22,163,74,0.12)", color: "#15803d", th: s === "picked_up" ? "รับแล้ว" : "ส่งถึงแล้ว", en: s === "picked_up" ? "Picked up" : "Delivered" }
-    : s === "shipped" ? { bg: "rgba(59,130,246,0.12)", color: "#1d4ed8", th: "จัดส่งแล้ว", en: "Shipped" }
-    : s === "issue" ? { bg: "rgba(239,68,68,0.12)", color: "#dc2626", th: "แจ้งปัญหา", en: "Problem" }
-    : s === "ready" ? { bg: "rgba(124,58,237,0.12)", color: "#6d28d9", th: "พร้อมให้รับ", en: "Ready for pickup" }
+    ? { bg: "rgb(var(--green-600-rgb) / 0.12)", color: "var(--green-700)", th: s === "picked_up" ? "รับแล้ว" : "ส่งถึงแล้ว", en: s === "picked_up" ? "Picked up" : "Delivered" }
+    : s === "shipped" ? { bg: "rgb(var(--blue-500-rgb) / 0.12)", color: "var(--blue-700)", th: "จัดส่งแล้ว", en: "Shipped" }
+    : s === "issue" ? { bg: "rgb(var(--red-500-rgb) / 0.12)", color: "var(--red-600)", th: "แจ้งปัญหา", en: "Problem" }
+    : s === "ready" ? { bg: "rgb(var(--violet-600-rgb) / 0.12)", color: "var(--violet-700)", th: "พร้อมให้รับ", en: "Ready for pickup" }
     : s === "partial" ? (() => {
         const done = order.items.length - waitingLines(order).length;
-        return { bg: "rgba(245,158,11,0.14)", color: "#b45309", th: `ส่งมอบแล้ว ${done}/${order.items.length}`, en: `Handed ${done}/${order.items.length}` };
+        return { bg: "rgb(var(--amber-500-rgb) / 0.14)", color: "var(--amber-700)", th: `ส่งมอบแล้ว ${done}/${order.items.length}`, en: `Handed ${done}/${order.items.length}` };
       })()
     : { bg: "var(--bg-base)", color: "var(--text-muted)", th: "รอส่งมอบ", en: "To hand over" };
   return (
@@ -85,7 +85,7 @@ export function FulfillmentPanel({ order, th, busy, locked, onAction }: {
       </p>
 
       {(s === "picked_up" || s === "delivered") && (
-        <p style={{ fontSize: 13, color: "#15803d", display: "flex", alignItems: "flex-start", gap: 6 }}>
+        <p style={{ fontSize: 13, color: "var(--green-700)", display: "flex", alignItems: "flex-start", gap: 6 }}>
           <CheckCircle2 size={15} style={{ flexShrink: 0, marginTop: 1 }} />
           <span>
             {s === "picked_up" ? (th ? "ผู้ซื้อรับสินค้าแล้ว" : "Picked up") : (th ? "ส่งถึงผู้ซื้อแล้ว" : "Delivered")} · {fmt(order.fulfilledAt, th)} · {who}
@@ -95,14 +95,14 @@ export function FulfillmentPanel({ order, th, busy, locked, onAction }: {
       )}
 
       {s === "partial" && (
-        <p style={{ fontSize: 13, color: "#b45309" }}>
+        <p style={{ fontSize: 13, color: "var(--amber-700)" }}>
           {th ? `ส่งมอบไปแล้วบางรายการ ยังเหลือ: ` : "Partly handed over. Still waiting: "}
           <strong>{waitingLines(order).map((i) => `${i.productName}${i.variantLabel && i.variantLabel !== "Standard" ? ` · ${i.variantLabel}` : ""} ×${i.quantity}`).join(", ")}</strong>
         </p>
       )}
 
       {s === "ready" && (
-        <p style={{ fontSize: 13, color: "#6d28d9" }}>{th ? `แจ้งผู้ซื้อว่าพร้อมให้รับแล้ว · ${fmt(order.readyAt, th)}` : `Buyer told it's ready · ${fmt(order.readyAt, th)}`}</p>
+        <p style={{ fontSize: 13, color: "var(--violet-700)" }}>{th ? `แจ้งผู้ซื้อว่าพร้อมให้รับแล้ว · ${fmt(order.readyAt, th)}` : `Buyer told it's ready · ${fmt(order.readyAt, th)}`}</p>
       )}
 
       {order.trackingNumber || order.trackingUrl ? (
@@ -122,7 +122,7 @@ export function FulfillmentPanel({ order, th, busy, locked, onAction }: {
       ) : null}
 
       {order.issueNote && (
-        <p style={{ fontSize: 13, color: s === "issue" ? "#dc2626" : "var(--text-muted)", background: s === "issue" ? "rgba(239,68,68,0.08)" : "transparent", padding: s === "issue" ? "8px 12px" : 0, borderRadius: 8, display: "flex", gap: 6 }}>
+        <p style={{ fontSize: 13, color: s === "issue" ? "var(--red-600)" : "var(--text-muted)", background: s === "issue" ? "rgb(var(--red-500-rgb) / 0.08)" : "transparent", padding: s === "issue" ? "8px 12px" : 0, borderRadius: 8, display: "flex", gap: 6 }}>
           <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
           <span>
             <strong>{s === "issue" ? (th ? "ผู้ซื้อแจ้งปัญหา" : "Buyer reported a problem") : (th ? "เคยแจ้งปัญหา" : "Earlier problem report")}</strong> · {fmt(order.issueAt, th)}
@@ -141,12 +141,12 @@ export function FulfillmentPanel({ order, th, busy, locked, onAction }: {
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {can("ready") && (
-          <button onClick={() => onAction(order, "ready")} disabled={busy} className="btn btn-ghost" style={{ ...btn, color: "#6d28d9", border: "1px solid rgba(124,58,237,0.3)" }}>
+          <button onClick={() => onAction(order, "ready")} disabled={busy} className="btn btn-ghost" style={{ ...btn, color: "var(--violet-700)", border: "1px solid rgb(var(--violet-600-rgb) / 0.3)" }}>
             {busy ? <Loader2 size={14} className="animate-spin" /> : <Bell size={14} />}{th ? "พร้อมให้รับ" : "Ready for pickup"}
           </button>
         )}
         {can("ship") && (
-          <button onClick={() => onAction(order, "ship")} disabled={busy} className="btn btn-ghost" style={{ ...btn, color: "#1d4ed8", border: "1px solid rgba(59,130,246,0.3)" }}>
+          <button onClick={() => onAction(order, "ship")} disabled={busy} className="btn btn-ghost" style={{ ...btn, color: "var(--blue-700)", border: "1px solid rgb(var(--blue-500-rgb) / 0.3)" }}>
             <Truck size={14} />{s === "shipped" ? (th ? "แก้เลขพัสดุ" : "Edit tracking") : s === "issue" ? (th ? "ส่งใหม่" : "Ship again") : (th ? "บันทึกการจัดส่ง" : "Mark as shipped")}
           </button>
         )}
@@ -222,7 +222,7 @@ export function FulfilModal({ th, order, action, busy, error, onCancel, onConfir
   const label = { fontSize: 13, fontWeight: 600, marginBottom: 4, display: "block" } as const;
 
   return (
-    <div onClick={busy ? undefined : onCancel} style={{ position: "fixed", inset: 0, zIndex: 2500, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}>
+    <div onClick={busy ? undefined : onCancel} style={{ position: "fixed", inset: 0, zIndex: 2500, background: "rgb(var(--scrim-rgb) / 0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg-surface)", borderRadius: "var(--radius-lg)", width: "100%", maxWidth: 460, maxHeight: "92vh", border: "1px solid var(--border-subtle)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: "1px solid var(--border-subtle)" }}>
           <p style={{ fontWeight: 800, fontSize: 16, display: "inline-flex", alignItems: "center", gap: 8 }}>
@@ -272,7 +272,7 @@ export function FulfilModal({ th, order, action, busy, error, onCancel, onConfir
                 {th ? `ติ๊กสินค้าที่ ${buyerName} ได้รับจริงตอนนี้` : `Tick what ${buyerName} actually has in hand now.`}
               </p>
               {!wholeParcel && (
-                <p style={{ fontSize: 12.5, color: "#b45309", background: "rgba(245,158,11,0.1)", padding: "8px 10px", borderRadius: 8 }}>
+                <p style={{ fontSize: 12.5, color: "var(--amber-700)", background: "rgb(var(--amber-500-rgb) / 0.1)", padding: "8px 10px", borderRadius: 8 }}>
                   {th ? "วิธีนี้ไม่ได้ตรวจตัวตนผู้รับ ถ้าผู้ซื้ออยู่ตรงหน้า ให้ใช้ \"ส่งมอบสินค้า (สแกน Digital ID)\" แทน" : "This doesn't check who is collecting. If the buyer is in front of you, use \"Hand over items (scan Digital ID)\" instead."}
                 </p>
               )}
@@ -309,7 +309,7 @@ export function FulfilModal({ th, order, action, busy, error, onCancel, onConfir
             </p>
           )}
 
-          {(localError || error) && <p style={{ fontSize: 13, color: "#dc2626" }}>{localError || error}</p>}
+          {(localError || error) && <p style={{ fontSize: 13, color: "var(--red-600)" }}>{localError || error}</p>}
         </div>
 
         <div style={{ borderTop: "1px solid var(--border-subtle)", padding: "12px 16px", display: "flex", gap: 10 }}>

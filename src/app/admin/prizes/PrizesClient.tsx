@@ -185,7 +185,7 @@ export default function PrizesClient({ canAward, canManage, isSuperAdmin }: { ca
                         {/* Over-quantity is a WARNING, never a block: real events
                             over-award, and blocking at the booth makes staff stop
                             RECORDING rather than stop awarding. */}
-                        {overQuantity && <span style={{ marginLeft: 8, fontWeight: 700, color: "#b45309" }}>{t.adminPrizesOverQuantity}</span>}
+                        {overQuantity && <span style={{ marginLeft: 8, fontWeight: 700, color: "var(--amber-700)" }}>{t.adminPrizesOverQuantity}</span>}
                         {!!p.awaitingPhotoCount && (
                           <button
                             onClick={() => setAwaitingPhotoPrize(p)}
@@ -195,7 +195,7 @@ export default function PrizesClient({ canAward, canManage, isSuperAdmin }: { ca
                               alignItems: "center",
                               gap: 4,
                               fontWeight: 700,
-                              color: "#b45309",
+                              color: "var(--amber-700)",
                               background: "none",
                               border: "none",
                               padding: 0,
@@ -366,7 +366,7 @@ function PrizeFormDialog({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.4)",
+        background: "rgb(var(--scrim-rgb) / 0.4)",
         backdropFilter: "blur(8px)",
         WebkitBackdropFilter: "blur(8px)",
         display: "flex",
@@ -389,7 +389,7 @@ function PrizeFormDialog({
           flexDirection: "column",
           borderRadius: "clamp(20px, 4vw, 28px)",
           overflow: "hidden",
-          boxShadow: "0 30px 60px rgba(0,0,0,0.2)",
+          boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.2)",
           border: "1px solid var(--border-medium)",
         }}
       >
@@ -476,7 +476,7 @@ function PrizeFormDialog({
             </div>
           )}
 
-          {error && <p style={{ color: "#dc2626", fontWeight: 600, fontSize: 13 }}>{error}</p>}
+          {error && <p style={{ color: "var(--red-600)", fontWeight: 600, fontSize: 13 }}>{error}</p>}
         </div>
 
         <div style={{ padding: "18px 28px", background: "var(--bg-elevated)", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "flex-end", gap: 12, flexShrink: 0 }}>
@@ -588,7 +588,7 @@ function AwaitingPhotoDialog({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.4)",
+        background: "rgb(var(--scrim-rgb) / 0.4)",
         backdropFilter: "blur(8px)",
         WebkitBackdropFilter: "blur(8px)",
         display: "flex",
@@ -611,7 +611,7 @@ function AwaitingPhotoDialog({
           flexDirection: "column",
           borderRadius: "clamp(20px, 4vw, 28px)",
           overflow: "hidden",
-          boxShadow: "0 30px 60px rgba(0,0,0,0.2)",
+          boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.2)",
           border: "1px solid var(--border-medium)",
         }}
       >
@@ -708,12 +708,12 @@ function AwaitingPhotoDialog({
           )}
 
           {!!doneIds.size && !loading && remaining.length > 0 && (
-            <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: "#0d9488" }}>
+            <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: "var(--teal-600)" }}>
               <Check size={14} /> {t.adminPrizesPhotoAttached} ({doneIds.size})
             </p>
           )}
 
-          {error && <p style={{ color: "#dc2626", fontWeight: 600, fontSize: 13 }}>{error}</p>}
+          {error && <p style={{ color: "var(--red-600)", fontWeight: 600, fontSize: 13 }}>{error}</p>}
         </div>
 
         <div style={{ padding: "18px 28px", background: "var(--bg-elevated)", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "flex-end", flexShrink: 0 }}>
@@ -847,7 +847,7 @@ function DeletePrizeDialog({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.4)",
+        background: "rgb(var(--scrim-rgb) / 0.4)",
         backdropFilter: "blur(8px)",
         WebkitBackdropFilter: "blur(8px)",
         display: "flex",
@@ -870,13 +870,13 @@ function DeletePrizeDialog({
           flexDirection: "column",
           borderRadius: "clamp(20px, 4vw, 28px)",
           overflow: "hidden",
-          boxShadow: "0 30px 60px rgba(0,0,0,0.2)",
+          boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.2)",
           border: "1px solid var(--border-medium)",
         }}
       >
         <div style={{ padding: "22px 28px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexShrink: 0, gap: 12 }}>
           <div style={{ minWidth: 0, display: "flex", alignItems: "flex-start", gap: 10 }}>
-            <AlertTriangle size={22} style={{ color: "#dc2626", flexShrink: 0, marginTop: 1 }} />
+            <AlertTriangle size={22} style={{ color: "var(--red-600)", flexShrink: 0, marginTop: 1 }} />
             <div>
               <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>{prize.name}</p>
               <h2 style={{ fontSize: 19, fontWeight: 800, color: "var(--text-primary)" }}>{t.adminPrizesDeleteTitle}</h2>
@@ -921,7 +921,7 @@ function DeletePrizeDialog({
             </div>
           )}
 
-          {error && <p style={{ color: "#dc2626", fontWeight: 600, fontSize: 13 }}>{error}</p>}
+          {error && <p style={{ color: "var(--red-600)", fontWeight: 600, fontSize: 13 }}>{error}</p>}
         </div>
 
         <div style={{ padding: "18px 28px", background: "var(--bg-elevated)", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "flex-end", gap: 12, flexShrink: 0 }}>

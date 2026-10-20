@@ -5,6 +5,7 @@ import { Menu, X, User } from "lucide-react";
 import { AdminNav } from "./AdminNav";
 import { AdminCommandPalette } from "./AdminCommandPalette";
 import { LanguageProvider } from "@/lib/LanguageContext";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { effectiveRoles } from "@/lib/admin-access";
 import { buildAdminNavContext } from "@/lib/admin-nav-config";
 import Link from "next/link";
@@ -54,15 +55,16 @@ export function AdminLayoutWrapper({
     <LanguageProvider>
       <div className="flex h-dvh bg-[var(--bg-base)] overflow-hidden relative">
       {/* Mobile Header */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-[var(--border-subtle)] flex items-center justify-between px-6 z-[1000] backdrop-blur-md bg-white/80">
+      <header className="lg:hidden fixed top-0 left-0 right-0 h-16 border-b border-[var(--border-subtle)] flex items-center justify-between px-6 z-[1000] backdrop-blur-md bg-[var(--bg-surface)]">
         <button
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="rounded-xl bg-gray-50 text-[var(--text-primary)] flex items-center justify-center"
+          className="rounded-xl bg-[var(--bg-elevated)] text-[var(--text-primary)] flex items-center justify-center"
           style={{ width: 44, height: 44, border: "none", touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
         >
           {isSidebarOpen ? <X size={24} style={{ pointerEvents: "none" }} /> : <Menu size={24} style={{ pointerEvents: "none" }} />}
         </button>
         <div className="flex items-center gap-3">
+          <ThemeToggle size={36} />
           <img src="/smocamt-logo-icon.png" className="w-8 h-8 object-contain" alt="SMOCAMT Logo" width={32} height={32} style={{ width: 32, height: 32 }} />
           <span className="gradient-text font-black text-xl">ActiveCAMT</span>
         </div>
@@ -82,7 +84,7 @@ export function AdminLayoutWrapper({
         transition-transform duration-300 transform
         ${isSidebarOpen ? "translate-x-0 open" : "-translate-x-full"}
         lg:translate-x-0 lg:flex
-        w-[280px] bg-white border-r border-[var(--border-subtle)] flex flex-col pt-6 px-6 pb-[calc(1.5rem+var(--safe-bottom))]
+        w-[280px] bg-[var(--bg-surface)] border-r border-[var(--border-subtle)] flex flex-col pt-6 px-6 pb-[calc(1.5rem+var(--safe-bottom))]
       `}>
         <div style={{ marginBottom: 40, display: "flex", alignItems: "center" }}>
           <Link href="/admin" style={{ display: "flex", alignItems: "center", gap: 14, textDecoration: "none" }}>
@@ -133,7 +135,7 @@ export function AdminLayoutWrapper({
             {user.image ? (
               <img src={user.image} className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm" alt="" />
             ) : (
-              <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-[var(--text-secondary)] shadow-sm">
+              <div className="w-10 h-10 rounded-full bg-[var(--bg-surface)] flex items-center justify-center text-[var(--text-secondary)] shadow-sm">
                 <User size={20} />
               </div>
             )}

@@ -61,13 +61,12 @@ export const metadata: Metadata = {
   },
 };
 
-// Mirrors globals.css's `color-scheme: only light`. Emitting the same signal
-// as a <meta name="color-scheme"> tag (not just CSS) covers browsers/extensions
-// that check the meta before or instead of the stylesheet — the attendance QR
-// on /dashboard and /dashboard/id must never get algorithmically dark-mode
-// inverted, or staff can't scan it.
+// The page ships its own light and dark themes (globals.css), so tell browsers
+// it is dark-aware and must not be algorithmically inverted. The attendance QR
+// on /dashboard and /dashboard/id additionally hard-codes a white background so
+// it stays scannable in either theme.
 export const viewport: Viewport = {
-  colorScheme: "light",
+  colorScheme: "light dark",
   themeColor: "#ff6b00",
 };
 
@@ -87,13 +86,22 @@ import { PWARegister } from "@/components/PWARegister";
 // definition (see src/lib/site-moved.ts).
 const SITE_MOVED = isSiteMoved();
 
+// Runs in <head>, before first paint, so the saved (or OS-preferred) theme is on
+// <html> before any content renders — no flash of the wrong theme. Printing
+// always uses the light theme (paper is white), restoring the theme afterwards.
+// Keep the storage key and attribute in sync with src/lib/theme.ts.
+const THEME_INIT_SCRIPT = `(function(){var d=document.documentElement;try{var t=localStorage.getItem("theme");if(t!=="light"&&t!=="dark"){t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}d.setAttribute("data-theme",t)}catch(e){}var p;addEventListener("beforeprint",function(){p=d.getAttribute("data-theme");d.setAttribute("data-theme","light")});addEventListener("afterprint",function(){if(p)d.setAttribute("data-theme",p)})})()`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${ibmPlexSans.variable} ${ibmPlexSansThai.variable} ${notoSansMyanmar.variable} ${notoSansSC.variable} h-full`} data-scroll-behavior="smooth">
+    <html lang="en" className={`${ibmPlexSans.variable} ${ibmPlexSansThai.variable} ${notoSansMyanmar.variable} ${notoSansSC.variable} h-full`} data-scroll-behavior="smooth" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col antialiased">
         {SITE_MOVED ? (
           <MovedNotice />

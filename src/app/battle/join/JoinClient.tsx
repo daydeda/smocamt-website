@@ -263,7 +263,7 @@ export function JoinClient({ initialSession }: JoinClientProps) {
         {/* Card Panel */}
         <div className="glass" style={{ padding: 40, border: "1px solid var(--border-medium)" }}>
           <div style={{ textAlign: "center", marginBottom: 32 }}>
-            <div style={{ display: "inline-flex", padding: 12, borderRadius: "50%", background: "rgba(59, 130, 246, 0.1)", color: "#3b82f6", marginBottom: 16 }}>
+            <div style={{ display: "inline-flex", padding: 12, borderRadius: "50%", background: "rgb(var(--blue-500-rgb) / 0.1)", color: "var(--blue-500)", marginBottom: 16 }}>
               <Swords size={28} />
             </div>
             <h1 style={{ fontSize: "1.75rem", fontWeight: 900, marginBottom: 8, letterSpacing: "-0.03em" }}>
@@ -320,7 +320,7 @@ export function JoinClient({ initialSession }: JoinClientProps) {
 
             {/* Error Message */}
             {error && (
-              <div style={{ background: "#fef2f2", border: "1px solid #fee2e2", padding: "12px 16px", borderRadius: "var(--radius-md)", color: "#991b1b", display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ background: "var(--error-bg)", border: "1px solid var(--error-border)", padding: "12px 16px", borderRadius: "var(--radius-md)", color: "var(--error-text)", display: "flex", alignItems: "center", gap: 10 }}>
                 <AlertTriangle size={18} />
                 <span style={{ fontSize: 14, fontWeight: 500 }}>{error}</span>
               </div>
@@ -333,7 +333,7 @@ export function JoinClient({ initialSession }: JoinClientProps) {
               onClick={() => handleJoinRoom(currentCode)}
               style={{
                 background: currentCode.length === 4 ? "var(--accent-primary)" : "var(--text-muted)",
-                color: "#fff",
+                color: "var(--text-on-color)",
                 height: 52,
                 fontSize: 16,
                 fontWeight: 700,
@@ -392,12 +392,12 @@ export function JoinClient({ initialSession }: JoinClientProps) {
                     borderRadius: "var(--radius-lg)", 
                     overflow: "hidden", 
                     border: "2px solid var(--accent-primary)",
-                    background: "#000"
+                    background: "var(--black)"
                   }}
                 ></div>
                 
                 {scannerError && (
-                  <div style={{ background: "#fffbeb", border: "1px solid #fef3c7", padding: "10px 12px", borderRadius: "var(--radius-md)", color: "#b45309", fontSize: 13 }}>
+                  <div style={{ background: "var(--warn-bg)", border: "1px solid var(--warn-border)", padding: "10px 12px", borderRadius: "var(--radius-md)", color: "var(--warn-text)", fontSize: 13 }}>
                     {scannerError}
                   </div>
                 )}
@@ -406,8 +406,8 @@ export function JoinClient({ initialSession }: JoinClientProps) {
                   className="btn"
                   onClick={stopScanner}
                   style={{
-                    background: "#ef4444",
-                    color: "#fff",
+                    background: "var(--red-500)",
+                    color: "var(--text-on-color)",
                     height: 40,
                     fontSize: 13,
                     padding: "0 16px"

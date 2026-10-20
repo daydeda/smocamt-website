@@ -58,10 +58,10 @@ export function EventProposalsClient() {
   const [reason, setReason] = useState("");
 
   const STATUS_BADGE: Record<Proposal["status"], { bg: string; color: string; label: string }> = {
-    pending: { bg: "rgba(245,158,11,0.1)", color: "#f59e0b", label: t.adminProposalsFilterPending },
-    approved: { bg: "rgba(34,197,94,0.1)", color: "#22c55e", label: t.adminProposalsFilterApproved },
-    rejected: { bg: "rgba(239,68,68,0.1)", color: "#ef4444", label: t.adminProposalsFilterRejected },
-    withdrawn: { bg: "rgba(148,163,184,0.15)", color: "#64748b", label: t.adminProposalsFilterWithdrawn },
+    pending: { bg: "rgb(var(--amber-500-rgb) / 0.1)", color: "var(--amber-500)", label: t.adminProposalsFilterPending },
+    approved: { bg: "rgb(var(--green-500-rgb) / 0.1)", color: "var(--green-500)", label: t.adminProposalsFilterApproved },
+    rejected: { bg: "rgb(var(--red-500-rgb) / 0.1)", color: "var(--red-500)", label: t.adminProposalsFilterRejected },
+    withdrawn: { bg: "rgb(var(--slate-400-rgb) / 0.15)", color: "var(--slate-500)", label: t.adminProposalsFilterWithdrawn },
   };
 
   const FILTER_LABEL: Record<Filter, string> = {
@@ -138,7 +138,7 @@ export function EventProposalsClient() {
               fontWeight: 700,
               fontSize: 12,
               background: filter === f ? "var(--accent-primary)" : "var(--bg-surface)",
-              color: filter === f ? "#fff" : "var(--text-secondary)",
+              color: filter === f ? "var(--text-on-color)" : "var(--text-secondary)",
               border: "1px solid var(--border-subtle)",
             }}
           >
@@ -231,17 +231,17 @@ export function EventProposalsClient() {
                       allowedRoles/allowedMajors/allowedClubs when creating the
                       event (see the fromProposal prefill in admin/events/page.tsx). */}
                   {p.allowedRoles && p.allowedRoles.length > 0 && (
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 999, background: "rgba(99,102,241,0.1)", color: "#6366f1" }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 999, background: "rgb(var(--indigo-500-rgb) / 0.1)", color: "var(--indigo-500)" }}>
                       {lang === "th" ? "แนะนำตามบทบาท: " : lang === "cn" ? "建议角色： " : lang === "mm" ? "အကြံပြုအခန်းကဏ္ဍ: " : "Suggested roles: "}{p.allowedRoles.join(", ")}
                     </span>
                   )}
                   {p.allowedMajors && p.allowedMajors.length > 0 && (
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 999, background: "rgba(255,107,0,0.1)", color: "var(--accent-primary)" }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 999, background: "rgb(var(--accent-rgb) / 0.1)", color: "var(--accent-primary)" }}>
                       {lang === "th" ? "แนะนำตามสาขา: " : lang === "cn" ? "建议专业： " : lang === "mm" ? "အကြံပြုအထူးပြုဌာန: " : "Suggested majors: "}{p.allowedMajors.join(", ")}
                     </span>
                   )}
                   {p.allowedClubs && p.allowedClubs.length > 0 && (
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 999, background: "rgba(139,92,246,0.1)", color: "#8b5cf6" }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 999, background: "rgb(var(--violet-500-rgb) / 0.1)", color: "var(--violet-500)" }}>
                       {p.allowedClubs.length} {lang === "th" ? "ชมรมที่แนะนำ" : lang === "cn" ? "个建议社团" : lang === "mm" ? "အကြံပြုကလပ်" : "suggested clubs"}
                     </span>
                   )}
@@ -265,7 +265,7 @@ export function EventProposalsClient() {
                       onClick={() => openRejectModal(p)}
                       disabled={busyId === p.id}
                       className="btn btn-ghost"
-                      style={{ flex: 1, color: "#ef4444", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                      style={{ flex: 1, color: "var(--red-500)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}
                     >
                       <XCircle size={16} /> {t.adminProposalsRejectButton}
                     </button>
@@ -288,7 +288,7 @@ export function EventProposalsClient() {
 
       {rejectModal && (
         <div
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 16 }}
+          style={{ position: "fixed", inset: 0, background: "rgb(var(--scrim-rgb) / 0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 16 }}
           onClick={() => setRejectModal(null)}
         >
           <div
@@ -321,7 +321,7 @@ export function EventProposalsClient() {
               <button onClick={() => setRejectModal(null)} className="btn btn-ghost" style={{ flex: 1 }}>
                 {t.adminProposalsCancelButton}
               </button>
-              <button onClick={confirmReject} className="btn btn-primary" style={{ flex: 1, background: "#ef4444" }}>
+              <button onClick={confirmReject} className="btn btn-primary" style={{ flex: 1, background: "var(--red-500)" }}>
                 {t.adminProposalsConfirmButton}
               </button>
             </div>

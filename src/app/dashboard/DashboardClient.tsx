@@ -17,8 +17,8 @@ const QRCodeCanvas = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div style={{ width: 240, height: 240, background: "#ffffff", borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ color: "#9ca3af", fontSize: 14 }}>Loading...</span>
+      <div style={{ width: 240, height: 240, background: "var(--qr-surface)", borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <span style={{ color: "var(--text-muted)", fontSize: 14 }}>Loading...</span>
       </div>
     )
   }
@@ -62,6 +62,7 @@ import { FormsDueBanner } from "@/components/FormsDueBanner";
 import { useNotifications } from "@/lib/useNotifications";
 import { useRouter } from "next/navigation";
 import { NO_SHOW_STRIKE_THRESHOLD } from "@/lib/strikes";
+import { alpha } from "@/lib/color";
 
 // House mascot logos (background removed). Keyed by both the house id (color) and
 // its name so it resolves whichever identifier the API returns.
@@ -235,8 +236,8 @@ function PosterCarousel({
     height: 36,
     borderRadius: "50%",
     border: "none",
-    background: "rgba(0,0,0,0.45)",
-    color: "#fff",
+    background: "rgb(var(--scrim-rgb) / 0.45)",
+    color: "var(--text-on-color)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -350,7 +351,7 @@ function PosterCarousel({
           </button>
 
           {/* Counter pill (top-center, clear of the corner badges) */}
-          <div style={{ position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)", zIndex: 4, background: "rgba(0,0,0,0.55)", color: "#fff", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 99, backdropFilter: "blur(4px)", pointerEvents: "none", letterSpacing: "0.03em" }}>
+          <div style={{ position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)", zIndex: 4, background: "rgb(var(--scrim-rgb) / 0.55)", color: "var(--text-on-color)", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 99, backdropFilter: "blur(4px)", pointerEvents: "none", letterSpacing: "0.03em" }}>
             {safeIdx + 1} / {count}
           </div>
 
@@ -362,7 +363,7 @@ function PosterCarousel({
                 type="button"
                 aria-label={`Go to poster ${i + 1}`}
                 onClick={(e) => { e.stopPropagation(); navigate(i); }}
-                style={{ width: i === safeIdx ? 22 : 7, height: 7, borderRadius: 99, border: "none", padding: 0, background: i === safeIdx ? "#fff" : "rgba(255,255,255,0.5)", cursor: "pointer", transition: "all 0.25s", boxShadow: "0 1px 3px rgba(0,0,0,0.35)" }}
+                style={{ width: i === safeIdx ? 22 : 7, height: 7, borderRadius: 99, border: "none", padding: 0, background: i === safeIdx ? "var(--white)" : "rgb(var(--white-rgb) / 0.5)", cursor: "pointer", transition: "all 0.25s", boxShadow: "0 1px 3px rgb(var(--shadow-rgb) / 0.35)" }}
               />
             ))}
           </div>
@@ -515,10 +516,10 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
   }, []);
 
   const HOUSE_MAP: Record<string, { name: string, color: string }> = {
-    red:    { name: t.houseMom || "Mom",   color: "#ef4444" }, // Red
-    green:  { name: t.houseTo || "To",      color: "#94a3b8" }, // White → silver/pewter
-    yellow: { name: t.houseLuang || "Luang",  color: "#3b82f6" }, // Blue
-    blue:   { name: t.houseMakara || "Makon", color: "#22c55e" }, // Green
+    red:    { name: t.houseMom || "Mom",   color: "var(--red-500)" }, // Red
+    green:  { name: t.houseTo || "To",      color: "var(--slate-400)" }, // White → silver/pewter
+    yellow: { name: t.houseLuang || "Luang",  color: "var(--blue-500)" }, // Blue
+    blue:   { name: t.houseMakara || "Makon", color: "var(--green-500)" }, // Green
   };
 
   const fetchEvents = (signal?: AbortSignal) =>
@@ -800,8 +801,8 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
     const fmtDT = (d: Date) => `${d.toLocaleDateString('en-GB', dateOpts)} ${d.toLocaleTimeString('en-GB', timeOpts)}`;
 
     const closed = !!closeAt && new Date() > closeAt;
-    const iconBg = closed ? "rgba(0,0,0,0.04)" : "rgba(245,158,11,0.08)";
-    const iconColor = closed ? "var(--text-muted)" : "#f59e0b";
+    const iconBg = closed ? "rgb(var(--ink-rgb) / 0.04)" : "rgb(var(--amber-500-rgb) / 0.08)";
+    const iconColor = closed ? "var(--text-muted)" : "var(--amber-500)";
 
     let text: string;
     if (openAt && closeAt) {
@@ -840,21 +841,21 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
     return (
       <>
         <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: "var(--text-secondary)", fontWeight: 600 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 10, background: "rgba(255,107,0,0.05)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-primary)", flexShrink: 0 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 10, background: "rgb(var(--accent-rgb) / 0.05)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-primary)", flexShrink: 0 }}>
             <Users size={16} />
           </div>
           <div style={{ fontSize: 13, fontWeight: 600 }}>
-            <span style={{ fontWeight: 800, color: isFull ? "#ef4444" : "var(--text-primary)" }}>
+            <span style={{ fontWeight: 800, color: isFull ? "var(--red-500)" : "var(--text-primary)" }}>
               {hasQuota ? `${registered} / ${ev.quota}` : registered}
             </span>
             <span style={{ color: "var(--text-muted)", fontWeight: 600 }}> {t.registered}</span>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, fontWeight: 600 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 10, background: allowed ? "rgba(16,185,129,0.08)" : "rgba(0,0,0,0.04)", display: "flex", alignItems: "center", justifyContent: "center", color: allowed ? "#10b981" : "var(--text-muted)", flexShrink: 0 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 10, background: allowed ? "rgb(var(--emerald-500-rgb) / 0.08)" : "rgb(var(--ink-rgb) / 0.04)", display: "flex", alignItems: "center", justifyContent: "center", color: allowed ? "var(--emerald-500)" : "var(--text-muted)", flexShrink: 0 }}>
             <DoorOpen size={16} />
           </div>
-          <div style={{ fontSize: 13, color: allowed ? "#10b981" : "var(--text-muted)", fontWeight: 700 }}>
+          <div style={{ fontSize: 13, color: allowed ? "var(--emerald-500)" : "var(--text-muted)", fontWeight: 700 }}>
             {ev.walkInsOnly ? t.walkInsOnlyBadge : allowed ? t.walkInsAllowedLabel : t.walkInsDisabledLabel}
             {allowed && !ev.walkInsOnly && ev.quotaWalkIn != null ? ` (${ev.quotaWalkIn})` : ""}
           </div>
@@ -872,7 +873,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
     <div style={{ background: "var(--bg-base)", minHeight: "100vh", position: "relative", overflowX: "hidden" }}>
       {/* Decorative Orbs */}
       <div className="absolute top-[-200px] left-[-100px] w-[600px] h-[600px] rounded-full" 
-           style={{ background: "radial-gradient(circle, rgba(255,107,0,0.03) 0%, transparent 70%)", pointerEvents: "none" }} />
+           style={{ background: "radial-gradient(circle, rgb(var(--accent-rgb) / 0.03) 0%, transparent 70%)", pointerEvents: "none" }} />
       
       <StudentNav />
 
@@ -899,14 +900,14 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                 padding: "20px 32px",
                 textAlign: "center",
                 minWidth: 160,
-                boxShadow: `0 10px 30px rgba(0,0,0,0.04), 0 0 0 1px ${houseInfo.color}20`,
+                boxShadow: `0 10px 30px rgb(var(--shadow-rgb) / 0.04), 0 0 0 1px ${alpha(houseInfo.color, 0.12)}`,
                 flexDirection: "column",
                 gap: 4,
-                background: "rgba(255,255,255,0.6)"
+                background: "var(--bg-glass-strong)"
               }}
             >
               {houseLogo(houseId) && (
-                <img src={houseLogo(houseId)!} alt="" style={{ width: 64, height: 64, objectFit: "contain", margin: "0 auto", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.12))" }} />
+                <img src={houseLogo(houseId)!} alt="" style={{ width: 64, height: 64, objectFit: "contain", margin: "0 auto", filter: "drop-shadow(0 2px 4px rgb(var(--shadow-rgb) / 0.12))" }} />
               )}
               <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.15em", textTransform: "uppercase", color: houseInfo.color, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                 <Trophy size={12} />
@@ -940,22 +941,22 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                 gap: 14,
                 borderRadius: "var(--radius-lg)",
                 padding: 20,
-                background: isDanger ? "rgba(239,68,68,0.06)" : "rgba(245,158,11,0.06)",
-                border: `1px solid ${isDanger ? "rgba(239,68,68,0.2)" : "rgba(245,158,11,0.2)"}`,
+                background: isDanger ? "rgb(var(--red-500-rgb) / 0.06)" : "rgb(var(--amber-500-rgb) / 0.06)",
+                border: `1px solid ${isDanger ? "rgb(var(--red-500-rgb) / 0.2)" : "rgb(var(--amber-500-rgb) / 0.2)"}`,
                 minWidth: 0,
               }}
             >
               <div style={{
                 display: "flex", alignItems: "center", justifyContent: "center",
                 background: "var(--bg-surface)", padding: 8, borderRadius: 12,
-                boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-                color: isDanger ? "#ef4444" : "#f59e0b",
+                boxShadow: "0 4px 12px rgb(var(--shadow-rgb) / 0.05)",
+                color: isDanger ? "var(--red-500)" : "var(--amber-500)",
                 width: 40, height: 40, flexShrink: 0,
               }}>
                 <AlertTriangle size={22} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontWeight: 800, fontSize: 15, color: isDanger ? "#ef4444" : "#f59e0b" }}>
+                <p style={{ fontWeight: 800, fontSize: 15, color: isDanger ? "var(--red-500)" : "var(--amber-500)" }}>
                   {lang === "th"
                     ? `ไม่มาเช็คอิน: ${strikes.noShowCount}/${NO_SHOW_STRIKE_THRESHOLD}`
                     : lang === "cn"
@@ -997,7 +998,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{e.title}</span>
                         </span>
                         {e.appeal?.status === "pending" ? (
-                          <span style={{ fontSize: 12, fontWeight: 700, color: "#f59e0b", flexShrink: 0 }}>{t.appealStatusPendingBadge}</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--amber-500)", flexShrink: 0 }}>{t.appealStatusPendingBadge}</span>
                         ) : (
                           <button
                             onClick={() => setAppealModal({ eventId: e.id, eventTitle: e.title })}
@@ -1012,7 +1013,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                     {noShowEvents
                       .filter((e) => e.appeal?.status === "rejected")
                       .map((e) => (
-                        <p key={`${e.id}-rejected`} style={{ fontSize: 12, color: "#ef4444", fontWeight: 700 }}>
+                        <p key={`${e.id}-rejected`} style={{ fontSize: 12, color: "var(--red-500)", fontWeight: 700 }}>
                           {t.appealRejectedNotice} ({e.title})
                           {e.appeal?.reviewNote ? ` ${t.appealStaffNoteLabel} ${e.appeal.reviewNote}` : ""}
                         </p>
@@ -1028,7 +1029,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
             unmounted if strikes/appeal state changes mid-write. */}
         {appealModal && (
           <div
-            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+            style={{ position: "fixed", inset: 0, background: "rgb(var(--scrim-rgb) / 0.5)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
             onClick={() => !submittingAppeal && setAppealModal(null)}
           >
             <div
@@ -1090,8 +1091,8 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                 Hidden only when an announcement is loaded AND explicitly disabled.
                 When none is loaded yet / fetch failed, fall back to the built-in text. */}
             {!(announcement && announcement.enabled === false) && (
-            <div className="alert alert-info" style={{ borderRadius: "var(--radius-lg)", padding: 20, background: "rgba(255,107,0,0.04)", border: "1px solid rgba(255,107,0,0.1)" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-surface)", padding: 8, borderRadius: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.05)", color: "var(--accent-primary)", width: 40, height: 40, flexShrink: 0 }}>
+            <div className="alert alert-info" style={{ borderRadius: "var(--radius-lg)", padding: 20, background: "rgb(var(--accent-rgb) / 0.04)", border: "1px solid rgb(var(--accent-rgb) / 0.1)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-surface)", padding: 8, borderRadius: 12, boxShadow: "0 4px 12px rgb(var(--shadow-rgb) / 0.05)", color: "var(--accent-primary)", width: 40, height: 40, flexShrink: 0 }}>
                 <Megaphone size={22} />
               </div>
               <div>
@@ -1128,7 +1129,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                             fontSize: 13, fontWeight: 800,
                             background: active ? "var(--bg-surface)" : "transparent",
                             color: active ? "var(--accent-primary)" : "var(--text-muted)",
-                            boxShadow: active ? "0 2px 8px rgba(0,0,0,0.06)" : "none",
+                            boxShadow: active ? "0 2px 8px rgb(var(--shadow-rgb) / 0.06)" : "none",
                             transition: "all 0.2s",
                           }}
                         >
@@ -1160,7 +1161,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: 24 }}>
                   {stats.map(({ key, label, value, icon: Icon }) => (
                     <div key={key} className="glass" style={{ padding: "16px 18px", borderRadius: 18, display: "flex", alignItems: "center", gap: 14, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)" }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 12, background: "rgba(255,107,0,0.06)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-primary)", flexShrink: 0 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 12, background: "rgb(var(--accent-rgb) / 0.06)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-primary)", flexShrink: 0 }}>
                         <Icon size={18} />
                       </div>
                       <div style={{ minWidth: 0 }}>
@@ -1181,7 +1182,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                       style={{ 
                         height: 340, 
                         borderRadius: 32, 
-                        background: "rgba(0,0,0,0.01)",
+                        background: "rgb(var(--ink-rgb) / 0.01)",
                         border: "1px solid var(--border-subtle)"
                       }}
                     />
@@ -1205,7 +1206,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                             const end = new Date(e.endTime);
                             const timeOpts: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Bangkok" };
                             const attended = e.attendanceStatus === "attended";
-                            const statusColor = st === "live" ? "#ef4444" : st === "past" ? "var(--text-muted)" : "var(--accent-primary)";
+                            const statusColor = st === "live" ? "var(--red-500)" : st === "past" ? "var(--text-muted)" : "var(--accent-primary)";
                             return (
                               <button
                                 key={e.id}
@@ -1242,9 +1243,9 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                                 </div>
                                 {/* Status + registration state */}
                                 <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-                                  <span style={{ padding: "4px 10px", background: statusColor, color: "#fff", borderRadius: 99, fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.04em" }}>{st}</span>
+                                  <span style={{ padding: "4px 10px", background: statusColor, color: "var(--text-on-color)", borderRadius: 99, fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.04em" }}>{st}</span>
                                   {attended ? (
-                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 800, color: "#10b981" }}><CheckCircle2 size={12} /> {t.attended}</span>
+                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 800, color: "var(--emerald-500)" }}><CheckCircle2 size={12} /> {t.attended}</span>
                                   ) : e.isRegistered ? (
                                     <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 800, color: "var(--accent-primary)" }}><CheckCircle2 size={12} /> {t.registered}</span>
                                   ) : null}
@@ -1277,11 +1278,11 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                         display: "flex",
                         flexDirection: "column",
                         background: "var(--bg-surface)",
-                        boxShadow: "0 10px 40px rgba(0,0,0,0.03)"
+                        boxShadow: "0 10px 40px rgb(var(--shadow-rgb) / 0.03)"
                       }}
                     >
                       {/* Poster Area */}
-                      <div style={{ position: "relative", aspectRatio: "1/1", background: "#1a1a1a", overflow: "hidden" }}>
+                      <div style={{ position: "relative", aspectRatio: "1/1", background: "var(--media-bg)", overflow: "hidden" }}>
                          {getPosters(e).length > 0 ? (
                            <PosterCarousel
                              posters={getPosters(e)}
@@ -1297,18 +1298,18 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                          {/* Date Overlay */}
                          <div style={{ position: "absolute", top: 16, right: 16, zIndex: 2 }}>
                             <div style={{ 
-                               background: "#fff", 
-                               padding: "10px 14px", 
+                               background: "var(--bg-surface)",
+                               padding: "10px 14px",
                                borderRadius: 18, 
-                               boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                               boxShadow: "0 8px 24px rgb(var(--shadow-rgb) / 0.15)",
                                textAlign: "center", 
                                minWidth: 64,
-                               border: "1px solid rgba(0,0,0,0.05)"
+                               border: "1px solid rgb(var(--ink-rgb) / 0.05)"
                             }}>
                                <p style={{ fontSize: 11, fontWeight: 900, color: "var(--accent-primary)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>
                                  {new Date(e.startTime).toLocaleDateString("en-GB", { month: "short", timeZone: "Asia/Bangkok" })}
                                </p>
-                               <p style={{ fontSize: 22, fontWeight: 900, color: "#111", lineHeight: 1 }}>
+                               <p style={{ fontSize: 22, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1 }}>
                                  {new Date(e.startTime).toLocaleDateString("en-GB", { day: "numeric", timeZone: "Asia/Bangkok" })}
                                </p>
                             </div>
@@ -1317,14 +1318,14 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                          <div style={{ position: "absolute", top: 16, left: 16, zIndex: 2 }}>
                            <span style={{
                              padding: "8px 16px",
-                             background: getEventStatus(e) === 'live' ? "#ef4444" : "var(--accent-primary)", 
-                             color: "#fff", 
+                             background: getEventStatus(e) === 'live' ? "var(--red-500)" : "var(--accent-primary)", 
+                             color: "var(--text-on-color)", 
                              borderRadius: 20, 
                              fontSize: 12, 
                              fontWeight: 900, 
                              textTransform: "uppercase", 
                              letterSpacing: "0.05em",
-                             boxShadow: "0 4px 12px rgba(0,0,0,0.1)"
+                             boxShadow: "0 4px 12px rgb(var(--shadow-rgb) / 0.1)"
                            }}>
                              {getEventStatus(e)}
                            </span>
@@ -1334,9 +1335,9 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                          <div style={{ position: "absolute", bottom: 16, left: 16, zIndex: 2, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                            {e.pointsAwarded !== undefined && (
                              <div style={{
-                               background: "rgba(0, 0, 0, 0.7)",
+                               background: "rgb(var(--scrim-rgb) / 0.7)",
                                backdropFilter: "blur(8px)",
-                               color: "#fff",
+                               color: "var(--text-on-color)",
                                padding: "6px 12px",
                                borderRadius: 14,
                                fontSize: 11,
@@ -1344,18 +1345,18 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                                display: "inline-flex",
                                alignItems: "center",
                                gap: 6,
-                               boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                               border: "1px solid rgba(255, 255, 255, 0.1)"
+                               boxShadow: "0 4px 12px rgb(var(--shadow-rgb) / 0.15)",
+                               border: "1px solid rgb(var(--white-rgb) / 0.1)"
                              }}>
-                               <Trophy size={12} style={{ color: "#fbbf24" }} />
+                               <Trophy size={12} style={{ color: "var(--amber-400)" }} />
                                <span>{e.pointsAwarded} PTS</span>
                              </div>
                            )}
                            {(e.individualPointsAwarded ?? 0) > 0 && (
                              <div style={{
-                               background: "rgba(0, 0, 0, 0.7)",
+                               background: "rgb(var(--scrim-rgb) / 0.7)",
                                backdropFilter: "blur(8px)",
-                               color: "#fff",
+                               color: "var(--text-on-color)",
                                padding: "6px 12px",
                                borderRadius: 14,
                                fontSize: 11,
@@ -1363,8 +1364,8 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                                display: "inline-flex",
                                alignItems: "center",
                                gap: 6,
-                               boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                               border: "1px solid rgba(255, 255, 255, 0.1)"
+                               boxShadow: "0 4px 12px rgb(var(--shadow-rgb) / 0.15)",
+                               border: "1px solid rgb(var(--white-rgb) / 0.1)"
                              }} title={t.dashIndividualPtsHint}>
                                <Sparkles size={12} style={{ color: "var(--accent-primary)" }} />
                                <span>+{e.individualPointsAwarded} {t.dashIndividualPtsYou}</span>
@@ -1382,7 +1383,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                         
                         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: "var(--text-secondary)", fontWeight: 600 }}>
-                            <div style={{ width: 32, height: 32, borderRadius: 10, background: "rgba(255,107,0,0.05)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-primary)" }}>
+                            <div style={{ width: 32, height: 32, borderRadius: 10, background: "rgb(var(--accent-rgb) / 0.05)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-primary)" }}>
                                <Clock size={16} />
                             </div>
                             <div style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 600, lineHeight: 1.4 }}>
@@ -1397,7 +1398,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                             </div>
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: "var(--text-secondary)", fontWeight: 600 }}>
-                            <div style={{ width: 32, height: 32, borderRadius: 10, background: "rgba(255,107,0,0.05)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-primary)" }}>
+                            <div style={{ width: 32, height: 32, borderRadius: 10, background: "rgb(var(--accent-rgb) / 0.05)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-primary)" }}>
                                <MapPin size={16} />
                             </div>
                             {e.location || "CAMT Building"}
@@ -1473,9 +1474,9 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                                   borderRadius: 16,
                                   height: 48,
                                   fontWeight: 800,
-                                  background: notYetOpen ? "#f59e0b" : greyed ? "var(--bg-elevated)" : e.isRegistered ? (canCancel ? "#10b981" : "var(--bg-elevated)") : undefined,
-                                  color: notYetOpen ? "#fff" : greyed ? "var(--text-muted)" : e.isRegistered ? (canCancel ? "#fff" : "var(--text-muted)") : undefined,
-                                  boxShadow: notYetOpen ? "0 10px 25px rgba(245,158,11,0.3)" : (e.isRegistered && canCancel) ? "0 10px 25px rgba(16,185,129,0.3)" : (greyed ? "none" : "0 10px 25px var(--accent-glow)"),
+                                  background: notYetOpen ? "var(--amber-500)" : greyed ? "var(--bg-elevated)" : e.isRegistered ? (canCancel ? "var(--emerald-500)" : "var(--bg-elevated)") : undefined,
+                                  color: notYetOpen ? "var(--text-on-color)" : greyed ? "var(--text-muted)" : e.isRegistered ? (canCancel ? "var(--text-on-color)" : "var(--text-muted)") : undefined,
+                                  boxShadow: notYetOpen ? "0 10px 25px rgb(var(--amber-500-rgb) / 0.3)" : (e.isRegistered && canCancel) ? "0 10px 25px rgb(var(--emerald-500-rgb) / 0.3)" : (greyed ? "none" : "0 10px 25px var(--accent-glow)"),
                                   border: greyed ? "1px solid var(--border-subtle)" : "none",
                                   cursor: isDisabled && !registeringId ? "not-allowed" : "pointer",
                                   opacity: greyed ? 0.8 : 1
@@ -1528,7 +1529,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                     flexDirection: "column", 
                     alignItems: "center", 
                     gap: 24,
-                    boxShadow: "0 20px 50px rgba(0,0,0,0.06)",
+                    boxShadow: "0 20px 50px rgb(var(--shadow-rgb) / 0.06)",
                     border: "1px solid var(--border-medium)",
                     width: "100%",
                     maxWidth: "340px",
@@ -1537,11 +1538,11 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                 >
                    <div
                      style={{
-                       background: "#fff",
+                       background: "var(--qr-surface)",
                        padding: "20px",
                        borderRadius: 28,
                        border: "1px solid var(--border-medium)",
-                       boxShadow: "0 0 50px rgba(0,0,0,0.03)",
+                       boxShadow: "0 0 50px rgb(var(--shadow-rgb) / 0.03)",
                        display: "flex",
                        flexDirection: "column",
                        alignItems: "center",
@@ -1600,8 +1601,8 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                       gap: 6,
                       padding: "5px 12px",
                       borderRadius: 99,
-                      background: `${countdownColor}15`,
-                      border: `1px solid ${countdownColor}40`,
+                      background: alpha(countdownColor, 0.08),
+                      border: `1px solid ${alpha(countdownColor, 0.25)}`,
                     }}>
                       <RefreshCw size={11} color={countdownColor} />
                       <span style={{ fontSize: 12, fontWeight: 700, color: countdownColor, fontVariantNumeric: "tabular-nums", letterSpacing: "0.03em" }}>
@@ -1629,17 +1630,17 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                     justifyContent: "center",
                     textAlign: "center",
                     gap: 20,
-                    boxShadow: "0 20px 50px rgba(0,0,0,0.06)",
+                    boxShadow: "0 20px 50px rgb(var(--shadow-rgb) / 0.06)",
                     border: "1px solid var(--border-medium)",
                     borderRadius: "28px",
                     width: "100%",
                     maxWidth: "340px",
                     alignSelf: "center",
                     minHeight: "280px",
-                    background: "linear-gradient(135deg, rgba(255, 107, 0, 0.03) 0%, rgba(255, 255, 255, 0.8) 100%)"
+                    background: "linear-gradient(135deg, rgb(var(--accent-rgb) / 0.03) 0%, rgb(var(--surface-rgb) / 0.8) 100%)"
                   }}
                 >
-                   <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(255, 107, 0, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-primary)", marginBottom: 4 }}>
+                   <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgb(var(--accent-rgb) / 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-primary)", marginBottom: 4 }}>
                      <User size={32} />
                    </div>
                    <h4 style={{ fontSize: 18, fontWeight: 900, color: "var(--text-primary)", margin: 0 }}>
@@ -1671,7 +1672,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
               )}
 
               {/* Leaderboard Sidebar */}
-              <div className="glass" style={{ padding: 24, borderRadius: 24, background: "rgba(255,255,255,0.6)" }}>
+              <div className="glass" style={{ padding: 24, borderRadius: 24, background: "var(--bg-glass-strong)" }}>
                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
                    <h3 style={{ fontSize: 14, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 8 }}>
                       <Trophy size={14} className="text-accent" />
@@ -1704,9 +1705,9 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                         return (
                           <div key={h.id} style={{ 
                             padding: "12px 16px", 
-                            background: isUserHouse ? `${h.color}10` : "var(--bg-elevated)",
+                            background: isUserHouse ? alpha(h.color, 0.06) : "var(--bg-elevated)",
                             borderRadius: 16,
-                            border: `1px solid ${isUserHouse ? `${h.color}30` : "transparent"}`,
+                            border: `1px solid ${isUserHouse ? alpha(h.color, 0.19) : "transparent"}`,
                             position: "relative",
                             overflow: "hidden"
                           }}>
@@ -1714,22 +1715,22 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                             
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 8 }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                 <span style={{ fontSize: 12, fontWeight: 900, color: idx === 0 ? "#fbbf24" : "var(--text-muted)", width: 14 }}>{idx + 1}</span>
+                                 <span style={{ fontSize: 12, fontWeight: 900, color: idx === 0 ? "var(--amber-400)" : "var(--text-muted)", width: 14 }}>{idx + 1}</span>
                                  <span style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)" }}>
                                     {h.id === 'red' ? t.houseMom : h.id === 'green' ? t.houseTo : h.id === 'yellow' ? t.houseLuang : h.id === 'blue' ? t.houseMakara : h.name}
                                   </span>
-                                 {isUserHouse && <span style={{ fontSize: 9, fontWeight: 900, background: h.color, color: "#fff", padding: "2px 6px", borderRadius: 6 }}>YOU</span>}
+                                 {isUserHouse && <span style={{ fontSize: 9, fontWeight: 900, background: h.color, color: "var(--text-on-color)", padding: "2px 6px", borderRadius: 6 }}>YOU</span>}
                               </div>
                               <span style={{ fontSize: 14, fontWeight: 900, color: h.color }}>{h.points || 0} <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)" }}>PTS</span></span>
                             </div>
                             
-                            <div style={{ width: "100%", height: 6, background: "rgba(0,0,0,0.05)", borderRadius: 99 }}>
+                            <div style={{ width: "100%", height: 6, background: "rgb(var(--ink-rgb) / 0.05)", borderRadius: 99 }}>
                               <div style={{ 
                                 width: `${percentage}%`, 
                                 height: "100%", 
                                 background: h.color, 
                                 borderRadius: 99,
-                                boxShadow: idx === 0 ? `0 0 10px ${h.color}40` : "none",
+                                boxShadow: idx === 0 ? `0 0 10px ${alpha(h.color, 0.25)}` : "none",
                                 transition: "width 1s cubic-bezier(0.4, 0, 0.2, 1)"
                               }} />
                             </div>
@@ -1751,7 +1752,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                    textDecoration: "none",
                    padding: "12px",
                    borderRadius: 16,
-                   background: "rgba(255,107,0,0.05)"
+                   background: "rgb(var(--accent-rgb) / 0.05)"
                  }}>
                     {t.houseRankings}
                     <ArrowRight size={14} />
@@ -1765,7 +1766,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
         <div style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(0,0,0,0.6)",
+          background: "rgb(var(--scrim-rgb) / 0.6)",
           backdropFilter: "blur(12px)",
           zIndex: 2050,
           display: "flex",
@@ -1780,15 +1781,15 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
             borderRadius: 28,
             padding: 32,
             textAlign: "center",
-            boxShadow: "0 30px 60px rgba(0,0,0,0.3)",
+            boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.3)",
             border: "1px solid var(--border-medium)"
           }} onClick={e => e.stopPropagation()}>
             <div style={{
               width: 56,
               height: 56,
               borderRadius: "50%",
-              background: "rgba(239, 68, 68, 0.1)",
-              color: "#ef4444",
+              background: "rgb(var(--red-500-rgb) / 0.1)",
+              color: "var(--red-500)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -1817,7 +1818,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
         <div style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(0,0,0,0.6)",
+          background: "rgb(var(--scrim-rgb) / 0.6)",
           backdropFilter: "blur(12px)",
           zIndex: 2050,
           display: "flex",
@@ -1832,15 +1833,15 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
             borderRadius: 28,
             padding: 32,
             textAlign: "center",
-            boxShadow: "0 30px 60px rgba(0,0,0,0.3)",
+            boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.3)",
             border: "1px solid var(--border-medium)"
           }} onClick={e => e.stopPropagation()}>
             <div style={{
               width: 56,
               height: 56,
               borderRadius: "50%",
-              background: successModal.type === "info" ? "rgba(245, 158, 11, 0.1)" : "rgba(16, 185, 129, 0.1)",
-              color: successModal.type === "info" ? "#f59e0b" : "#10b981",
+              background: successModal.type === "info" ? "rgb(var(--amber-500-rgb) / 0.1)" : "rgb(var(--emerald-500-rgb) / 0.1)",
+              color: successModal.type === "info" ? "var(--amber-500)" : "var(--emerald-500)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -1862,10 +1863,10 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                 borderRadius: 12,
                 fontSize: 14,
                 fontWeight: 800,
-                background: successModal.type === "info" ? "#f59e0b" : "#10b981",
-                color: "#fff",
+                background: successModal.type === "info" ? "var(--amber-500)" : "var(--emerald-500)",
+                color: "var(--text-on-color)",
                 border: "none",
-                boxShadow: successModal.type === "info" ? "0 10px 25px rgba(245,158,11,0.3)" : "0 10px 25px rgba(16,185,129,0.3)"
+                boxShadow: successModal.type === "info" ? "0 10px 25px rgb(var(--amber-500-rgb) / 0.3)" : "0 10px 25px rgb(var(--emerald-500-rgb) / 0.3)"
               }}
               onClick={() => setSuccessModal(prev => ({ ...prev, show: false }))}
             >
@@ -1882,7 +1883,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
         <div style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(0,0,0,0.6)",
+          background: "rgb(var(--scrim-rgb) / 0.6)",
           backdropFilter: "blur(12px)",
           zIndex: 2050,
           display: "flex",
@@ -1897,14 +1898,14 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
             borderRadius: 28,
             padding: 32,
             textAlign: "center",
-            boxShadow: "0 30px 60px rgba(0,0,0,0.3)",
+            boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.3)",
             border: "1px solid var(--border-medium)"
           }} onClick={e => e.stopPropagation()}>
             <div style={{
               width: 56,
               height: 56,
               borderRadius: "50%",
-              background: "rgba(255, 107, 0, 0.1)",
+              background: "rgb(var(--accent-rgb) / 0.1)",
               color: "var(--accent-primary)",
               display: "flex",
               alignItems: "center",
@@ -1934,7 +1935,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                 fontSize: 14,
                 fontWeight: 800,
                 background: "var(--accent-primary)",
-                color: "#fff",
+                color: "var(--text-on-color)",
                 border: "none",
                 boxShadow: "0 10px 25px var(--accent-glow)",
                 marginBottom: 12
@@ -1964,7 +1965,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
         <div style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(0,0,0,0.6)",
+          background: "rgb(var(--scrim-rgb) / 0.6)",
           backdropFilter: "blur(12px)",
           zIndex: 2050,
           display: "flex",
@@ -1979,15 +1980,15 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
             borderRadius: 28,
             padding: 32,
             textAlign: "center",
-            boxShadow: "0 30px 60px rgba(0,0,0,0.3)",
+            boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.3)",
             border: "1px solid var(--border-medium)"
           }} onClick={e => e.stopPropagation()}>
             <div style={{
               width: 56,
               height: 56,
               borderRadius: "50%",
-              background: "rgba(245, 158, 11, 0.1)",
-              color: "#f59e0b",
+              background: "rgb(var(--amber-500-rgb) / 0.1)",
+              color: "var(--amber-500)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -2013,13 +2014,13 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                 gap: 10,
                 alignItems: "flex-start",
                 textAlign: "left",
-                background: "rgba(239, 68, 68, 0.08)",
-                border: "1px solid rgba(239, 68, 68, 0.25)",
+                background: "rgb(var(--red-500-rgb) / 0.08)",
+                border: "1px solid rgb(var(--red-500-rgb) / 0.25)",
                 borderRadius: 14,
                 padding: "12px 14px",
                 marginBottom: 28
               }}>
-                <AlertCircle size={18} style={{ color: "#ef4444", flexShrink: 0, marginTop: 1 }} />
+                <AlertCircle size={18} style={{ color: "var(--red-500)", flexShrink: 0, marginTop: 1 }} />
                 <span style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.55, fontWeight: 600 }}>
                   {lang === "th"
                     ? "คุณทำแบบทดสอบ Pre-Test ของกิจกรรมนี้ไปแล้ว การยกเลิกจะลบคำตอบของคุณ และต้องทำใหม่ทั้งหมดหากลงทะเบียนอีกครั้ง"
@@ -2047,10 +2048,10 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                   borderRadius: 12,
                   fontSize: 14,
                   fontWeight: 800,
-                  background: "#ef4444",
-                  color: "#fff",
+                  background: "var(--red-500)",
+                  color: "var(--text-on-color)",
                   border: "none",
-                  boxShadow: "0 10px 25px rgba(239,68,68,0.3)"
+                  boxShadow: "0 10px 25px rgb(var(--red-500-rgb) / 0.3)"
                 }}
                 onClick={() => {
                   const { eventId } = confirmUnregister;
@@ -2071,7 +2072,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.85)",
+            background: "rgb(var(--scrim-rgb) / 0.85)",
             backdropFilter: "blur(20px)",
             zIndex: 2000,
             display: "flex",
@@ -2088,7 +2089,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
               position: "absolute",
               top: 24,
               right: 24,
-              background: "rgba(255,255,255,0.15)",
+              background: "rgb(var(--white-rgb) / 0.15)",
               border: "none",
               borderRadius: "50%",
               width: 48,
@@ -2096,7 +2097,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: "#fff",
+              color: "var(--text-on-color)",
               cursor: "pointer",
               transition: "background 0.2s"
             }}
@@ -2179,7 +2180,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
             style={{
               position: "fixed",
               inset: 0,
-              background: "rgba(0,0,0,0.75)",
+              background: "rgb(var(--scrim-rgb) / 0.75)",
               backdropFilter: "blur(12px)",
               zIndex: 1999,
               display: "flex",
@@ -2201,7 +2202,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                 display: "flex",
                 flexDirection: "column",
                 position: "relative",
-                boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)"
+                boxShadow: "0 25px 50px -12px rgb(var(--shadow-rgb) / 0.5)"
               }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -2213,16 +2214,16 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                   position: "absolute",
                   top: "16px",
                   right: "16px",
-                  background: liveEvent.imageUrl ? "rgba(0,0,0,0.5)" : "var(--bg-elevated)",
+                  background: liveEvent.imageUrl ? "rgb(var(--scrim-rgb) / 0.5)" : "var(--bg-elevated)",
                   backdropFilter: liveEvent.imageUrl ? "blur(4px)" : undefined,
-                  border: liveEvent.imageUrl ? "1px solid rgba(255,255,255,0.2)" : "1px solid var(--border-subtle)",
+                  border: liveEvent.imageUrl ? "1px solid rgb(var(--white-rgb) / 0.2)" : "1px solid var(--border-subtle)",
                   borderRadius: "50%",
                   width: "36px",
                   height: "36px",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  color: liveEvent.imageUrl ? "#fff" : "var(--text-primary)",
+                  color: liveEvent.imageUrl ? "var(--text-on-color)" : "var(--text-primary)",
                   cursor: "pointer",
                   zIndex: 10,
                   transition: "all 0.2s"
@@ -2238,7 +2239,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                   <div style={{
                     position: "relative",
                     width: "100%",
-                    background: "#000",
+                    background: "var(--black)",
                     overflow: "hidden",
                     display: "flex",
                     alignItems: "center",
@@ -2292,14 +2293,14 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                     <div style={{ position: "absolute", top: 16, left: 16, zIndex: 2 }}>
                       <span style={{ 
                         padding: "6px 12px", 
-                        background: getEventStatus(liveEvent) === 'live' ? "#ef4444" : "var(--accent-primary)", 
-                        color: "#fff", 
+                        background: getEventStatus(liveEvent) === 'live' ? "var(--red-500)" : "var(--accent-primary)", 
+                        color: "var(--text-on-color)", 
                         borderRadius: "12px", 
                         fontSize: "11px", 
                         fontWeight: 900, 
                         textTransform: "uppercase", 
                         letterSpacing: "0.05em",
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.2)"
+                        boxShadow: "0 4px 12px rgb(var(--shadow-rgb) / 0.2)"
                       }}>
                         {getEventStatus(liveEvent)}
                       </span>
@@ -2309,9 +2310,9 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                     <div style={{ position: "absolute", bottom: 16, left: 16, zIndex: 2, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                       {liveEvent.pointsAwarded !== undefined && (
                         <div style={{
-                          background: "rgba(0, 0, 0, 0.7)",
+                          background: "rgb(var(--scrim-rgb) / 0.7)",
                           backdropFilter: "blur(8px)",
-                          color: "#fff",
+                          color: "var(--text-on-color)",
                           padding: "6px 12px",
                           borderRadius: 12,
                           fontSize: 11,
@@ -2319,18 +2320,18 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                           display: "inline-flex",
                           alignItems: "center",
                           gap: 6,
-                          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                          border: "1px solid rgba(255, 255, 255, 0.1)"
+                          boxShadow: "0 4px 12px rgb(var(--shadow-rgb) / 0.15)",
+                          border: "1px solid rgb(var(--white-rgb) / 0.1)"
                         }}>
-                          <Trophy size={12} style={{ color: "#fbbf24" }} />
+                          <Trophy size={12} style={{ color: "var(--amber-400)" }} />
                           <span>{liveEvent.pointsAwarded} PTS</span>
                         </div>
                       )}
                       {(liveEvent.individualPointsAwarded ?? 0) > 0 && (
                         <div style={{
-                          background: "rgba(0, 0, 0, 0.7)",
+                          background: "rgb(var(--scrim-rgb) / 0.7)",
                           backdropFilter: "blur(8px)",
-                          color: "#fff",
+                          color: "var(--text-on-color)",
                           padding: "6px 12px",
                           borderRadius: 12,
                           fontSize: 11,
@@ -2338,8 +2339,8 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                           display: "inline-flex",
                           alignItems: "center",
                           gap: 6,
-                          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                          border: "1px solid rgba(255, 255, 255, 0.1)"
+                          boxShadow: "0 4px 12px rgb(var(--shadow-rgb) / 0.15)",
+                          border: "1px solid rgb(var(--white-rgb) / 0.1)"
                         }} title={t.dashIndividualPtsHint}>
                           <Sparkles size={12} style={{ color: "var(--accent-primary)" }} />
                           <span>+{liveEvent.individualPointsAwarded} {t.dashIndividualPtsYou}</span>
@@ -2368,7 +2369,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                   {/* Metadata List */}
                   <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "24px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: "var(--text-secondary)", fontWeight: 600 }}>
-                      <div style={{ width: 32, height: 32, borderRadius: 10, background: "rgba(255,107,0,0.05)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-primary)" }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 10, background: "rgb(var(--accent-rgb) / 0.05)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-primary)" }}>
                          <Clock size={16} />
                       </div>
                       <div style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 600, lineHeight: 1.4 }}>
@@ -2384,7 +2385,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: "var(--text-secondary)", fontWeight: 600 }}>
-                      <div style={{ width: 32, height: 32, borderRadius: 10, background: "rgba(255,107,0,0.05)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-primary)" }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 10, background: "rgb(var(--accent-rgb) / 0.05)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-primary)" }}>
                          <MapPin size={16} />
                       </div>
                       <div style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 600 }}>
@@ -2436,9 +2437,9 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                     borderRadius: 16,
                     fontSize: 14,
                     fontWeight: 800,
-                    color: linkCopied ? "#10b981" : "var(--text-primary)",
+                    color: linkCopied ? "var(--emerald-500)" : "var(--text-primary)",
                     background: "var(--bg-elevated)",
-                    border: `1px solid ${linkCopied ? "#10b981" : "var(--border-subtle)"}`,
+                    border: `1px solid ${linkCopied ? "var(--emerald-500)" : "var(--border-subtle)"}`,
                     cursor: "pointer",
                     display: "flex",
                     alignItems: "center",
@@ -2496,9 +2497,9 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
                     height: 48,
                     padding: "0 24px",
                     fontWeight: 800,
-                    background: notYetOpen ? "#f59e0b" : greyed ? "var(--bg-elevated)" : liveEvent.isRegistered ? (canCancel ? "#10b981" : "var(--bg-elevated)") : undefined,
-                    color: notYetOpen ? "#fff" : greyed ? "var(--text-muted)" : liveEvent.isRegistered ? (canCancel ? "#fff" : "var(--text-muted)") : undefined,
-                    boxShadow: notYetOpen ? "0 10px 25px rgba(245,158,11,0.3)" : (liveEvent.isRegistered && canCancel) ? "0 10px 25px rgba(16,185,129,0.3)" : (greyed ? "none" : "0 10px 25px var(--accent-glow)"),
+                    background: notYetOpen ? "var(--amber-500)" : greyed ? "var(--bg-elevated)" : liveEvent.isRegistered ? (canCancel ? "var(--emerald-500)" : "var(--bg-elevated)") : undefined,
+                    color: notYetOpen ? "var(--text-on-color)" : greyed ? "var(--text-muted)" : liveEvent.isRegistered ? (canCancel ? "var(--text-on-color)" : "var(--text-muted)") : undefined,
+                    boxShadow: notYetOpen ? "0 10px 25px rgb(var(--amber-500-rgb) / 0.3)" : (liveEvent.isRegistered && canCancel) ? "0 10px 25px rgb(var(--emerald-500-rgb) / 0.3)" : (greyed ? "none" : "0 10px 25px var(--accent-glow)"),
                     border: greyed ? "1px solid var(--border-subtle)" : "none",
                     cursor: isDisabled && !registeringId ? "not-allowed" : "pointer",
                     opacity: greyed ? 0.8 : 1,
@@ -2540,7 +2541,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
         <style jsx global>{`
           .event-card-ig:hover {
             transform: translateY(-8px);
-            box-shadow: 0 30px 60px rgba(0,0,0,0.08) !important;
+            box-shadow: 0 30px 60px rgb(var(--shadow-rgb) / 0.08) !important;
             border-color: var(--accent-primary) !important;
           }
           .event-card-ig img {
@@ -2551,7 +2552,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
           }
           .timeline-row:hover {
             border-color: var(--accent-primary) !important;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+            box-shadow: 0 6px 20px rgb(var(--shadow-rgb) / 0.06);
             transform: translateX(2px);
           }
         `}</style>

@@ -13,7 +13,7 @@ type PendingForm = {
 };
 
 // Rose / urgent palette — these are required, outstanding actions.
-const ROSE = "#e11d48";
+const ROSE = "var(--rose-600)";
 
 /**
  * Persistent reminder of every form a student still owes (pre-test, post-test,
@@ -55,8 +55,8 @@ export function FormsDueBanner({ userId }: { userId: string | undefined }) {
       style={{
         padding: 16,
         borderRadius: 18,
-        background: "rgba(225,29,72,0.08)",
-        border: `1.5px solid rgba(225,29,72,0.3)`,
+        background: "rgb(var(--rose-600-rgb) / 0.08)",
+        border: `1.5px solid rgb(var(--rose-600-rgb) / 0.3)`,
         display: "flex",
         flexDirection: "column",
         gap: 14,
@@ -73,7 +73,7 @@ export function FormsDueBanner({ userId }: { userId: string | undefined }) {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            background: "rgba(225,29,72,0.15)",
+            background: "rgb(var(--rose-600-rgb) / 0.15)",
             color: ROSE,
           }}
         >
@@ -129,7 +129,7 @@ export function FormsDueBanner({ userId }: { userId: string | undefined }) {
                 flexShrink: 0,
                 padding: "3px 9px",
                 borderRadius: 8,
-                background: "rgba(225,29,72,0.12)",
+                background: "rgb(var(--rose-600-rgb) / 0.12)",
                 color: ROSE,
                 fontSize: 11,
                 fontWeight: 800,

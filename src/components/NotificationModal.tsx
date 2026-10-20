@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, Award, ClipboardList, ArrowRight, House, X } from "lucide-react";
 import { useLanguage } from "@/lib/LanguageContext";
 import type { NotifItem } from "@/components/NotificationToasts";
+import { alpha } from "@/lib/color";
 
 // Auto-dismiss after a few seconds so the modal confirms-then-clears without the
 // student having to tap (it can still be dismissed by tap / backdrop / close).
@@ -41,8 +42,8 @@ function SongsueRedirectCountdown({ url, message, buttonLabel }: { url: string; 
         marginTop: 20,
         padding: 14,
         borderRadius: 16,
-        background: "rgba(99, 102, 241, 0.08)",
-        border: "1.5px dashed rgba(99, 102, 241, 0.4)",
+        background: "rgb(var(--indigo-500-rgb) / 0.08)",
+        border: "1.5px dashed rgb(var(--indigo-500-rgb) / 0.4)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -50,8 +51,8 @@ function SongsueRedirectCountdown({ url, message, buttonLabel }: { url: string; 
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <House size={18} color="#6366f1" />
-        <span style={{ fontSize: 24, fontWeight: 900, color: "#6366f1", lineHeight: 1 }}>{secondsLeft}</span>
+        <House size={18} color="var(--indigo-500)" />
+        <span style={{ fontSize: 24, fontWeight: 900, color: "var(--indigo-500)", lineHeight: 1 }}>{secondsLeft}</span>
       </div>
       <p style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 600, lineHeight: 1.5 }}>
         {message.replace("{seconds}", String(secondsLeft))}
@@ -65,7 +66,7 @@ function SongsueRedirectCountdown({ url, message, buttonLabel }: { url: string; 
           gap: 6,
           padding: "8px 16px",
           borderRadius: 12,
-          background: "#6366f1",
+          background: "var(--indigo-500)",
           color: "white",
           fontSize: 13,
           fontWeight: 700,
@@ -129,14 +130,14 @@ export function NotificationModal({
   const isSongsueRedirect = shouldRedirectToSongsue;
   const positive = (current.points ?? 0) >= 0;
   const accent = isSongsueRedirect
-    ? "#6366f1"
+    ? "var(--indigo-500)"
     : isPreTest
-      ? "#e11d48"
+      ? "var(--rose-600)"
       : isCheckin
-        ? "#14b8a6"
+        ? "var(--teal-500)"
         : positive
           ? "var(--accent-primary)"
-          : "#f59e0b";
+          : "var(--amber-500)";
 
   const title = isSongsueRedirect
     ? t.notifSongsueRedirectTitle
@@ -155,7 +156,7 @@ export function NotificationModal({
         position: "fixed",
         inset: 0,
         zIndex: 2000,
-        background: "rgba(0,0,0,0.55)",
+        background: "rgb(var(--scrim-rgb) / 0.55)",
         backdropFilter: "blur(4px)",
         display: "flex",
         alignItems: "center",
@@ -169,13 +170,13 @@ export function NotificationModal({
         style={{
           position: "relative",
           width: "min(92vw, 360px)",
-          background: "var(--bg-surface, #fff)",
+          background: "var(--bg-surface)",
           color: "var(--text-primary)",
           borderRadius: 28,
           padding: "36px 28px 28px",
           textAlign: "center",
-          boxShadow: "0 30px 70px rgba(0,0,0,0.35)",
-          border: `1px solid ${accent}33`,
+          boxShadow: "0 30px 70px rgb(var(--shadow-rgb) / 0.35)",
+          border: `1px solid ${alpha(accent, 0.2)}`,
         }}
       >
         <button
@@ -277,7 +278,7 @@ export function NotificationModal({
               fontSize: 15,
               fontWeight: 800,
               textDecoration: "none",
-              boxShadow: `0 8px 20px ${accent}40`,
+              boxShadow: `0 8px 20px ${alpha(accent, 0.25)}`,
             }}
           >
             {t.notifPreTestCta}

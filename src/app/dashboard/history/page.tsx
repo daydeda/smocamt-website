@@ -485,7 +485,7 @@ export default function HistoryPage() {
           </div>
         ) : historyError ? (
           <div style={{ padding: "100px 40px", textAlign: "center", background: "var(--bg-surface)", borderRadius: 40, border: "2px dashed var(--border-subtle)" }}>
-            <AlertTriangle size={48} style={{ color: "#ef4444", display: "block", margin: "0 auto 20px auto", opacity: 0.5 }} />
+            <AlertTriangle size={48} style={{ color: "var(--red-500)", display: "block", margin: "0 auto 20px auto", opacity: 0.5 }} />
             <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 12 }}>
               {lang === "th" ? "โหลดประวัติไม่สำเร็จ" : lang === "cn" ? "无法加载历史记录" : lang === "mm" ? "မှတ်တမ်း ဖွင့်၍မရပါ" : "Couldn't load your history"}
             </h3>
@@ -507,7 +507,7 @@ export default function HistoryPage() {
                 borderRadius: 32,
                 border: "1px solid var(--border-subtle)",
                 background: "var(--bg-surface)",
-                boxShadow: "0 10px 30px rgba(0,0,0,0.03)",
+                boxShadow: "0 10px 30px rgb(var(--shadow-rgb) / 0.03)",
                 // Grid items default to min-width:auto, so a long form/event title
                 // would stretch the whole column instead of wrapping. minWidth:0
                 // lets the column hold its track width so the inner text wraps.
@@ -553,7 +553,7 @@ export default function HistoryPage() {
                         <div key={s.sessionId} style={{
                           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
                           padding: "8px 14px", borderRadius: 14,
-                          background: s.checkInTime ? "rgba(255,107,0,0.08)" : "rgba(0,0,0,0.04)"
+                          background: s.checkInTime ? "rgb(var(--accent-rgb) / 0.08)" : "rgb(var(--ink-rgb) / 0.04)"
                         }}>
                           <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                             <ClipboardList size={14} style={{ flexShrink: 0, color: s.checkInTime ? "var(--accent-primary)" : "var(--text-muted)" }} />
@@ -583,9 +583,9 @@ export default function HistoryPage() {
                       alignItems: "center",
                       gap: 6,
                       padding: "6px 14px",
-                      background: "rgba(239,68,68,0.08)",
+                      background: "rgb(var(--red-500-rgb) / 0.08)",
                       borderRadius: 14,
-                      color: "#ef4444",
+                      color: "var(--red-500)",
                       fontSize: 12,
                       fontWeight: 800
                     }}>
@@ -599,7 +599,7 @@ export default function HistoryPage() {
                       alignItems: "center",
                       gap: 6,
                       padding: "6px 14px",
-                      background: "rgba(255,107,0,0.08)",
+                      background: "rgb(var(--accent-rgb) / 0.08)",
                       borderRadius: 14,
                       color: "var(--accent-primary)",
                       fontSize: 12,
@@ -618,7 +618,7 @@ export default function HistoryPage() {
                       alignItems: "center",
                       gap: 6,
                       padding: "6px 14px",
-                      background: "rgba(0,0,0,0.04)",
+                      background: "rgb(var(--ink-rgb) / 0.04)",
                       borderRadius: 14,
                       color: "var(--text-muted)",
                       fontSize: 12,
@@ -646,11 +646,11 @@ export default function HistoryPage() {
                               padding: "8px 14px",
                               fontSize: 13,
                               fontWeight: 900,
-                              background: "linear-gradient(135deg, var(--accent-primary) 0%, #ff3d00 100%)",
-                              color: "#fff",
+                              background: "linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-deep) 100%)",
+                              color: "var(--text-on-color)",
                               border: "none",
                               cursor: "pointer",
-                              boxShadow: "0 4px 12px rgba(255,107,0,0.15)",
+                              boxShadow: "0 4px 12px rgb(var(--accent-rgb) / 0.15)",
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
@@ -660,7 +660,7 @@ export default function HistoryPage() {
                             onClick={() => openStudentForm(h.eventId, form.id, form.formType)}
                           >
                             <ClipboardList size={14} style={{ flexShrink: 0 }} />
-                            <span style={{ fontSize: 10, fontWeight: 900, opacity: 0.85, background: "rgba(255,255,255,0.2)", padding: "1px 6px", borderRadius: 6, flexShrink: 0 }}>
+                            <span style={{ fontSize: 10, fontWeight: 900, opacity: 0.85, background: "rgb(var(--white-rgb) / 0.2)", padding: "1px 6px", borderRadius: 6, flexShrink: 0 }}>
                               {FORM_TYPE_LABELS[form.formType] || form.formType}
                             </span>
                             <span style={{ minWidth: 0, whiteSpace: "normal", overflowWrap: "break-word", wordBreak: "break-word" }}>{form.title}</span>
@@ -668,12 +668,12 @@ export default function HistoryPage() {
                                 winning house) vs individual points (to you on submit). */}
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
                               {form.formPoints > 0 && (
-                                <span style={{ display: "inline-flex", alignItems: "center", gap: 3, opacity: 0.9, background: "rgba(255,255,255,0.18)", padding: "1px 7px", borderRadius: 6 }}>
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 3, opacity: 0.9, background: "rgb(var(--white-rgb) / 0.18)", padding: "1px 7px", borderRadius: 6 }}>
                                   <Trophy size={11} style={{ flexShrink: 0 }} /> +{form.formPoints} {t.histHousePts}
                                 </span>
                               )}
                               {form.formIndividualPoints > 0 && (
-                                <span style={{ display: "inline-flex", alignItems: "center", gap: 3, opacity: 0.9, background: "rgba(255,255,255,0.18)", padding: "1px 7px", borderRadius: 6 }}>
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 3, opacity: 0.9, background: "rgb(var(--white-rgb) / 0.18)", padding: "1px 7px", borderRadius: 6 }}>
                                   <Sparkles size={11} style={{ flexShrink: 0 }} /> +{form.formIndividualPoints} {t.histYouPts}
                                 </span>
                               )}
@@ -690,15 +690,15 @@ export default function HistoryPage() {
                             minHeight: 42,
                             borderRadius: 12,
                             padding: "8px 14px",
-                            background: "rgba(16,185,129,0.08)",
-                            color: "#10b981",
+                            background: "rgb(var(--emerald-500-rgb) / 0.08)",
+                            color: "var(--emerald-500)",
                             fontSize: 13,
                             fontWeight: 800
                           }}>
                             <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
                               <CheckCircle2 size={14} style={{ flexShrink: 0 }} /> <span style={{ minWidth: 0, overflowWrap: "break-word", wordBreak: "break-word" }}>{form.title}</span>
                             </span>
-                            <span style={{ fontSize: 10, fontWeight: 900, opacity: 0.75, background: "rgba(16,185,129,0.15)", padding: "2px 8px", borderRadius: 6, flexShrink: 0 }}>
+                            <span style={{ fontSize: 10, fontWeight: 900, opacity: 0.75, background: "rgb(var(--emerald-500-rgb) / 0.15)", padding: "2px 8px", borderRadius: 6, flexShrink: 0 }}>
                               {FORM_TYPE_LABELS[form.formType] || form.formType}
                             </span>
                           </div>
@@ -713,7 +713,7 @@ export default function HistoryPage() {
                             minHeight: 42,
                             borderRadius: 12,
                             padding: "8px 14px",
-                            background: "rgba(0,0,0,0.03)",
+                            background: "rgb(var(--ink-rgb) / 0.03)",
                             color: "var(--text-muted)",
                             fontSize: 13,
                             fontWeight: 700
@@ -735,8 +735,8 @@ export default function HistoryPage() {
                             minHeight: 42,
                             borderRadius: 12,
                             padding: "8px 14px",
-                            background: "rgba(99,102,241,0.06)",
-                            color: "#6366f1",
+                            background: "rgb(var(--indigo-500-rgb) / 0.06)",
+                            color: "var(--indigo-500)",
                             fontSize: 13,
                             fontWeight: 700
                           }}>
@@ -745,7 +745,7 @@ export default function HistoryPage() {
                                 <Calendar size={14} style={{ flexShrink: 0 }} />
                                 <span style={{ minWidth: 0, overflowWrap: "break-word", wordBreak: "break-word" }}>{form.title}</span>
                               </span>
-                              <span style={{ fontSize: 10, fontWeight: 900, opacity: 0.7, background: "rgba(99,102,241,0.12)", padding: "2px 8px", borderRadius: 6, flexShrink: 0 }}>
+                              <span style={{ fontSize: 10, fontWeight: 900, opacity: 0.7, background: "rgb(var(--indigo-500-rgb) / 0.12)", padding: "2px 8px", borderRadius: 6, flexShrink: 0 }}>
                                 {FORM_TYPE_LABELS[form.formType] || form.formType}
                               </span>
                             </div>
@@ -776,18 +776,18 @@ export default function HistoryPage() {
         {/* Warning Modal */}
         {showWarningModal && (
           <div style={{
-            position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(12px)",
+            position: "fixed", inset: 0, background: "rgb(var(--scrim-rgb) / 0.5)", backdropFilter: "blur(12px)",
             zIndex: 1200, display: "flex", alignItems: "center", justifyContent: "center", padding: 24
           }} onClick={() => setShowWarningModal(false)}>
             <div className="animate-fade-in-up" style={{
               background: "var(--bg-surface)", width: "100%", maxWidth: 480, borderRadius: 32,
-              overflow: "hidden", boxShadow: "0 30px 60px rgba(0,0,0,0.25)", border: "1px solid var(--border-medium)",
+              overflow: "hidden", boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.25)", border: "1px solid var(--border-medium)",
               padding: "40px 32px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center"
             }} onClick={e => e.stopPropagation()}>
               <div style={{
-                width: 72, height: 72, borderRadius: "50%", background: "rgba(255,107,0,0.1)",
+                width: 72, height: 72, borderRadius: "50%", background: "rgb(var(--accent-rgb) / 0.1)",
                 display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 24,
-                border: "1px solid rgba(255,107,0,0.2)", boxShadow: "0 0 20px rgba(255,107,0,0.15)"
+                border: "1px solid rgb(var(--accent-rgb) / 0.2)", boxShadow: "0 0 20px rgb(var(--accent-rgb) / 0.15)"
               }}>
                 <Trophy size={36} style={{ color: "var(--accent-primary)" }} />
               </div>
@@ -799,8 +799,8 @@ export default function HistoryPage() {
               </p>
               <button className="btn btn-primary" type="button" style={{
                 width: "100%", height: 48, borderRadius: 14, fontWeight: 900, fontSize: 15,
-                background: "linear-gradient(135deg, var(--accent-primary) 0%, #ff3d00 100%)",
-                color: "#fff", border: "none", boxShadow: "0 4px 14px rgba(255,107,0,0.3)", cursor: "pointer"
+                background: "linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-deep) 100%)",
+                color: "var(--text-on-color)", border: "none", boxShadow: "0 4px 14px rgb(var(--accent-rgb) / 0.3)", cursor: "pointer"
               }} onClick={() => setShowWarningModal(false)}>
                 {lang === "th" ? "ตกลง" : lang === "cn" ? "好的" : lang === "mm" ? "ကောင်းပါပြီ" : "Understood"}
               </button>
@@ -811,13 +811,13 @@ export default function HistoryPage() {
         {/* Student Form Modal */}
         {showStudentForm && (
           <div style={{
-            position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)",
+            position: "fixed", inset: 0, background: "rgb(var(--scrim-rgb) / 0.4)", backdropFilter: "blur(8px)",
             zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: 24
           }} onClick={() => closeStudentForm()}>
             <div ref={modalScrollRef} className="animate-fade-in-up custom-scrollbar" style={{
               background: "var(--bg-surface)", width: "100%", maxWidth: 600, maxHeight: "85vh",
               borderRadius: 32, overflowY: "auto", overflowX: "hidden", WebkitOverflowScrolling: "touch",
-              boxShadow: "0 30px 60px rgba(0,0,0,0.2)", border: "1px solid var(--border-medium)"
+              boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.2)", border: "1px solid var(--border-medium)"
             }} onClick={e => e.stopPropagation()}>
 
               {/* Modal Header */}
@@ -826,7 +826,7 @@ export default function HistoryPage() {
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                     <span style={{ fontSize: 11, fontWeight: 900, color: "var(--accent-primary)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t.housePointFeeding}</span>
                     {activeForm?.formType && (
-                      <span style={{ fontSize: 10, fontWeight: 900, background: "rgba(255,107,0,0.12)", color: "var(--accent-primary)", padding: "2px 8px", borderRadius: 6 }}>
+                      <span style={{ fontSize: 10, fontWeight: 900, background: "rgb(var(--accent-rgb) / 0.12)", color: "var(--accent-primary)", padding: "2px 8px", borderRadius: 6 }}>
                         {FORM_TYPE_LABELS[activeForm.formType] || activeForm.formType}
                       </span>
                     )}
@@ -847,9 +847,9 @@ export default function HistoryPage() {
               ) : generalSuccess ? (
                 <div style={{ padding: 40, textAlign: "center" }}>
                   <div className="animate-scale-in" style={{
-                    width: 72, height: 72, borderRadius: "50%", background: "rgba(16,185,129,0.1)", color: "#10b981",
+                    width: 72, height: 72, borderRadius: "50%", background: "rgb(var(--emerald-500-rgb) / 0.1)", color: "var(--emerald-500)",
                     display: "flex", alignItems: "center", justifyContent: "center", margin: "20px auto 24px",
-                    boxShadow: "0 10px 30px rgba(16,185,129,0.15)"
+                    boxShadow: "0 10px 30px rgb(var(--emerald-500-rgb) / 0.15)"
                   }}>
                     <CheckCircle2 size={36} />
                   </div>
@@ -874,8 +874,8 @@ export default function HistoryPage() {
                   </p>
                   <button className="btn btn-primary" style={{
                     height: 46, borderRadius: 12, padding: "0 32px",
-                    background: "linear-gradient(135deg, var(--accent-primary) 0%, #ff3d00 100%)",
-                    color: "#fff", border: "none", boxShadow: "0 4px 14px rgba(255,107,0,0.3)"
+                    background: "linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-deep) 100%)",
+                    color: "var(--text-on-color)", border: "none", boxShadow: "0 4px 14px rgb(var(--accent-rgb) / 0.3)"
                   }} onClick={() => { closeStudentForm(); setGeneralSuccess(null); }}>
                     {t.closeWindow}
                   </button>
@@ -884,8 +884,8 @@ export default function HistoryPage() {
                 <div style={{ padding: "clamp(20px, 5vw, 40px)" }}>
                   {draftRestored && sectionIndex === 0 && navStack.length === 0 && (
                     <div className="animate-fade-in" style={{
-                      background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 16,
-                      padding: "12px 16px", marginBottom: 20, color: "#6366f1", fontSize: 13, fontWeight: 700,
+                      background: "rgb(var(--indigo-500-rgb) / 0.08)", border: "1px solid rgb(var(--indigo-500-rgb) / 0.2)", borderRadius: 16,
+                      padding: "12px 16px", marginBottom: 20, color: "var(--indigo-500)", fontSize: 13, fontWeight: 700,
                       display: "flex", alignItems: "center", gap: 10
                     }}>
                       <Save size={16} style={{ flexShrink: 0 }} />
@@ -900,8 +900,8 @@ export default function HistoryPage() {
                   )}
                   {generalError && (
                     <div className="animate-fade-in" style={{
-                      background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 16,
-                      padding: "16px 20px", marginBottom: 28, color: "#ef4444", fontSize: 13, fontWeight: 700,
+                      background: "rgb(var(--red-500-rgb) / 0.08)", border: "1px solid rgb(var(--red-500-rgb) / 0.2)", borderRadius: 16,
+                      padding: "16px 20px", marginBottom: 28, color: "var(--red-500)", fontSize: 13, fontWeight: 700,
                       display: "flex", alignItems: "center", gap: 10
                     }}>
                       <AlertTriangle size={16} style={{ flexShrink: 0 }} /> {generalError}
@@ -939,7 +939,7 @@ export default function HistoryPage() {
                       .map((q: Question) => (
                         <div key={q.id} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                           <label style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)", whiteSpace: "pre-wrap" }}>
-                            {q.label === "Overall Satisfaction" ? t.overallSatisfaction : q.label} {q.required && <span style={{ color: "#ef4444" }}>*</span>}
+                            {q.label === "Overall Satisfaction" ? t.overallSatisfaction : q.label} {q.required && <span style={{ color: "var(--red-500)" }}>*</span>}
                           </label>
 
                           {q.type === "rating" ? (
@@ -951,12 +951,12 @@ export default function HistoryPage() {
                                 return (
                                   <button key={starIdx} type="button" style={{
                                     border: "none", background: "transparent", cursor: "pointer", padding: 0, flexShrink: 0,
-                                    color: isSelected ? "#ffb000" : "var(--border-medium)", transition: "all 0.1s"
+                                    color: isSelected ? "var(--rating-star)" : "var(--border-medium)", transition: "all 0.1s"
                                   }} onClick={() => {
                                     setAnswers({ ...answers, [q.id]: ratingValue });
                                     if (formErrors[q.id]) { const u = { ...formErrors }; delete u[q.id]; setFormErrors(u); }
                                   }}>
-                                    <Star size={28} fill={isSelected ? "#ffb000" : "none"} />
+                                    <Star size={28} fill={isSelected ? "var(--rating-star)" : "none"} />
                                   </button>
                                 );
                               })}
@@ -973,7 +973,7 @@ export default function HistoryPage() {
                                     display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderRadius: 14,
                                     border: isSelected ? "2px solid var(--accent-primary)" : "1px solid var(--border-subtle)",
                                     background: isSelected ? "var(--bg-elevated)" : "var(--bg-surface)", cursor: "pointer",
-                                    transition: "all 0.2s ease", boxShadow: isSelected ? "0 0 12px rgba(255,107,0,0.1)" : "none"
+                                    transition: "all 0.2s ease", boxShadow: isSelected ? "0 0 12px rgb(var(--accent-rgb) / 0.1)" : "none"
                                   }}>
                                     <input type="radio" name={`choice-${q.id}`} value={opt} checked={isSelected}
                                       onChange={() => {
@@ -996,7 +996,7 @@ export default function HistoryPage() {
                                     display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderRadius: 14,
                                     border: isSelected ? "2px solid var(--accent-primary)" : "1px solid var(--border-subtle)",
                                     background: isSelected ? "var(--bg-elevated)" : "var(--bg-surface)", cursor: "pointer",
-                                    transition: "all 0.2s ease", boxShadow: isSelected ? "0 0 12px rgba(255,107,0,0.1)" : "none"
+                                    transition: "all 0.2s ease", boxShadow: isSelected ? "0 0 12px rgb(var(--accent-rgb) / 0.1)" : "none"
                                   }}>
                                     <input type="checkbox" value={opt} checked={isSelected}
                                       onChange={(e) => {
@@ -1018,19 +1018,19 @@ export default function HistoryPage() {
                                   display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 14,
                                   border: "1px solid var(--border-subtle)", background: "var(--bg-elevated)"
                                 }}>
-                                  <CheckCircle2 size={18} style={{ color: "#10b981", flexShrink: 0 }} />
+                                  <CheckCircle2 size={18} style={{ color: "var(--emerald-500)", flexShrink: 0 }} />
                                   <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                     {(String(answers[q.id]).split(".").pop() || "file").toUpperCase()}{" "}
                                     {lang === "th" ? "ไฟล์อัปโหลดแล้ว" : lang === "cn" ? "文件已上传" : lang === "mm" ? "ဖိုင်တင်ပြီးပါပြီ" : "file uploaded"}
                                   </span>
-                                  <button type="button" onClick={() => removeFileAnswer(q.id)} style={{ border: "none", background: "transparent", cursor: "pointer", color: "#ef4444", fontWeight: 800, fontSize: 12 }}>
+                                  <button type="button" onClick={() => removeFileAnswer(q.id)} style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--red-500)", fontWeight: 800, fontSize: 12 }}>
                                     {lang === "th" ? "ลบ" : lang === "cn" ? "移除" : lang === "mm" ? "ဖယ်ရှားရန်" : "Remove"}
                                   </button>
                                 </div>
                               ) : (
                                 <label style={{
                                   display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "16px",
-                                  borderRadius: 14, border: `2px dashed ${formErrors[q.id] ? "#ef4444" : "var(--border-medium)"}`,
+                                  borderRadius: 14, border: `2px dashed ${formErrors[q.id] ? "var(--red-500)" : "var(--border-medium)"}`,
                                   background: "var(--bg-surface)", cursor: fileUploading[q.id] ? "wait" : "pointer", fontSize: 13, fontWeight: 800,
                                   color: "var(--text-secondary)"
                                 }}>
@@ -1046,13 +1046,13 @@ export default function HistoryPage() {
                                 {lang === "th" ? "รองรับ JPG, PNG, WEBP, PDF • สูงสุด 4MB" : lang === "cn" ? "支持 JPG、PNG、WEBP、PDF • 最大 4MB" : lang === "mm" ? "JPG, PNG, WEBP, PDF • အများဆုံး 4MB" : "JPG, PNG, WEBP, PDF • max 4MB"}
                               </span>
                               {fileErrors[q.id] && (
-                                <span style={{ color: "#ef4444", fontSize: 12, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={12} style={{ flexShrink: 0 }} /> {fileErrors[q.id]}</span>
+                                <span style={{ color: "var(--red-500)", fontSize: 12, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={12} style={{ flexShrink: 0 }} /> {fileErrors[q.id]}</span>
                               )}
                             </div>
                           ) : (
                             <textarea className="input custom-scrollbar" style={{
                               width: "100%", minHeight: 100, borderRadius: 14, padding: "12px 16px", resize: "vertical",
-                              borderColor: formErrors[q.id] ? "#ef4444" : "var(--border-medium)"
+                              borderColor: formErrors[q.id] ? "var(--red-500)" : "var(--border-medium)"
                             }} value={String(answers[q.id] || "")}
                               onChange={e => {
                                 setAnswers({ ...answers, [q.id]: e.target.value });
@@ -1062,7 +1062,7 @@ export default function HistoryPage() {
                           )}
 
                           {formErrors[q.id] && (
-                            <span style={{ color: "#ef4444", fontSize: 12, fontWeight: 700, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                            <span style={{ color: "var(--red-500)", fontSize: 12, fontWeight: 700, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
                               <AlertTriangle size={12} style={{ flexShrink: 0 }} /> {formErrors[q.id]}
                             </span>
                           )}
@@ -1080,8 +1080,8 @@ export default function HistoryPage() {
                     </button>
                     <button className="btn btn-primary" type="button" style={{
                       height: 46, borderRadius: 12, padding: "0 24px",
-                      background: "linear-gradient(135deg, var(--accent-primary) 0%, #ff3d00 100%)",
-                      color: "#fff", border: "none", boxShadow: "0 4px 14px rgba(255,107,0,0.3)",
+                      background: "linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-deep) 100%)",
+                      color: "var(--text-on-color)", border: "none", boxShadow: "0 4px 14px rgb(var(--accent-rgb) / 0.3)",
                       display: "flex", alignItems: "center", gap: 8
                     }} disabled={submitting} onClick={goNext}>
                       {submitting ? (
@@ -1103,7 +1103,7 @@ export default function HistoryPage() {
           .glass:hover {
             transform: translateY(-4px);
             border-color: var(--accent-primary) !important;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.06) !important;
+            box-shadow: 0 20px 40px rgb(var(--shadow-rgb) / 0.06) !important;
           }
         `}</style>
       </main>

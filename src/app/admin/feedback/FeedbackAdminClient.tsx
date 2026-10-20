@@ -144,7 +144,7 @@ export function FeedbackAdminClient() {
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 10, marginBottom: 10, padding: 10, borderRadius: 12, background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.18)" }}>
+      <div style={{ display: "flex", gap: 10, marginBottom: 10, padding: 10, borderRadius: 12, background: "rgb(var(--indigo-500-rgb) / 0.06)", border: "1px solid rgb(var(--indigo-500-rgb) / 0.18)" }}>
         <ShieldOff size={16} color="var(--accent-primary)" style={{ flexShrink: 0, marginTop: 2 }} />
         <p style={{ fontSize: 12.5, color: "var(--text-muted)", lineHeight: 1.5, margin: 0 }}>
           {tt(
@@ -234,7 +234,7 @@ export function FeedbackAdminClient() {
           // Centered dialog on both axes (matches AppealsClient's resolve
           // modal convention) — the previous alignItems:"flex-end" bottom
           // sheet read as "stuck to the bottom, not centered" on desktop.
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 16 }}
+          style={{ position: "fixed", inset: 0, background: "rgb(var(--scrim-rgb) / 0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 16 }}
           onClick={closeDetail}
         >
           <div
@@ -301,7 +301,7 @@ export function FeedbackAdminClient() {
                       padding: "8px 12px",
                       borderRadius: 12,
                       background: m.senderType === "staff" ? "var(--accent-primary)" : "var(--bg-surface)",
-                      color: m.senderType === "staff" ? "#fff" : "var(--text-primary)",
+                      color: m.senderType === "staff" ? "var(--text-on-color)" : "var(--text-primary)",
                     }}
                   >
                     <p style={{ fontSize: 10, fontWeight: 700, opacity: 0.7, margin: "0 0 2px", textTransform: "uppercase" }}>

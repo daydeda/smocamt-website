@@ -134,11 +134,11 @@ const builderFingerprint = (f: BuilderState): string =>
   ]);
 
 const FORM_TYPE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  K_pre:  { bg: "rgba(99,102,241,0.12)",  text: "#6366f1", border: "rgba(99,102,241,0.3)"  },
-  K_post: { bg: "rgba(16,185,129,0.12)",  text: "#10b981", border: "rgba(16,185,129,0.3)"  },
-  A:      { bg: "rgba(245,158,11,0.12)",  text: "#f59e0b", border: "rgba(245,158,11,0.3)"  },
-  S:      { bg: "rgba(239,68,68,0.12)",   text: "#ef4444", border: "rgba(239,68,68,0.3)"   },
-  F:      { bg: "rgba(6,182,212,0.12)",   text: "#06b6d4", border: "rgba(6,182,212,0.3)"   },
+  K_pre:  { bg: "rgb(var(--indigo-500-rgb) / 0.12)",  text: "var(--indigo-500)", border: "rgb(var(--indigo-500-rgb) / 0.3)"  },
+  K_post: { bg: "rgb(var(--emerald-500-rgb) / 0.12)",  text: "var(--emerald-500)", border: "rgb(var(--emerald-500-rgb) / 0.3)"  },
+  A:      { bg: "rgb(var(--amber-500-rgb) / 0.12)",  text: "var(--amber-500)", border: "rgb(var(--amber-500-rgb) / 0.3)"  },
+  S:      { bg: "rgb(var(--red-500-rgb) / 0.12)",   text: "var(--red-500)", border: "rgb(var(--red-500-rgb) / 0.3)"   },
+  F:      { bg: "rgb(var(--cyan-500-rgb) / 0.12)",   text: "var(--cyan-500)", border: "rgb(var(--cyan-500-rgb) / 0.3)"   },
 };
 // Feedback-form builder for a single event, extracted out of
 // admin/events/page.tsx so it can also be mounted directly on admin/clubs and
@@ -966,7 +966,7 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.4)",
+            background: "rgb(var(--scrim-rgb) / 0.4)",
             backdropFilter: "blur(8px)",
             WebkitBackdropFilter: "blur(8px)",
             display: "flex",
@@ -989,7 +989,7 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
               flexDirection: "column",
               borderRadius: "clamp(20px, 5vw, 32px)",
               overflow: "hidden",
-              boxShadow: "0 30px 60px rgba(0,0,0,0.3)",
+              boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.3)",
               border: "1px solid var(--border-medium)",
             }}
           >
@@ -1164,12 +1164,12 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
               <div style={{ padding: "clamp(16px, 5vw, 40px)" }}>
                 {formBuilderSuccess && (
                   <div className="animate-fade-in" style={{
-                    background: "rgba(16, 185, 129, 0.08)",
-                    border: "1px solid rgba(16, 185, 129, 0.2)",
+                    background: "rgb(var(--emerald-500-rgb) / 0.08)",
+                    border: "1px solid rgb(var(--emerald-500-rgb) / 0.2)",
                     borderRadius: 16,
                     padding: "16px 20px",
                     marginBottom: 28,
-                    color: "#10b981",
+                    color: "var(--emerald-500)",
                     fontSize: 13,
                     fontWeight: 700,
                     display: "flex",
@@ -1182,12 +1182,12 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
 
                 {formBuilderError && (
                   <div className="animate-fade-in" style={{
-                    background: "rgba(239, 68, 68, 0.08)",
-                    border: "1px solid rgba(239, 68, 68, 0.2)",
+                    background: "rgb(var(--red-500-rgb) / 0.08)",
+                    border: "1px solid rgb(var(--red-500-rgb) / 0.2)",
                     borderRadius: 16,
                     padding: "16px 20px",
                     marginBottom: 28,
-                    color: "#ef4444",
+                    color: "var(--red-500)",
                     fontSize: 13,
                     fontWeight: 700,
                     display: "flex",
@@ -1205,8 +1205,8 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                     (server-side, see api/admin/events/[id]/form/route.ts). */}
                 {activeFormId && formReviewStatus === "pending" && (
                   <div className="animate-fade-in" style={{
-                    background: "rgba(245, 158, 11, 0.08)",
-                    border: "1px solid rgba(245, 158, 11, 0.25)",
+                    background: "rgb(var(--amber-500-rgb) / 0.08)",
+                    border: "1px solid rgb(var(--amber-500-rgb) / 0.25)",
                     borderRadius: 16,
                     padding: "16px 20px",
                     marginBottom: 28,
@@ -1215,9 +1215,9 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                     gap: 10,
                   }}>
                     <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                      <AlertTriangle size={16} style={{ color: "#f59e0b", flexShrink: 0, marginTop: 2 }} />
+                      <AlertTriangle size={16} style={{ color: "var(--amber-500)", flexShrink: 0, marginTop: 2 }} />
                       <div>
-                        <p style={{ fontWeight: 800, fontSize: 13, color: "#f59e0b" }}>{t.fbReviewPendingBannerTitle || "Awaiting review"}</p>
+                        <p style={{ fontWeight: 800, fontSize: 13, color: "var(--amber-500)" }}>{t.fbReviewPendingBannerTitle || "Awaiting review"}</p>
                         <p style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 2, lineHeight: 1.5 }}>{t.fbReviewPendingBannerDesc}</p>
                       </div>
                     </div>
@@ -1264,7 +1264,7 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                 {requestChangesOpen && createPortal(
                   <div
                     style={{
-                      position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)",
+                      position: "fixed", inset: 0, background: "rgb(var(--scrim-rgb) / 0.4)",
                       backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
                       display: "flex", alignItems: "center", justifyContent: "center",
                       zIndex: 2500, padding: "clamp(12px, 4vw, 24px)",
@@ -1277,7 +1277,7 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                       style={{
                         background: "var(--bg-surface)", width: "100%", maxWidth: 440,
                         borderRadius: "clamp(20px, 5vw, 32px)", overflow: "hidden",
-                        boxShadow: "0 30px 60px rgba(0,0,0,0.2)", border: "1px solid var(--border-medium)",
+                        boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.2)", border: "1px solid var(--border-medium)",
                       }}
                     >
                       <div style={{ padding: "24px 28px", borderBottom: "1px solid var(--border-subtle)" }}>
@@ -1402,11 +1402,11 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                         let dot = "var(--green-house)";
                         let label = t.fbStatusOpenForEntries || "Open for entries";
                         if (formIsAwarded) {
-                          dot = "#10b981"; label = t.fbStatusFinalizedAwarded || "Finalized & points awarded";
+                          dot = "var(--emerald-500)"; label = t.fbStatusFinalizedAwarded || "Finalized & points awarded";
                         } else if (closes && now > closes) {
                           dot = "var(--text-muted)"; label = t.fbStatusClosedAutoAward || "Closed — points will be awarded automatically";
                         } else if (opens && now < opens) {
-                          dot = "#6366f1"; label = t.fbStatusScheduledNotOpen || "Scheduled — not open yet";
+                          dot = "var(--indigo-500)"; label = t.fbStatusScheduledNotOpen || "Scheduled — not open yet";
                         }
                         return (
                           <div style={{ display: "flex", flexDirection: "column", gap: 8, background: "var(--bg-elevated)", padding: 24, borderRadius: 24, border: "1px solid var(--border-subtle)" }}>
@@ -1434,7 +1434,7 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                         {t.fbScheduleDescPart1 || "Set when this form opens and closes (Bangkok time). Leave "}<b>{t.fbOpensAt || "Opens at"}</b>{t.fbScheduleDescPart2 || " blank to open immediately. "}<b>{t.fbClosesAt || "Closes at"}</b>{t.fbScheduleDescPart3 || " is required: when it passes, entries stop and the winning house is awarded automatically."}
                       </p>
                       {formIsAwarded && (
-                        <p style={{ fontSize: 12, color: "#b45309", fontWeight: 700, background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.35)", borderRadius: 12, padding: "10px 12px", display: "flex", alignItems: "flex-start", gap: 6 }}>
+                        <p style={{ fontSize: 12, color: "var(--amber-700)", fontWeight: 700, background: "rgb(var(--amber-500-rgb) / 0.1)", border: "1px solid rgb(var(--amber-500-rgb) / 0.35)", borderRadius: 12, padding: "10px 12px", display: "flex", alignItems: "flex-start", gap: 6 }}>
                           <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
                           <span>{t.fbReopenWarningPart1 || "This form already closed and awarded its points. Setting "}<b>{t.fbClosesAt || "Closes at"}</b>{t.fbReopenWarningPart2 || " back to a future time re-opens it and "}<b>{t.fbReopenWarningBold || "takes the awarded points back"}</b>{t.fbReopenWarningPart3 || " from the winning house — they are re-awarded when it closes again."}</span>
                         </p>
@@ -1452,22 +1452,22 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                           />
                         </div>
                         <div className="field">
-                          <label className="label" style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", color: "var(--text-secondary)" }}>{t.fbClosesAt || "Closes at"} <span style={{ color: "#ef4444" }}>*</span></label>
+                          <label className="label" style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", color: "var(--text-secondary)" }}>{t.fbClosesAt || "Closes at"} <span style={{ color: "var(--red-500)" }}>*</span></label>
                           <input
                             type="datetime-local"
                             lang="en-GB"
                             className="input"
-                            style={{ width: "100%", height: 46, borderRadius: 12, padding: "0 16px", borderColor: !formClosesAt ? "#ef4444" : undefined }}
+                            style={{ width: "100%", height: 46, borderRadius: 12, padding: "0 16px", borderColor: !formClosesAt ? "var(--red-500)" : undefined }}
                             value={formClosesAt}
                             onChange={(e) => setFormClosesAt(e.target.value)}
                           />
                         </div>
                       </div>
                       {!formClosesAt && (
-                        <p style={{ fontSize: 12, color: "#ef4444", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={12} style={{ flexShrink: 0 }} /> {t.fbValidationCloseRequired || "A close time is required so the form can auto-close and award points."}</p>
+                        <p style={{ fontSize: 12, color: "var(--red-500)", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={12} style={{ flexShrink: 0 }} /> {t.fbValidationCloseRequired || "A close time is required so the form can auto-close and award points."}</p>
                       )}
                       {formOpensAt && formClosesAt && new Date(formClosesAt) <= new Date(formOpensAt) && (
-                        <p style={{ fontSize: 12, color: "#ef4444", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={12} style={{ flexShrink: 0 }} /> {t.fbValidationCloseBeforeOpen || "Close time is before open time — students will never be able to submit."}</p>
+                        <p style={{ fontSize: 12, color: "var(--red-500)", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={12} style={{ flexShrink: 0 }} /> {t.fbValidationCloseBeforeOpen || "Close time is before open time — students will never be able to submit."}</p>
                       )}
                     </div>
 
@@ -1523,9 +1523,9 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
 
                     {/* S-form assignment — who may see & fill this skill form */}
                     {activeFormType === "S" && (
-                      <div style={{ background: "rgba(239,68,68,0.04)", padding: 24, borderRadius: 24, border: "1px solid rgba(239,68,68,0.2)", display: "flex", flexDirection: "column", gap: 16 }}>
+                      <div style={{ background: "rgb(var(--red-500-rgb) / 0.04)", padding: 24, borderRadius: 24, border: "1px solid rgb(var(--red-500-rgb) / 0.2)", display: "flex", flexDirection: "column", gap: 16 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <ClipboardList size={16} style={{ color: "#ef4444" }} />
+                          <ClipboardList size={16} style={{ color: "var(--red-500)" }} />
                           <h4 style={{ fontSize: 14, fontWeight: 900 }}>{t.fbSFormWhoCanFill || "Who can do this form"}</h4>
                         </div>
                         <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: -8 }}>
@@ -1546,9 +1546,9 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                                   onClick={() => setFormAssignedRoles((prev) => on ? prev.filter((r) => r !== role) : [...prev, role])}
                                   style={{
                                     padding: "6px 14px", borderRadius: 99, fontSize: 12, fontWeight: 800, cursor: formIsAwarded ? "not-allowed" : "pointer",
-                                    background: on ? "rgba(239,68,68,0.12)" : "var(--bg-surface)",
-                                    color: on ? "#ef4444" : "var(--text-secondary)",
-                                    border: on ? "1.5px solid rgba(239,68,68,0.4)" : "1.5px solid var(--border-subtle)",
+                                    background: on ? "rgb(var(--red-500-rgb) / 0.12)" : "var(--bg-surface)",
+                                    color: on ? "var(--red-500)" : "var(--text-secondary)",
+                                    border: on ? "1.5px solid rgb(var(--red-500-rgb) / 0.4)" : "1.5px solid var(--border-subtle)",
                                   }}
                                 >
                                   {on ? "✓ " : ""}{ASSIGNABLE_ROLE_LABELS[role] || role}
@@ -1567,9 +1567,9 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                               {formAssignedUserIds.map((uid) => {
                                 const u = assigneeUsers.find((x) => x.id === uid);
                                 return (
-                                  <span key={uid} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 99, fontSize: 12, fontWeight: 800, background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.25)" }}>
+                                  <span key={uid} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 99, fontSize: 12, fontWeight: 800, background: "rgb(var(--red-500-rgb) / 0.1)", color: "var(--red-500)", border: "1px solid rgb(var(--red-500-rgb) / 0.25)" }}>
                                     {u ? (u.name || u.studentId || uid) : uid}
-                                    <button type="button" disabled={formIsAwarded} onClick={() => setFormAssignedUserIds((prev) => prev.filter((x) => x !== uid))} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontWeight: 900, fontSize: 13, lineHeight: 1 }}>✕</button>
+                                    <button type="button" disabled={formIsAwarded} onClick={() => setFormAssignedUserIds((prev) => prev.filter((x) => x !== uid))} style={{ background: "none", border: "none", color: "var(--red-500)", cursor: "pointer", fontWeight: 900, fontSize: 13, lineHeight: 1 }}>✕</button>
                                   </span>
                                 );
                               })}
@@ -1600,10 +1600,10 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                                       type="button"
                                       disabled={formIsAwarded}
                                       onClick={() => setFormAssignedUserIds((prev) => on ? prev.filter((x) => x !== u.id) : [...prev, u.id])}
-                                      style={{ display: "flex", width: "100%", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 14px", border: "none", borderBottom: "1px solid var(--border-subtle)", background: on ? "rgba(239,68,68,0.06)" : "transparent", cursor: "pointer", textAlign: "left", fontSize: 13 }}
+                                      style={{ display: "flex", width: "100%", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 14px", border: "none", borderBottom: "1px solid var(--border-subtle)", background: on ? "rgb(var(--red-500-rgb) / 0.06)" : "transparent", cursor: "pointer", textAlign: "left", fontSize: 13 }}
                                     >
                                       <span style={{ fontWeight: 700 }}>{u.name || "—"} <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>· {u.studentId || u.role}</span></span>
-                                      <span style={{ fontSize: 12, fontWeight: 900, color: on ? "#ef4444" : "var(--accent-primary)" }}>{on ? (t.fbSFormAddedLabel || "✓ Added") : (t.fbSFormAddLabel || "+ Add")}</span>
+                                      <span style={{ fontSize: 12, fontWeight: 900, color: on ? "var(--red-500)" : "var(--accent-primary)" }}>{on ? (t.fbSFormAddedLabel || "✓ Added") : (t.fbSFormAddLabel || "+ Add")}</span>
                                     </button>
                                   );
                                 })}
@@ -1626,13 +1626,13 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                     <div>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
                         <h4 style={{ fontSize: 16, fontWeight: 900, display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: "50%", background: "var(--accent-primary)", color: "#fff", fontSize: 12 }}>{allFormQuestions.length}</span>
+                          <span style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: "50%", background: "var(--accent-primary)", color: "var(--text-on-color)", fontSize: 12 }}>{allFormQuestions.length}</span>
                           {lang === "th" ? "ส่วนและคำถาม" : lang === "cn" ? "章节与问题" : lang === "mm" ? "အပိုင်းများနှင့် မေးခွန်းများ" : "Sections & Questions"}
                         </h4>
                         <button
                           type="button"
                           className="btn"
-                          style={{ borderRadius: 12, padding: "8px 16px", fontSize: 13, fontWeight: 800, background: "rgba(99,102,241,0.1)", color: "#6366f1", border: "none", cursor: "pointer" }}
+                          style={{ borderRadius: 12, padding: "8px 16px", fontSize: 13, fontWeight: 800, background: "rgb(var(--indigo-500-rgb) / 0.1)", color: "var(--indigo-500)", border: "none", cursor: "pointer" }}
                           onClick={addSection}
                         >
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Plus size={14} style={{ flexShrink: 0 }} /> {lang === "th" ? "เพิ่มส่วน" : lang === "cn" ? "添加章节" : lang === "mm" ? "အပိုင်းထည့်ရန်" : "Add Section"}</span>
@@ -1641,11 +1641,11 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
 
                       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                         {formSections.map((section, sIdx) => (
-                          <div key={section.id} style={{ background: "rgba(99,102,241,0.04)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 24, padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+                          <div key={section.id} style={{ background: "rgb(var(--indigo-500-rgb) / 0.04)", border: "1px solid rgb(var(--indigo-500-rgb) / 0.2)", borderRadius: 24, padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
                             {/* Section header */}
                             <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
                               <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-                                <span style={{ fontSize: 11, fontWeight: 900, color: "#6366f1", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                <span style={{ fontSize: 11, fontWeight: 900, color: "var(--indigo-500)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
                                   {(lang === "th" ? "ส่วนที่ " : lang === "cn" ? "第 " : lang === "mm" ? "အပိုင်း " : "Section ")}{sIdx + 1}{formSections.length > 1 ? ` / ${formSections.length}` : ""}
                                 </span>
                                 <input
@@ -1697,7 +1697,7 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                                   return (
                                   <div
                                     key={q.id || idx}
-                                    style={{ display: "flex", flexDirection: "column", gap: 16, background: "var(--bg-elevated)", padding: "20px", borderRadius: 20, border: q.graded ? "1px solid rgba(16,185,129,0.4)" : "1px solid var(--border-subtle)" }}
+                                    style={{ display: "flex", flexDirection: "column", gap: 16, background: "var(--bg-elevated)", padding: "20px", borderRadius: 20, border: q.graded ? "1px solid rgb(var(--emerald-500-rgb) / 0.4)" : "1px solid var(--border-subtle)" }}
                                   >
                                     {/* Question Main Controls Row */}
                                     <div className="flex flex-col md:flex-row md:items-center gap-4">
@@ -1728,7 +1728,7 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                                         </select>
                                         <button
                                           type="button"
-                                          style={{ padding: "6px 12px", height: 40, borderRadius: 10, border: "none", background: q.required ? "rgba(16,185,129,0.1)" : "rgba(0,0,0,0.03)", color: q.required ? "#10b981" : "var(--text-muted)", whiteSpace: "nowrap", fontWeight: 800, fontSize: 11, cursor: "pointer" }}
+                                          style={{ padding: "6px 12px", height: 40, borderRadius: 10, border: "none", background: q.required ? "rgb(var(--emerald-500-rgb) / 0.1)" : "rgb(var(--ink-rgb) / 0.03)", color: q.required ? "var(--emerald-500)" : "var(--text-muted)", whiteSpace: "nowrap", fontWeight: 800, fontSize: 11, cursor: "pointer" }}
                                           onClick={() => updateQuestion(section.id, q.id, "required", !q.required)}
                                         >
                                           {q.required ? t.eventRequiredLabel : (lang === "th" ? "ไม่บังคับ" : lang === "cn" ? "选填" : lang === "mm" ? "ရွေးချယ်နိုင်သည်" : "Optional")}
@@ -1749,7 +1749,7 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                                       <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingLeft: 32, borderTop: "1px dashed var(--border-subtle)", paddingTop: 16 }}>
                                         <span style={{ fontSize: 11, fontWeight: 900, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                                           {lang === "th" ? "ตัวเลือกคำตอบ" : lang === "cn" ? "选项设置" : lang === "mm" ? "ရွေးချယ်စရာများ" : "Answer Options"}
-                                          {q.graded && <span style={{ color: "#10b981", marginLeft: 8 }}>{lang === "th" ? "• แตะวงกลมเพื่อตั้งคำตอบที่ถูก" : lang === "cn" ? "• 点击圆圈设为正确答案" : lang === "mm" ? "• မှန်ကန်သောအဖြေသတ်မှတ်ရန် နှိပ်ပါ" : "• tap the circle to mark the correct answer"}</span>}
+                                          {q.graded && <span style={{ color: "var(--emerald-500)", marginLeft: 8 }}>{lang === "th" ? "• แตะวงกลมเพื่อตั้งคำตอบที่ถูก" : lang === "cn" ? "• 点击圆圈设为正确答案" : lang === "mm" ? "• မှန်ကန်သောအဖြေသတ်မှတ်ရန် နှိပ်ပါ" : "• tap the circle to mark the correct answer"}</span>}
                                         </span>
                                         {q.options?.map((opt: string, optIdx: number) => {
                                           const isCorrect = q.type === "choice" ? q.correct === opt : Array.isArray(q.correct) && q.correct.includes(opt);
@@ -1763,7 +1763,7 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                                                 else toggleMultipleCorrect(section.id, q.id, opt);
                                               }}
                                               title={q.graded ? "Mark correct" : undefined}
-                                              style={{ width: 22, height: 22, borderRadius: q.type === "choice" ? "50%" : 6, border: `2px solid ${isCorrect ? "#10b981" : "var(--border-medium)"}`, background: isCorrect ? "#10b981" : "transparent", color: "#fff", cursor: q.graded ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0 }}
+                                              style={{ width: 22, height: 22, borderRadius: q.type === "choice" ? "50%" : 6, border: `2px solid ${isCorrect ? "var(--emerald-500)" : "var(--border-medium)"}`, background: isCorrect ? "var(--emerald-500)" : "transparent", color: "var(--text-on-color)", cursor: q.graded ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0 }}
                                             >
                                               {isCorrect ? "✓" : ""}
                                             </button>
@@ -1798,7 +1798,7 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                                             <button
                                               type="button"
                                               className="btn btn-ghost"
-                                              style={{ width: 36, height: 36, padding: 0, color: "#ef4444", borderRadius: 8, fontSize: 14, fontWeight: 800 }}
+                                              style={{ width: 36, height: 36, padding: 0, color: "var(--red-500)", borderRadius: 8, fontSize: 14, fontWeight: 800 }}
                                               onClick={() => removeOption(section.id, q.id, optIdx)}
                                               disabled={!q.options || q.options.length <= 1}
                                             >
@@ -1824,7 +1824,7 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                                         <button
                                           type="button"
                                           onClick={() => toggleGraded(section.id, q.id)}
-                                          style={{ padding: "6px 14px", height: 36, borderRadius: 10, border: "none", background: q.graded ? "rgba(16,185,129,0.12)" : "rgba(0,0,0,0.03)", color: q.graded ? "#10b981" : "var(--text-muted)", fontWeight: 800, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+                                          style={{ padding: "6px 14px", height: 36, borderRadius: 10, border: "none", background: q.graded ? "rgb(var(--emerald-500-rgb) / 0.12)" : "rgb(var(--ink-rgb) / 0.03)", color: q.graded ? "var(--emerald-500)" : "var(--text-muted)", fontWeight: 800, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
                                         >
                                           {q.graded ? "✓ " : ""}{lang === "th" ? "ให้คะแนน" : lang === "cn" ? "计分" : lang === "mm" ? "အမှတ်ပေး" : "Graded"}
                                         </button>
@@ -1865,7 +1865,7 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                                         controlling choice/multiple answer matches a given option. */}
                                     {controllers.length > 0 && (
                                       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", paddingLeft: 32, borderTop: "1px dashed var(--border-subtle)", paddingTop: 16 }}>
-                                        <CornerDownRight size={14} style={{ color: "#6366f1" }} />
+                                        <CornerDownRight size={14} style={{ color: "var(--indigo-500)" }} />
                                         <span style={{ fontSize: 12, fontWeight: 800, color: "var(--text-secondary)" }}>
                                           {lang === "th" ? "แสดงเมื่อ" : lang === "cn" ? "显示条件" : lang === "mm" ? "ပြသမည် အကယ်၍" : "Show only if"}
                                         </span>
@@ -1914,7 +1914,7 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                             <button
                               type="button"
                               className="btn"
-                              style={{ alignSelf: "flex-start", borderRadius: 12, padding: "8px 16px", fontSize: 13, fontWeight: 800, background: "rgba(255,107,0,0.1)", color: "var(--accent-primary)", border: "none", cursor: "pointer" }}
+                              style={{ alignSelf: "flex-start", borderRadius: 12, padding: "8px 16px", fontSize: 13, fontWeight: 800, background: "rgb(var(--accent-rgb) / 0.1)", color: "var(--accent-primary)", border: "none", cursor: "pointer" }}
                               onClick={() => addQuestion(section.id)}
                             >
                               <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Plus size={14} style={{ flexShrink: 0 }} /> {t.eventAddQuestionLabel}</span>
@@ -1985,7 +1985,7 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                             style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)", borderRadius: 24, padding: "24px 32px" }}
                           >
                             <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, borderRadius: "50%", background: "rgba(16,185,129,0.1)", color: "#10b981", flexShrink: 0 }}>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, borderRadius: "50%", background: "rgb(var(--emerald-500-rgb) / 0.1)", color: "var(--emerald-500)", flexShrink: 0 }}>
                                 <CheckCircle2 size={22} />
                               </div>
                               <div>
@@ -1995,7 +1995,7 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                                 </p>
                               </div>
                             </div>
-                            <div style={{ padding: "8px 16px", borderRadius: 10, background: "rgba(16,185,129,0.1)", color: "#10b981", fontSize: 12, fontWeight: 900, display: "flex", alignItems: "center", gap: 6 }}>
+                            <div style={{ padding: "8px 16px", borderRadius: 10, background: "rgb(var(--emerald-500-rgb) / 0.1)", color: "var(--emerald-500)", fontSize: 12, fontWeight: 900, display: "flex", alignItems: "center", gap: 6 }}>
                               <Lock size={14} style={{ flexShrink: 0 }} /> {t.fbPermanentLock || "Permanent Lock"}
                             </div>
                           </div>
@@ -2005,10 +2005,10 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                       return (
                         <div
                           className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6"
-                          style={{ background: "linear-gradient(135deg, rgba(255,107,0,0.08) 0%, rgba(255,50,0,0.08) 100%)", border: "1px solid rgba(255,107,0,0.2)", borderRadius: 24, padding: "24px 32px" }}
+                          style={{ background: "linear-gradient(135deg, rgb(var(--accent-rgb) / 0.08) 0%, rgb(var(--accent-deep-rgb) / 0.08) 100%)", border: "1px solid rgb(var(--accent-rgb) / 0.2)", borderRadius: 24, padding: "24px 32px" }}
                         >
                           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, borderRadius: "50%", background: "rgba(255,107,0,0.1)", color: "var(--accent-primary)", flexShrink: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, borderRadius: "50%", background: "rgb(var(--accent-rgb) / 0.1)", color: "var(--accent-primary)", flexShrink: 0 }}>
                               {hasClosed ? <Trophy size={22} /> : <Calendar size={22} />}
                             </div>
                             <div>
@@ -2074,7 +2074,7 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                         <button
                           type="button"
                           className="btn"
-                          style={{ borderRadius: 12, padding: "8px 16px", fontSize: 13, fontWeight: 800, background: "rgba(16,185,129,0.12)", color: "#10b981", border: "none", cursor: formSubmissions.length === 0 ? "not-allowed" : "pointer", opacity: formSubmissions.length === 0 ? 0.5 : 1, display: "flex", alignItems: "center", gap: 6 }}
+                          style={{ borderRadius: 12, padding: "8px 16px", fontSize: 13, fontWeight: 800, background: "rgb(var(--emerald-500-rgb) / 0.12)", color: "var(--emerald-500)", border: "none", cursor: formSubmissions.length === 0 ? "not-allowed" : "pointer", opacity: formSubmissions.length === 0 ? 0.5 : 1, display: "flex", alignItems: "center", gap: 6 }}
                           disabled={formSubmissions.length === 0}
                           onClick={exportSubmissionsXlsx}
                         >
@@ -2123,7 +2123,7 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                                     </>
                                   )}
                                   {sub.hasGraded && (
-                                    <span style={{ fontSize: 12, fontWeight: 900, color: "#10b981", background: "rgba(16,185,129,0.1)", padding: "2px 10px", borderRadius: 999 }}>
+                                    <span style={{ fontSize: 12, fontWeight: 900, color: "var(--emerald-500)", background: "rgb(var(--emerald-500-rgb) / 0.1)", padding: "2px 10px", borderRadius: 999 }}>
                                       {lang === "th" ? "คะแนน" : lang === "cn" ? "得分" : lang === "mm" ? "ရမှတ်" : "Score"} {sub.score}/{sub.maxScore}
                                     </span>
                                   )}
@@ -2146,7 +2146,7 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                                             href={`/api/forms/file/${sub.id}?q=${q.id}`}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            style={{ display: "inline-flex", alignItems: "center", gap: 8, alignSelf: "flex-start", fontSize: 13, fontWeight: 800, color: "var(--accent-primary)", background: "rgba(255,107,0,0.08)", border: "1px solid rgba(255,107,0,0.15)", borderRadius: 10, padding: "8px 14px", textDecoration: "none" }}
+                                            style={{ display: "inline-flex", alignItems: "center", gap: 8, alignSelf: "flex-start", fontSize: 13, fontWeight: 800, color: "var(--accent-primary)", background: "rgb(var(--accent-rgb) / 0.08)", border: "1px solid rgb(var(--accent-rgb) / 0.15)", borderRadius: 10, padding: "8px 14px", textDecoration: "none" }}
                                           >
                                             <Download size={14} /> {(ans.split(".").pop() || "file").toUpperCase()} · {lang === "th" ? "เปิดไฟล์" : lang === "cn" ? "查看文件" : lang === "mm" ? "ဖိုင်ဖွင့်ရန်" : "Open file"}
                                           </a>
@@ -2156,7 +2156,7 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                                           </span>
                                         )
                                       ) : q.type === "rating" ? (
-                                        <div style={{ display: "flex", gap: 2, color: "#ffb000" }}>
+                                        <div style={{ display: "flex", gap: 2, color: "var(--rating-star)" }}>
                                           {Array.from({ length: 5 }).map((_, starIdx) => (
                                             <span key={starIdx} style={{ fontSize: 16 }}>
                                                {starIdx < (typeof ans === "number" ? ans : typeof ans === "string" ? parseInt(ans) || 0 : 0) ? "★" : "☆"}
@@ -2172,11 +2172,11 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                                                 style={{
                                                   fontSize: 12,
                                                   fontWeight: 800,
-                                                  background: "rgba(255,107,0,0.08)",
+                                                  background: "rgb(var(--accent-rgb) / 0.08)",
                                                   color: "var(--accent-primary)",
                                                   padding: "4px 8px",
                                                   borderRadius: 8,
-                                                  border: "1px solid rgba(255,107,0,0.15)"
+                                                  border: "1px solid rgb(var(--accent-rgb) / 0.15)"
                                                 }}
                                               >
                                                 {item}
@@ -2239,7 +2239,7 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
         <div style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(0,0,0,0.6)",
+          background: "rgb(var(--scrim-rgb) / 0.6)",
           backdropFilter: "blur(12px)",
           zIndex: 2400,
           display: "flex",
@@ -2254,15 +2254,15 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
             borderRadius: 28,
             padding: 32,
             textAlign: "center",
-            boxShadow: "0 30px 60px rgba(0,0,0,0.3)",
+            boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.3)",
             border: "1px solid var(--border-medium)"
           }} onClick={e => e.stopPropagation()}>
             <div style={{
               width: 56,
               height: 56,
               borderRadius: "50%",
-              background: confirmModal.isDanger ? "rgba(239, 68, 68, 0.1)" : "rgba(255, 107, 0, 0.1)",
-              color: confirmModal.isDanger ? "#ef4444" : "var(--accent-primary)",
+              background: confirmModal.isDanger ? "rgb(var(--red-500-rgb) / 0.1)" : "rgb(var(--accent-rgb) / 0.1)",
+              color: confirmModal.isDanger ? "var(--red-500)" : "var(--accent-primary)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -2293,13 +2293,13 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
                   fontSize: 14,
                   fontWeight: 800,
                   background: confirmModal.isDanger 
-                    ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)" 
-                    : "linear-gradient(135deg, #ff6b00 0%, #ff3d00 100%)",
-                  color: "#fff",
+                    ? "linear-gradient(135deg, var(--red-500) 0%, var(--red-600) 100%)" 
+                    : "linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-deep) 100%)",
+                  color: "var(--text-on-color)",
                   border: "none",
                   boxShadow: confirmModal.isDanger 
-                    ? "0 4px 14px rgba(239, 68, 68, 0.3)" 
-                    : "0 4px 14px rgba(255, 107, 0, 0.3)"
+                    ? "0 4px 14px rgb(var(--red-500-rgb) / 0.3)" 
+                    : "0 4px 14px rgb(var(--accent-rgb) / 0.3)"
                 }}
                 onClick={confirmModal.onConfirm}
               >

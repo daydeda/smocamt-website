@@ -91,7 +91,7 @@ export function PushNotificationToggle() {
       )}
 
       {status === "denied" && (
-        <p style={{ fontSize: 13, color: "#ef4444" }}>{t.pushNotifDenied}</p>
+        <p style={{ fontSize: 13, color: "var(--red-500)" }}>{t.pushNotifDenied}</p>
       )}
 
       {status === "off" && (
@@ -111,7 +111,7 @@ export function PushNotificationToggle() {
         </div>
       )}
 
-      {error && <p style={{ fontSize: 13, color: "#ef4444", marginTop: 8 }}>{t.pushNotifError}</p>}
+      {error && <p style={{ fontSize: 13, color: "var(--red-500)", marginTop: 8 }}>{t.pushNotifError}</p>}
     </div>
   );
 }

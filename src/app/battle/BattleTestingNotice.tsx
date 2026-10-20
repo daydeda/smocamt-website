@@ -24,7 +24,7 @@ export function BattleTestingNotice() {
         <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem", maxWidth: 420, marginBottom: 24 }}>
           {t.battleTestingNoticeDesc}
         </p>
-        <Link href="/dashboard" className="btn" style={{ background: "var(--text-primary)", color: "#fff", height: 44, padding: "0 24px" }}>
+        <Link href="/dashboard" className="btn" style={{ background: "var(--text-primary)", color: "var(--text-on-color)", height: 44, padding: "0 24px" }}>
           {t.backToDashboard}
         </Link>
       </main>

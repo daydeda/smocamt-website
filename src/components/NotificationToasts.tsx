@@ -71,7 +71,7 @@ function Toast({ item, onDismiss }: { item: NotifItem; onDismiss: (id: string) =
     return () => window.clearTimeout(timer);
   }, [item.id, isPreTest, onDismiss]);
   const positive = (item.points ?? 0) >= 0;
-  const accent = isPreTest ? "#e11d48" : isCheckin ? "#14b8a6" : positive ? "var(--accent-primary)" : "#f59e0b";
+  const accent = isPreTest ? "var(--rose-600)" : isCheckin ? "var(--teal-500)" : positive ? "var(--accent-primary)" : "var(--amber-500)";
 
   const title = isPreTest
     ? t.notifPreTestTitle
@@ -104,11 +104,11 @@ function Toast({ item, onDismiss }: { item: NotifItem; onDismiss: (id: string) =
         gap: 12,
         padding: "12px 14px",
         borderRadius: 14,
-        background: "var(--bg-elevated, #1b1b1f)",
-        color: "var(--text-primary, #fff)",
-        border: "1px solid var(--border-subtle, rgba(255,255,255,0.08))",
+        background: "var(--bg-elevated)",
+        color: "var(--text-primary)",
+        border: "1px solid var(--border-subtle)",
         borderLeft: `4px solid ${accent}`,
-        boxShadow: "0 12px 30px rgba(0,0,0,0.25)",
+        boxShadow: "0 12px 30px rgb(var(--shadow-rgb) / 0.25)",
         cursor: item.link ? "pointer" : "default",
       }}
     >
@@ -139,7 +139,7 @@ function Toast({ item, onDismiss }: { item: NotifItem; onDismiss: (id: string) =
           <div
             style={{
               fontSize: 13,
-              color: "var(--text-muted, rgba(255,255,255,0.65))",
+              color: "var(--text-muted)",
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
@@ -159,7 +159,7 @@ function Toast({ item, onDismiss }: { item: NotifItem; onDismiss: (id: string) =
           flexShrink: 0,
           background: "transparent",
           border: "none",
-          color: "var(--text-muted, rgba(255,255,255,0.5))",
+          color: "var(--text-muted)",
           cursor: "pointer",
           padding: 4,
           display: "flex",

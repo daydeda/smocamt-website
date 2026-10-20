@@ -840,7 +840,7 @@ export default function CalendarClient({
       <style jsx>{`
         .page {
           min-height: 100vh;
-          background: var(--bg-base, #fafafa);
+          background: var(--bg-base);
         }
         .cal-wrap {
           max-width: 1100px;
@@ -884,7 +884,7 @@ export default function CalendarClient({
         }
         .cal-nav button {
           border: 1px solid var(--border-subtle);
-          background: var(--bg-elevated, #fff);
+          background: var(--bg-elevated);
           border-radius: 10px;
           width: 34px;
           height: 34px;
@@ -910,7 +910,7 @@ export default function CalendarClient({
           overflow: hidden;
         }
         .cal-weekday {
-          background: var(--bg-elevated, #fff);
+          background: var(--bg-elevated);
           padding: 8px;
           text-align: center;
           font-size: 11px;
@@ -920,7 +920,7 @@ export default function CalendarClient({
           letter-spacing: 0.04em;
         }
         .cal-cell {
-          background: var(--bg-elevated, #fff);
+          background: var(--bg-elevated);
           min-height: 96px;
           min-width: 0;
           padding: 6px;
@@ -929,7 +929,7 @@ export default function CalendarClient({
           gap: 4px;
         }
         .cal-cell.other {
-          background: var(--bg-base, #fafafa);
+          background: var(--bg-base);
         }
         .cal-cell.other .cal-daynum {
           color: var(--text-muted);
@@ -942,8 +942,8 @@ export default function CalendarClient({
           align-self: flex-end;
         }
         .cal-cell.today .cal-daynum {
-          background: var(--accent-primary, #ff6b00);
-          color: #fff;
+          background: var(--accent-primary);
+          color: var(--text-on-color);
           width: 22px;
           height: 22px;
           border-radius: 50%;
@@ -974,12 +974,12 @@ export default function CalendarClient({
           overflow: hidden;
         }
         .cal-chip.event {
-          background: rgba(255, 107, 0, 0.12);
-          color: #c2410c;
+          background: rgb(var(--accent-rgb) / 0.12);
+          color: var(--orange-700);
         }
         .cal-chip.entry {
-          background: rgba(59, 130, 246, 0.12);
-          color: #1d4ed8;
+          background: rgb(var(--blue-500-rgb) / 0.12);
+          color: var(--blue-700);
         }
         .cal-chip-time {
           font-variant-numeric: tabular-nums;
@@ -1013,17 +1013,17 @@ export default function CalendarClient({
           border: 1px solid transparent;
         }
         .btn-primary {
-          background: var(--accent-primary, #ff6b00);
-          color: #fff;
+          background: var(--accent-primary);
+          color: var(--text-on-color);
         }
         .btn-ghost {
-          background: var(--bg-elevated, #fff);
+          background: var(--bg-elevated);
           border-color: var(--border-subtle);
           color: var(--text-secondary);
         }
         .btn-danger {
-          background: #fef2f2;
-          color: #ef4444;
+          background: var(--red-50);
+          color: var(--red-500);
         }
         .btn-primary:disabled {
           opacity: 0.5;
@@ -1032,7 +1032,7 @@ export default function CalendarClient({
         .modal-overlay {
           position: fixed;
           inset: 0;
-          background: rgba(0, 0, 0, 0.45);
+          background: rgb(var(--scrim-rgb) / 0.45);
           backdrop-filter: blur(4px);
           z-index: 3000;
           display: flex;
@@ -1041,14 +1041,14 @@ export default function CalendarClient({
           padding: 16px;
         }
         .modal {
-          background: var(--bg-elevated, #fff);
+          background: var(--bg-elevated);
           border-radius: 18px;
           width: 100%;
           max-width: 460px;
           max-height: 88vh;
           overflow-y: auto;
           padding: 20px;
-          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+          box-shadow: 0 20px 60px rgb(var(--shadow-rgb) / 0.2);
         }
         .modal-head {
           display: flex;
@@ -1076,12 +1076,12 @@ export default function CalendarClient({
           letter-spacing: 0.03em;
         }
         .badge.event {
-          background: rgba(255, 107, 0, 0.12);
-          color: #c2410c;
+          background: rgb(var(--accent-rgb) / 0.12);
+          color: var(--orange-700);
         }
         .badge.entry {
-          background: rgba(59, 130, 246, 0.12);
-          color: #1d4ed8;
+          background: rgb(var(--blue-500-rgb) / 0.12);
+          color: var(--blue-700);
         }
         .modal-meta {
           display: flex;
@@ -1158,7 +1158,7 @@ export default function CalendarClient({
           padding: 9px 11px;
           font-size: 14px;
           font-family: inherit;
-          background: var(--bg-base, #fff);
+          background: var(--bg-base);
         }
         .fld-row {
           display: grid;
@@ -1281,7 +1281,7 @@ function SubscribePanel({ onClose }: { onClose: () => void }) {
           <div className="cal-state">…</div>
         ) : loadError ? (
           <div className="sub-foot" style={{ justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 13, color: "#b45309" }}>
+            <span style={{ fontSize: 13, color: "var(--amber-700)" }}>
               {lang === "th" ? "โหลดลิงก์ไม่สำเร็จ" : lang === "cn" ? "加载失败" : lang === "mm" ? "လင့်ခ် ဖွင့်၍မရပါ" : "Couldn't load the feed link."}
             </span>
             <button className="btn-ghost" onClick={load}>
@@ -1339,7 +1339,7 @@ function SubscribePanel({ onClose }: { onClose: () => void }) {
         .modal-overlay {
           position: fixed;
           inset: 0;
-          background: rgba(0, 0, 0, 0.45);
+          background: rgb(var(--scrim-rgb) / 0.45);
           backdrop-filter: blur(4px);
           z-index: 3000;
           display: flex;
@@ -1348,14 +1348,14 @@ function SubscribePanel({ onClose }: { onClose: () => void }) {
           padding: 16px;
         }
         .sub-modal {
-          background: var(--bg-elevated, #fff);
+          background: var(--bg-elevated);
           border-radius: 18px;
           width: 100%;
           max-width: 480px;
           max-height: 88vh;
           overflow-y: auto;
           padding: 20px;
-          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+          box-shadow: 0 20px 60px rgb(var(--shadow-rgb) / 0.2);
         }
         .modal-head {
           display: flex;
@@ -1390,7 +1390,7 @@ function SubscribePanel({ onClose }: { onClose: () => void }) {
           border-radius: 10px;
           padding: 9px 11px;
           font-size: 12px;
-          background: var(--bg-base, #fafafa);
+          background: var(--bg-base);
           color: var(--text-secondary);
         }
         .sub-adds {
@@ -1402,8 +1402,8 @@ function SubscribePanel({ onClose }: { onClose: () => void }) {
           display: flex;
           align-items: flex-start;
           gap: 8px;
-          background: #fffbeb;
-          color: #b45309;
+          background: var(--amber-50);
+          color: var(--amber-700);
           border-radius: 10px;
           padding: 10px 12px;
           font-size: 12px;
@@ -1435,17 +1435,17 @@ function SubscribePanel({ onClose }: { onClose: () => void }) {
           border: 1px solid transparent;
         }
         .btn-ghost {
-          background: var(--bg-elevated, #fff);
+          background: var(--bg-elevated);
           border-color: var(--border-subtle);
           color: var(--text-secondary);
         }
         .btn-primary {
-          background: var(--accent-primary, #ff6b00);
-          color: #fff;
+          background: var(--accent-primary);
+          color: var(--text-on-color);
         }
         .btn-danger {
-          background: #fef2f2;
-          color: #ef4444;
+          background: var(--red-50);
+          color: var(--red-500);
         }
       `}</style>
     </div>

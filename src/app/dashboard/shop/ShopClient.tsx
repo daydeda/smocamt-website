@@ -168,7 +168,7 @@ export default function ShopClient() {
       )}
 
       {toast && (
-        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", zIndex: 3000, background: "var(--text-primary)", color: "var(--bg-base)", padding: "12px 20px", borderRadius: 12, fontWeight: 600, fontSize: 14, boxShadow: "0 8px 30px rgba(0,0,0,0.2)", maxWidth: "90vw", textAlign: "center" }}>
+        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", zIndex: 3000, background: "var(--text-primary)", color: "var(--bg-base)", padding: "12px 20px", borderRadius: 12, fontWeight: 600, fontSize: 14, boxShadow: "0 8px 30px rgb(var(--shadow-rgb) / 0.2)", maxWidth: "90vw", textAlign: "center" }}>
           {toast}
         </div>
       )}
@@ -244,7 +244,7 @@ function SellerApplicationCard({ application, th, onApplied }: {
                 : "Any Google-account email domain may apply after onboarding; approval is required before listing products.")}
             </p>
             {application?.reviewNote && (
-              <p style={{ color: application.status === "rejected" || application.status === "suspended" ? "#dc2626" : "var(--text-muted)", fontSize: 12, marginTop: 4 }}>
+              <p style={{ color: application.status === "rejected" || application.status === "suspended" ? "var(--red-600)" : "var(--text-muted)", fontSize: 12, marginTop: 4 }}>
                 {th ? "หมายเหตุ: " : "Note: "}{application.reviewNote}
               </p>
             )}
@@ -270,7 +270,7 @@ function SellerApplicationCard({ application, th, onApplied }: {
           <button onClick={apply} disabled={saving} className="btn btn-primary" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
             {saving && <Loader2 size={15} className="animate-spin" />}{th ? "ส่งคำขอ" : "Submit application"}
           </button>
-          {error && <p style={{ width: "100%", color: "#ef4444", fontSize: 12 }}>{error}</p>}
+          {error && <p style={{ width: "100%", color: "var(--red-500)", fontSize: 12 }}>{error}</p>}
         </div>
       )}
     </div>
@@ -299,7 +299,7 @@ function ProductCard({ product, th, onOpen }: { product: Product; th: boolean; o
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--text-muted)" }}><Package size={40} /></div>
         )}
         {overlayText && (
-          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 14, letterSpacing: "0.05em" }}>
+          <div style={{ position: "absolute", inset: 0, background: "rgb(var(--scrim-rgb) / 0.5)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-on-color)", fontWeight: 800, fontSize: 14, letterSpacing: "0.05em" }}>
             {overlayText}
           </div>
         )}
@@ -494,7 +494,7 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
   };
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 2500, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 2500, background: "rgb(var(--scrim-rgb) / 0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg-surface)", borderRadius: "var(--radius-lg)", width: "100%", maxWidth: 560, maxHeight: "94dvh", border: "1px solid var(--border-subtle)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
         <div style={{ flexShrink: 0, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: "1px solid var(--border-subtle)" }}>
           <p style={{ fontWeight: 800, fontSize: 16, paddingRight: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{step === "select" ? product.name : (th ? "ชำระเงิน & แนบสลิป" : "Pay & upload slip")}</p>
@@ -517,7 +517,7 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
                     <button onClick={() => setImgIdx((i) => (i + 1) % product.imageUrls.length)} style={navBtn("right")}><ChevronRight size={20} /></button>
                     <div style={{ position: "absolute", bottom: 8, left: 0, right: 0, display: "flex", justifyContent: "center", gap: 6 }}>
                       {product.imageUrls.map((_, i) => (
-                        <span key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: i === imgIdx ? "#fff" : "rgba(255,255,255,0.5)" }} />
+                        <span key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: i === imgIdx ? "var(--white)" : "rgb(var(--white-rgb) / 0.5)" }} />
                       ))}
                     </div>
                   </>
@@ -538,7 +538,7 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
 
               {/* Sale schedule notice */}
               {(product.saleStatus === "upcoming" || product.saleStatus === "closed" || product.closesAt) && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 12, padding: "8px 12px", borderRadius: "var(--radius-md)", background: product.saleStatus === "open" ? "var(--bg-base)" : "rgba(245,158,11,0.1)", color: product.saleStatus === "open" ? "var(--text-secondary)" : "#b45309" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 12, padding: "8px 12px", borderRadius: "var(--radius-md)", background: product.saleStatus === "open" ? "var(--bg-base)" : "rgb(var(--amber-500-rgb) / 0.1)", color: product.saleStatus === "open" ? "var(--text-secondary)" : "var(--amber-700)" }}>
                   <Clock size={15} style={{ flexShrink: 0 }} />
                   <span>
                     {product.saleStatus === "upcoming" && product.opensAt ? (th ? `เปิดขาย ${fmt(product.opensAt)}` : `Opens ${fmt(product.opensAt)}`)
@@ -576,7 +576,7 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
                                 ? <span style={{ fontSize: 12, fontWeight: 700, color: "var(--accent-primary)", marginLeft: 6 }}>{baht(unitPriceOf(v))}</span>
                                 : null}
                               {v.remaining != null && (
-                                <span style={{ display: "block", fontSize: 12, color: out ? "#ef4444" : "var(--text-muted)" }}>{out ? (th ? "หมด" : "Sold out") : (th ? `เหลือ ${v.remaining}` : `${v.remaining} left`)}</span>
+                                <span style={{ display: "block", fontSize: 12, color: out ? "var(--red-500)" : "var(--text-muted)" }}>{out ? (th ? "หมด" : "Sold out") : (th ? `เหลือ ${v.remaining}` : `${v.remaining} left`)}</span>
                               )}
                             </div>
                           )}
@@ -638,7 +638,7 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
                 </div>
               ))}
 
-              {error && <p style={{ color: "#ef4444", fontSize: 13, marginTop: 12 }}>{error}</p>}
+              {error && <p style={{ color: "var(--red-500)", fontSize: 13, marginTop: 12 }}>{error}</p>}
 
               <button onClick={() => setStep("pay")} disabled={qty === 0 || missingOtherText || missingRequiredCustom || !!notOpen} className="btn btn-primary" style={{ width: "100%", marginTop: 20, justifyContent: "space-between", display: "flex" }}>
                 <span>{notOpen ? (product.saleStatus === "upcoming" ? (th ? "ยังไม่เปิดขาย" : "Not on sale yet") : (th ? "ปิดการขาย" : "Sales closed")) : (th ? "ดำเนินการต่อ" : "Continue")}</span>
@@ -662,7 +662,7 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
                   <div key={f.key} style={{ fontSize: 12, color: "var(--text-muted)", overflowWrap: "anywhere", wordBreak: "break-word" }}>{f.label}: <strong style={{ color: "var(--text-secondary)" }}>{customAnswers[f.key]}</strong></div>
                 ))}
                 {discount > 0 && (
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 13, color: "#10b981", fontWeight: 600, marginTop: 4 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 13, color: "var(--emerald-500)", fontWeight: 600, marginTop: 4 }}>
                     <span>{th ? "ส่วนลดโปรโมชัน" : "Promotion discount"}</span><span>−{baht(discount)}</span>
                   </div>
                 )}
@@ -712,7 +712,7 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
                   </p>
                 )}
                 {checkoutSettings.qrImageUrl && (
-                  <img src={checkoutSettings.qrImageUrl} alt="Payment QR" style={{ width: "100%", maxWidth: 320, aspectRatio: "1 / 1", objectFit: "contain", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)", display: "block", margin: "0 auto 12px", background: "#fff" }} />
+                  <img src={checkoutSettings.qrImageUrl} alt="Payment QR" style={{ width: "100%", maxWidth: 320, aspectRatio: "1 / 1", objectFit: "contain", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)", display: "block", margin: "0 auto 12px", background: "var(--qr-surface)" }} />
                 )}
                 {checkoutSettings.paymentInfo.trim() !== "" && (
                   <div style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6, textAlign: "center", overflowWrap: "anywhere", wordBreak: "break-word" }} dangerouslySetInnerHTML={{ __html: parseRichText(checkoutSettings.paymentInfo) }} />
@@ -743,7 +743,7 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
               <label style={{ display: "block", fontWeight: 700, fontSize: 13, marginBottom: 8 }}>{th ? "หมายเหตุ (ไม่บังคับ)" : "Note (optional)"}</label>
               <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder={th ? "เช่น ชื่อบนสลิป, ขนาดที่ต้องการ" : "e.g. name on slip, pickup details"} style={{ width: "100%", padding: 12, borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)", fontSize: 14, fontFamily: "inherit", background: "var(--bg-base)", resize: "vertical", marginBottom: 16 }} />
 
-              {error && <p style={{ color: "#ef4444", fontSize: 13, marginBottom: 12 }}>{error}</p>}
+              {error && <p style={{ color: "var(--red-500)", fontSize: 13, marginBottom: 12 }}>{error}</p>}
 
               <div style={{ display: "flex", gap: 10 }}>
                 <button onClick={() => setStep("select")} className="btn btn-ghost" style={{ flex: 1 }}>{th ? "ย้อนกลับ" : "Back"}</button>
@@ -787,7 +787,7 @@ function OrderRow({ order, th, onChanged }: { order: Order; th: boolean; onChang
             <div key={idx}>
               <p style={{ fontSize: 14, fontWeight: 600, overflowWrap: "anywhere", wordBreak: "break-word" }}>
                 {order.fulfillmentStatus === "partial" && isItemHandedOver(i, "partial") && (
-                  <CheckCircle2 size={14} aria-label={th ? "ได้รับแล้ว" : "Received"} style={{ display: "inline-block", color: "#15803d", verticalAlign: "-2px", marginRight: 4 }} />
+                  <CheckCircle2 size={14} aria-label={th ? "ได้รับแล้ว" : "Received"} style={{ display: "inline-block", color: "var(--green-700)", verticalAlign: "-2px", marginRight: 4 }} />
                 )}
                 {i.productName}{i.variantLabel && i.variantLabel !== "Standard" ? ` · ${i.variantLabel}` : ""} × {i.quantity}
               </p>
@@ -807,7 +807,7 @@ function OrderRow({ order, th, onChanged }: { order: Order; th: boolean; onChang
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ fontWeight: 800, fontSize: 16 }}>
           {baht(order.totalAmount)}
-          {order.discountAmount ? <span style={{ fontSize: 12, fontWeight: 600, color: "#10b981", marginLeft: 6 }}>{th ? `ส่วนลด ${baht(order.discountAmount)}` : `saved ${baht(order.discountAmount)}`}</span> : null}
+          {order.discountAmount ? <span style={{ fontSize: 12, fontWeight: 600, color: "var(--emerald-500)", marginLeft: 6 }}>{th ? `ส่วนลด ${baht(order.discountAmount)}` : `saved ${baht(order.discountAmount)}`}</span> : null}
         </span>
         {order.hasSlip && (
           <button onClick={() => setShowSlip((s) => !s)} className="btn btn-ghost" style={{ fontSize: 13, padding: "6px 12px" }}>
@@ -823,7 +823,7 @@ function OrderRow({ order, th, onChanged }: { order: Order; th: boolean; onChang
         <p style={{ marginTop: 8, fontSize: 12, color: "var(--text-muted)" }}>{th ? "รับสินค้าเอง" : "Self-pickup"}</p>
       ) : null}
       {order.status === "rejected" && order.rejectionReason && (
-        <p style={{ marginTop: 10, fontSize: 13, color: "#ef4444", background: "rgba(239,68,68,0.06)", padding: "8px 12px", borderRadius: 8 }}>
+        <p style={{ marginTop: 10, fontSize: 13, color: "var(--red-500)", background: "rgb(var(--red-500-rgb) / 0.06)", padding: "8px 12px", borderRadius: 8 }}>
           {th ? "เหตุผล: " : "Reason: "}{order.rejectionReason}
         </p>
       )}
@@ -902,7 +902,7 @@ function OrderHandover({ order, th, onChanged }: { order: Order; th: boolean; on
 
   if (s === "picked_up" || s === "delivered") {
     return (
-      <p style={{ ...box("rgba(22,163,74,0.08)", "rgba(22,163,74,0.2)"), color: "#15803d", flexDirection: "row", alignItems: "center", gap: 6, fontWeight: 600 }}>
+      <p style={{ ...box("rgb(var(--green-600-rgb) / 0.08)", "rgb(var(--green-600-rgb) / 0.2)"), color: "var(--green-700)", flexDirection: "row", alignItems: "center", gap: 6, fontWeight: 600 }}>
         <CheckCircle2 size={15} />
         {s === "picked_up" ? (th ? "รับสินค้าแล้ว" : "Picked up") : (th ? "ได้รับสินค้าแล้ว" : "Delivered")} · {when(order.fulfilledAt)}
       </p>
@@ -913,8 +913,8 @@ function OrderHandover({ order, th, onChanged }: { order: Order; th: boolean; on
   if (s === "partial") {
     const left = order.items.filter((i) => !isItemHandedOver(i, s));
     return (
-      <div style={box("rgba(245,158,11,0.08)", "rgba(245,158,11,0.3)")}>
-        <p style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "#b45309" }}>
+      <div style={box("rgb(var(--amber-500-rgb) / 0.08)", "rgb(var(--amber-500-rgb) / 0.3)")}>
+        <p style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "var(--amber-700)" }}>
           <Package size={15} />{th ? `ได้รับแล้ว ${order.items.length - left.length} จาก ${order.items.length} รายการ` : `Received ${order.items.length - left.length} of ${order.items.length} items`}
         </p>
         <p style={{ overflowWrap: "anywhere" }}>
@@ -932,8 +932,8 @@ function OrderHandover({ order, th, onChanged }: { order: Order; th: boolean; on
   if (order.fulfillment !== "delivery") {
     const ready = s === "ready";
     return (
-      <div style={ready ? box("rgba(124,58,237,0.08)", "rgba(124,58,237,0.25)") : box("var(--bg-base)", "var(--border-subtle)")}>
-        <p style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: ready ? "#6d28d9" : "var(--text-secondary)" }}>
+      <div style={ready ? box("rgb(var(--violet-600-rgb) / 0.08)", "rgb(var(--violet-600-rgb) / 0.25)") : box("var(--bg-base)", "var(--border-subtle)")}>
+        <p style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: ready ? "var(--violet-700)" : "var(--text-secondary)" }}>
           {ready ? <Package size={15} /> : <Clock size={15} />}
           {ready ? (th ? "สินค้าพร้อมให้รับแล้ว!" : "Ready for pickup!") : (th ? "ผู้ขายกำลังเตรียมสินค้า" : "The seller is preparing your order")}
         </p>
@@ -970,8 +970,8 @@ function OrderHandover({ order, th, onChanged }: { order: Order; th: boolean; on
   // shipped / issue
   const issue = s === "issue";
   return (
-    <div style={issue ? box("rgba(239,68,68,0.06)", "rgba(239,68,68,0.25)") : box("rgba(59,130,246,0.06)", "rgba(59,130,246,0.25)")}>
-      <p style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: issue ? "#dc2626" : "#1d4ed8" }}>
+    <div style={issue ? box("rgb(var(--red-500-rgb) / 0.06)", "rgb(var(--red-500-rgb) / 0.25)") : box("rgb(var(--blue-500-rgb) / 0.06)", "rgb(var(--blue-500-rgb) / 0.25)")}>
+      <p style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: issue ? "var(--red-600)" : "var(--blue-700)" }}>
         <Truck size={15} />{th ? "จัดส่งแล้ว" : "Shipped"} · {carrierLabel(order.carrier, order.carrierName, th)}
       </p>
       {order.trackingNumber && (
@@ -993,7 +993,7 @@ function OrderHandover({ order, th, onChanged }: { order: Order; th: boolean; on
       )}
 
       {issue ? (
-        <p style={{ color: "#dc2626", overflowWrap: "anywhere" }}>
+        <p style={{ color: "var(--red-600)", overflowWrap: "anywhere" }}>
           <AlertTriangle size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />
           {th ? "คุณแจ้งปัญหาแล้ว: " : "You reported: "}{order.issueNote} — {th ? "ผู้ขายจะติดต่อกลับ" : "the seller will follow up."}
         </p>
@@ -1010,7 +1010,7 @@ function OrderHandover({ order, th, onChanged }: { order: Order; th: boolean; on
           <textarea value={problem} onChange={(e) => setProblem(e.target.value)} rows={3} maxLength={500} autoFocus placeholder={th ? "เกิดอะไรขึ้น? เช่น ยังไม่ได้รับของ / ของเสียหาย / ได้ของผิด" : "What happened? e.g. not arrived / damaged / wrong item"} style={{ ...customInputStyle, resize: "vertical" }} />
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => { setReporting(false); setError(null); }} disabled={busy} className="btn btn-ghost" style={{ flex: 1, fontSize: 13 }}>{th ? "ยกเลิก" : "Cancel"}</button>
-            <button onClick={() => act({ action: "report", note: problem.trim() })} disabled={busy || !problem.trim()} className="btn btn-primary" style={{ flex: 2, fontSize: 13, background: "#dc2626", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            <button onClick={() => act({ action: "report", note: problem.trim() })} disabled={busy || !problem.trim()} className="btn btn-primary" style={{ flex: 2, fontSize: 13, background: "var(--red-600-fill)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
               {busy && <Loader2 size={14} className="animate-spin" />}{th ? "ส่งเรื่องให้ผู้ขาย" : "Send to seller"}
             </button>
           </div>
@@ -1023,13 +1023,13 @@ function OrderHandover({ order, th, onChanged }: { order: Order; th: boolean; on
             </button>
           )}
           {nextFulfillmentStatus(state, "report") && (
-            <button onClick={() => setReporting(true)} disabled={busy} className="btn btn-ghost" style={{ fontSize: 13, padding: "8px 14px", color: "#dc2626" }}>
+            <button onClick={() => setReporting(true)} disabled={busy} className="btn btn-ghost" style={{ fontSize: 13, padding: "8px 14px", color: "var(--red-600)" }}>
               {th ? "แจ้งปัญหา" : "Report a problem"}
             </button>
           )}
         </div>
       )}
-      {error && <p style={{ fontSize: 12, color: "#dc2626" }}>{error}</p>}
+      {error && <p style={{ fontSize: 12, color: "var(--red-600)" }}>{error}</p>}
     </div>
   );
 }
@@ -1037,9 +1037,9 @@ function OrderHandover({ order, th, onChanged }: { order: Order; th: boolean; on
 type Badge = { th: string; en: string; bg: string; color: string; icon: React.ReactNode };
 
 const STATUS_BADGE: Record<string, Badge> = {
-  pending: { th: "รอตรวจสลิป", en: "Checking payment", bg: "rgba(245,158,11,0.12)", color: "#b45309", icon: <Clock size={13} /> },
-  approved: { th: "ชำระเงินแล้ว", en: "Payment confirmed", bg: "rgba(22,163,74,0.12)", color: "#15803d", icon: <CheckCircle2 size={13} /> },
-  rejected: { th: "ชำระเงินไม่ผ่าน", en: "Payment rejected", bg: "rgba(239,68,68,0.12)", color: "#dc2626", icon: <XCircle size={13} /> },
+  pending: { th: "รอตรวจสลิป", en: "Checking payment", bg: "rgb(var(--amber-500-rgb) / 0.12)", color: "var(--amber-700)", icon: <Clock size={13} /> },
+  approved: { th: "ชำระเงินแล้ว", en: "Payment confirmed", bg: "rgb(var(--green-600-rgb) / 0.12)", color: "var(--green-700)", icon: <CheckCircle2 size={13} /> },
+  rejected: { th: "ชำระเงินไม่ผ่าน", en: "Payment rejected", bg: "rgb(var(--red-500-rgb) / 0.12)", color: "var(--red-600)", icon: <XCircle size={13} /> },
 };
 
 // "Approved" only means the payment slip was accepted — not that the item can be
@@ -1050,13 +1050,13 @@ function orderBadge(order: Order): Badge {
   if (order.status !== "approved") return base;
   const s = order.fulfillmentStatus ?? "awaiting";
   const delivery = order.fulfillment === "delivery";
-  const amber = { bg: "rgba(245,158,11,0.12)", color: "#b45309" };
+  const amber = { bg: "rgb(var(--amber-500-rgb) / 0.12)", color: "var(--amber-700)" };
   if (s === "picked_up") return { th: "รับสินค้าแล้ว", en: "Picked up", bg: base.bg, color: base.color, icon: <CheckCircle2 size={13} /> };
   if (s === "delivered") return { th: "ได้รับสินค้าแล้ว", en: "Delivered", bg: base.bg, color: base.color, icon: <CheckCircle2 size={13} /> };
-  if (s === "ready") return { th: "พร้อมรับสินค้า", en: "Ready for pickup", bg: "rgba(124,58,237,0.12)", color: "#6d28d9", icon: <Package size={13} /> };
+  if (s === "ready") return { th: "พร้อมรับสินค้า", en: "Ready for pickup", bg: "rgb(var(--violet-600-rgb) / 0.12)", color: "var(--violet-700)", icon: <Package size={13} /> };
   if (s === "partial") return { th: "รับสินค้าบางส่วน", en: "Partly collected", ...amber, icon: <Package size={13} /> };
-  if (s === "shipped") return { th: "จัดส่งแล้ว", en: "Shipped", bg: "rgba(59,130,246,0.12)", color: "#1d4ed8", icon: <Truck size={13} /> };
-  if (s === "issue") return { th: "แจ้งปัญหาแล้ว", en: "Problem reported", bg: "rgba(239,68,68,0.12)", color: "#dc2626", icon: <AlertTriangle size={13} /> };
+  if (s === "shipped") return { th: "จัดส่งแล้ว", en: "Shipped", bg: "rgb(var(--blue-500-rgb) / 0.12)", color: "var(--blue-700)", icon: <Truck size={13} /> };
+  if (s === "issue") return { th: "แจ้งปัญหาแล้ว", en: "Problem reported", bg: "rgb(var(--red-500-rgb) / 0.12)", color: "var(--red-600)", icon: <AlertTriangle size={13} /> };
   return delivery
     ? { th: "ชำระแล้ว · กำลังเตรียมจัดส่ง", en: "Paid · preparing to ship", ...amber, icon: <Clock size={13} /> }
     : { th: "ชำระแล้ว · กำลังเตรียมสินค้า", en: "Paid · being prepared", ...amber, icon: <Clock size={13} /> };
@@ -1069,8 +1069,8 @@ const customInputStyle: React.CSSProperties = {
 
 const navBtn = (side: "left" | "right"): React.CSSProperties => ({
   position: "absolute", top: "50%", [side]: 8, transform: "translateY(-50%)",
-  width: 34, height: 34, borderRadius: "50%", border: "none", background: "rgba(0,0,0,0.45)",
-  color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+  width: 34, height: 34, borderRadius: "50%", border: "none", background: "rgb(var(--scrim-rgb) / 0.45)",
+  color: "var(--text-on-color)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
 });
 
 interface DropOption { value: string; label: string; hint?: string; disabled?: boolean; strike?: boolean }
@@ -1153,7 +1153,7 @@ function CustomSelect({ value, options, onChange, placeholder, ariaLabel }: {
             ...(openUp ? { bottom: window.innerHeight - rect.top + 6 } : { top: rect.bottom + 6 }),
             maxHeight: MENU_MAX, overflowY: "auto", WebkitOverflowScrolling: "touch",
             background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)",
-            borderRadius: "var(--radius-md)", boxShadow: "0 12px 32px rgba(0,0,0,0.28)", padding: 4,
+            borderRadius: "var(--radius-md)", boxShadow: "0 12px 32px rgb(var(--shadow-rgb) / 0.28)", padding: 4,
           }}
         >
           {options.map((o) => {
@@ -1199,7 +1199,7 @@ function BundleDealBadges({ deals, variants, th }: { deals: ShopBundleDeal[]; va
       {deals.map((d) => {
         const scope = scopeOf(d);
         return (
-          <span key={`${d.variantIds?.join(",") ?? "*"}|${d.qty}`} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: "rgba(16,185,129,0.12)", color: "#059669", maxWidth: "100%", overflowWrap: "anywhere" }}>
+          <span key={`${d.variantIds?.join(",") ?? "*"}|${d.qty}`} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: "rgb(var(--emerald-500-rgb) / 0.12)", color: "var(--emerald-600)", maxWidth: "100%", overflowWrap: "anywhere" }}>
             <Tag size={12} style={{ flexShrink: 0 }} />{th ? `${d.qty} ชิ้น ${baht(d.price)}` : `${d.qty} for ${baht(d.price)}`}{scope ? ` · ${scope}` : ""}
           </span>
         );

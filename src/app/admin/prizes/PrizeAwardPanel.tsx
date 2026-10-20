@@ -424,8 +424,8 @@ export default function PrizeAwardPanel({
           {committed ? (
             /* ---- Committed: the handover is recorded; now the photo ---- */
             <>
-              <div style={{ borderRadius: 16, padding: 16, background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, color: "#0d9488", fontSize: 15 }}>
+              <div style={{ borderRadius: 16, padding: 16, background: "rgb(var(--green-500-rgb) / 0.1)", border: "1px solid rgb(var(--green-500-rgb) / 0.3)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, color: "var(--teal-600)", fontSize: 15 }}>
                   <Check size={20} /> {t.adminPrizesCommittedTitle}
                 </div>
                 <p style={{ marginTop: 4, fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>
@@ -441,7 +441,7 @@ export default function PrizeAwardPanel({
                 </p>
 
                 {photoState === "done" ? (
-                  <p style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 700, color: "#0d9488" }}>
+                  <p style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 700, color: "var(--teal-600)" }}>
                     <Check size={16} /> {t.adminPrizesPhotoAttached}
                   </p>
                 ) : (
@@ -498,12 +498,12 @@ export default function PrizeAwardPanel({
                       </label>
                     </div>
                     {typeof window !== "undefined" && window.isSecureContext === false && (
-                      <p style={{ marginTop: 10, fontSize: 12.5, color: "#b45309", lineHeight: 1.5 }}>
+                      <p style={{ marginTop: 10, fontSize: 12.5, color: "var(--amber-700)", lineHeight: 1.5 }}>
                         {t.adminPrizesCameraBlockedHttps}
                       </p>
                     )}
                     {photoState === "failed" && (
-                      <p style={{ marginTop: 10, fontSize: 12.5, color: "#b45309", lineHeight: 1.5 }}>
+                      <p style={{ marginTop: 10, fontSize: 12.5, color: "var(--amber-700)", lineHeight: 1.5 }}>
                         {t.adminPrizesPhotoFailedNotice} <strong>{t.adminPrizesPhotoFailedEmphasis}</strong>{" "}
                         {t.adminPrizesPhotoFailedRetry}
                         {photoErrorMessage && (
@@ -554,7 +554,7 @@ export default function PrizeAwardPanel({
                 <div className={viewfinderStyles.scanGuide} aria-hidden="true" />
               </div>
               {cameraError && (
-                <p style={{ borderRadius: 12, padding: "10px 14px", fontSize: 12.5, background: "rgba(245,158,11,0.1)", color: "#b45309", lineHeight: 1.5 }}>
+                <p style={{ borderRadius: 12, padding: "10px 14px", fontSize: 12.5, background: "rgb(var(--amber-500-rgb) / 0.1)", color: "var(--amber-700)", lineHeight: 1.5 }}>
                   {cameraError}
                 </p>
               )}
@@ -628,13 +628,13 @@ function PreviewCard({ result }: { result: ClaimResult }) {
 
   if (result.status === "success" && student) {
     return (
-      <div style={{ borderRadius: 16, padding: 18, background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)" }}>
+      <div style={{ borderRadius: 16, padding: 18, background: "rgb(var(--green-500-rgb) / 0.1)", border: "1px solid rgb(var(--green-500-rgb) / 0.3)" }}>
         <p style={{ fontSize: 20, fontWeight: 800, color: "var(--text-primary)" }}>{student.name}</p>
         <p style={{ marginTop: 2, fontSize: 14, fontWeight: 600, color: "var(--text-secondary)" }}>
           {student.studentId ?? t.adminPrizesNoStudentId}
           {student.nickname ? ` · ${student.nickname}` : ""}
         </p>
-        <p style={{ marginTop: 10, fontSize: 14, fontWeight: 700, color: "#0d9488" }}>{t.adminPrizesEligibleNotice}</p>
+        <p style={{ marginTop: 10, fontSize: 14, fontWeight: 700, color: "var(--teal-600)" }}>{t.adminPrizesEligibleNotice}</p>
       </div>
     );
   }
@@ -645,8 +645,8 @@ function PreviewCard({ result }: { result: ClaimResult }) {
   // Nobody did anything wrong; there's nothing to act on.
   if (result.status === "already_claimed" && result.justAwarded && student) {
     return (
-      <div style={{ borderRadius: 16, padding: 18, background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, fontSize: 15, color: "#0d9488" }}>
+      <div style={{ borderRadius: 16, padding: 18, background: "rgb(var(--green-500-rgb) / 0.1)", border: "1px solid rgb(var(--green-500-rgb) / 0.3)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, fontSize: 15, color: "var(--teal-600)" }}>
           <Check size={20} />
           {t.adminPrizesAlreadyRecordedJustNow}
         </div>
@@ -660,8 +660,8 @@ function PreviewCard({ result }: { result: ClaimResult }) {
 
   const tone =
     result.status === "already_claimed"
-      ? { bg: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.3)", color: "#b45309" }
-      : { bg: "rgba(239,68,68,0.1)", border: "rgba(239,68,68,0.3)", color: "#dc2626" };
+      ? { bg: "rgb(var(--amber-500-rgb) / 0.1)", border: "rgb(var(--amber-500-rgb) / 0.3)", color: "var(--amber-700)" }
+      : { bg: "rgb(var(--red-500-rgb) / 0.1)", border: "rgb(var(--red-500-rgb) / 0.3)", color: "var(--red-600)" };
 
   return (
     <div style={{ borderRadius: 16, padding: 18, background: tone.bg, border: `1px solid ${tone.border}` }}>

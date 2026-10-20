@@ -81,7 +81,7 @@ function ComplaintDetail({
                 padding: "8px 12px",
                 borderRadius: 12,
                 background: m.senderType === "submitter" ? "var(--accent-primary)" : "var(--bg-elevated)",
-                color: m.senderType === "submitter" ? "#fff" : "var(--text-primary)",
+                color: m.senderType === "submitter" ? "var(--text-on-color)" : "var(--text-primary)",
               }}
             >
               <p style={{ fontSize: 10, fontWeight: 700, opacity: 0.7, margin: "0 0 2px", textTransform: "uppercase" }}>

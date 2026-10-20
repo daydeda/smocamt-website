@@ -14,8 +14,8 @@ const QRCodeCanvas = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div style={{ width: 240, height: 240, background: "#ffffff", borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ color: "#9ca3af", fontSize: 14 }}>Loading...</span>
+      <div style={{ width: 240, height: 240, background: "var(--qr-surface)", borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <span style={{ color: "var(--text-muted)", fontSize: 14 }}>Loading...</span>
       </div>
     )
   }
@@ -34,6 +34,7 @@ import { useQrToken } from "@/lib/useQrToken";
 import { useNotifications } from "@/lib/useNotifications";
 import { NotificationModal } from "@/components/NotificationModal";
 import { FormsDueBanner } from "@/components/FormsDueBanner";
+import { alpha } from "@/lib/color";
 
 // House mascot logos (background removed). Keyed by both the house id (color) and
 // its name so it resolves whichever identifier the API returns.
@@ -69,10 +70,10 @@ export default function DigitalIdPage() {
   const { items: notifItems, dismiss: dismissNotif } = useNotifications(session?.user?.id, 8000);
 
   const HOUSE_MAP: Record<string, { name: string, color: string }> = {
-    red:    { name: t.houseMom || "Mom",   color: "#ef4444" }, // Red
-    green:  { name: t.houseTo || "To",      color: "#94a3b8" }, // White → silver/pewter
-    yellow: { name: t.houseLuang || "Luang",  color: "#3b82f6" }, // Blue
-    blue:   { name: t.houseMakara || "Makon", color: "#22c55e" }, // Green
+    red:    { name: t.houseMom || "Mom",   color: "var(--red-500)" }, // Red
+    green:  { name: t.houseTo || "To",      color: "var(--slate-400)" }, // White → silver/pewter
+    yellow: { name: t.houseLuang || "Luang",  color: "var(--blue-500)" }, // Blue
+    blue:   { name: t.houseMakara || "Makon", color: "var(--green-500)" }, // Green
   };
 
   const fetchHouses = (signal?: AbortSignal) => {
@@ -130,7 +131,7 @@ export default function DigitalIdPage() {
     <div style={{ background: "var(--bg-base)", minHeight: "100vh", position: "relative", overflowX: "hidden" }}>
       {/* Decorative Orbs */}
       <div className="absolute top-[-200px] left-[-100px] w-[600px] h-[600px] rounded-full" 
-           style={{ background: "radial-gradient(circle, rgba(255,107,0,0.03) 0%, transparent 70%)", pointerEvents: "none" }} />
+           style={{ background: "radial-gradient(circle, rgb(var(--accent-rgb) / 0.03) 0%, transparent 70%)", pointerEvents: "none" }} />
 
       <StudentNav />
 
@@ -150,7 +151,7 @@ export default function DigitalIdPage() {
           borderRadius: 12,
           background: "var(--bg-surface)",
           border: "1px solid var(--border-subtle)",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.02)"
+          boxShadow: "0 2px 8px rgb(var(--shadow-rgb) / 0.02)"
         }}>
           <ArrowLeft size={16} />
           {lang === "th" ? "กลับไปที่หน้ากิจกรรม" : lang === "cn" ? "返回活动" : lang === "mm" ? "လှုပ်ရှားမှုများသို့ ပြန်သွားရန်" : "Back to Events"}
@@ -178,16 +179,16 @@ export default function DigitalIdPage() {
               padding: "20px",
               textAlign: "center",
               borderRadius: 24,
-              boxShadow: `0 10px 30px rgba(0,0,0,0.04), 0 0 0 1px ${houseInfo.color}20`,
+              boxShadow: `0 10px 30px rgb(var(--shadow-rgb) / 0.04), 0 0 0 1px ${alpha(houseInfo.color, 0.12)}`,
               display: "flex",
               flexDirection: "column",
               gap: 4,
-              background: "rgba(255,255,255,0.7)",
-              border: `1px solid ${houseInfo.color}30`
+              background: "var(--bg-glass-strong)",
+              border: `1px solid ${alpha(houseInfo.color, 0.19)}`
             }}
           >
             {houseLogo(houseId) && (
-              <img src={houseLogo(houseId)!} alt="" style={{ width: 72, height: 72, objectFit: "contain", margin: "0 auto", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.12))" }} />
+              <img src={houseLogo(houseId)!} alt="" style={{ width: 72, height: 72, objectFit: "contain", margin: "0 auto", filter: "drop-shadow(0 2px 4px rgb(var(--shadow-rgb) / 0.12))" }} />
             )}
             <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.15em", textTransform: "uppercase", color: houseInfo.color, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
               <Trophy size={12} />
@@ -206,9 +207,9 @@ export default function DigitalIdPage() {
             style={{
               padding: "18px 20px",
               borderRadius: 24,
-              background: "linear-gradient(135deg, rgba(255,107,0,0.08), rgba(255,255,255,0.7))",
-              border: "1px solid rgba(255,107,0,0.25)",
-              boxShadow: "0 10px 30px rgba(255,107,0,0.06)",
+              background: "linear-gradient(135deg, rgb(var(--accent-rgb) / 0.08), rgb(var(--surface-rgb) / 0.7))",
+              border: "1px solid rgb(var(--accent-rgb) / 0.25)",
+              boxShadow: "0 10px 30px rgb(var(--accent-rgb) / 0.06)",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
@@ -229,7 +230,7 @@ export default function DigitalIdPage() {
                 </span>
               </div>
             </div>
-            <div style={{ textAlign: "center", flexShrink: 0, padding: "8px 16px", borderRadius: 16, background: "rgba(255,255,255,0.6)", border: "1px solid var(--border-subtle)" }}>
+            <div style={{ textAlign: "center", flexShrink: 0, padding: "8px 16px", borderRadius: 16, background: "var(--bg-glass-strong)", border: "1px solid var(--border-subtle)" }}>
               <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)", display: "block" }}>
                 {lang === "th" ? "อันดับ" : "Rank"}
               </span>
@@ -269,7 +270,7 @@ export default function DigitalIdPage() {
               flexDirection: "column", 
               alignItems: "center", 
               gap: 28,
-              boxShadow: "0 20px 50px rgba(0,0,0,0.06)",
+              boxShadow: "0 20px 50px rgb(var(--shadow-rgb) / 0.06)",
               border: "1px solid var(--border-medium)",
               borderRadius: "28px",
               width: "100%"
@@ -277,11 +278,11 @@ export default function DigitalIdPage() {
           >
             <div
               style={{
-                background: "#fff",
+                background: "var(--qr-surface)",
                 padding: "20px",
                 borderRadius: 28,
                 border: "1px solid var(--border-medium)",
-                boxShadow: "0 0 50px rgba(0,0,0,0.03)",
+                boxShadow: "0 0 50px rgb(var(--shadow-rgb) / 0.03)",
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
@@ -344,8 +345,8 @@ export default function DigitalIdPage() {
                 gap: 6,
                 padding: "5px 12px",
                 borderRadius: 99,
-                background: `${countdownColor}15`,
-                border: `1px solid ${countdownColor}40`,
+                background: alpha(countdownColor, 0.08),
+                border: `1px solid ${alpha(countdownColor, 0.25)}`,
               }}>
                 <RefreshCw size={11} color={countdownColor} />
                 <span style={{ fontSize: 12, fontWeight: 700, color: countdownColor, fontVariantNumeric: "tabular-nums", letterSpacing: "0.03em" }}>
@@ -373,15 +374,15 @@ export default function DigitalIdPage() {
               justifyContent: "center",
               textAlign: "center",
               gap: 20,
-              boxShadow: "0 20px 50px rgba(0,0,0,0.06)",
+              boxShadow: "0 20px 50px rgb(var(--shadow-rgb) / 0.06)",
               border: "1px solid var(--border-medium)",
               borderRadius: "28px",
               width: "100%",
               minHeight: "320px",
-              background: "linear-gradient(135deg, rgba(255, 107, 0, 0.03) 0%, rgba(255, 255, 255, 0.8) 100%)"
+              background: "linear-gradient(135deg, rgb(var(--accent-rgb) / 0.03) 0%, rgb(var(--surface-rgb) / 0.8) 100%)"
             }}
           >
-            <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(255, 107, 0, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-primary)", marginBottom: 4 }}>
+            <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgb(var(--accent-rgb) / 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-primary)", marginBottom: 4 }}>
               <User size={32} />
             </div>
             <h4 style={{ fontSize: 20, fontWeight: 900, color: "var(--text-primary)", margin: 0 }}>
@@ -413,7 +414,7 @@ export default function DigitalIdPage() {
         )}
 
         {/* Live Leaderboard Standings */}
-        <div className="glass animate-fade-in-up" style={{ padding: 24, borderRadius: 24, background: "rgba(255,255,255,0.7)", width: "100%" }}>
+        <div className="glass animate-fade-in-up" style={{ padding: 24, borderRadius: 24, background: "var(--bg-glass-strong)", width: "100%" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
             <h3 style={{ fontSize: 14, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 8 }}>
               <Trophy size={14} className="text-accent" />
@@ -436,9 +437,9 @@ export default function DigitalIdPage() {
                 return (
                   <div key={h.id} style={{ 
                     padding: "12px 16px", 
-                    background: isUserHouse ? `${h.color}10` : "var(--bg-elevated)",
+                    background: isUserHouse ? alpha(h.color, 0.06) : "var(--bg-elevated)",
                     borderRadius: 16,
-                    border: `1px solid ${isUserHouse ? `${h.color}30` : "transparent"}`,
+                    border: `1px solid ${isUserHouse ? alpha(h.color, 0.19) : "transparent"}`,
                     position: "relative",
                     overflow: "hidden"
                   }}>
@@ -446,22 +447,22 @@ export default function DigitalIdPage() {
                     
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 8 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <span style={{ fontSize: 12, fontWeight: 900, color: idx === 0 ? "#fbbf24" : "var(--text-muted)", width: 14 }}>{idx + 1}</span>
+                        <span style={{ fontSize: 12, fontWeight: 900, color: idx === 0 ? "var(--amber-400)" : "var(--text-muted)", width: 14 }}>{idx + 1}</span>
                         <span style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)" }}>
                           {h.id === 'red' ? t.houseMom : h.id === 'green' ? t.houseTo : h.id === 'yellow' ? t.houseLuang : h.id === 'blue' ? t.houseMakara : h.name}
                         </span>
-                        {isUserHouse && <span style={{ fontSize: 9, fontWeight: 900, background: h.color, color: "#fff", padding: "2px 6px", borderRadius: 6 }}>YOU</span>}
+                        {isUserHouse && <span style={{ fontSize: 9, fontWeight: 900, background: h.color, color: "var(--text-on-color)", padding: "2px 6px", borderRadius: 6 }}>YOU</span>}
                       </div>
                       <span style={{ fontSize: 14, fontWeight: 900, color: h.color }}>{h.points || 0} <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)" }}>PTS</span></span>
                     </div>
                     
-                    <div style={{ width: "100%", height: 6, background: "rgba(0,0,0,0.05)", borderRadius: 99 }}>
+                    <div style={{ width: "100%", height: 6, background: "rgb(var(--ink-rgb) / 0.05)", borderRadius: 99 }}>
                       <div style={{ 
                         width: `${percentage}%`, 
                         height: "100%", 
                         background: h.color, 
                         borderRadius: 99,
-                        boxShadow: idx === 0 ? `0 0 10px ${h.color}40` : "none",
+                        boxShadow: idx === 0 ? `0 0 10px ${alpha(h.color, 0.25)}` : "none",
                         transition: "width 1s cubic-bezier(0.4, 0, 0.2, 1)"
                       }} />
                     </div>
@@ -483,7 +484,7 @@ export default function DigitalIdPage() {
             textDecoration: "none",
             padding: "12px",
             borderRadius: 16,
-            background: "rgba(255,107,0,0.05)"
+            background: "rgb(var(--accent-rgb) / 0.05)"
           }}>
             {t.houseRankings}
             <RefreshCw size={12} className="animate-spin-slow" style={{ animationDuration: "10s" }} />

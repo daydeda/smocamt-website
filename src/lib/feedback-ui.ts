@@ -75,14 +75,14 @@ export function categoryMeta(id: FeedbackCategory): FeedbackCategoryMeta {
 }
 
 export const FEEDBACK_SEVERITY_META: Record<FeedbackSeverity, { i18nKey: string; fallback: string; color: string; bg: string }> = {
-  low: { i18nKey: "feedbackSeverityLow", fallback: "Low", color: "#0d9488", bg: "rgba(20,184,166,0.12)" },
-  normal: { i18nKey: "feedbackSeverityNormal", fallback: "Normal", color: "#4f46e5", bg: "rgba(99,102,241,0.12)" },
-  urgent: { i18nKey: "feedbackSeverityUrgent", fallback: "Urgent", color: "#dc2626", bg: "rgba(239,68,68,0.12)" },
+  low: { i18nKey: "feedbackSeverityLow", fallback: "Low", color: "var(--teal-600)", bg: "rgb(var(--teal-500-rgb) / 0.12)" },
+  normal: { i18nKey: "feedbackSeverityNormal", fallback: "Normal", color: "var(--indigo-600)", bg: "rgb(var(--indigo-500-rgb) / 0.12)" },
+  urgent: { i18nKey: "feedbackSeverityUrgent", fallback: "Urgent", color: "var(--red-600)", bg: "rgb(var(--red-500-rgb) / 0.12)" },
 };
 
 export const FEEDBACK_STATUS_META: Record<FeedbackStatus, { i18nKey: string; fallback: string; color: string; bg: string }> = {
-  new: { i18nKey: "feedbackStatusNew", fallback: "New", color: "#4f46e5", bg: "rgba(99,102,241,0.12)" },
-  in_review: { i18nKey: "feedbackStatusInReview", fallback: "In Review", color: "#b45309", bg: "rgba(245,158,11,0.12)" },
-  resolved: { i18nKey: "feedbackStatusResolved", fallback: "Resolved", color: "#0d9488", bg: "rgba(20,184,166,0.12)" },
-  closed: { i18nKey: "feedbackStatusClosed", fallback: "Closed", color: "#6b7280", bg: "rgba(107,114,128,0.12)" },
+  new: { i18nKey: "feedbackStatusNew", fallback: "New", color: "var(--indigo-600)", bg: "rgb(var(--indigo-500-rgb) / 0.12)" },
+  in_review: { i18nKey: "feedbackStatusInReview", fallback: "In Review", color: "var(--amber-700)", bg: "rgb(var(--amber-500-rgb) / 0.12)" },
+  resolved: { i18nKey: "feedbackStatusResolved", fallback: "Resolved", color: "var(--teal-600)", bg: "rgb(var(--teal-500-rgb) / 0.12)" },
+  closed: { i18nKey: "feedbackStatusClosed", fallback: "Closed", color: "var(--gray-500)", bg: "rgb(var(--gray-500-rgb) / 0.12)" },
 };

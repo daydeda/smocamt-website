@@ -90,16 +90,16 @@ export default function HandoverProductList({ th, onPick }: { th: boolean; onPic
       <li key={p.id}>
         <button
           onClick={() => onPick(p)}
-          style={{ width: "100%", minHeight: 64, display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 12, border: `1px solid ${duplicate ? "rgba(245,158,11,0.5)" : "var(--border-subtle)"}`, background: "var(--bg-surface)", cursor: "pointer", textAlign: "left", color: "inherit", fontFamily: "inherit" }}
+          style={{ width: "100%", minHeight: 64, display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 12, border: `1px solid ${duplicate ? "rgb(var(--amber-500-rgb) / 0.5)" : "var(--border-subtle)"}`, background: "var(--bg-surface)", cursor: "pointer", textAlign: "left", color: "inherit", fontFamily: "inherit" }}
         >
           <ProductThumb product={p} />
           <div style={{ minWidth: 0, flex: 1 }}>
             <p style={{ fontSize: 15, fontWeight: 800, overflowWrap: "anywhere" }}>{p.name}</p>
-            <p style={{ fontSize: 12.5, color: duplicate ? "#b45309" : "var(--text-muted)", fontWeight: duplicate ? 700 : 400, overflowWrap: "anywhere" }}>
+            <p style={{ fontSize: 12.5, color: duplicate ? "var(--amber-700)" : "var(--text-muted)", fontWeight: duplicate ? 700 : 400, overflowWrap: "anywhere" }}>
               {p.sellerName} · {baht(p.price)}{!p.isActive ? (th ? " · ปิดขายแล้ว" : " · not on sale") : ""}
             </p>
             {duplicate && (
-              <p style={{ fontSize: 12, color: "#b45309", display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+              <p style={{ fontSize: 12, color: "var(--amber-700)", display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
                 <AlertTriangle size={13} style={{ flexShrink: 0 }} />{th ? "มีสินค้าชื่อซ้ำ ตรวจชื่อผู้ขายให้ตรง" : "Another product has this name. Check the seller."}
               </p>
             )}

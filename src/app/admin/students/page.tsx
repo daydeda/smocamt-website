@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { NO_SHOW_STRIKE_THRESHOLD, RESET_STRIKES_ROLES } from "@/lib/strikes";
 import { POSITION_IDS, POSITION_I18N_KEY } from "@/lib/positions";
+import { alpha } from "@/lib/color";
 
 type Student = {
   id: string;
@@ -110,7 +111,7 @@ function CustomDropdown({ value, options, onChange, icon, placeholder = "Select.
           {icon && (
             <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-300 ml-2 mr-0.5 ${
               hasActiveFilter
-                ? "bg-[var(--accent-glow)] text-[var(--accent-primary)] shadow-[0_0_10px_rgba(255,107,0,0.15)]"
+                ? "bg-[var(--accent-glow)] text-[var(--accent-primary)] shadow-[0_0_10px_rgb(var(--accent-rgb) / 0.15)]"
                 : "bg-[var(--bg-surface)] text-[var(--text-muted)] border border-[var(--border-subtle)]"
             }`}>
               {currentOption?.icon ? currentOption.icon : icon}
@@ -125,7 +126,7 @@ function CustomDropdown({ value, options, onChange, icon, placeholder = "Select.
                 height: 8,
                 borderRadius: "50%",
                 background: currentOption.color,
-                boxShadow: `0 0 8px ${currentOption.color}88`,
+                boxShadow: `0 0 8px ${alpha(currentOption.color, 0.53)}`,
                 flexShrink: 0
               }} />
             )}
@@ -152,7 +153,7 @@ function CustomDropdown({ value, options, onChange, icon, placeholder = "Select.
           className="absolute left-0 right-0 top-full mt-2 bg-[var(--bg-surface)]/95 backdrop-blur-md border border-[var(--border-medium)] rounded-none animate-fade-in-up overflow-hidden"
           style={{
             zIndex: 9999,
-            boxShadow: "0 16px 48px rgba(0,0,0,0.14), 0 4px 16px rgba(0,0,0,0.06)",
+            boxShadow: "0 16px 48px rgb(var(--shadow-rgb) / 0.14), 0 4px 16px rgb(var(--shadow-rgb) / 0.06)",
           }}
         >
           <div className="flex flex-col gap-0 max-h-[280px] overflow-y-auto custom-scrollbar">
@@ -185,7 +186,7 @@ function CustomDropdown({ value, options, onChange, icon, placeholder = "Select.
                             height: 10,
                             borderRadius: "50%",
                             background: opt.color,
-                            boxShadow: `0 0 8px ${opt.color}66`,
+                            boxShadow: `0 0 8px ${alpha(opt.color, 0.4)}`,
                           }}
                         />
                       ) : opt.icon ? (
@@ -324,7 +325,7 @@ export default function AdminStudentsDirectory() {
       return {
       value: h.id,
       label: getHouseName(h.id, h.name),
-      color: cg === "red" ? "#ef4444" : cg === "blue" ? "#3b82f6" : cg === "green" ? "#10b981" : cg === "yellow" ? "#f59e0b" : "var(--accent-primary)"
+      color: cg === "red" ? "var(--red-500)" : cg === "blue" ? "var(--blue-500)" : cg === "green" ? "var(--emerald-500)" : cg === "yellow" ? "var(--amber-500)" : "var(--accent-primary)"
     };
     })
   ];
@@ -332,15 +333,15 @@ export default function AdminStudentsDirectory() {
   const roleOptions = [
     { value: "all", label: t.allRoles },
     { value: "student", label: t.roleStudentPlural, icon: <GraduationCap size={16} className="text-muted" /> },
-    { value: "staff", label: t.roleStaffPlural, icon: <Briefcase size={16} className="text-[#14b8a6]" /> },
-    { value: "smo", label: t.roleSMOPlural, icon: <Award size={16} className="text-[#8b5cf6]" /> },
-    { value: "anusmo", label: t.roleANUSMOPlural, icon: <Award size={16} className="text-[#ec4899]" /> },
+    { value: "staff", label: t.roleStaffPlural, icon: <Briefcase size={16} className="text-[var(--teal-500)]" /> },
+    { value: "smo", label: t.roleSMOPlural, icon: <Award size={16} className="text-[var(--violet-500)]" /> },
+    { value: "anusmo", label: t.roleANUSMOPlural, icon: <Award size={16} className="text-[var(--pink-500)]" /> },
     { value: "admin", label: t.roleAdminPlural, icon: <ShieldCheck size={16} className="text-[var(--accent-primary)]" /> },
-    { value: "super_admin", label: t.roleSuperAdminPlural, icon: <Shield size={16} className="text-[#ef4444]" /> },
-    { value: "registration", label: t.roleRegistrationPlural, icon: <UserIcon size={16} className="text-[#3b82f6]" /> },
-    { value: "organizer", label: t.roleOrganizerPlural, icon: <Award size={16} className="text-[#10b981]" /> },
-    { value: "club_president", label: t.roleClubPresidentPlural, icon: <Award size={16} className="text-[#f59e0b]" /> },
-    { value: "major_president", label: t.roleMajorPresidentPlural, icon: <Award size={16} className="text-[#06b6d4]" /> }
+    { value: "super_admin", label: t.roleSuperAdminPlural, icon: <Shield size={16} className="text-[var(--red-500)]" /> },
+    { value: "registration", label: t.roleRegistrationPlural, icon: <UserIcon size={16} className="text-[var(--blue-500)]" /> },
+    { value: "organizer", label: t.roleOrganizerPlural, icon: <Award size={16} className="text-[var(--emerald-500)]" /> },
+    { value: "club_president", label: t.roleClubPresidentPlural, icon: <Award size={16} className="text-[var(--amber-500)]" /> },
+    { value: "major_president", label: t.roleMajorPresidentPlural, icon: <Award size={16} className="text-[var(--cyan-500)]" /> }
   ];
 
   const majorOptions = [
@@ -392,15 +393,15 @@ export default function AdminStudentsDirectory() {
 
   const editRoleOptions = [
     { value: "student", label: t.roleStudent, icon: <GraduationCap size={16} className="text-muted" /> },
-    { value: "staff", label: t.roleStaff, icon: <Briefcase size={16} className="text-[#14b8a6]" /> },
-    { value: "smo", label: t.roleSMO, icon: <Award size={16} className="text-[#8b5cf6]" /> },
-    { value: "anusmo", label: t.roleANUSMO, icon: <Award size={16} className="text-[#ec4899]" /> },
+    { value: "staff", label: t.roleStaff, icon: <Briefcase size={16} className="text-[var(--teal-500)]" /> },
+    { value: "smo", label: t.roleSMO, icon: <Award size={16} className="text-[var(--violet-500)]" /> },
+    { value: "anusmo", label: t.roleANUSMO, icon: <Award size={16} className="text-[var(--pink-500)]" /> },
     { value: "admin", label: t.roleAdmin, icon: <ShieldCheck size={16} className="text-[var(--accent-primary)]" /> },
-    { value: "super_admin", label: t.roleSuperAdmin, icon: <Shield size={16} className="text-[#ef4444]" /> },
-    { value: "registration", label: t.roleRegistration, icon: <UserIcon size={16} className="text-[#3b82f6]" /> },
-    { value: "organizer", label: t.roleOrganizer, icon: <Award size={16} className="text-[#10b981]" /> },
-    { value: "club_president", label: t.roleClubPresident, icon: <Award size={16} className="text-[#f59e0b]" /> },
-    { value: "major_president", label: t.roleMajorPresident, icon: <Award size={16} className="text-[#06b6d4]" /> }
+    { value: "super_admin", label: t.roleSuperAdmin, icon: <Shield size={16} className="text-[var(--red-500)]" /> },
+    { value: "registration", label: t.roleRegistration, icon: <UserIcon size={16} className="text-[var(--blue-500)]" /> },
+    { value: "organizer", label: t.roleOrganizer, icon: <Award size={16} className="text-[var(--emerald-500)]" /> },
+    { value: "club_president", label: t.roleClubPresident, icon: <Award size={16} className="text-[var(--amber-500)]" /> },
+    { value: "major_president", label: t.roleMajorPresident, icon: <Award size={16} className="text-[var(--cyan-500)]" /> }
   ];
 
   const allowedEditRoleOptions = editRoleOptions.filter(opt => {
@@ -417,7 +418,7 @@ export default function AdminStudentsDirectory() {
       return {
       value: h.id,
       label: getHouseName(h.id, h.name),
-      color: cg === "red" ? "#ef4444" : cg === "blue" ? "#3b82f6" : cg === "green" ? "#10b981" : cg === "yellow" ? "#f59e0b" : "var(--accent-primary)"
+      color: cg === "red" ? "var(--red-500)" : cg === "blue" ? "var(--blue-500)" : cg === "green" ? "var(--emerald-500)" : cg === "yellow" ? "var(--amber-500)" : "var(--accent-primary)"
     };
     })
   ];
@@ -595,7 +596,7 @@ export default function AdminStudentsDirectory() {
             border: "1px solid var(--border-subtle)",
             borderRadius: 40,
             overflow: "hidden",
-            boxShadow: "0 20px 50px rgba(0,0,0,0.02)"
+            boxShadow: "0 20px 50px rgb(var(--shadow-rgb) / 0.02)"
           }}
         >
           {loading ? (
@@ -648,47 +649,47 @@ export default function AdminStudentsDirectory() {
                             const studentRoles = s.roles || (s.role ? [s.role] : ["student"]);
                             return studentRoles.map((r: string, idx: number) => {
                               if (r === "super_admin") return (
-                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="Super Administrator">
+                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgb(var(--red-500-rgb) / 0.1)", color: "var(--red-500)", border: "1px solid rgb(var(--red-500-rgb) / 0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="Super Administrator">
                                   <Shield size={10} /> {t.roleSuperAdmin}
                                 </span>
                               );
                               if (r === "admin") return (
-                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgba(249,115,22,0.1)", color: "#f97316", border: "1px solid rgba(249,115,22,0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="System Administrator">
+                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgb(var(--orange-500-rgb) / 0.1)", color: "var(--orange-500)", border: "1px solid rgb(var(--orange-500-rgb) / 0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="System Administrator">
                                   <ShieldCheck size={10} /> {t.roleAdmin}
                                 </span>
                               );
                               if (r === "registration") return (
-                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgba(59,130,246,0.1)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="Registration Staff">
+                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgb(var(--blue-500-rgb) / 0.1)", color: "var(--blue-500)", border: "1px solid rgb(var(--blue-500-rgb) / 0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="Registration Staff">
                                   <UserIcon size={10} /> {t.roleRegistration}
                                 </span>
                               );
                               if (r === "organizer") return (
-                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="Event Organizer">
+                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgb(var(--emerald-500-rgb) / 0.1)", color: "var(--emerald-500)", border: "1px solid rgb(var(--emerald-500-rgb) / 0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="Event Organizer">
                                   <Award size={10} /> {t.roleOrganizer}
                                 </span>
                               );
                               if (r === "smo") return (
-                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgba(139,92,246,0.1)", color: "#8b5cf6", border: "1px solid rgba(139,92,246,0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="Student Council (SMO)">
+                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgb(var(--violet-500-rgb) / 0.1)", color: "var(--violet-500)", border: "1px solid rgb(var(--violet-500-rgb) / 0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="Student Council (SMO)">
                                   <Award size={10} /> {t.roleSMO}
                                 </span>
                               );
                               if (r === "anusmo") return (
-                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgba(236,72,153,0.1)", color: "#ec4899", border: "1px solid rgba(236,72,153,0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="Junior Student Council (ANUSMO)">
+                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgb(var(--pink-500-rgb) / 0.1)", color: "var(--pink-500)", border: "1px solid rgb(var(--pink-500-rgb) / 0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="Junior Student Council (ANUSMO)">
                                   <Award size={10} /> {t.roleANUSMO}
                                 </span>
                               );
                               if (r === "club_president") return (
-                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgba(245,158,11,0.1)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="Club President">
+                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgb(var(--amber-500-rgb) / 0.1)", color: "var(--amber-500)", border: "1px solid rgb(var(--amber-500-rgb) / 0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="Club President">
                                   <Award size={10} /> {t.roleClubPresident}
                                 </span>
                               );
                               if (r === "major_president") return (
-                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgba(6,182,212,0.1)", color: "#06b6d4", border: "1px solid rgba(6,182,212,0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="Major President">
+                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgb(var(--cyan-500-rgb) / 0.1)", color: "var(--cyan-500)", border: "1px solid rgb(var(--cyan-500-rgb) / 0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="Major President">
                                   <Award size={10} /> {t.roleMajorPresident}
                                 </span>
                               );
                               if (["staff", "professor", "officer"].includes(r)) return (
-                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgba(20,184,166,0.1)", color: "#14b8a6", border: "1px solid rgba(20,184,166,0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="Staff">
+                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgb(var(--teal-500-rgb) / 0.1)", color: "var(--teal-500)", border: "1px solid rgb(var(--teal-500-rgb) / 0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="Staff">
                                   <Briefcase size={10} /> {t.roleStaff}
                                 </span>
                               );
@@ -699,7 +700,7 @@ export default function AdminStudentsDirectory() {
                             <span className="badge" style={{ padding: "2px 8px", background: "var(--bg-elevated)", color: "var(--text-muted)", fontSize: 10, flexShrink: 0 }}>&ldquo;{s.nickname}&rdquo;</span>
                           )}
                           {hasActualMedicalInfo(s) && (
-                            <div style={{ color: "#ef4444", animation: "pulse-glow 2s infinite", display: "inline-flex", flexShrink: 0 }} title="Medical Condition">
+                            <div style={{ color: "var(--red-500)", animation: "pulse-glow 2s infinite", display: "inline-flex", flexShrink: 0 }} title="Medical Condition">
                               <Activity size={20} />
                             </div>
                           )}
@@ -719,7 +720,7 @@ export default function AdminStudentsDirectory() {
                               height: 12,
                               borderRadius: "50%",
                               background: s.house.color || "var(--accent-primary)",
-                              boxShadow: `0 0 10px ${s.house.color}44`
+                              boxShadow: `0 0 10px ${alpha(s.house.color || "var(--accent-primary)", 0.27)}`
                             }} />
                             <span style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: 14 }}>{getHouseName(s.house.id, s.house.name)}</span>
                           </div>
@@ -729,7 +730,7 @@ export default function AdminStudentsDirectory() {
                       </td>
                       <td>
                         {s.profileCompleted ? (
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#10b981" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--emerald-500)" }}>
                             <ShieldCheck size={16} />
                             <span style={{ fontWeight: 800, fontSize: 12, textTransform: "uppercase" }}>Verified</span>
                           </div>
@@ -741,7 +742,7 @@ export default function AdminStudentsDirectory() {
                         )}
                         {(s.noShowCount ?? 0) > 0 && (
                           <div
-                            style={{ display: "flex", alignItems: "center", gap: 6, color: (s.registrationBlocked || (s.noShowCount ?? 0) >= NO_SHOW_STRIKE_THRESHOLD - 1) ? "#ef4444" : "#f59e0b", marginTop: 6 }}
+                            style={{ display: "flex", alignItems: "center", gap: 6, color: (s.registrationBlocked || (s.noShowCount ?? 0) >= NO_SHOW_STRIKE_THRESHOLD - 1) ? "var(--red-500)" : "var(--amber-500)", marginTop: 6 }}
                             title={s.registrationBlocked ? "Pre-registration blocked due to repeated no-shows" : "Has recorded no-show strike(s)"}
                           >
                             <AlertTriangle size={14} />
@@ -786,7 +787,7 @@ export default function AdminStudentsDirectory() {
                           {canModifyThisRow ? (
                             <button
                               className="btn btn-ghost"
-                              style={{ padding: 8, borderRadius: 10, color: "#ef4444" }}
+                              style={{ padding: 8, borderRadius: 10, color: "var(--red-500)" }}
                               onClick={async () => {
                                 if (confirm(`⚠ PERMANENT ACTION: Are you sure you want to delete ${s.name}? This cannot be undone.`)) {
                                   const res = await fetch(`/api/admin/users/${s.id}`, { method: "DELETE" });
@@ -816,10 +817,10 @@ export default function AdminStudentsDirectory() {
                                 className="btn btn-sm"
                                 style={{
                                   borderRadius: 10,
-                                  background: "rgba(239,68,68,0.08)",
-                                  border: "1px solid rgba(239,68,68,0.15)",
+                                  background: "rgb(var(--red-500-rgb) / 0.08)",
+                                  border: "1px solid rgb(var(--red-500-rgb) / 0.15)",
                                   fontWeight: 700,
-                                  color: "#ef4444",
+                                  color: "var(--red-500)",
                                   fontSize: 12,
                                   gap: 6
                                 }}
@@ -834,10 +835,10 @@ export default function AdminStudentsDirectory() {
                               className="btn btn-sm"
                               style={{
                                 borderRadius: 10,
-                                background: "rgba(245,158,11,0.08)",
-                                border: "1px solid rgba(245,158,11,0.15)",
+                                background: "rgb(var(--amber-500-rgb) / 0.08)",
+                                border: "1px solid rgb(var(--amber-500-rgb) / 0.15)",
                                 fontWeight: 700,
-                                color: "#f59e0b",
+                                color: "var(--amber-500)",
                                 fontSize: 12,
                                 gap: 6,
                                 opacity: resettingStrikesId === s.id ? 0.6 : 1,
@@ -921,7 +922,7 @@ export default function AdminStudentsDirectory() {
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.4)",
+            background: "rgb(var(--scrim-rgb) / 0.4)",
             backdropFilter: "blur(8px)",
             WebkitBackdropFilter: "blur(8px)",
             display: "flex",
@@ -944,7 +945,7 @@ export default function AdminStudentsDirectory() {
               width: "100%",
               maxHeight: "90vh",
               overflow: "hidden",
-              boxShadow: "0 50px 100px rgba(0,0,0,0.5)",
+              boxShadow: "0 50px 100px rgb(var(--shadow-rgb) / 0.5)",
               display: "flex",
               flexDirection: "column"
             }}
@@ -953,7 +954,7 @@ export default function AdminStudentsDirectory() {
             <div style={{ padding: "32px 40px", borderBottom: "1px solid var(--border-subtle)", background: "linear-gradient(to bottom, var(--bg-surface), var(--bg-elevated))" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div>
-                  <div className="badge animate-pulse-glow" style={{ background: "#ef4444", color: "#fff", border: "none", marginBottom: 12 }}>
+                  <div className="badge animate-pulse-glow" style={{ background: "var(--red-500)", color: "var(--text-on-color)", border: "none", marginBottom: 12 }}>
                     <ShieldAlert size={12} /> SECURE ACCESS
                   </div>
                   <h2 style={{ fontSize: 28, fontWeight: 900, letterSpacing: "-0.04em", color: "var(--text-primary)" }}>Member Health Profile</h2>
@@ -993,7 +994,7 @@ export default function AdminStudentsDirectory() {
                 </div>
               ) : sensitiveError ? (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "40px 0", textAlign: "center" }}>
-                  <div style={{ width: 80, height: 80, borderRadius: "50%", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", display: "flex", alignItems: "center", justifyContent: "center", color: "#ef4444" }}>
+                  <div style={{ width: 80, height: 80, borderRadius: "50%", background: "rgb(var(--red-500-rgb) / 0.08)", border: "1px solid rgb(var(--red-500-rgb) / 0.2)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--red-500)" }}>
                     <ShieldAlert size={36} />
                   </div>
                   <h3 style={{ fontSize: 20, fontWeight: 800, color: "var(--text-primary)" }}>Couldn&apos;t load health records</h3>
@@ -1010,7 +1011,7 @@ export default function AdminStudentsDirectory() {
                   {/* Medical Section */}
                   <div>
                     <p className="section-title" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-                      <Heart size={14} style={{ color: "#ef4444" }} /> CLINICAL OBSERVATIONS
+                      <Heart size={14} style={{ color: "var(--red-500)" }} /> CLINICAL OBSERVATIONS
                     </p>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
                       {[
@@ -1062,9 +1063,9 @@ export default function AdminStudentsDirectory() {
                   </div>
 
                   {/* Security Disclaimer */}
-                  <div style={{ padding: 20, borderRadius: 20, background: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,68,0.1)", display: "flex", gap: 16, alignItems: "center" }}>
-                    <ShieldAlert size={24} style={{ color: "#ef4444" }} />
-                    <p style={{ fontSize: 13, color: "#ef4444", fontWeight: 600, lineHeight: 1.5 }}>
+                  <div style={{ padding: 20, borderRadius: 20, background: "rgb(var(--red-500-rgb) / 0.05)", border: "1px solid rgb(var(--red-500-rgb) / 0.1)", display: "flex", gap: 16, alignItems: "center" }}>
+                    <ShieldAlert size={24} style={{ color: "var(--red-500)" }} />
+                    <p style={{ fontSize: 13, color: "var(--red-500)", fontWeight: 600, lineHeight: 1.5 }}>
                       SECURITY PROTOCOL: This session has been audited. Unauthorized disclosure of this information is strictly prohibited and subject to institutional discipline.
                     </p>
                   </div>
@@ -1085,7 +1086,7 @@ export default function AdminStudentsDirectory() {
         <div style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(0,0,0,0.4)",
+          background: "rgb(var(--scrim-rgb) / 0.4)",
           backdropFilter: "blur(8px)",
           zIndex: 1100,
           display: "flex",
@@ -1101,7 +1102,7 @@ export default function AdminStudentsDirectory() {
             maxHeight: "90vh",
             borderRadius: "clamp(20px, 5vw, 32px)",
             overflow: "hidden",
-            boxShadow: "0 30px 60px rgba(0,0,0,0.2)",
+            boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.2)",
             border: "1px solid var(--border-medium)",
             display: "flex",
             flexDirection: "column"
@@ -1209,7 +1210,7 @@ export default function AdminStudentsDirectory() {
                           transition: "all 0.2s",
                           background: isChecked ? "var(--bg-surface)" : "transparent",
                           border: isChecked ? "1px solid var(--accent-primary)" : "1px solid transparent",
-                          boxShadow: isChecked ? "0 2px 8px rgba(0,0,0,0.05)" : "none"
+                          boxShadow: isChecked ? "0 2px 8px rgb(var(--shadow-rgb) / 0.05)" : "none"
                         }}
                       >
                         <input
@@ -1270,7 +1271,7 @@ export default function AdminStudentsDirectory() {
                             transition: "all 0.2s",
                             background: isChecked ? "var(--bg-surface)" : "transparent",
                             border: isChecked ? "1px solid var(--accent-primary)" : "1px solid transparent",
-                            boxShadow: isChecked ? "0 2px 8px rgba(0,0,0,0.05)" : "none"
+                            boxShadow: isChecked ? "0 2px 8px rgb(var(--shadow-rgb) / 0.05)" : "none"
                           }}
                         >
                           <input
@@ -1350,7 +1351,7 @@ export default function AdminStudentsDirectory() {
               {userRole === "super_admin" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 16, background: "var(--bg-elevated)", borderRadius: 16, border: "1px solid var(--border-subtle)" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <ShieldAlert size={14} style={{ color: "#ef4444" }} />
+                    <ShieldAlert size={14} style={{ color: "var(--red-500)" }} />
                     <span style={{ fontSize: 11, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
                       {lang === "th" ? "ข้อมูลติดต่อ (Super Admin เท่านั้น)" : "Contact Info (Super Admin only)"}
                     </span>
@@ -1421,7 +1422,7 @@ export default function AdminStudentsDirectory() {
         }
         .student-row:hover .btn-ghost {
           background: var(--bg-surface);
-          box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+          box-shadow: 0 4px 12px rgb(var(--shadow-rgb) / 0.05);
         }
         .custom-scrollbar::-webkit-scrollbar { width: 8px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }

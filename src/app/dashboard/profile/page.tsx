@@ -210,8 +210,8 @@ export default function ProfilePage() {
                 style={{
                   resize: "vertical",
                   marginTop: 4,
-                  borderColor: validationTriggered && !formData[fieldKey].trim() ? "#ef4444" : undefined,
-                  boxShadow: validationTriggered && !formData[fieldKey].trim() ? "0 0 0 1px #ef4444" : undefined,
+                  borderColor: validationTriggered && !formData[fieldKey].trim() ? "var(--red-500)" : undefined,
+                  boxShadow: validationTriggered && !formData[fieldKey].trim() ? "0 0 0 1px var(--red-500)" : undefined,
                 }}
               />
             ) : (
@@ -222,13 +222,13 @@ export default function ProfilePage() {
                 onChange={(e) => set(fieldKey, e.target.value)}
                 style={{
                   marginTop: 4,
-                  borderColor: validationTriggered && !formData[fieldKey].trim() ? "#ef4444" : undefined,
-                  boxShadow: validationTriggered && !formData[fieldKey].trim() ? "0 0 0 1px #ef4444" : undefined,
+                  borderColor: validationTriggered && !formData[fieldKey].trim() ? "var(--red-500)" : undefined,
+                  boxShadow: validationTriggered && !formData[fieldKey].trim() ? "0 0 0 1px var(--red-500)" : undefined,
                 }}
               />
             )}
             {validationTriggered && !formData[fieldKey].trim() && (
-              <span className="error-text" style={{ color: "#ef4444", fontSize: 11, fontWeight: 600, marginTop: 2, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={12} style={{ flexShrink: 0 }} />
+              <span className="error-text" style={{ color: "var(--red-500)", fontSize: 11, fontWeight: 600, marginTop: 2, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={12} style={{ flexShrink: 0 }} />
                 {t.back === "กลับ" ? "กรุณาระบุรายละเอียด" : "Required"}
               </span>
             )}
@@ -379,7 +379,7 @@ export default function ProfilePage() {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-base)", padding: 24 }}>
         <div style={{ textAlign: "center", maxWidth: 360 }}>
-          <AlertTriangle size={40} style={{ color: "#ef4444", margin: "0 auto 16px", display: "block" }} />
+          <AlertTriangle size={40} style={{ color: "var(--red-500)", margin: "0 auto 16px", display: "block" }} />
           <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>
             {t.back === "กลับ" ? "โหลดโปรไฟล์ไม่สำเร็จ" : "Couldn't load your profile"}
           </h2>
@@ -563,7 +563,7 @@ export default function ProfilePage() {
                   </div>
                   <div className="field flex-grow">
                     <label className="label">
-                      {t.fullName} <span style={{ color: "#ef4444" }}>*</span>
+                      {t.fullName} <span style={{ color: "var(--red-500)" }}>*</span>
                     </label>
                     <input
                       className="input"
@@ -572,31 +572,31 @@ export default function ProfilePage() {
                       value={formData.name}
                       onChange={(e) => set("name", e.target.value)}
                       style={{
-                        borderColor: validationTriggered && !formData.name.trim() ? "#ef4444" : undefined,
-                        boxShadow: validationTriggered && !formData.name.trim() ? "0 0 0 1px #ef4444" : undefined
+                        borderColor: validationTriggered && !formData.name.trim() ? "var(--red-500)" : undefined,
+                        boxShadow: validationTriggered && !formData.name.trim() ? "0 0 0 1px var(--red-500)" : undefined
                       }}
                     />
                     {validationTriggered && !formData.name.trim() && (
-                      <span style={{ color: "#ef4444", fontSize: 11, fontWeight: 500, marginTop: 4, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={12} style={{ flexShrink: 0 }} />
+                      <span style={{ color: "var(--red-500)", fontSize: 11, fontWeight: 500, marginTop: 4, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={12} style={{ flexShrink: 0 }} />
                         {t.back === "กลับ" ? "กรุณากรอกชื่อ-นามสกุล" : "This field is required"}
                       </span>
                     )}
                   </div>
                 </div>
                 <div className="field col-span-4">
-                  <label className="label">{t.nickname} <span style={{ color: "#ef4444" }}>*</span></label>
+                  <label className="label">{t.nickname} <span style={{ color: "var(--red-500)" }}>*</span></label>
                   <input
                     className="input"
                     name="nickname"
                     value={formData.nickname}
                     onChange={(e) => set("nickname", e.target.value)}
                     style={{
-                      borderColor: validationTriggered && !formData.nickname.trim() ? "#ef4444" : undefined,
-                      boxShadow: validationTriggered && !formData.nickname.trim() ? "0 0 0 1px #ef4444" : undefined
+                      borderColor: validationTriggered && !formData.nickname.trim() ? "var(--red-500)" : undefined,
+                      boxShadow: validationTriggered && !formData.nickname.trim() ? "0 0 0 1px var(--red-500)" : undefined
                     }}
                   />
                   {validationTriggered && !formData.nickname.trim() && (
-                    <span style={{ color: "#ef4444", fontSize: 11, fontWeight: 500, marginTop: 4, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={12} style={{ flexShrink: 0 }} />
+                    <span style={{ color: "var(--red-500)", fontSize: 11, fontWeight: 500, marginTop: 4, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={12} style={{ flexShrink: 0 }} />
                       {t.back === "กลับ" ? "กรุณากรอกชื่อเล่น" : "This field is required"}
                     </span>
                   )}
@@ -613,7 +613,7 @@ export default function ProfilePage() {
                     </div>
                   ) : (
                     <div className="field col-span-8">
-                      <span style={{ color: "#ef4444", fontSize: 12, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <span style={{ color: "var(--red-500)", fontSize: 12, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
                         <AlertTriangle size={12} style={{ flexShrink: 0 }} />
                         {t.back === "กลับ"
                           ? "รหัสนักศึกษานี้ไม่ตรงกับวิทยาลัยศิลปะ สื่อ และเทคโนโลยี กรุณาติดต่อที่ IG: smocamt.official"
@@ -646,7 +646,7 @@ export default function ProfilePage() {
                 )}
                 <div className="field col-span-6">
                   <label className="label">
-                    {t.phone} {isProfileCompleted ? "(Locked)" : <span style={{ color: "#ef4444" }}>*</span>}
+                    {t.phone} {isProfileCompleted ? "(Locked)" : <span style={{ color: "var(--red-500)" }}>*</span>}
                   </label>
                   <input
                     className="input"
@@ -659,12 +659,12 @@ export default function ProfilePage() {
                       background: isProfileCompleted ? "var(--bg-elevated)" : undefined,
                       cursor: isProfileCompleted ? "not-allowed" : undefined,
                       opacity: isProfileCompleted ? 0.7 : undefined,
-                      borderColor: validationTriggered && (!formData.phone.trim() || !/^[0-9]{10}$/.test(formData.phone.trim())) ? "#ef4444" : undefined,
-                      boxShadow: validationTriggered && (!formData.phone.trim() || !/^[0-9]{10}$/.test(formData.phone.trim())) ? "0 0 0 1px #ef4444" : undefined
+                      borderColor: validationTriggered && (!formData.phone.trim() || !/^[0-9]{10}$/.test(formData.phone.trim())) ? "var(--red-500)" : undefined,
+                      boxShadow: validationTriggered && (!formData.phone.trim() || !/^[0-9]{10}$/.test(formData.phone.trim())) ? "0 0 0 1px var(--red-500)" : undefined
                     }}
                   />
                   {validationTriggered && (!formData.phone.trim() || !/^[0-9]{10}$/.test(formData.phone.trim())) && (
-                    <span style={{ color: "#ef4444", fontSize: 11, fontWeight: 500, marginTop: 4, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={12} style={{ flexShrink: 0 }} />
+                    <span style={{ color: "var(--red-500)", fontSize: 11, fontWeight: 500, marginTop: 4, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={12} style={{ flexShrink: 0 }} />
                       {!formData.phone.trim() 
                         ? (t.back === "กลับ" ? "กรุณากรอกเบอร์โทรศัพท์" : "This field is required")
                         : (t.back === "กลับ" ? "เบอร์โทรศัพท์ต้องเป็นตัวเลข 10 หลัก" : "Phone number must be exactly 10 digits and numbers only")}
@@ -672,7 +672,7 @@ export default function ProfilePage() {
                   )}
                 </div>
                 <div className="field col-span-6">
-                  <label className="label">{t.contactChannels} <span style={{ color: "#ef4444" }}>*</span></label>
+                  <label className="label">{t.contactChannels} <span style={{ color: "var(--red-500)" }}>*</span></label>
                   <input
                     className="input"
                     name="contactChannels"
@@ -681,12 +681,12 @@ export default function ProfilePage() {
                     onChange={(e) => set("contactChannels", e.target.value)}
                     placeholder="IG: smocamt.official / LINE: smocamt.official"
                     style={{
-                      borderColor: validationTriggered && !formData.contactChannels.trim() ? "#ef4444" : undefined,
-                      boxShadow: validationTriggered && !formData.contactChannels.trim() ? "0 0 0 1px #ef4444" : undefined
+                      borderColor: validationTriggered && !formData.contactChannels.trim() ? "var(--red-500)" : undefined,
+                      boxShadow: validationTriggered && !formData.contactChannels.trim() ? "0 0 0 1px var(--red-500)" : undefined
                     }}
                   />
                   {validationTriggered && !formData.contactChannels.trim() && (
-                    <span style={{ color: "#ef4444", fontSize: 11, fontWeight: 500, marginTop: 4, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={12} style={{ flexShrink: 0 }} />
+                    <span style={{ color: "var(--red-500)", fontSize: 11, fontWeight: 500, marginTop: 4, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={12} style={{ flexShrink: 0 }} />
                       {t.back === "กลับ" ? "กรุณากรอกช่องทางติดต่อ" : "This field is required"}
                     </span>
                   )}
@@ -753,25 +753,25 @@ export default function ProfilePage() {
                       <p style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 16 }}>Contact #{i + 1}</p>
                       <div className="form-grid">
                         <div className="field col-span-12">
-                          <label className="label">{t.fullName} {isFieldRequired && <span style={{ color: "#ef4444" }}>*</span>}</label>
+                          <label className="label">{t.fullName} {isFieldRequired && <span style={{ color: "var(--red-500)" }}>*</span>}</label>
                           <input
                             className="input"
                             required={isFieldRequired}
                             value={contact.name}
                             onChange={(e) => setEC(i, "name", e.target.value)}
                             style={{
-                              borderColor: validationTriggered && isFieldRequired && !contact.name.trim() ? "#ef4444" : undefined,
-                              boxShadow: validationTriggered && isFieldRequired && !contact.name.trim() ? "0 0 0 1px #ef4444" : undefined
+                              borderColor: validationTriggered && isFieldRequired && !contact.name.trim() ? "var(--red-500)" : undefined,
+                              boxShadow: validationTriggered && isFieldRequired && !contact.name.trim() ? "0 0 0 1px var(--red-500)" : undefined
                             }}
                           />
                           {validationTriggered && isFieldRequired && !contact.name.trim() && (
-                            <span style={{ color: "#ef4444", fontSize: 11, fontWeight: 500, marginTop: 4, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={12} style={{ flexShrink: 0 }} />
+                            <span style={{ color: "var(--red-500)", fontSize: 11, fontWeight: 500, marginTop: 4, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={12} style={{ flexShrink: 0 }} />
                               {t.back === "กลับ" ? "กรุณากรอกชื่อ-นามสกุล" : "This field is required"}
                             </span>
                           )}
                         </div>
                         <div className="field col-span-6">
-                          <label className="label">{t.relationship} {isFieldRequired && <span style={{ color: "#ef4444" }}>*</span>}</label>
+                          <label className="label">{t.relationship} {isFieldRequired && <span style={{ color: "var(--red-500)" }}>*</span>}</label>
                           <select
                             className="input"
                             required={isFieldRequired}
@@ -779,8 +779,8 @@ export default function ProfilePage() {
                             onChange={(e) => setEC(i, "relationship", e.target.value === "Other" ? "Other:" : e.target.value)}
                             style={{
                               minHeight: 48,
-                              borderColor: validationTriggered && isFieldRequired && (!contact.relationship.trim() || contact.relationship === "Other:") ? "#ef4444" : undefined,
-                              boxShadow: validationTriggered && isFieldRequired && (!contact.relationship.trim() || contact.relationship === "Other:") ? "0 0 0 1px #ef4444" : undefined
+                              borderColor: validationTriggered && isFieldRequired && (!contact.relationship.trim() || contact.relationship === "Other:") ? "var(--red-500)" : undefined,
+                              boxShadow: validationTriggered && isFieldRequired && (!contact.relationship.trim() || contact.relationship === "Other:") ? "0 0 0 1px var(--red-500)" : undefined
                             }}
                           >
                             <option value="">{t.selectRelationship}</option>
@@ -798,8 +798,8 @@ export default function ProfilePage() {
                               style={{
                                 marginTop: 8,
                                 minHeight: 48,
-                                borderColor: validationTriggered && isFieldRequired && (!contact.relationship.trim() || contact.relationship === "Other:") ? "#ef4444" : undefined,
-                                boxShadow: validationTriggered && isFieldRequired && (!contact.relationship.trim() || contact.relationship === "Other:") ? "0 0 0 1px #ef4444" : undefined
+                                borderColor: validationTriggered && isFieldRequired && (!contact.relationship.trim() || contact.relationship === "Other:") ? "var(--red-500)" : undefined,
+                                boxShadow: validationTriggered && isFieldRequired && (!contact.relationship.trim() || contact.relationship === "Other:") ? "0 0 0 1px var(--red-500)" : undefined
                               }}
                               placeholder={t.back === "กลับ" ? "กรุณาระบุความสัมพันธ์..." : "Please specify relationship..."}
                               value={contact.relationship.startsWith("Other:") ? contact.relationship.substring(6) : contact.relationship}
@@ -807,25 +807,25 @@ export default function ProfilePage() {
                             />
                           )}
                           {validationTriggered && isFieldRequired && (!contact.relationship.trim() || contact.relationship === "Other:") && (
-                            <span style={{ color: "#ef4444", fontSize: 11, fontWeight: 500, marginTop: 4, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={12} style={{ flexShrink: 0 }} />
+                            <span style={{ color: "var(--red-500)", fontSize: 11, fontWeight: 500, marginTop: 4, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={12} style={{ flexShrink: 0 }} />
                               {t.back === "กลับ" ? "กรุณากรอกความสัมพันธ์" : "This field is required"}
                             </span>
                           )}
                         </div>
                         <div className="field col-span-6">
-                          <label className="label">{t.phone} {isFieldRequired && <span style={{ color: "#ef4444" }}>*</span>}</label>
+                          <label className="label">{t.phone} {isFieldRequired && <span style={{ color: "var(--red-500)" }}>*</span>}</label>
                           <input
                             className="input"
                             required={isFieldRequired}
                             value={contact.phone}
                             onChange={(e) => setEC(i, "phone", e.target.value.replace(/[^0-9]/g, "").slice(0, 10))}
                             style={{
-                              borderColor: validationTriggered && isFieldRequired && (!contact.phone.trim() || !/^[0-9]{10}$/.test(contact.phone.trim())) ? "#ef4444" : undefined,
-                              boxShadow: validationTriggered && isFieldRequired && (!contact.phone.trim() || !/^[0-9]{10}$/.test(contact.phone.trim())) ? "0 0 0 1px #ef4444" : undefined
+                              borderColor: validationTriggered && isFieldRequired && (!contact.phone.trim() || !/^[0-9]{10}$/.test(contact.phone.trim())) ? "var(--red-500)" : undefined,
+                              boxShadow: validationTriggered && isFieldRequired && (!contact.phone.trim() || !/^[0-9]{10}$/.test(contact.phone.trim())) ? "0 0 0 1px var(--red-500)" : undefined
                             }}
                           />
                           {validationTriggered && isFieldRequired && (!contact.phone.trim() || !/^[0-9]{10}$/.test(contact.phone.trim())) && (
-                            <span style={{ color: "#ef4444", fontSize: 11, fontWeight: 500, marginTop: 4, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={12} style={{ flexShrink: 0 }} />
+                            <span style={{ color: "var(--red-500)", fontSize: 11, fontWeight: 500, marginTop: 4, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={12} style={{ flexShrink: 0 }} />
                               {!contact.phone.trim()
                                 ? (t.back === "กลับ" ? "กรุณากรอกเบอร์โทรศัพท์" : "This field is required")
                                 : (t.back === "กลับ" ? "เบอร์โทรศัพท์ต้องเป็นตัวเลข 10 หลัก" : "Phone number must be exactly 10 digits and numbers only")}
@@ -842,7 +842,7 @@ export default function ProfilePage() {
             {/* Section: Health & Safety */}
             <div className="form-card">
               <h2 className="section-title">
-                <HeartPulse size={20} style={{ color: "#ef4444" }} />
+                <HeartPulse size={20} style={{ color: "var(--red-500)" }} />
                 {t.medicalInfo}
               </h2>
               <div className="form-grid">
@@ -903,7 +903,7 @@ export default function ProfilePage() {
             <div className="form-footer">
               <div className="status-msg-box">
                 {error && <p style={{ color: "var(--accent-primary)", fontWeight: 600, margin: 0, display: "inline-flex", alignItems: "center", gap: 6 }}><AlertTriangle size={14} style={{ flexShrink: 0 }} /> {error}</p>}
-                {success && <p style={{ color: "#10b981", fontWeight: 600, margin: 0, display: "inline-flex", alignItems: "center", gap: 6 }}><Check size={14} style={{ flexShrink: 0 }} /> {t.complete}</p>}
+                {success && <p style={{ color: "var(--emerald-500)", fontWeight: 600, margin: 0, display: "inline-flex", alignItems: "center", gap: 6 }}><Check size={14} style={{ flexShrink: 0 }} /> {t.complete}</p>}
               </div>
 
               <button type="submit" disabled={saving || uploading} className="btn btn-primary btn-lg submit-btn">
@@ -969,7 +969,7 @@ export default function ProfilePage() {
           padding: 32px;
           border-radius: 32px;
           border: 1px solid var(--border-medium);
-          box-shadow: 0 10px 30px rgba(0,0,0,0.04);
+          box-shadow: 0 10px 30px rgb(var(--shadow-rgb) / 0.04);
         }
         .photo-card {
           display: flex;
@@ -988,7 +988,7 @@ export default function ProfilePage() {
           border-radius: 50%;
           background-color: var(--bg-elevated);
           border: 4px solid white;
-          box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+          box-shadow: 0 10px 30px rgb(var(--shadow-rgb) / 0.15);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -999,7 +999,7 @@ export default function ProfilePage() {
           position: absolute;
           inset: 0;
           z-index: 20;
-          background: rgba(0,0,0,0.4);
+          background: rgb(var(--scrim-rgb) / 0.4);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -1098,10 +1098,10 @@ export default function ProfilePage() {
         
         .emergency-contact-box {
           padding: 24px;
-          background: rgba(255, 255, 255, 0.01);
+          background: rgb(var(--white-rgb) / 0.01);
           border: 1px solid var(--border-medium);
           border-radius: 24px;
-          box-shadow: 0 10px 30px rgba(0,0,0,0.03);
+          box-shadow: 0 10px 30px rgb(var(--shadow-rgb) / 0.03);
           backdrop-filter: blur(10px);
           -webkit-backdrop-filter: blur(10px);
         }

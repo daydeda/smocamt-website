@@ -73,7 +73,7 @@ export function PendingReviewsClient() {
         <>
           <section style={{ marginBottom: 32 }}>
             <h2 style={{ fontSize: 16, fontWeight: 800, display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-              <ClipboardList size={18} style={{ color: "#6366f1" }} />
+              <ClipboardList size={18} style={{ color: "var(--indigo-500)" }} />
               {lang === "th" ? "แบบประเมินที่รอตรวจสอบ" : lang === "cn" ? "待审核反馈表单" : lang === "mm" ? "စောင့်ဆိုင်းနေသော အကဲဖြတ်ပုံစံများ" : "Pending Feedback Forms"}
               <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)" }}>({pendingForms.length})</span>
             </h2>
@@ -97,7 +97,7 @@ export function PendingReviewsClient() {
                       <p style={{ fontWeight: 700, fontSize: 14 }}>{f.title}</p>
                       <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{f.eventTitle}</p>
                     </div>
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 999, background: "rgba(245,158,11,0.1)", color: "#f59e0b", flexShrink: 0 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 999, background: "rgb(var(--amber-500-rgb) / 0.1)", color: "var(--amber-500)", flexShrink: 0 }}>
                       {lang === "th" ? "รอตรวจสอบ" : lang === "cn" ? "待审核" : lang === "mm" ? "စောင့်ဆိုင်းနေသည်" : "Pending"}
                     </span>
                   </Link>
@@ -132,7 +132,7 @@ export function PendingReviewsClient() {
                       <p style={{ fontWeight: 700, fontSize: 14 }}>{e.title}</p>
                       <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{new Date(e.startTime).toLocaleDateString()}</p>
                     </div>
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 999, background: "rgba(245,158,11,0.1)", color: "#f59e0b", flexShrink: 0 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 999, background: "rgb(var(--amber-500-rgb) / 0.1)", color: "var(--amber-500)", flexShrink: 0 }}>
                       {lang === "th" ? "รอตรวจสอบ" : lang === "cn" ? "待审核" : lang === "mm" ? "စောင့်ဆိုင်းနေသည်" : "Pending"}
                     </span>
                   </Link>

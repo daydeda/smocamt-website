@@ -108,7 +108,7 @@ export function RichTextEditor({
           <Link2 size={15} /> Link
         </button>
         <label style={{ ...toolBtn, position: "relative" }} title="Text color — {{color:#HEX|text}}">
-          <span style={{ width: 15, height: 15, borderRadius: 4, background: "linear-gradient(135deg,#ef4444,#6366f1)", display: "inline-block" }} />
+          <span style={{ width: 15, height: 15, borderRadius: 4, background: "linear-gradient(135deg,var(--red-500),var(--indigo-500))", display: "inline-block" }} />
           Color
           <input
             type="color"

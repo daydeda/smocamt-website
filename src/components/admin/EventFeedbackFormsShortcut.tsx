@@ -113,15 +113,15 @@ export function EventFeedbackFormsShortcut({ clubs, scope }: EventFeedbackFormsS
       label: lang === "th" ? "ยังไม่มีแบบฟอร์ม" : lang === "cn" ? "尚无表单" : lang === "mm" ? "ဖောင်မရှိသေးပါ" : "No form yet",
     },
     pending: {
-      bg: "rgba(245,158,11,0.12)", color: "#f59e0b",
+      bg: "rgb(var(--amber-500-rgb) / 0.12)", color: "var(--amber-500)",
       label: lang === "th" ? "กำลังรอตรวจสอบ" : lang === "cn" ? "等待审核" : lang === "mm" ? "ပြန်လည်စစ်ဆေးဆဲ" : "Awaiting review",
     },
     changes: {
-      bg: "rgba(239,68,68,0.12)", color: "#ef4444",
+      bg: "rgb(var(--red-500-rgb) / 0.12)", color: "var(--red-500)",
       label: lang === "th" ? "ขอให้แก้ไข" : lang === "cn" ? "需要修改" : lang === "mm" ? "ပြင်ဆင်ရန် တောင်းဆိုထား" : "Changes requested",
     },
     approved: {
-      bg: "rgba(16,185,129,0.12)", color: "#10b981",
+      bg: "rgb(var(--emerald-500-rgb) / 0.12)", color: "var(--emerald-500)",
       label: lang === "th" ? "อนุมัติแล้ว" : lang === "cn" ? "已批准" : lang === "mm" ? "ခွင့်ပြုပြီး" : "Approved",
     },
   };
@@ -135,7 +135,7 @@ export function EventFeedbackFormsShortcut({ clubs, scope }: EventFeedbackFormsS
         style={{ borderRadius: 32, padding: 24, marginBottom: 24 }}
       >
         <h2 style={{ fontSize: 18, fontWeight: 800, display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-          <ClipboardList size={20} style={{ color: "#6366f1" }} />
+          <ClipboardList size={20} style={{ color: "var(--indigo-500)" }} />
           {scope === "club"
             ? (lang === "th" ? "แบบประเมินกิจกรรมของชมรมคุณ" : lang === "cn" ? "你的社团活动反馈表单" : lang === "mm" ? "သင့်ကလပ်ပွဲအတွက် အကဲဖြတ်ပုံစံ" : "Your Club Events' Feedback Forms")
             : (lang === "th" ? "แบบประเมินกิจกรรมของสาขาคุณ" : lang === "cn" ? "你的专业活动反馈表单" : lang === "mm" ? "သင့်ဌာနပွဲအတွက် အကဲဖြတ်ပုံစံ" : "Your Major Events' Feedback Forms")}
@@ -194,12 +194,12 @@ export function EventFeedbackFormsShortcut({ clubs, scope }: EventFeedbackFormsS
                   {st.status === "changes" && st.note && (
                     <div style={{
                       display: "flex", alignItems: "flex-start", gap: 8, marginTop: 8,
-                      background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)",
+                      background: "rgb(var(--red-500-rgb) / 0.08)", border: "1px solid rgb(var(--red-500-rgb) / 0.2)",
                       borderRadius: 12, padding: "8px 12px",
                     }}>
-                      <AlertCircle size={14} style={{ color: "#ef4444", flexShrink: 0, marginTop: 1 }} />
+                      <AlertCircle size={14} style={{ color: "var(--red-500)", flexShrink: 0, marginTop: 1 }} />
                       <div>
-                        <p style={{ fontSize: 10.5, fontWeight: 800, color: "#ef4444", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                        <p style={{ fontSize: 10.5, fontWeight: 800, color: "var(--red-500)", textTransform: "uppercase", letterSpacing: "0.03em" }}>
                           {t.fbReviewNoteLabel || "Note from staff"}
                         </p>
                         <p style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 2, lineHeight: 1.4 }}>{st.note}</p>

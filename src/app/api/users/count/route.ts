@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
-import { users } from "@/db/schema";
-import { count } from "drizzle-orm";
+import { UsersService } from "@/modules/users/users.service";
 
 export async function GET() {
   try {
-    const [{ count: countVal }] = await db.select({ count: count() }).from(users);
+    const countVal = await UsersService.countUsers();
     return NextResponse.json({ count: countVal });
   } catch (err) {
     console.error("Failed to fetch user count:", err);

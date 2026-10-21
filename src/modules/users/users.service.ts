@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { and, eq, or, sql } from "drizzle-orm";
+import { and, count, eq, or, sql } from "drizzle-orm";
 import { verifyQrToken, verifyCrossAppQrToken, splitCombinedQrToken } from "@/lib/qr/qr-token";
 import { fetchSongsueProfileByEmail } from "@/lib/integrations/songsue-sync";
 import { SongsueSyncService } from "@/modules/integrations/songsue-sync.service";
@@ -132,5 +132,11 @@ export class UsersService {
     });
 
     return updated.length > 0;
+  }
+
+  /** Total number of user rows (public landing-page counter). */
+  static async countUsers() {
+    const [{ count: countVal }] = await db.select({ count: count() }).from(users);
+    return countVal;
   }
 }

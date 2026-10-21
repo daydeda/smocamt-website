@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { clubs, clubMembers, events, houses, users } from "@/db/schema";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { redactEmergencyContacts } from "@/lib/pdpa/emergency-contacts";
 
 // Mirrors AuditService's DBTransaction type (src/modules/audit/audit.service.ts) so
@@ -429,5 +429,26 @@ export class ClubsService {
           ),
         );
     }
+  }
+
+  /** A club's name only ({ name } or undefined if no such club), for audit text and exports. */
+  static async getClubName(clubId: string) {
+    return db.query.clubs.findFirst({ where: eq(clubs.id, clubId), columns: { name: true } });
+  }
+
+  /**
+   * Account search for the "add member" picker: any role, matching name or
+   * studentId, capped at 10 and returning only id/name/studentId.
+   */
+  static async searchAccountsForMembership(q: string) {
+    // No role filter — matching strictly on role="student" used to hide
+    // anyone whose PRIMARY role resolved to something else (e.g. an smo, or a
+    // club_president of a different club), even though they were a
+    // legitimate add. This now matches any account by name/studentId.
+    return db
+      .select({ id: users.id, name: users.name, studentId: users.studentId })
+      .from(users)
+      .where(or(ilike(users.name, `%${q}%`), ilike(users.studentId, `%${q}%`)))
+      .limit(10);
   }
 }

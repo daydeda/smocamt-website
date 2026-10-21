@@ -1,11 +1,8 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { clubs } from "@/db/schema";
 import { ClubsService } from "@/modules/clubs/clubs.service";
 import { effectiveRoles } from "@/lib/access/admin-access";
 import { POSITION_LABEL_EN, type PositionId } from "@/lib/access/positions";
 import { formatAuditTargetList } from "@/lib/util/audit-target-list";
-import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { canonicalHouseName } from "@/lib/profile/faculties";
@@ -47,7 +44,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const club = await db.query.clubs.findFirst({ where: eq(clubs.id, id), columns: { name: true } });
+    const club = await ClubsService.getClubName(id);
     if (!club) {
       return NextResponse.json({ error: "Club not found" }, { status: 404 });
     }

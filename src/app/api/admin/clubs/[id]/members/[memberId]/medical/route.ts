@@ -1,7 +1,4 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { clubs } from "@/db/schema";
-import { eq } from "drizzle-orm";
 import { ClubsService } from "@/modules/clubs/clubs.service";
 import { effectiveRoles } from "@/lib/access/admin-access";
 import { NextResponse } from "next/server";
@@ -45,7 +42,7 @@ export async function GET(
       return NextResponse.json({ error: "Member not found" }, { status: 404 });
     }
 
-    const club = await db.query.clubs.findFirst({ where: eq(clubs.id, id), columns: { name: true } });
+    const club = await ClubsService.getClubName(id);
 
     await AuditService.logAction({
       actorId: session.user.id!,

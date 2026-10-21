@@ -1,9 +1,6 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { users } from "@/db/schema";
 import { ClubsService } from "@/modules/clubs/clubs.service";
 import { effectiveRoles } from "@/lib/access/admin-access";
-import { or, ilike } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 // GET /api/admin/clubs/[id]/members/search?q=... — Search accounts to add to
@@ -45,15 +42,7 @@ export async function GET(
       return NextResponse.json([]);
     }
 
-    // No role filter — matching strictly on role="student" used to hide
-    // anyone whose PRIMARY role resolved to something else (e.g. an smo, or a
-    // club_president of a different club), even though they were a
-    // legitimate add. This now matches any account by name/studentId.
-    const matches = await db
-      .select({ id: users.id, name: users.name, studentId: users.studentId })
-      .from(users)
-      .where(or(ilike(users.name, `%${q}%`), ilike(users.studentId, `%${q}%`)))
-      .limit(10);
+    const matches = await ClubsService.searchAccountsForMembership(q);
 
     return NextResponse.json(matches);
   } catch (error) {

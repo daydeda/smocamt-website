@@ -1,7 +1,4 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { clubs } from "@/db/schema";
-import { eq } from "drizzle-orm";
 import { ClubsService } from "@/modules/clubs/clubs.service";
 import { effectiveRoles } from "@/lib/access/admin-access";
 import { NextResponse } from "next/server";
@@ -87,7 +84,7 @@ export async function GET(
 
     if (isOwnClub) {
       const members = await ClubsService.getClubMembers(id);
-      const club = await db.query.clubs.findFirst({ where: eq(clubs.id, id), columns: { name: true } });
+      const club = await ClubsService.getClubName(id);
 
       await AuditService.logAction({
         actorId: session.user.id!,
@@ -110,7 +107,7 @@ export async function GET(
     }
 
     const members = await ClubsService.getClubMembersLimited(id);
-    const club = await db.query.clubs.findFirst({ where: eq(clubs.id, id), columns: { name: true } });
+    const club = await ClubsService.getClubName(id);
 
     await AuditService.logAction({
       actorId: session.user.id!,

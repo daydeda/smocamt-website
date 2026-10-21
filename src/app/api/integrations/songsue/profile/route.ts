@@ -3,22 +3,9 @@ import { z } from "zod";
 import { isAuthorizedSongsueSync } from "@/lib/integrations/integration-auth";
 import { rateLimit, getClientIp } from "@/lib/util/rate-limit";
 import { verifyCrossAppQrToken } from "@/lib/qr/qr-token";
-import { db } from "@/db";
-import { users } from "@/db/schema";
-import { eq } from "drizzle-orm";
-import { AuditService } from "@/modules/audit/audit.service";
+import { SongsueSyncService } from "@/modules/integrations/songsue-sync.service";
 
 export const dynamic = "force-dynamic";
-
-// Same actor-id convention as SongsueSyncService's SYNC_ACTOR_ID (no real
-// staff session behind a service-to-service call) — audit_logs.actorId has
-// no FK, see AuditService.
-const SYNC_ACTOR_ID = "system:songsue-sync";
-
-const SENSITIVE_FIELDS = [
-  "chronicDiseases", "medicalHistory", "drugAllergies", "foodAllergies",
-  "dietaryRestrictions", "faintingHistory", "emergencyMedication", "emergencyContacts",
-] as const;
 
 const querySchema = z.object({ token: z.string().min(1) });
 
@@ -62,33 +49,9 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const user = await db.query.users.findFirst({
-    where: eq(users.email, email),
-    columns: {
-      id: true, email: true, studentId: true, name: true, prefix: true, faculty: true, major: true,
-      phone: true, nickname: true, image: true, religion: true, contactChannels: true,
-      chronicDiseases: true, medicalHistory: true, drugAllergies: true, foodAllergies: true,
-      dietaryRestrictions: true, faintingHistory: true, emergencyMedication: true, emergencyContacts: true,
-    },
-  });
+  const user = await SongsueSyncService.getProfileForCrossAppFetch(email, ip);
   if (!user) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
-  // PDPA change-trail (field NAMES only, never values) for every read that
-  // hands sensitive fields to the sibling app — mirrors the audit write on
-  // the opposite (write) sync direction in SongsueSyncService.upsertSyncedUser.
-  const exposedFields = SENSITIVE_FIELDS.filter((f) => {
-    const v = user[f];
-    return v != null && !(Array.isArray(v) && v.length === 0) && v !== "";
-  });
-  if (exposedFields.length > 0) {
-    await AuditService.logAction({
-      actorId: SYNC_ACTOR_ID,
-      targetId: user.id,
-      action: `Songsue profile fetch: returned medical/emergency info (${exposedFields.join(", ")})`,
-      ipAddress: ip,
-    });
   }
 
   return NextResponse.json({

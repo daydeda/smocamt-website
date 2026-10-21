@@ -11,6 +11,11 @@ import { normalizeFaculty } from "@/lib/profile/faculties";
 // songsue's own "system:activecamt-sync" convention for the opposite direction.
 const SYNC_ACTOR_ID = "system:songsue-sync";
 
+const PROFILE_FETCH_SENSITIVE_FIELDS = [
+  "chronicDiseases", "medicalHistory", "drugAllergies", "foodAllergies",
+  "dietaryRestrictions", "faintingHistory", "emergencyMedication", "emergencyContacts",
+] as const;
+
 type DBTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export interface SongsueEmergencyContact {
@@ -301,5 +306,42 @@ export class SongsueSyncService {
     }
 
     return patchedFields;
+  }
+
+  /**
+   * Looks up the profile Songsue asked for (by the email derived from a verified
+   * cross-app QR token) and writes the PDPA change-trail for any sensitive
+   * fields it hands over. Returns null when ActiveCAMT doesn't know the email.
+   * The read and its audit write stay together here.
+   */
+  static async getProfileForCrossAppFetch(email: string, ipAddress: string) {
+    const user = await db.query.users.findFirst({
+      where: eq(users.email, email),
+      columns: {
+        id: true, email: true, studentId: true, name: true, prefix: true, faculty: true, major: true,
+        phone: true, nickname: true, image: true, religion: true, contactChannels: true,
+        chronicDiseases: true, medicalHistory: true, drugAllergies: true, foodAllergies: true,
+        dietaryRestrictions: true, faintingHistory: true, emergencyMedication: true, emergencyContacts: true,
+      },
+    });
+    if (!user) return null;
+
+    // PDPA change-trail (field NAMES only, never values) for every read that
+    // hands sensitive fields to the sibling app — mirrors the audit write on
+    // the opposite (write) sync direction in SongsueSyncService.upsertSyncedUser.
+    const exposedFields = PROFILE_FETCH_SENSITIVE_FIELDS.filter((f) => {
+      const v = user[f];
+      return v != null && !(Array.isArray(v) && v.length === 0) && v !== "";
+    });
+    if (exposedFields.length > 0) {
+      await AuditService.logAction({
+        actorId: SYNC_ACTOR_ID,
+        targetId: user.id,
+        action: `Songsue profile fetch: returned medical/emergency info (${exposedFields.join(", ")})`,
+        ipAddress,
+      });
+    }
+
+    return user;
   }
 }

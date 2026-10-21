@@ -1,7 +1,5 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { attendance, forms, formSubmissions, events } from "@/db/schema";
-import { and, eq, inArray } from "drizzle-orm";
+import { FormsService } from "@/modules/forms/forms.service";
 import { isFormOpenForSubmission, canAccessSkillForm } from "@/lib/access/form-access";
 import { NextResponse } from "next/server";
 
@@ -36,10 +34,7 @@ export async function GET() {
     const role = session.user.role ?? null;
 
     // Events the student is part of, and which of those they've actually attended.
-    const atts = await db
-      .select({ eventId: attendance.eventId, status: attendance.status })
-      .from(attendance)
-      .where(eq(attendance.studentId, userId));
+    const atts = await FormsService.listAttendanceStatusesForStudent(userId);
 
     const involved = new Set<string>();
     const attended = new Set<string>();
@@ -53,10 +48,7 @@ export async function GET() {
       return NextResponse.json({ forms: [] }, { headers: { "Cache-Control": "no-store" } });
     }
 
-    const eventForms = await db.query.forms.findMany({
-      where: inArray(forms.eventId, involvedIds),
-      orderBy: (f, { asc }) => [asc(f.sortOrder), asc(f.createdAt)],
-    });
+    const eventForms = await FormsService.listFormsForEvents(involvedIds);
 
     // Keep only forms that are open AND this student is actually allowed to submit now.
     const candidates = eventForms.filter((f) => {
@@ -69,25 +61,15 @@ export async function GET() {
       return NextResponse.json({ forms: [] }, { headers: { "Cache-Control": "no-store" } });
     }
 
-    const subs = await db.query.formSubmissions.findMany({
-      where: and(
-        eq(formSubmissions.studentId, userId),
-        inArray(
-          formSubmissions.formId,
-          candidates.map((f) => f.id),
-        ),
-      ),
-      columns: { formId: true },
-    });
+    const subs = await FormsService.listSubmissionsForStudent(
+      userId,
+      candidates.map((f) => f.id),
+    );
     const submitted = new Set(subs.map((s) => s.formId));
 
-    const evs = await db.query.events.findMany({
-      where: inArray(
-        events.id,
-        [...new Set(candidates.map((f) => f.eventId))],
-      ),
-      columns: { id: true, title: true },
-    });
+    const evs = await FormsService.listEventTitles(
+      [...new Set(candidates.map((f) => f.eventId))],
+    );
     const titleById = new Map(evs.map((e) => [e.id, e.title]));
 
     const pending: PendingForm[] = [];

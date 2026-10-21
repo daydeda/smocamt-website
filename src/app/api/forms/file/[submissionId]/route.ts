@@ -1,8 +1,6 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { formSubmissions } from "@/db/schema";
 import { downloadFormFile } from "@/lib/forms/form-file-storage";
-import { eq } from "drizzle-orm";
+import { FormsService } from "@/modules/forms/forms.service";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { NextResponse } from "next/server";
 import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
@@ -41,9 +39,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ submissi
       return NextResponse.json({ error: "Missing question id" }, { status: 400 });
     }
 
-    const submission = await db.query.formSubmissions.findFirst({
-      where: eq(formSubmissions.id, submissionId),
-    });
+    const submission = await FormsService.getSubmissionById(submissionId);
     if (!submission) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }

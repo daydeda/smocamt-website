@@ -882,8 +882,8 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
         {/* Header Section */}
         <section className="animate-fade-in-up" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 24 }}>
           <div style={{ minWidth: 280, maxWidth: "100%" }}>
-            <h1 className="text-fluid-h1" style={{ fontWeight: 900, letterSpacing: "-0.04em", wordBreak: "break-word", overflowWrap: "break-word" }}>
-              {t.hey}, <span className="gradient-text">{user ? (user.name?.split(" ")[0] || "Student") : (lang === "th" ? "ผู้เยี่ยมชม" : "Guest")}!</span>
+            <h1 className="text-fluid-h1" style={{ color: "var(--text-primary)", fontWeight: 900, letterSpacing: "-0.04em", wordBreak: "break-word", overflowWrap: "break-word" }}>
+              {t.hey} <span className="gradient-text">{user ? (user.name?.split(" ")[0] || "Student") : (lang === "th" ? "ผู้เยี่ยมชม" : "Guest")}!</span>
             </h1>
             <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 12 }}>
               <p style={{ color: "var(--text-secondary)", fontSize: 17, fontWeight: 500, wordBreak: "break-word", overflowWrap: "break-word" }}>
@@ -1107,7 +1107,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
 
             <div style={{ marginBottom: 40 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, gap: 12, flexWrap: "wrap" }}>
-                <h2 style={{ fontSize: 24, fontWeight: 900, letterSpacing: "-0.03em" }}>{t.upcomingEvents}</h2>
+                <h2 style={{ color: "var(--text-primary)", fontSize: 24, fontWeight: 900, letterSpacing: "-0.03em" }}>{t.upcomingEvents}</h2>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   {/* View toggle — Cards (action-first grid) vs Timeline (at-a-glance agenda). */}
                   <div style={{ display: "flex", background: "var(--bg-elevated)", borderRadius: 12, padding: 3, border: "1px solid var(--border-subtle)" }}>

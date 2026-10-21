@@ -227,7 +227,7 @@ html.theme-transition,
 html.theme-transition *,
 html.theme-transition *::before,
 html.theme-transition *::after {
-  transition-property: background-color, color, border-color, outline-color, fill, stroke, box-shadow !important;
+  transition-property: background-color, color, border-color, outline-color, fill, stroke, box-shadow, -webkit-text-fill-color, --gt-from, --gt-to !important;
   transition-duration: 0.3s !important;
   transition-timing-function: ease !important;
   transition-delay: 0s !important;
@@ -598,12 +598,25 @@ select.input { cursor: pointer; }
 }
 
 /* ── Gradient Text ───────────────────────────────────────────────────────────── */
+/* The stops are registered colours so the gradient can fade on a theme switch
+   (a plain gradient image can't transition). */
+@property --gt-from { syntax: "<color>"; inherits: false; initial-value: #000; }
+@property --gt-to   { syntax: "<color>"; inherits: false; initial-value: #000; }
 .gradient-text {
-  background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-primary) 100%);
+  --gt-from: var(--text-primary);
+  --gt-to: var(--accent-primary);
+  background: linear-gradient(135deg, var(--gt-from) 0%, var(--gt-to) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   display: inline-block;
+  /* background-clip:text only paints inside the box, so Thai marks above/below
+     the line (e.g. ิ ู in ภูริ) were cut off. Pad the box and cancel it with
+     margin; negative tracking from the parent also collides Thai marks. */
+  line-height: 1.5;
+  padding: 0.2em 0.08em;
+  margin: -0.2em -0.08em;
+  letter-spacing: normal;
 }
 
 /* ── Typography Utilities ─────────────────────────────────────────────────── */

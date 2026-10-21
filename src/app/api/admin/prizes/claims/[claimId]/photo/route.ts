@@ -1,7 +1,4 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { prizeClaims, prizes } from "@/db/schema";
-import { eq } from "drizzle-orm";
 import { PrizeService } from "@/modules/events/prize.service";
 import { AuditService } from "@/modules/audit/audit.service";
 import { canReachPrize, resolvePrizeAccess } from "@/lib/prizes/prize-scope";
@@ -28,23 +25,6 @@ export const runtime = "nodejs";
 const KEY_PATTERN = /^[0-9a-f-]{36}\.[a-z0-9]+$/i;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-async function loadClaim(claimId: string) {
-  return await db
-    .select({
-      id: prizeClaims.id,
-      studentId: prizeClaims.studentId,
-      photoKey: prizeClaims.photoKey,
-      prizeName: prizeClaims.prizeName,
-      prizeEventId: prizes.eventId,
-      prizeEligibilityEventId: prizes.eligibilityEventId,
-    })
-    .from(prizeClaims)
-    .innerJoin(prizes, eq(prizes.id, prizeClaims.prizeId))
-    .where(eq(prizeClaims.id, claimId))
-    .limit(1)
-    .then((r) => r[0] ?? null);
-}
-
 // GET — stream the photo.
 export async function GET(req: Request, { params }: { params: Promise<{ claimId: string }> }) {
   try {
@@ -56,7 +36,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ claimId:
       return NextResponse.json({ error: "Invalid claim id" }, { status: 400 });
     }
 
-    const claim = await loadClaim(claimId);
+    const claim = await PrizeService.loadClaimWithPrize(claimId);
     if (!claim?.photoKey || !KEY_PATTERN.test(claim.photoKey)) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
@@ -123,7 +103,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ claimId
       return NextResponse.json({ error: "Invalid claim id" }, { status: 400 });
     }
 
-    const claim = await loadClaim(claimId);
+    const claim = await PrizeService.loadClaimWithPrize(claimId);
     if (!claim) return NextResponse.json({ error: "Not found" }, { status: 404 });
     if (!(await canReachPrize(access, { eventId: claim.prizeEventId, eligibilityEventId: claim.prizeEligibilityEventId }))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

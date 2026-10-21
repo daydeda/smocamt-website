@@ -432,4 +432,75 @@ export class PrizeService {
       ?? ((e as { cause?: { code?: string } })?.cause?.code);
     return code === PG_UNIQUE_VIOLATION;
   }
+
+  /** Inserts a prize and returns its id. */
+  static async createPrize(body: {
+    name: string;
+    description?: string | null;
+    eventId?: string | null;
+    rank?: number | null;
+    quantity?: number | null;
+    onePerStudent: boolean;
+    requireCheckIn: boolean;
+    eligibilityEventId?: string | null;
+    sortOrder: number;
+  }, createdBy: string) {
+    const [row] = await db
+      .insert(prizes)
+      .values({
+        name: body.name,
+        description: body.description ?? null,
+        eventId: body.eventId ?? null,
+        rank: body.rank ?? null,
+        quantity: body.quantity ?? null,
+        onePerStudent: body.onePerStudent,
+        requireCheckIn: body.requireCheckIn,
+        eligibilityEventId: body.eligibilityEventId ?? null,
+        sortOrder: body.sortOrder,
+        createdBy,
+      })
+      .returning({ id: prizes.id });
+    return row;
+  }
+
+  /** One full prize row by id. */
+  static async getPrizeById(id: string) {
+    return db.query.prizes.findFirst({ where: eq(prizes.id, id) });
+  }
+
+  /** The prize columns needed for scope checks (id + owning/eligibility event). */
+  static async getPrizeScopeRow(id: string) {
+    return db.query.prizes.findFirst({
+      where: eq(prizes.id, id),
+      columns: { id: true, eventId: true, eligibilityEventId: true },
+    });
+  }
+
+  /** Applies the (already validated) edit fields to a prize. */
+  static async updatePrize(id: string, fields: Partial<typeof prizes.$inferInsert>) {
+    await db.update(prizes).set({ ...fields, updatedAt: new Date() }).where(eq(prizes.id, id));
+  }
+
+  /** Deletes a prize (its claims cascade). */
+  static async deletePrize(id: string) {
+    await db.delete(prizes).where(eq(prizes.id, id));
+  }
+
+  /** A claim joined to its prize's scope columns (proof-photo routes). */
+  static async loadClaimWithPrize(claimId: string) {
+    return await db
+      .select({
+        id: prizeClaims.id,
+        studentId: prizeClaims.studentId,
+        photoKey: prizeClaims.photoKey,
+        prizeName: prizeClaims.prizeName,
+        prizeEventId: prizes.eventId,
+        prizeEligibilityEventId: prizes.eligibilityEventId,
+      })
+      .from(prizeClaims)
+      .innerJoin(prizes, eq(prizes.id, prizeClaims.prizeId))
+      .where(eq(prizeClaims.id, claimId))
+      .limit(1)
+      .then((r) => r[0] ?? null);
+  }
 }

@@ -1,6 +1,3 @@
-import { db } from "@/db";
-import { prizes } from "@/db/schema";
-import { eq } from "drizzle-orm";
 import { PrizeService } from "@/modules/events/prize.service";
 import { AuditService } from "@/modules/audit/audit.service";
 import { canReachPrize, resolvePrizeAccess } from "@/lib/prizes/prize-scope";
@@ -77,7 +74,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (!id || !UUID_PATTERN.test(id)) {
       return NextResponse.json({ error: "Invalid prize id" }, { status: 400 });
     }
-    const existing = await db.query.prizes.findFirst({ where: eq(prizes.id, id) });
+    const existing = await PrizeService.getPrizeById(id);
     if (!existing) return NextResponse.json({ error: "Prize not found" }, { status: 404 });
     if (!(await canReachPrize(access, existing))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -98,7 +95,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }
     }
 
-    await db.update(prizes).set({ ...body, updatedAt: new Date() }).where(eq(prizes.id, id));
+    await PrizeService.updatePrize(id, body);
 
     // onePerStudent is deliberately called out in the log line: flipping it off
     // is what lets a student claim twice, and existing claim rows keep their own
@@ -134,7 +131,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     if (!id || !UUID_PATTERN.test(id)) {
       return NextResponse.json({ error: "Invalid prize id" }, { status: 400 });
     }
-    const existing = await db.query.prizes.findFirst({ where: eq(prizes.id, id) });
+    const existing = await PrizeService.getPrizeById(id);
     if (!existing) return NextResponse.json({ error: "Prize not found" }, { status: 404 });
 
     const claims = await PrizeService.getClaimsForReport(id);
@@ -145,7 +142,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     // to clean up.
     const orphanedPhotoKeys = (claims?.rows ?? []).map((r) => r.photoKey).filter((k): k is string => !!k);
 
-    await db.delete(prizes).where(eq(prizes.id, id));
+    await PrizeService.deletePrize(id);
 
     // A failure here is a real, silent storage leak (a student's face photo
     // left behind in the private bucket with nothing pointing at it anymore)

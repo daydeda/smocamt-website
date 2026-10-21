@@ -1,6 +1,3 @@
-import { db } from "@/db";
-import { prizes } from "@/db/schema";
-import { eq } from "drizzle-orm";
 import { PrizeService } from "@/modules/events/prize.service";
 import { canReachPrize, resolvePrizeAccess } from "@/lib/prizes/prize-scope";
 import { AuditService } from "@/modules/audit/audit.service";
@@ -39,7 +36,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ error: "Invalid prize id" }, { status: 400 });
     }
 
-    const prize = await db.query.prizes.findFirst({ where: eq(prizes.id, id) });
+    const prize = await PrizeService.getPrizeById(id);
     if (!prize) return NextResponse.json({ error: "Prize not found" }, { status: 404 });
     if (!(await canReachPrize(access, prize))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

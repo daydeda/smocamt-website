@@ -1,5 +1,3 @@
-import { db } from "@/db";
-import { prizes } from "@/db/schema";
 import { PrizeService } from "@/modules/events/prize.service";
 import { AuditService } from "@/modules/audit/audit.service";
 import { getClientIp } from "@/lib/util/rate-limit";
@@ -80,21 +78,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const [row] = await db
-      .insert(prizes)
-      .values({
-        name: body.name,
-        description: body.description ?? null,
-        eventId: body.eventId ?? null,
-        rank: body.rank ?? null,
-        quantity: body.quantity ?? null,
-        onePerStudent: body.onePerStudent,
-        requireCheckIn: body.requireCheckIn,
-        eligibilityEventId: body.eligibilityEventId ?? null,
-        sortOrder: body.sortOrder,
-        createdBy: access.userId,
-      })
-      .returning({ id: prizes.id });
+    const row = await PrizeService.createPrize(body, access.userId);
 
     await AuditService.logAction({
       actorId: access.userId,

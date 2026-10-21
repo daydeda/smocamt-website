@@ -1,6 +1,3 @@
-import { db } from "@/db";
-import { prizes } from "@/db/schema";
-import { eq } from "drizzle-orm";
 import { PrizeService } from "@/modules/events/prize.service";
 import { canReachPrize, resolvePrizeAccess } from "@/lib/prizes/prize-scope";
 import { rateLimit, getClientIp } from "@/lib/util/rate-limit";
@@ -63,10 +60,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!id || !UUID_PATTERN.test(id)) {
       return NextResponse.json({ error: "Invalid prize id" }, { status: 400 });
     }
-    const prize = await db.query.prizes.findFirst({
-      where: eq(prizes.id, id),
-      columns: { id: true, eventId: true, eligibilityEventId: true },
-    });
+    const prize = await PrizeService.getPrizeScopeRow(id);
     if (!prize) return NextResponse.json({ error: "Prize not found" }, { status: 404 });
     if (!(await canReachPrize(access, prize))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

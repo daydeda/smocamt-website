@@ -1,7 +1,5 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { attendance, auditLogs, events, forms, formSubmissions } from "@/db/schema";
-import { and, desc, eq, gt, inArray, like, or } from "drizzle-orm";
+import { NotificationsService } from "@/modules/notifications/notifications.service";
 import { NextRequest, NextResponse } from "next/server";
 
 // Fail fast instead of hanging to the platform default if the DB pooler stalls.
@@ -58,44 +56,8 @@ export async function GET(req: NextRequest) {
     }
 
     const [checkins, scores] = await Promise.all([
-      db
-        .select({
-          id: attendance.id,
-          eventId: attendance.eventId,
-          checkInTime: attendance.checkInTime,
-          eventTitle: events.title,
-          songsueLinked: events.songsueLinked,
-        })
-        .from(attendance)
-        .innerJoin(events, eq(events.id, attendance.eventId))
-        .where(
-          and(
-            eq(attendance.studentId, userId),
-            eq(attendance.status, "attended"),
-            gt(attendance.checkInTime, since),
-          ),
-        )
-        .orderBy(desc(attendance.checkInTime))
-        .limit(20),
-      db
-        .select({
-          id: auditLogs.id,
-          timestamp: auditLogs.timestamp,
-          action: auditLogs.action,
-        })
-        .from(auditLogs)
-        .where(
-          and(
-            eq(auditLogs.targetId, userId),
-            gt(auditLogs.timestamp, since),
-            or(
-              like(auditLogs.action, "Awarded %individual points%"),
-              like(auditLogs.action, "Deducted %individual points%"),
-            ),
-          ),
-        )
-        .orderBy(desc(auditLogs.timestamp))
-        .limit(20),
+      NotificationsService.listRecentCheckins(userId, since),
+      NotificationsService.listRecentScoreLogs(userId, since),
     ]);
 
     const notifications: Notification[] = [];
@@ -118,15 +80,7 @@ export async function GET(req: NextRequest) {
     // recent check-in window like the other notifications.
     const eventIds = [...new Set(checkins.map((c) => c.eventId).filter(Boolean))] as string[];
     if (eventIds.length > 0) {
-      const preTests = await db
-        .select({
-          id: forms.id,
-          eventId: forms.eventId,
-          isActive: forms.isActive,
-          closesAt: forms.closesAt,
-        })
-        .from(forms)
-        .where(and(inArray(forms.eventId, eventIds), eq(forms.formType, "K_pre")));
+      const preTests = await NotificationsService.listPreTestForms(eventIds);
 
       // Only forms that can still be taken: manually active and not past their close.
       const takeable = preTests.filter(
@@ -134,18 +88,10 @@ export async function GET(req: NextRequest) {
       );
 
       if (takeable.length > 0) {
-        const submitted = await db
-          .select({ formId: formSubmissions.formId })
-          .from(formSubmissions)
-          .where(
-            and(
-              eq(formSubmissions.studentId, userId),
-              inArray(
-                formSubmissions.formId,
-                takeable.map((f) => f.id),
-              ),
-            ),
-          );
+        const submitted = await NotificationsService.listSubmittedFormIds(
+          userId,
+          takeable.map((f) => f.id),
+        );
         const submittedSet = new Set(submitted.map((s) => s.formId));
 
         // Most-recent check-in per event (checkins are ordered by check-in time desc)

@@ -23,14 +23,23 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
 
   const roles = effectiveRoles(session?.user?.role, session?.user?.roles);
 
+  // Club/Major presidents are check-in only — hide the Individual Score mode.
+  // The server (scan API + ScannerService) is the real gate; this is UX only.
   const canScore = canGiveIndividualScoreAny(roles);
 
+  // Prize tab: same predicate as /admin/prizes (includes smo and presidents —
+  // presidents only get prizes for events they own, scoped server-side).
   const canPrize = canAwardPrizes(roles);
 
+  // Shop tab: same gate as /admin/shop (shop admins, SMO Finance, presidents,
+  // sellers). Every handover route re-checks scope server-side.
   const canShop = isShopManager(session ?? null);
 
+  // Tags tab: same gate as /admin/property-tags; the APIs re-check it.
   const canProperty = canManagePropertyTags(roles);
 
+  // "Go live now" moves the event's start time, so it's offered only to roles
+  // that may edit an event directly. POST .../go-live re-checks this server-side.
   const canGoLive = canEditEventDirectly(
     effectiveRoles(session?.user?.role, session?.user?.roles),
     session?.user?.smoPosition,
@@ -41,8 +50,11 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
 
   const [eventId, setEventId] = useState<string>("");
 
+  // Which session (day) check-ins are recorded against. Defaults to "today".
   const [sessionId, setSessionId] = useState<string>("");
 
+  // "Go live now" is a two-tap action (ask, then confirm) — no browser confirm().
+  // Both keyed by event id so switching events drops a stale confirm/error.
   const [goLiveConfirmFor, setGoLiveConfirmFor] = useState<string | null>(null);
 
   const [goLiveBusy, setGoLiveBusy] = useState(false);
@@ -71,6 +83,8 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
 
   const [medsCheckOption, setMedsCheckOption] = useState<string | null>(null);
 
+  // Check-out evidence (events.requireCheckOut) — the proof photo staff
+  // attaches before confirming a returning student's check-out.
   const [checkoutFileKey, setCheckoutFileKey] = useState<string | null>(null);
 
   const [checkoutFileName, setCheckoutFileName] = useState<string | null>(null);
@@ -99,16 +113,22 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
 
   const dayDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Live count of check-ins for the selected event + day, shown so the organiser
+  // watches attendance climb in real time. null until the first fetch lands.
   const [checkedInCount, setCheckedInCount] = useState<number | null>(null);
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
   const lastTokenRef = useRef<string | null>(null);
 
+  // See SCANNER_COOLDOWN_MS above: recently-settled tokens → timestamp, checked
+  // by the decode callback before a scan request is even sent.
   const recentRef = useRef<Map<string, number>>(new Map());
 
   const eventIdRef = useRef<string>("");
 
+  // The camera decode callback is registered once; mirror sessionId into a ref so
+  // it never sends a scan against a stale day after the staff switches sessions.
   const sessionIdRef = useRef<string>("");
 
   const scanModeRef = useRef<ScanMode>("checkin");
@@ -117,12 +137,17 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
 
   const scanSessionIdRef = useRef(0);
 
+  // The decode callback is registered once; mirror showModal into a ref so a
+  // different student's QR drifting into frame mid-confirmation can't overwrite
+  // the open result modal (every other value the callback reads is already a ref).
   const showModalRef = useRef(false);
 
+  // Manual-search debounce timer + a sequence counter to drop stale responses.
   const manualSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const manualSearchSeqRef = useRef(0);
 
+  // Manage component mounted lifecycle state
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
@@ -130,6 +155,7 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
     };
   }, []);
 
+  // Handle closing the custom event / day selector dropdowns on click outside
   useEffect(() => {
     function handleClickOutside(event: PointerEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -145,6 +171,7 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
     };
   }, []);
 
+  // Update ref whenever state changes
   useEffect(() => {
     eventIdRef.current = eventId;
   }, [eventId]);
@@ -153,18 +180,24 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
     sessionIdRef.current = sessionId;
   }, [sessionId]);
 
+  // Keep scan mode in a ref: the camera's decode callback is registered once and
+  // would otherwise capture a stale mode, sending check-in scans while in score mode.
   useEffect(() => {
     scanModeRef.current = scanMode;
   }, [scanMode]);
 
+  // Keep showModal in a ref for the once-registered decode callback (see above).
   useEffect(() => {
     showModalRef.current = showModal;
   }, [showModal]);
 
+  // Drop any pending manual-search debounce on unmount.
   useEffect(() => () => {
     if (manualSearchTimerRef.current) clearTimeout(manualSearchTimerRef.current);
   }, []);
 
+  // Fetch events for the selector. Runs once on mount, so loadingEvents/eventsError
+  // are intentionally left at their initial values (true/null) rather than reset here.
   useEffect(() => {
     fetch("/api/admin/events")
       .then(async (r) => {
@@ -200,6 +233,10 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
       });
   }, []);
 
+  // Live check-in count for the selected event + day. Hits the lightweight /count
+  // endpoint (no roster, no PII, no audit log) so it's cheap to call repeatedly.
+  // Reads the event/session from refs so the poller always uses the current
+  // selection even though its callback was registered once.
   const refreshCheckedInCount = async (signal?: AbortSignal) => {
     const ev = eventIdRef.current;
     if (!ev) return;
@@ -218,8 +255,15 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
     }
   };
 
+  // Poll the count on a short interval (overlap-safe, pauses on hidden tab). A
+  // successful check-in also refreshes it immediately (see confirmAttendance) so
+  // the number jumps the moment a student is scanned in.
   usePolling((signal) => refreshCheckedInCount(signal), 8000);
 
+  // Reset + refetch the count immediately whenever the staff switches event or day,
+  // so the displayed number always matches the current selection without waiting
+  // for the next poll tick. The event/session refs are synced in effects declared
+  // above, so they hold the new ids by the time this runs.
   useEffect(() => {
     // Deferred (matching the scanner-start effect below) to avoid a synchronous
     // setState inside the effect body.
@@ -383,6 +427,8 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
     }
   };
 
+  // Release the camera. Bumping the session id also cancels a start that is
+  // still in flight (startScanner re-checks it after every await).
   const stopScanner = async () => {
     scanSessionIdRef.current++;
     const s = scannerRef.current;
@@ -397,6 +443,10 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
     }
   };
 
+  // Entering the Prize tab must free the camera: PrizeAwardPanel starts its own
+  // html5-qrcode instance and two can't hold the camera at once (iOS shows a
+  // black viewfinder). Leaving it restarts this page's scanner once #qr-reader
+  // has re-mounted.
   const selectMode = (mode: ScanMode) => {
     if (mode === scanMode) return;
     const leavingPrize = ownsCamera(scanMode);
@@ -433,6 +483,8 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [events.length > 0]);
 
+  // Restart scanner on a REAL device orientation change, but not on every
+  // plain `resize` event.
   useEffect(() => {
     let resizeTimeout: NodeJS.Timeout | null = null;
     // A mobile browser fires `resize` every time its URL bar collapses or
@@ -544,6 +596,9 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
     }
   };
 
+  // Attach the check-out proof photo (events.requireCheckOut). Reuses the same
+  // private-bucket upload endpoint as form file answers / the (dormant)
+  // self-service evidence flow — see src/lib/form-file-storage.ts.
   const uploadCheckoutEvidence = async (file: File) => {
     setCheckoutFileError(null);
     setUploadingCheckoutFile(true);
@@ -583,6 +638,9 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
     setCheckoutFileName(null);
   };
 
+  // Confirms the check-OUT half of a requireCheckOut event — staff has
+  // already looked at the evidence in person; this just records the kept
+  // photo and awards that day's points (see ScannerService.confirmCheckout).
   const confirmCheckout = async (token: string) => {
     // events.checkOutEvidenceRequired (default true) — an event can opt out
     // of the mandatory proof photo, trusting staff's in-person confirmation
@@ -838,8 +896,13 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
 
   const selectedEventIsLive = selectedEvent ? isEventLive(selectedEvent) : false;
 
+  // If the staff is scanning against a non-live event while a different event IS
+  // live right now, that's exactly the "forgot to switch the dropdown" mistake —
+  // surface it explicitly with a one-tap fix instead of hoping they notice.
   const otherLiveEvent = selectedEventIsLive ? undefined : events.find((e) => e.id !== eventId && isEventLive(e));
 
+  // Selected event starts later today: say so, and let staff who may edit
+  // events start it early. (A future-day event gets no banner — nothing to act on.)
   const selectedEventUpcoming = !!selectedEvent && startsLaterToday(selectedEvent);
 
   const canGoLiveNow = canGoLive && selectedEventUpcoming;
@@ -874,11 +937,18 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
     }
   };
 
+  // Show the "ask them to open Songsue" notice only on a fresh confirmed
+  // attendance (not a re-scan of an already-checked-in student) for a
+  // songsueLinked event — house color for these events lives in Songsue, not
+  // ActiveCAMT's own scan result.
   const showSongsueNotice =
     scanMode === "checkin"
     && (scanResult?.status === "success" || scanResult?.status === "success_walk_in")
     && Boolean(selectedEvent?.songsueLinked);
 
+  // The medical check (warning + meds-check selector) belongs to the check-IN
+  // step only. The server already omits medical data from check-out results;
+  // this also keeps the UI from re-prompting it if one ever slips through.
   const isCheckoutStatus = scanResult?.status === "pending_checkout"
     || scanResult?.status === "success_checkout"
     || scanResult?.status === "already_checked_out";

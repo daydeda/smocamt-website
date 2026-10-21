@@ -22,34 +22,111 @@ export function useAdminEventsPage() {
 
   const { data: session } = useSession();
 
+  // The admin area also admits registration/organizer (see admin/layout.tsx),
+  // but seeing medical detail in the exported file / student modal — which
+  // includes PDPA-sensitive medical & emergency contact data — is restricted to
+  // super_admin/admin, plus (2026-07-18) a club/major president viewing an
+  // event THEY OWN, with the emergency contact's own name redacted server-side
+  // for that tier — see canSeeRawMedicalDetail below.
   const myRoles = session?.user?.roles ?? (session?.user?.role ? [session.user.role] : []);
 
   const canExportAttendance = myRoles.includes("super_admin") || myRoles.includes("admin");
 
+  // A global registration position (smoPosition/anusmoPosition === "registration"
+  // held by an smo/anusmo) gets the same full staff-tier breadth the "registration" ROLE
+  // has on this page — mirrors every server-side gate this page talks to
+  // (POST/PUT/DELETE /api/admin/events, .../form) via isGlobalRegistrationPosition.
+  // Without this, such a user's role SET (["smo"]) never matches the
+  // "registration" string below, so they'd be silently stuck on the thin,
+  // view-only surface even though the server accepts their writes.
   const globalRegPosition = isGlobalRegistrationPosition(myRoles, session?.user?.smoPosition, session?.user?.anusmoPosition);
 
+  // Scanner-only roles (smo, club_president, major_president) reach this page to
+  // VIEW attendance only — no event create/edit/delete. Mirrors the thin-roster
+  // gate in api/admin/events/[id]/attendance (a user with any staff role gets
+  // the full page). Feedback forms are a separate, narrower carve-out — see
+  // canManageForms/canViewForms below. Students never reach here (proxy blocks
+  // them).
   const isAttendanceOnly = !globalRegPosition && !myRoles.some((r) =>
     ["super_admin", "admin", "registration", "organizer"].includes(r)
   );
 
+  // The Export Excel button: staff export the full (role-gated) file; the
+  // scanner-only student-leader roles (smo/club_president/major_president)
+  // may also export, but the server (api/admin/events/[id]/export) hands them
+  // a THIN file with no phone, meds-check, medical, or emergency-contact
+  // columns — they must ask an admin/super_admin for that detail. registration/
+  // organizer may also export: contact info yes, but no individual medical
+  // signal (an aggregate-only medical summary is added to the file's Summary
+  // sheet instead) — mirrors the server's isRegOrgExportRole. Mirrors the
+  // server's isThinExportRole/isRegOrgExportRole exactly — deliberately
+  // NARROWER than isAttendanceOnly, which also buckets in a plain club/major
+  // member whose position TITLE happens to be "registration" (club_members.
+  // position, see src/lib/positions.ts — cosmetic, not a system role) but who
+  // holds no export-eligible role; the server already 403s that case, so the
+  // button must not be shown for it either.
   const canSeeExportButton = canExportAttendance || myRoles.some((r) =>
     ["smo", "club_president", "major_president", "registration", "organizer"].includes(r)
   );
 
+  // No-show strike-out (US-STRI-15): organizers confirm no-shows for their own
+  // ended events; registration is unscoped staff, like admin. smo may view the
+  // roster but does NOT apply strikes. club_president/major_president are
+  // additionally scoped server-side to events they own (see EventScopeService in
+  // api/admin/events/[id]/apply-strikes) — the GET/POST list here already only
+  // ever contains events they're allowed to see. Narrower than "reset strikes",
+  // which is admin/super_admin only (see /api/admin/students/[id]/strikes/reset).
   const canApplyStrikes = myRoles.some((r) =>
     ["super_admin", "admin", "organizer", "registration", "club_president", "major_president"].includes(r)
   );
 
+  // Club/major presidents may edit their OWN event's details (title, description,
+  // schedule, location, quota, etc.) — GET /api/admin/events already scopes their
+  // list to only events they own (see EventScopeService), so any event a president
+  // sees here is theirs to edit. They still may NOT touch role/major access,
+  // Managed By, or points — those stay staff-only (see canEditRestrictedFields
+  // below and the matching server-side strip in PUT /api/admin/events/[id]).
   const isPresidentRole = myRoles.some((r) => ["club_president", "major_president"].includes(r));
 
   const canEditEventDetails = !isAttendanceOnly || isPresidentRole;
 
+  // Attendee Contact/Medical sections + filter, on the roster and in the
+  // per-student detail modal: staff (registration/organizer included, thin
+  // signal only) OR a president viewing an event they own — server-scoped via
+  // GET /api/admin/events already only listing events they manage. smo stays
+  // excluded (thin roster, no contact/medical data at all — see
+  // api/admin/events/[id]/attendance).
   const canSeeAttendeeContactAndMedical = !isAttendanceOnly || isPresidentRole;
 
+  // Raw medical TEXT (vs. the category-signal-only view registration/organizer
+  // get): super_admin/admin, or a president viewing their own event — by
+  // deliberate product decision (2026-07-18) mirroring the club/major
+  // member-roster grant (see ClubsService.getClubMembers). The server
+  // (api/admin/events/[id]/attendance, .../export) redacts the emergency
+  // contact's own NAME for the president tier even so — audit log is the
+  // accountability mechanism, not field-level gating.
   const canSeeRawMedicalDetail = canExportAttendance || isPresidentRole;
 
+  // Feedback/evaluation forms: staff manage every event's forms unscoped;
+  // club/major presidents may also fully manage (create/edit/delete) forms, but
+  // only for events they own — the events list here is already scoped to just
+  // their events (see canEditEventDetails above), so any event a president sees
+  // is theirs to manage. smo gets read-only access to every event's forms (no
+  // ownership scoping) — it may view the House Leaderboard & Submissions tab but
+  // never create/edit/delete a form. Server-side gate is the real source of
+  // truth (see gateEventForms in api/admin/events/[id]/form/route.ts).
   const isSmoRole = myRoles.includes("smo");
 
+  // A "registration" TITLE (src/lib/positions.ts) — distinct from the
+  // "registration" ROLE already folded into isAttendanceOnly above — also gets
+  // full form management, scoped to their own club/major's events server-side
+  // (EventScopeService.hasRegistrationScope / gateEventForms's isPositionScoped).
+  // Covers all three places that title can be held: smo/anusmo (globalRegPosition,
+  // already computed above), the user's own major (majorPosition), and any club
+  // they belong to (hasClubRegistrationPosition — precomputed in auth.ts, since
+  // club_members rows aren't on the session). Deliberately narrow: this only
+  // widens FORM management, not event-editing/medical-visibility/removal, which
+  // the "registration" title was never asked to grant.
   const hasRegistrationTitle = globalRegPosition
     || session?.user?.majorPosition === "registration"
     || !!session?.user?.hasClubRegistrationPosition;
@@ -58,8 +135,15 @@ export function useAdminEventsPage() {
 
   const canViewForms = canManageForms || isSmoRole;
 
+  // Role/major access control, Managed By (president/owner), and points are
+  // admin/registration/organizer only — even for a president editing their own event.
   const canEditRestrictedFields = !isAttendanceOnly;
 
+  // Removing a wrongly-registered student is admin/registration only — deliberately
+  // NARROWER than canEditEventDetails (excludes organizer AND presidents). A
+  // president removing a peer's registration is a bias/conflict-of-interest risk;
+  // see the matching server-side gate in api/admin/events/[id]/attendance DELETE
+  // (which also honors a global registration position the same way).
   const canRemoveRegistrant = globalRegPosition || myRoles.some((r) => ["super_admin", "admin", "registration"].includes(r));
 
   const [events, setEvents] = useState<AdminEvent[]>([]);
@@ -70,14 +154,28 @@ export function useAdminEventsPage() {
 
   const [formData, setFormData] = useState(EMPTY_FORM);
 
+  // For the "Managed By" owner pickers below — which club(s) can be assigned as
+  // an event's ownerClubIds. Fetched once; only staff (who can reach this page)
+  // are allowed to call /api/admin/clubs anyway.
   const [clubs, setClubs] = useState<{ id: string; name: string; isArchived: boolean }[]>([]);
 
+  // Multi-day / multi-session support. registrationMode is intentionally NOT
+  // pre-selected (null) — a plain single-day event needs no choice. Picking
+  // "once" (register once, attend any/all days) or "per_session" (each day
+  // independent) reveals the Days/Sessions editor. When left null on submit we
+  // send "once" and the sole seeded session (mirrored to the main start/end).
+  // `sessions` always carries at least one row (the create/edit handlers seed it).
   const [registrationMode, setRegistrationMode] = useState<"once" | "per_session" | null>(null);
 
   const [sessions, setSessions] = useState<SessionRow[]>([]);
 
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  // Set when this create-form open was triggered by "Create Event from
+  // Proposal" on /admin/proposals (see the ?fromProposal= effect below) — sent
+  // back as eventSchema's proposalId so POST /api/admin/events can flip the
+  // source proposal to 'approved' in the same transaction. Cleared whenever the
+  // form closes/resets so it's never accidentally sent on an unrelated create.
   const [sourceProposalId, setSourceProposalId] = useState<string | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
@@ -98,6 +196,7 @@ export function useAdminEventsPage() {
 
   const [filterStatus, setFilterStatus] = useState<"all" | "live" | "upcoming" | "past">("all");
 
+  // Attendance tracking
   const [showAttendance, setShowAttendance] = useState(false);
 
   const [attendance, setAttendance] = useState<AdminAttendance[]>([]);
@@ -106,6 +205,8 @@ export function useAdminEventsPage() {
 
   const [attendanceError, setAttendanceError] = useState<string | null>(null);
 
+  // Guards against an earlier in-flight roster fetch resolving after a newer one
+  // (opening event A then B must never render A's roster under B).
   const attendanceReqRef = useRef(0);
 
   const [activeEventId, setActiveEventId] = useState<string | null>(null);
@@ -116,10 +217,18 @@ export function useAdminEventsPage() {
 
   const [filterNotCheckedIn, setFilterNotCheckedIn] = useState(false);
 
+  // Two distinct no-show lenses (both visible to smo/president thin-roster
+  // views — a strike count is not PDPA-sensitive): account-wide strike
+  // history (noShowCount > 0, from any past event) vs. a no-show for THIS
+  // event specifically (registered, never checked into any session of it —
+  // mirrors findNoShowStudentIds in api/admin/events/[id]/apply-strikes).
   const [filterStrikeHistory, setFilterStrikeHistory] = useState(false);
 
   const [filterEventNoShow, setFilterEventNoShow] = useState(false);
 
+  // No-show strike-out confirm flow: preview the roster, let the organizer
+  // confirm, then apply. Kept separate from the attendance roster state above
+  // since it's its own modal/request lifecycle.
   const [showStrikesModal, setShowStrikesModal] = useState(false);
 
   const [strikesPreview, setStrikesPreview] = useState<{ id: string; name: string; nickname: string | null; studentId: string | null; noShowCount: number }[]>([]);
@@ -130,8 +239,12 @@ export function useAdminEventsPage() {
 
   const [strikesResult, setStrikesResult] = useState<{ struck: number; blocked: number; pointsDeducted: number } | null>(null);
 
+  // Editable per-application penalty, bounded server-side by NO_SHOW_PENALTY_MIN/MAX.
   const [strikesPoints, setStrikesPoints] = useState(NO_SHOW_PENALTY_POINTS);
 
+  // Which previewed no-shows the organizer has left checked to actually
+  // strike — defaults to "everyone" (matches the old strike-all behavior)
+  // but lets them uncheck individual students before confirming.
   const [strikesSelected, setStrikesSelected] = useState<Set<string>>(new Set());
 
   const [filterStudentsOnly, setFilterStudentsOnly] = useState(false);
@@ -146,8 +259,15 @@ export function useAdminEventsPage() {
 
   const [yearFilter, setYearFilter] = useState<Set<number>>(new Set());
 
+ // empty = all years
+  // Per-day (session) filter for multi-day events. null = all days. Only shown
+  // when the active event has more than one session.
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 
+  // Custom Form Builder states — the builder itself lives in
+  // EventFormBuilderModal (see src/components/admin/EventFormBuilderModal.tsx),
+  // extracted so admin/clubs and admin/majors can mount it too; this page just
+  // tracks which event's builder (if any) is open.
   const [showFormBuilder, setShowFormBuilder] = useState(false);
 
   const [formEventId, setFormEventId] = useState<string | null>(null);
@@ -162,8 +282,13 @@ export function useAdminEventsPage() {
 
   const [assigneeUsers, setAssigneeUsers] = useState<{ id: string; name: string | null; studentId: string | null; role: string | null }[]>([]);
 
+  // Search box for the Event Staff picker. EventFormBuilderModal has its own
+  // independent assigneeUsers/assigneeSearch for the S-form person-picker
+  // (it's a standalone component now — see that file).
   const [staffAssigneeSearch, setStaffAssigneeSearch] = useState("");
 
+  // Loads the people directory once (best-effort), shared by the S-form
+  // assignee picker and the Event Staff picker.
   const ensureAssigneeUsersLoaded = () => {
     if (assigneeUsers.length > 0) return;
     fetch("/api/admin/students")
@@ -172,6 +297,10 @@ export function useAdminEventsPage() {
       .catch(() => {});
   };
 
+  // Custom premium modals for confirmation and errors — confirmModal is used
+  // by handleDelete/removeRegistrant below; EventFormBuilderModal has its own
+  // independent copy for its unsaved-changes/reopen-award confirmations (it's
+  // a standalone component, also mounted from admin/clubs & admin/majors).
   const [confirmModal, setConfirmModal] = useState<{
     show: boolean;
     title: string;
@@ -200,6 +329,10 @@ export function useAdminEventsPage() {
     message: ""
   });
 
+  // Informational (not an error) confirmation shown after a president saves an
+  // event edit — see events.detailsReviewStatus in schema.ts: the edit always
+  // goes through, but it silently re-flags the event for staff review, so this
+  // is where that gets surfaced instead of leaving it invisible.
   const [reviewNoticeModal, setReviewNoticeModal] = useState<{
     show: boolean;
     title: string;
@@ -228,11 +361,18 @@ export function useAdminEventsPage() {
     return fields.some(isMeaningful) || user.faintingHistory === true;
   };
 
+  // The "has a medical condition" signal shown to every admin-area role.
+  // Admins compute it from the raw fields they receive; registration/organizer
+  // only get the server-derived hasMedicalInfo boolean (no detail).
   const hasMedicalSignal = (user: AdminStudent | null | undefined) =>
     !!user && (user.hasMedicalInfo === true || hasActualMedicalInfo(user));
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // The create/edit panel. Used to scroll it into view when it opens — the admin
+  // content scrolls inside `.admin-main` (overflow-y:auto), NOT the window, so a
+  // plain window.scrollTo does nothing. Re-runs on editingId so switching which
+  // event you're editing (panel already open) also brings it back to the top.
   const formRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -268,8 +408,12 @@ export function useAdminEventsPage() {
     }
   };
 
+  // Poll the events listing instead of holding an SSE connection (free-tier
+  // friendly, pauses when the tab is hidden).
   usePolling(fetchEvents, 15000);
 
+  // Clubs for the "Managed By" owner picker — fetched once, not polled (the
+  // Clubs admin page is where staff manage the list itself).
   useEffect(() => {
     fetch("/api/admin/clubs")
       .then((r) => r.json())
@@ -277,6 +421,15 @@ export function useAdminEventsPage() {
       .catch(() => {});
   }, []);
 
+  // "Create Event from Proposal" entry point from /admin/proposals
+  // (router.push(`/admin/events?fromProposal=${id}`)). Reads the query param via
+  // plain window.location rather than useSearchParams(), which would force a
+  // Suspense boundary onto this page for a param nothing here else needs.
+  // Prefills every non-binding field the proposal carried (title/description/
+  // time/registration window/location/quota/poster/walk-ins/audience/first-
+  // year-only/suggested staff) plus a SUGGESTED managedByRoles/ownerClubIds —
+  // staff still explicitly reviews/adjusts every field, especially points/
+  // allowedRoles/allowedMajors, before submitting.
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("fromProposal");
     if (!id) return;
@@ -349,6 +502,15 @@ export function useAdminEventsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // "Manage Feedback Form" shortcut from /admin/clubs or /admin/majors
+  // (?openForm=<eventId>) — reduces the president's path from "find the event
+  // in this list → open it → find the Feedback Form button" down to one click.
+  // openFormBuilder is self-contained (fetches the event's forms by id alone),
+  // but it also wants the event's title for the modal header, so this waits
+  // for the (already president-scoped, see GET /api/admin/events) `events`
+  // list to finish loading rather than making a second fetch just for that.
+  // Fires once the id is found and then clears the querystring so a refresh
+  // doesn't re-open it.
   const openFormHandledRef = useRef(false);
 
   useEffect(() => {
@@ -373,6 +535,7 @@ export function useAdminEventsPage() {
 
   const set = <K extends keyof typeof EMPTY_FORM>(key: K, val: typeof EMPTY_FORM[K]) => setFormData({ ...formData, [key]: val });
 
+  // ---- Sessions / days editor helpers ----
   const updateSessionRow = (idx: number, patch: Partial<SessionRow>) => {
     setSessions((prev) => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
   };
@@ -401,6 +564,8 @@ export function useAdminEventsPage() {
     setSessions((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)));
   };
 
+  // Fixes a single row that spans multiple calendar days (see
+  // sessionSpansTooLong) by replacing it in place with one row per day.
   const splitSessionRow = (idx: number) => {
     setSessions((prev) => {
       const row = prev[idx];
@@ -471,6 +636,9 @@ export function useAdminEventsPage() {
     }, 10);
   };
 
+  // ---- Multi-poster management ----
+  // Compress (Canvas → WebP) then upload a single image, returning its hosted URL.
+  // Mirrors the original single-poster pipeline so output size/quality is unchanged.
   const compressAndUploadPoster = async (file: File): Promise<string | null> => {
     const compressImage = (imgFile: File): Promise<Blob> =>
       new Promise((resolve, reject) => {
@@ -524,6 +692,7 @@ export function useAdminEventsPage() {
     return url as string;
   };
 
+  // Tracks how many posters are still uploading so the UI can show progress.
   const [posterUploading, setPosterUploading] = useState(0);
 
   const addPosters = async (files: FileList | File[]) => {
@@ -710,6 +879,9 @@ export function useAdminEventsPage() {
     });
   };
 
+  // Removes a student's registration/check-in for the currently open event
+  // (all sessions, for a multi-day event) — admin/registration only, see
+  // canRemoveRegistrant above.
   const removeRegistrant = (studentId: string, studentName: string) => {
     if (!activeEventId) return;
     setConfirmModal({
@@ -872,6 +1044,9 @@ export function useAdminEventsPage() {
     // real scroll container (.admin-main) rather than the window.
   };
 
+  // "Review" shortcut from /admin/reviews (?edit=<eventId>) — opens the plain
+  // event editor directly, same deep-link shape as the ?openForm= effect
+  // above. Declared after handleEdit (referenced below) rather than before it.
   useEffect(() => {
     if (editHandledRef.current || loading) return;
     const id = new URLSearchParams(window.location.search).get("edit");
@@ -887,6 +1062,12 @@ export function useAdminEventsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [events, loading]);
 
+  // Staff-only approve action (see events.detailsReviewStatus/
+  // pendingDetailsChanges in schema.ts) — a president's edit is held as a
+  // pending diff, never applied live; this is what actually applies it,
+  // clearing the pending flag in the same request. Only ever called from the
+  // edit form's pending-review banner, itself staff-only (presidents never
+  // see it — canEditRestrictedFields gates its render below).
   const approveEventDetails = async () => {
     if (!editingId) return;
     setDetailsReviewToggling(true);
@@ -919,6 +1100,10 @@ export function useAdminEventsPage() {
     }
   };
 
+  // Staff-only: drop a pending president edit without applying it — live
+  // fields stay exactly as they are (a president's edit never touches them
+  // until approved), this just clears the pending flag. Mirrors
+  // approveEventDetails above; see PUT /api/admin/events/[id].
   const discardPendingDetails = async () => {
     if (!editingId) return;
     setDetailsReviewToggling(true);
@@ -947,6 +1132,11 @@ export function useAdminEventsPage() {
     }
   };
 
+  // Manually re-fires the event-level Songsue mirror (POST .../songsue-resync).
+  // songsue-sync.ts has no retry queue in v1: if the original sync attempt
+  // failed (Songsue down, network blip), the event silently never lands on
+  // Songsue's side and every registration sync 404s forever until someone
+  // re-triggers this. See src/lib/songsue-sync.ts.
   const resyncSongsue = async () => {
     if (!editingId) return;
     setSongsueResyncing(true);
@@ -1009,11 +1199,18 @@ export function useAdminEventsPage() {
     }
   };
 
+  // Sessions (days) of the event whose roster is open, sorted as displayed in the
+  // editor. Drives the per-day filter pills — shown only for true multi-day events.
   const activeEventSessions = [...(events.find((e) => e.id === activeEventId)?.sessions ?? [])]
     .sort((a, b) => a.sortOrder - b.sortOrder);
 
   const isMultiDayEvent = activeEventSessions.length > 1;
 
+  // Student ids who never checked into ANY session of this event despite
+  // being registered — mirrors findNoShowStudentIds in
+  // api/admin/events/[id]/apply-strikes/route.ts (registered with no
+  // 'attended' row anywhere in the event, excluding isStaff), so this filter
+  // and the tally below match exactly who strikes would apply to.
   const eventNoShowIds = useMemo(() => {
     const attended = new Set(attendance.filter((m) => m.status === "attended").map((m) => m.studentId));
     // Includes 'no_show' rows (not just 'registered') so this filter still catches
@@ -1086,10 +1283,18 @@ export function useAdminEventsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- hasMedicalSignal is pure over its `user` arg (no state/props); listing it would recreate each render and defeat the memo
   }), [attendance, selectedSessionId, filterMedical, filterNotCheckedIn, filterStrikeHistory, filterEventNoShow, eventNoShowIds, filterStudentsOnly, filterMaster, filterPhd, filterThai, filterInternational, yearFilter]);
 
+  // Header tallies honor the selected day (but not the other roster filters) so
+  // "X / Y checked in" matches whichever day is being viewed.
   const sessionScoped = useMemo(() => selectedSessionId
     ? attendance.filter((m) => m.session?.id === selectedSessionId)
     : attendance, [attendance, selectedSessionId]);
 
+  // In the "All days" view a person who took part in several sessions has one
+  // row per day. Counting the raw rows would SUM the days (e.g. Day1 271 +
+  // Day2 246 = 517), which double-counts anyone present on both days. Collapse
+  // to one unit per student — keyed exactly like the roster cards — so the
+  // tallies count distinct people. With a day selected there's ≤1 row per
+  // person already, so each row is its own unit (no behavior change).
   const tallyUnits = useMemo<AdminAttendance[][]>(() => selectedSessionId
     ? sessionScoped.map((m) => [m])
     : (() => {
@@ -1103,6 +1308,17 @@ export function useAdminEventsPage() {
         return [...byStudent.values()];
       })(), [sessionScoped, selectedSessionId]);
 
+  // Attendance summary for the day in view (mirrors the exported report's stats).
+  // Based on the day-scoped set, not the browsing filters (medical/nationality).
+  // A person is classified once across all their day rows: pre-registered if any
+  // session was a pre-registration (else walk-in), attended if present on any day.
+  // All tallies are staff-excluded — staff don't count toward the quota (see
+  // isStaff exemption in register/route.ts and scanner.service.ts), and the
+  // card's Quota Progress bar (evt.attendeeCount, staff-excluded — see
+  // api/admin/events/route.ts) must match what this header shows, or the
+  // "checked in" figure here can end up bigger than the "registered" figure
+  // shown on the card. Compute them together once per roster change instead
+  // of several full passes on every render / 15s poll.
   const { checkInCount, registeredCount, summaryPreRegistered, summaryAttendedPre, summaryWalkIns } = useMemo(() => ({
     checkInCount: tallyUnits.filter(rows => rows.some(m => m.status === "attended" && !m.isStaff)).length,
     registeredCount: tallyUnits.filter(rows => rows.some(m => !m.isStaff)).length,
@@ -1111,10 +1327,17 @@ export function useAdminEventsPage() {
     summaryWalkIns: tallyUnits.filter(rows => rows.every(m => m.method === "walk-in") && rows.some(m => !m.isStaff)).length,
   }), [tallyUnits]);
 
+  // Feeds the No-shows tile, which is directly tied to the "Strike No-shows"
+  // action — must match who apply-strikes (isStaff-excluded, see
+  // findNoShowStudentIds) will actually strike. summaryPreRegistered/
+  // summaryAttendedPre above are already staff-excluded, so no separate
+  // NonStaff variant is needed here.
   const summaryNoShows = Math.max(0, summaryPreRegistered - summaryAttendedPre);
 
   const summaryNoShowPct = summaryPreRegistered > 0 ? Math.round((summaryNoShows / summaryPreRegistered) * 100) : 0;
 
+  // Shared by the attendance modal's action bar (export/strike buttons),
+  // computed once instead of re-deriving events.find(...) inline per button.
   const activeEvent = events.find((e) => e.id === activeEventId);
 
   const showExportButton = canSeeExportButton && !loadingAttendance && attendance.length > 0;
@@ -1150,6 +1373,11 @@ export function useAdminEventsPage() {
     },
   ];
 
+  // In the "All days" view a person who attended several sessions has one
+  // attendance row per day. Collapse those into a single unit (one card with a
+  // per-day breakdown inside) so the roster shows people, not (person × day)
+  // duplicates. When a specific day is selected there's already ≤1 row per
+  // person, so each row is its own unit and the card renders exactly as before.
 
   const attendanceUnits = useMemo<AttendanceUnit[]>(() => {
     if (selectedSessionId) {
@@ -1175,6 +1403,12 @@ export function useAdminEventsPage() {
     return order.map((k) => byStudent.get(k)!);
   }, [filteredAttendance, selectedSessionId]);
 
+  // Fallback signal: who operated the scanner for at least one check-in on
+  // this event (attendance.scannedBy, set by the scanner API to the
+  // operator's own user id — see scanner.service.ts). Catches an ad-hoc
+  // helper who wasn't pre-assigned to event.staffUserIds but ended up
+  // running the scanner anyway. Built from the full, unfiltered attendance
+  // list so a person who scanned on Day 1 still shows as staff on Day 2.
   const eventStaffIds = useMemo(() => {
     const ids = new Set<string>();
     for (const a of attendance) {
@@ -1183,11 +1417,27 @@ export function useAdminEventsPage() {
     return ids;
   }, [attendance]);
 
+  // The event whose roster is open — source of the explicit staffUserIds
+  // assignment list (attendance rows only carry a per-row isStaff snapshot,
+  // not the current live list, so unregistered assignees have to come from
+  // here instead).
   const activeEventStaffUserIds = useMemo(
     () => events.find((e) => e.id === activeEventId)?.staffUserIds ?? [],
     [events, activeEventId]
   );
 
+  // Staff = anyone whose row is flagged isStaff (they were on the event's
+  // explicit staffUserIds list when they registered/checked in — the
+  // authoritative, pre-assigned signal), OR who shows up in the scannedBy
+  // fallback above, OR who is on the event's *current* staffUserIds list
+  // even though their attendance row predates that assignment (isStaff is a
+  // frozen snapshot taken at register time — see schema comment — so
+  // someone added to staff after they already registered/checked in would
+  // otherwise never flip sections), PLUS anyone currently on staffUserIds
+  // who hasn't registered/checked in at all yet (no attendance row exists
+  // for them, so they'd otherwise be invisible here despite being explicitly
+  // assigned). Split into their own section, ahead of the house-grouped
+  // regular students.
   const groupedAttendance = useMemo(() => {
     const staff: AttendanceUnit[] = [];
     const students: AttendanceUnit[] = [];
@@ -1249,6 +1499,12 @@ export function useAdminEventsPage() {
     return { staff, houses };
   }, [attendanceUnits, eventStaffIds, activeEventStaffUserIds, assigneeUsers, activeEventId]);
 
+  // Export the event's attendees as .xlsx. The file is built server-side at
+  // /api/admin/events/[id]/export, which re-checks the role (staff vs.
+  // thin-roster — the button is also gated via canSeeExportButton), scopes
+  // president roles to events they manage, strips sensitive columns for
+  // thin-roster roles, and audit-logs the pull. We just trigger the download;
+  // the browser sends the session cookie.
   const exportAttendanceXlsx = () => {
     if (!activeEventId) return;
     // Carry the selected day through to the server so the spreadsheet matches the
@@ -1262,6 +1518,9 @@ export function useAdminEventsPage() {
     a.remove();
   };
 
+  // No-show strike-out: fetch the preview roster (students still 'registered'
+  // with no 'attended' row anywhere in the event) before the organizer commits
+  // to striking them. Read-only — /api/admin/events/[id]/apply-strikes GET.
   const openStrikesModal = async () => {
     if (!activeEventId) return;
     setShowStrikesModal(true);
@@ -1284,6 +1543,9 @@ export function useAdminEventsPage() {
     }
   };
 
+  // Organizer-confirmed POST — strikes every current no-show for this event.
+  // Idempotent server-side, but we also refresh the roster afterward so the
+  // "Not Checked In" filter/summary reflect the new no_show status immediately.
   const confirmApplyStrikes = async () => {
     if (!activeEventId || strikesSelected.size === 0) return;
     setStrikesSubmitting(true);
@@ -1306,6 +1568,10 @@ export function useAdminEventsPage() {
     }
   };
 
+  // Meds-check badge — PDPA-gated to super_admin/admin or a president viewing
+  // their own event (canSeeRawMedicalDetail), since the presence of a meds
+  // check reveals who has a medical condition. Shared by the single-day card
+  // and each day-row of a collapsed multi-day card.
   const renderMedsBadge = (option: string | null, badgeKey?: string) => {
     if (!canSeeRawMedicalDetail || !option) return null;
     const color = option === "brought" ? "var(--emerald-500)" : option === "forgot" ? "var(--red-500)" : "var(--blue-500)";
@@ -1328,6 +1594,9 @@ export function useAdminEventsPage() {
     );
   };
 
+  // One roster card, shared by the Staff section and each house group so the
+  // two sections stay visually identical apart from the role badge (staff
+  // only — house-grouped students already carry their house color).
   const renderAttendanceCard = (unit: AttendanceUnit) => {
     const m = unit.primary;
     // A person attending >1 session collapses into one card with a Day 1 → Day N
@@ -1480,6 +1749,9 @@ export function useAdminEventsPage() {
     return "upcoming";
   };
 
+  // Live now first, then upcoming, then past (past sinks to the bottom);
+  // within each bucket sort by date — soonest first for live/upcoming,
+  // most-recently-ended first for past so recent history stays visible.
   const STATUS_ORDER: Record<string, number> = { live: 0, upcoming: 1, past: 2 };
 
   const filteredEvents = useMemo(() => Array.isArray(events) ? events.filter(evt => {

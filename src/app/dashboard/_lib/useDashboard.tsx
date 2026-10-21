@@ -32,6 +32,9 @@ export function useDashboard({ initialSession }: { initialSession: Session | nul
 
   const [loadingEvents, setLoadingEvents] = useState(true);
 
+  // How the events section is rendered. "grid" is the action-first card grid
+  // (upcoming only, default). "timeline" is the at-a-glance agenda — every event,
+  // past included, grouped by Today / This Week / Upcoming / Past.
   const [eventView, setEventView] = useState<"grid" | "timeline">("grid");
 
   const [registeringId, setRegisteringId] = useState<string | null>(null);
@@ -58,6 +61,9 @@ export function useDashboard({ initialSession }: { initialSession: Session | nul
     type: "success",
   });
 
+  // Confirmation gate for cancelling a registration. Un-registering is
+  // destructive (the seat is released and may be taken), so we ask the user to
+  // confirm before firing the DELETE. New sign-ups skip this and register directly.
   const [confirmUnregister, setConfirmUnregister] = useState<{
     show: boolean;
     eventId: string;
@@ -68,6 +74,9 @@ export function useDashboard({ initialSession }: { initialSession: Session | nul
     losesPreTest: boolean;
   }>({ show: false, eventId: "", eventTitle: "", losesPreTest: false });
 
+  // Pre-test gate. Shown right after registering for an event whose K_pre form is
+  // open and not yet completed, so the student is pushed straight into the
+  // pre-test (rendered on the history page, which is deep-linked here).
   const [preTestModal, setPreTestModal] = useState<{
     show: boolean;
     eventId: string;
@@ -79,12 +88,23 @@ export function useDashboard({ initialSession }: { initialSession: Session | nul
 
   const [loadingHouses, setLoadingHouses] = useState(true);
 
+  // Admin-editable dashboard announcement. null = not loaded yet or fetch failed
+  // → fall back to the built-in text so the banner never disappears unexpectedly.
   const [announcement, setAnnouncement] = useState<{ body: string; enabled: boolean } | null>(null);
 
+  // No-show strike-out (US-STRI-15c): the student's own strike count / block
+  // state, polled alongside events/houses so the badge and the blocked notice
+  // stay live if staff apply or reset strikes while the dashboard is open.
   const [strikes, setStrikes] = useState<{ noShowCount: number; registrationBlocked: boolean } | null>(null);
 
+  // The student's authoritative individual balance (users.points) — the same number
+  // the leaderboard ranks on. Read from the same /api/profile poll as strikes.
   const [myPoints, setMyPoints] = useState<number | null>(null);
 
+  // Which events caused the strikes currently on the account (US-STRI-15c),
+  // each carrying its OWN appeal (if any) — appeals are per-event, not one
+  // blanket appeal for the account, so a student with 2 strikes can appeal
+  // just one of them and leave the other untouched.
   type NoShowEvent = {
     id: string;
     title: string;
@@ -100,14 +120,29 @@ export function useDashboard({ initialSession }: { initialSession: Session | nul
 
   const [submittingAppeal, setSubmittingAppeal] = useState(false);
 
+  // Fullscreen poster viewer — carries the whole poster list + which one was tapped
+  // so the user can keep swiping at full size.
   const [previewImage, setPreviewImage] = useState<{ posters: string[]; index: number } | null>(null);
 
+  // The open event-preview modal, tracked by id rather than the event object so the
+  // URL stays the single source of truth (and a /dashboard?event=<id> deep-link can
+  // seed it before the events list has loaded). previewEvent is derived from this id
+  // below. Seeded once from the address bar via a lazy initializer — SSR-guarded, and
+  // safe against hydration mismatch because the events list is empty on first render,
+  // so the modal renders closed on both server and client regardless of the id.
   const [previewEventId, setPreviewEventId] = useState<string | null>(() =>
     typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("event")
   );
 
+  // Whether the in-modal "Copy link" button just copied, so we can flash a
+  // "Copied!" confirmation for a moment.
   const [linkCopied, setLinkCopied] = useState(false);
 
+  // The event preview modal is shareable: its open/closed state is mirrored in the
+  // URL as /dashboard?event=<id>, so a student (or an organizer) can copy the
+  // address bar — or hit the in-modal "Copy link" — and send a direct link to one
+  // event. openPreview pushes a history entry so the phone/browser Back button
+  // closes the modal instead of leaving the dashboard; closePreview unwinds it.
   const openPreview = (e: Event) => {
     setLinkCopied(false);
     setPreviewEventId(e.id);
@@ -131,6 +166,9 @@ export function useDashboard({ initialSession }: { initialSession: Session | nul
     }
   };
 
+  // Drive the modal from Back/Forward: when the URL's ?event= changes or clears via
+  // history navigation, mirror it into previewEventId. setState here is fine — it
+  // runs inside an event-listener callback, not synchronously in the effect body.
   useEffect(() => {
     const onPop = () => {
       setLinkCopied(false);
@@ -184,8 +222,21 @@ export function useDashboard({ initialSession }: { initialSession: Session | nul
       })
       .catch(() => {});
 
+  // Live check-in / score toasts. The student's primary scan surface is the
+  // Digital ID page (immediate modal); here on the dashboard a gentle toast on
+  // the same 60s cadence catches anything that happened while they were
+  // elsewhere. The shared hook owns the fetch / dedup / last-seen bookkeeping.
+  // Desktop / iPad students live on the dashboard (not the QR page), so surface the
+  // same live check-in / score / pre-test modal here. Poll at 15s — responsive
+  // enough to feel live, but gentler than the QR page's 4s since the dashboard
+  // stays open on many devices (hidden tabs pause polling, bounding the load).
   const { items: notifItems, dismiss: dismissNotif } = useNotifications(session?.user?.id, 15000);
 
+  // Poll events + leaderboard. Slow interval (60s) because this is student-facing
+  // across potentially ~1,500 devices — at 20s a single event hour approaches the
+  // Vercel free-tier invocation budget. Polling also avoids the Supabase free-tier
+  // 200 concurrent-connection cap and pauses while the tab is hidden. Return the
+  // combined promise so the poller awaits both and never stacks requests.
   usePolling((signal) => Promise.all([fetchEvents(signal), fetchHouses(signal), fetchAnnouncement(signal), fetchStrikes(signal), fetchAppeal(signal)]), 60000);
 
   const submitAppeal = async () => {
@@ -304,6 +355,8 @@ export function useDashboard({ initialSession }: { initialSession: Session | nul
     }
   };
 
+  // Entry point for the register/cancel button. A cancel (registered === true)
+  // is routed through a confirmation modal first; a new sign-up fires immediately.
   const promptRegister = (eventId: string, registered: boolean, eventTitle: string) => {
     if (!session?.user) {
       router.push("/login");
@@ -317,6 +370,8 @@ export function useDashboard({ initialSession }: { initialSession: Session | nul
     }
   };
 
+  // Hooks must run on every render, before any early return (Rules of Hooks).
+  // Seed from session?.user?.id directly — `user` is derived after the guard below.
   const { qrValue, countdownMM, countdownSS, countdownColor } = useQrToken(session?.user?.id);
 
   return {
@@ -401,10 +456,14 @@ export function deriveDashboard(base: BaseDashboardCtx) {
 
   const houseInfo = houseId ? (HOUSE_MAP[houseId] ?? { name: "Unknown", color: "var(--text-muted)" }) : { name: t.unassigned, color: "var(--text-muted)" };
 
+  // The event whose preview modal is open, derived from the URL-backed id. Resolves
+  // once the events list has loaded; if the id isn't found (bad/stale link) the modal
+  // simply stays closed.
   const previewEvent = previewEventId ? (events.find((e) => e.id === previewEventId) ?? null) : null;
 
   const now = new Date();
 
+  // Events that are either happening now or in the future
   const upcoming = events.filter((e) => new Date(e.endTime) >= now);
 
   const past = events.filter((e) => new Date(e.endTime) < now);
@@ -424,17 +483,18 @@ export function deriveDashboard(base: BaseDashboardCtx) {
     return "upcoming";
   };
 
+  // --- Timeline view: group every event into Today / This Week / Upcoming / Past. ---
   const startOfToday = new Date(now);
 
-  startOfToday.setHours(0, 0, 0, 0);
+ startOfToday.setHours(0, 0, 0, 0);
 
   const endOfToday = new Date(now);
 
-  endOfToday.setHours(23, 59, 59, 999);
+ endOfToday.setHours(23, 59, 59, 999);
 
   const weekEnd = new Date(startOfToday);
 
-  weekEnd.setDate(weekEnd.getDate() + 7);
+ weekEnd.setDate(weekEnd.getDate() + 7);
 
   const timelineGroupOf = (e: Event): "today" | "week" | "later" | "past" => {
     const start = new Date(e.startTime);
@@ -456,6 +516,11 @@ export function deriveDashboard(base: BaseDashboardCtx) {
     { key: "past", label: t.secPast, items: events.filter((e) => timelineGroupOf(e) === "past").sort(byStartDesc) },
   ].filter((s) => s.items.length > 0);
 
+  // --- Overview stats strip (logged-in students only). Counts are derived from the
+  // events list. Points is the stored users.points balance (same as the leaderboard),
+  // NOT a sum over events: that sum missed form-submission points, staff score
+  // awards, per-day awards on multi-day events and no-show deductions, so it
+  // drifted from the leaderboard. ---
   const thisWeekCount = upcoming.filter((e) => new Date(e.startTime) < weekEnd).length;
 
   const attendedEvents = events.filter((e) => e.attendanceStatus === "attended");
@@ -469,6 +534,8 @@ export function deriveDashboard(base: BaseDashboardCtx) {
     { key: "points", label: t.statPoints, value: pointsEarned, icon: Trophy },
   ];
 
+  // Registration window row — shown when either open or close time is set.
+  // Colour shifts to muted once the window has closed so it doesn't distract.
   const regWindowRow = (ev: Event) => {
     const openAt = ev.registrationOpenTime ? new Date(ev.registrationOpenTime) : null;
     const closeAt = ev.registrationCloseTime ? new Date(ev.registrationCloseTime) : null;
@@ -504,6 +571,9 @@ export function deriveDashboard(base: BaseDashboardCtx) {
     );
   };
 
+  // Quota + walk-in availability rows, shared by the event card and the preview
+  // modal. Quota is hidden when unset (null = unlimited); the walk-in line always
+  // shows so a student can tell at a glance whether the door accepts walk-ins.
   const quotaWalkInRows = (ev: Event) => {
     const allowed = !!ev.walkInsEnabled;
     const registered = ev.registeredCount ?? 0;

@@ -4,9 +4,6 @@ import { ScannerService } from "@/modules/events/scanner.service";
 import { EventsService } from "@/modules/events/events.service";
 import { EventScopeService } from "@/modules/events/event-scope.service";
 import { rateLimit, getClientIp } from "@/lib/util/rate-limit";
-import { db } from "@/db";
-import { events } from "@/db/schema";
-import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { captureException } from "@/lib/util/logger";
@@ -85,10 +82,7 @@ export async function POST(req: Request) {
     const hasRegistrationScope = !isStaff && presidentTags.length === 0
       && (await EventScopeService.hasRegistrationScope(session.user.id!, roles, smoPosition, anusmoPosition));
     if (!isStaff && (presidentTags.length > 0 || hasRegistrationScope)) {
-      const ev = await db.query.events.findFirst({
-        where: eq(events.id, eventId),
-        columns: { ownerClubIds: true, ownerMajors: true },
-      });
+      const ev = await EventsService.getEventOwnership(eventId);
       const access = await EventScopeService.resolveEventAccess({
         userId: session.user.id!, roles, smoPosition, anusmoPosition, isUnscopedStaff: false, hasPresidentTag: presidentTags.length > 0,
       });

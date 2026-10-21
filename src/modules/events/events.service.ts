@@ -87,4 +87,12 @@ export class EventsService {
 
     return { pendingForms, pendingEvents };
   }
+
+  /** The owner club/major lists of an event, for president-scope access checks. */
+  static async getEventOwnership(eventId: string) {
+    return db.query.events.findFirst({
+      where: eq(events.id, eventId),
+      columns: { ownerClubIds: true, ownerMajors: true },
+    });
+  }
 }

@@ -1,11 +1,10 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { attendance, events } from "@/db/schema";
-import { and, eq, count } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { captureException } from "@/lib/util/logger";
 import { canEnterAdminAny, effectiveRoles, isEventUnscopedStaff } from "@/lib/access/admin-access";
+import { EventsService } from "@/modules/events/events.service";
+import { AttendanceService } from "@/modules/events/attendance.service";
 import { EventScopeService } from "@/modules/events/event-scope.service";
 
 // GET /api/admin/scan/count?eventId=<uuid>&sessionId=<uuid>
@@ -57,10 +56,7 @@ export async function GET(req: Request) {
     const hasRegistrationScope = !isStaff && presidentTags.length === 0
       && (await EventScopeService.hasRegistrationScope(session.user.id!, myRoles, smoPosition, anusmoPosition));
     if (!isStaff && (presidentTags.length > 0 || hasRegistrationScope)) {
-      const ev = await db.query.events.findFirst({
-        where: eq(events.id, eventId),
-        columns: { ownerClubIds: true, ownerMajors: true },
-      });
+      const ev = await EventsService.getEventOwnership(eventId);
       const access = await EventScopeService.resolveEventAccess({
         userId: session.user.id!, roles: myRoles, smoPosition, anusmoPosition, isUnscopedStaff: false, hasPresidentTag: presidentTags.length > 0,
       });
@@ -70,29 +66,10 @@ export async function GET(req: Request) {
       }
     }
 
-    // Count only students who actually CHECKED IN (status 'attended'), not those
-    // who merely pre-registered. Pre-registration writes an attendance row with
-    // status 'registered' (method 'pre-registered'); scanning flips it to
-    // 'attended'. Without this filter the live "Checked In" card would include
-    // no-shows and would not climb as students scan in.
-    const [row] = await db
-      .select({ value: count() })
-      .from(attendance)
-      .where(
-        sessionId
-          ? and(
-              eq(attendance.eventId, eventId),
-              eq(attendance.sessionId, sessionId),
-              eq(attendance.status, "attended"),
-            )
-          : and(
-              eq(attendance.eventId, eventId),
-              eq(attendance.status, "attended"),
-            ),
-      );
+    const checkedIn = await AttendanceService.countCheckedIn(eventId, sessionId);
 
     return NextResponse.json(
-      { checkedIn: row?.value ?? 0 },
+      { checkedIn },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {

@@ -25,85 +25,25 @@ import {
   Users,
   X,
 } from "lucide-react";
-
-// A suggested extra day for a multi-day event — mirrors ProposeEventSection's
-// ProposalSessionRow exactly.
-type ProposalSessionRow = { title: string; startTime: string; endTime: string };
-
-// Suggested-access ACL options — mirrors ProposeEventSection.tsx's identical
-// constants (see that file's own comment on why these are a local literal).
-// No club option here: a major has no club roster to suggest from, unlike
-// ProposeEventSection which already has the club list in scope.
-const ALL_PARTICIPANT_ROLES = ["student", "staff", "smo", "anusmo", "club_president", "major_president"] as const;
-type ParticipantRole = typeof ALL_PARTICIPANT_ROLES[number];
-const ROLE_LABELS: Record<ParticipantRole, string> = {
-  student: "Student",
-  staff: "Staff",
-  smo: "SMO",
-  anusmo: "ANUSMO",
-  club_president: "Club President",
-  major_president: "Major President",
-};
-const ALL_MAJORS = ["ANI", "DG", "DII", "MMIT", "SE", "KIM", "DTM"] as const;
+import {
+  ALL_MAJORS,
+  ALL_PARTICIPANT_ROLES,
+  EMPTY_FORM_BASE,
+  ROLE_LABELS,
+  type ProposalBase,
+  type ProposalSessionRow,
+} from "../_propose-event/shared";
 
 // A student in this president's own major, for the Event Staff picker —
 // mirrors ProposeEventSection's ClubMember shape, minus `role` (a major has
 // no membership role concept, unlike a club).
 type MajorMember = { id: string; name: string | null; studentId: string | null; position: string | null };
 
-type Proposal = {
-  id: string;
-  title: string;
-  description: string | null;
-  startTime: string;
-  endTime: string;
-  registrationOpenTime: string | null;
-  registrationCloseTime: string | null;
-  location: string | null;
-  quota: number | null;
-  imageUrl: string | null;
-  imageUrls: string[] | null;
-  walkInsEnabled: boolean | null;
-  walkInsOnly: boolean | null;
-  quotaWalkIn: number | null;
-  targetThai: boolean | null;
-  targetInternational: boolean | null;
-  quotaThai: number | null;
-  quotaInternational: number | null;
-  firstYearOnly: boolean | null;
-  staffUserIds: string[] | null;
-  allowedRoles: string[] | null;
-  allowedMajors: string[] | null;
-  sessions: { title: string | null; startTime: string; endTime: string }[] | null;
-  status: "pending" | "approved" | "rejected" | "withdrawn";
-  reviewNote: string | null;
-  createdAt: string;
+type Proposal = ProposalBase & {
   majorCode: string | null;
-  proposer: { id: string; name: string; studentId: string | null };
 };
 
-const EMPTY_FORM = {
-  title: "",
-  description: "",
-  startTime: "",
-  endTime: "",
-  registrationOpenTime: "",
-  registrationCloseTime: "",
-  location: "",
-  quota: "",
-  imageUrls: [] as string[],
-  walkInsEnabled: false,
-  walkInsOnly: false,
-  quotaWalkIn: "",
-  targetThai: true,
-  targetInternational: true,
-  quotaThai: "",
-  quotaInternational: "",
-  firstYearOnly: false,
-  staffUserIds: [] as string[],
-  allowedRoles: [] as string[],
-  allowedMajors: [] as string[],
-};
+const EMPTY_FORM = EMPTY_FORM_BASE;
 
 // major_president-only section (analogue of ProposeEventSection, which is the
 // club_president equivalent on /admin/clubs — see that file's own header

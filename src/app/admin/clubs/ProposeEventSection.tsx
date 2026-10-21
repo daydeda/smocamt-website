@@ -29,89 +29,28 @@ import {
   Users,
   X,
 } from "lucide-react";
+import {
+  ALL_MAJORS,
+  ALL_PARTICIPANT_ROLES,
+  EMPTY_FORM_BASE,
+  ROLE_LABELS,
+  type ProposalBase,
+  type ProposalSessionRow,
+} from "../_propose-event/shared";
 
 type Club = { id: string; name: string; isArchived: boolean };
 
-// Suggested-access ACL options — mirrors admin/events/page.tsx's own
-// ALL_PARTICIPANT_ROLES/ROLE_LABELS/ALL_MAJORS/MAJOR_LABELS constants exactly
-// (kept as a local literal, like that file, rather than a shared import —
-// these are UI-only label sets, not business logic). Entirely non-binding:
-// staff reviews/adjusts before it ever takes effect (see the fromProposal
-// prefill in admin/events/page.tsx).
-const ALL_PARTICIPANT_ROLES = ["student", "staff", "smo", "anusmo", "club_president", "major_president"] as const;
-type ParticipantRole = typeof ALL_PARTICIPANT_ROLES[number];
-const ROLE_LABELS: Record<ParticipantRole, string> = {
-  student: "Student",
-  staff: "Staff",
-  smo: "SMO",
-  anusmo: "ANUSMO",
-  club_president: "Club President",
-  major_president: "Major President",
-};
-const ALL_MAJORS = ["ANI", "DG", "DII", "MMIT", "SE", "KIM", "DTM"] as const;
-
 type ClubMember = { id: string; userId: string; role: string; userName: string | null; studentId: string | null; position: string | null };
 
-// A suggested extra day for a multi-day event — mirrors admin/events/page.tsx's
-// SessionRow, minus `id`/`quotaWalkIn` (these are always brand-new suggestions;
-// staff assigns per-day walk-in quotas at conversion, not the proposer).
-type ProposalSessionRow = { title: string; startTime: string; endTime: string };
-
-type Proposal = {
-  id: string;
+type Proposal = ProposalBase & {
   clubId: string;
-  title: string;
-  description: string | null;
-  startTime: string;
-  endTime: string;
-  registrationOpenTime: string | null;
-  registrationCloseTime: string | null;
-  location: string | null;
-  quota: number | null;
-  imageUrl: string | null;
-  imageUrls: string[] | null;
-  walkInsEnabled: boolean | null;
-  walkInsOnly: boolean | null;
-  quotaWalkIn: number | null;
-  targetThai: boolean | null;
-  targetInternational: boolean | null;
-  quotaThai: number | null;
-  quotaInternational: number | null;
-  firstYearOnly: boolean | null;
-  staffUserIds: string[] | null;
-  allowedRoles: string[] | null;
-  allowedMajors: string[] | null;
   allowedClubs: string[] | null;
-  sessions: { title: string | null; startTime: string; endTime: string }[] | null;
-  status: "pending" | "approved" | "rejected" | "withdrawn";
-  reviewNote: string | null;
-  createdAt: string;
   club: { id: string; name: string };
-  proposer: { id: string; name: string; studentId: string | null };
 };
 
 const EMPTY_FORM = {
+  ...EMPTY_FORM_BASE,
   clubId: "",
-  title: "",
-  description: "",
-  startTime: "",
-  endTime: "",
-  registrationOpenTime: "",
-  registrationCloseTime: "",
-  location: "",
-  quota: "",
-  imageUrls: [] as string[],
-  walkInsEnabled: false,
-  walkInsOnly: false,
-  quotaWalkIn: "",
-  targetThai: true,
-  targetInternational: true,
-  quotaThai: "",
-  quotaInternational: "",
-  firstYearOnly: false,
-  staffUserIds: [] as string[],
-  allowedRoles: [] as string[],
-  allowedMajors: [] as string[],
   allowedClubs: [] as string[],
 };
 

@@ -61,6 +61,7 @@ describe("admin-nav-config: full-admin roles (super_admin/admin) see the full no
     "/admin/shop",
     "/admin/audit-logs",
     "/admin/feedback",
+    "/admin/property-tags",
   ];
 
   it("super_admin", () => {
@@ -81,6 +82,7 @@ describe("admin-nav-config: full-admin roles (super_admin/admin) see the full no
 describe("admin-nav-config: registration/organizer are barred from admin/students-adjacent + audit + content", () => {
   it("registration sees students (role-listed) but not clubs/audit/announcement/shop/appeals", () => {
     const hrefs = visibleHrefs(REGISTRATION);
+    expect(hrefs).toContain("/admin/property-tags");
     expect(hrefs).toContain("/admin/students");
     expect(hrefs).toContain("/admin/proposals");
     expect(hrefs).toContain("/admin/reviews");
@@ -96,6 +98,7 @@ describe("admin-nav-config: registration/organizer are barred from admin/student
 
   it("organizer: same shape as registration for the role-listed items", () => {
     const hrefs = visibleHrefs(ORGANIZER);
+    expect(hrefs).toContain("/admin/property-tags");
     expect(hrefs).not.toContain("/admin/students"); // organizer excluded from canSeeStudents
     expect(hrefs).toContain("/admin/proposals");
     expect(hrefs).toContain("/admin/reviews");
@@ -106,13 +109,14 @@ describe("admin-nav-config: registration/organizer are barred from admin/student
 });
 
 describe("admin-nav-config: scanner-only confinement (smo, club_president, major_president)", () => {
-  it("smo (scanner-only) sees exactly scanner + events + appeals + prizes, nothing else", () => {
+  it("smo (scanner-only) sees exactly scanner + events + appeals + prizes + property tags, nothing else", () => {
     // /admin/prizes was added deliberately (2026-09-19): smo staffs the prize
     // table, and awarding is scanner-shaped work. They can AWARD there but not
     // configure a prize or pull the dean report — that narrowing is
     // canManagePrizes, enforced by the route gates, not by this list.
+    // /admin/property-tags added 2026-10-21: smo manages property tags in full.
     expect(visibleHrefs(SMO_SCANNER_ONLY).sort()).toEqual(
-      ["/admin/appeals", "/admin/events", "/admin/scanner", "/admin/prizes"].sort()
+      ["/admin/appeals", "/admin/events", "/admin/scanner", "/admin/prizes", "/admin/property-tags"].sort()
     );
   });
 
@@ -145,6 +149,13 @@ describe("admin-nav-config: scanner-only confinement (smo, club_president, major
     const hrefs = visibleHrefs(MAJOR_PRESIDENT);
     expect(hrefs).toContain("/admin/majors");
     expect(hrefs).not.toContain("/admin/clubs");
+  });
+
+  it("property tags: smo yes, presidents and sellers no", () => {
+    expect(visibleHrefs(SMO_SCANNER_ONLY)).toContain("/admin/property-tags");
+    for (const c of [CLUB_PRESIDENT, MAJOR_PRESIDENT, SHOP_SELLER]) {
+      expect(visibleHrefs(c)).not.toContain("/admin/property-tags");
+    }
   });
 
   it("scanner-only contexts never see the roadmap placeholders", () => {

@@ -48,6 +48,14 @@ export const PRIZE_AWARD_ROLES = ["super_admin", "admin", "registration", "organ
 // "which prizes".
 export const PRIZE_MANAGE_ROLES = ["super_admin", "admin", "registration", "organizer", "club_president", "major_president"] as const;
 
+// Property tags (ป้ายทรัพย์สิน, docs/features/property-tags.md): printed QR
+// stickers for a student's bag/phone. One flat role list for EVERYTHING —
+// create a group, generate, print, assign/unassign. Includes "smo" by product
+// decision (2026-10-21): smo staffs the desk where stickers are handed out and
+// also prints them. Presidents are deliberately not included.
+export const PROPERTY_TAGS_HREF = "/admin/property-tags";
+export const PROPERTY_TAG_ROLES = ["super_admin", "admin", "registration", "organizer", "smo"] as const;
+
 // Pages a scanner-only role (smo, club_president, major_president) may open.
 // Besides the scanner they may now reach the events page for a widening set of
 // thin, role-specific views — never the full staff controls (see admin/events
@@ -81,10 +89,14 @@ export const PRIZE_MANAGE_ROLES = ["super_admin", "admin", "registration", "orga
 // They may AWARD there but not create/configure a prize and not pull the report
 // — that split is canAwardPrizes vs canManagePrizes below, enforced by the
 // route gates, not by this path list.
-export const SCANNER_ONLY_PAGES = ["/admin", SCANNER_HREF, "/admin/events", "/admin/clubs", "/admin/majors", "/admin/appeals", "/admin/shop", PRIZES_HREF] as const;
+// "/admin/property-tags" (+ its /<groupId> and /<groupId>/print sub-pages, see
+// isScannerOnlyAllowedPath) is allowed because smo manages property tags in
+// full; the API gate (canManagePropertyTags) still turns presidents away.
+export const SCANNER_ONLY_PAGES = ["/admin", SCANNER_HREF, "/admin/events", "/admin/clubs", "/admin/majors", "/admin/appeals", "/admin/shop", PRIZES_HREF, PROPERTY_TAGS_HREF] as const;
 
 // May a scanner-only role reach this exact (page) path? Used by the proxy to
-// confine these roles. Exact-match, except the single-segment /admin/shop/<productId> page.
+// confine these roles. Exact-match, except the single-segment /admin/shop/<productId>
+// page and the property-tag group pages (/admin/property-tags/<id>[/print]).
 export function isScannerOnlyAllowedPath(
   pathname: string,
   roles?: string[],
@@ -99,7 +111,8 @@ export function isScannerOnlyAllowedPath(
   // /admin/shop/<productId> is the per-product order view (same page-level gate as /admin/shop).
   const isShopProductPage = /^\/admin\/shop\/[^/]+$/.test(pathname);
   if (sellerOnly) return pathname === "/admin" || pathname === "/admin/shop" || isShopProductPage;
-  return (SCANNER_ONLY_PAGES as readonly string[]).includes(pathname) || isShopProductPage;
+  const isPropertyTagGroupPage = /^\/admin\/property-tags\/[^/]+(\/print)?$/.test(pathname);
+  return (SCANNER_ONLY_PAGES as readonly string[]).includes(pathname) || isShopProductPage || isPropertyTagGroupPage;
 }
 
 export function canEnterAdmin(role?: string | null): boolean {
@@ -280,6 +293,11 @@ export function canManagePrizes(roles: string[]): boolean {
 // change to one silently changes the other.
 export function canExportPrizeReport(roles: string[]): boolean {
   return canManagePrizes(roles);
+}
+
+// May any of these roles manage property tags (create/generate/print/assign)?
+export function canManagePropertyTags(roles: string[]): boolean {
+  return roles.some((r) => (PROPERTY_TAG_ROLES as readonly string[]).includes(r));
 }
 
 // Landing href for a role set (scanner-only → scanner, else dashboard).

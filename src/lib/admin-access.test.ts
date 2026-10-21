@@ -12,6 +12,7 @@ import {
   canAwardPrizes,
   canManagePrizes,
   canExportPrizeReport,
+  canManagePropertyTags,
   PRIZES_HREF,
   adminLandingHref,
   adminLandingHrefForRoles,
@@ -200,6 +201,14 @@ describe("isScannerOnlyAllowedPath", () => {
     expect(isScannerOnlyAllowedPath("/admin/")).toBe(false);
   });
 
+  it("allows the property-tag group and print sub-pages, but nothing deeper", () => {
+    expect(isScannerOnlyAllowedPath("/admin/property-tags")).toBe(true);
+    expect(isScannerOnlyAllowedPath("/admin/property-tags/abc-123")).toBe(true);
+    expect(isScannerOnlyAllowedPath("/admin/property-tags/abc-123/print")).toBe(true);
+    expect(isScannerOnlyAllowedPath("/admin/property-tags/abc-123/other")).toBe(false);
+    expect(isScannerOnlyAllowedPath("/admin/property-tags/abc-123", ["student", "shop_seller"])).toBe(false);
+  });
+
   it("confines a seller-only role to /admin/shop", () => {
     expect(isScannerOnlyAllowedPath("/admin/shop", ["student", "shop_seller"])).toBe(true);
     expect(isScannerOnlyAllowedPath("/admin/shop/abc-123", ["student", "shop_seller"])).toBe(true);
@@ -350,5 +359,19 @@ describe("canEditEventDirectly", () => {
     expect(canEditEventDirectly(["major_president", "smo"])).toBe(false);
     expect(canEditEventDirectly(["shop_seller"])).toBe(false);
     expect(canEditEventDirectly(["student"])).toBe(false);
+  });
+});
+
+describe("canManagePropertyTags", () => {
+  it("allows super_admin, admin, registration, organizer and smo", () => {
+    for (const r of ["super_admin", "admin", "registration", "organizer", "smo"]) {
+      expect(canManagePropertyTags([r])).toBe(true);
+    }
+  });
+
+  it("denies students, anusmo, presidents and sellers", () => {
+    for (const r of ["student", "anusmo", "club_president", "major_president", "shop_seller"]) {
+      expect(canManagePropertyTags([r])).toBe(false);
+    }
   });
 });

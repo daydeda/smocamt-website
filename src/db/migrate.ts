@@ -1622,6 +1622,41 @@ async function migrate() {
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_reviewed_at timestamptz`;
   console.log("  ✅ users.profile_reviewed_at (3-month profile check-in)");
 
+  // 100. Property tags (ป้ายทรัพย์สิน, docs/features/property-tags.md): printed QR
+  // stickers staff assign to a student's bag/phone. property_tag_groups MUST be
+  // created before property_tags (FK). Mirrors drizzle/0048_steady_red_wolf.sql.
+  // Additive, idempotent, non-destructive.
+  await sql`
+    CREATE TABLE IF NOT EXISTS property_tag_groups (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      name text NOT NULL,
+      description text,
+      status text DEFAULT 'open' NOT NULL,
+      created_by text REFERENCES users(id) ON DELETE SET NULL,
+      created_at timestamptz DEFAULT now() NOT NULL,
+      updated_at timestamptz DEFAULT now() NOT NULL
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_property_tag_groups_status ON property_tag_groups (status)`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS property_tags (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      group_id uuid NOT NULL REFERENCES property_tag_groups(id) ON DELETE CASCADE,
+      code text NOT NULL CONSTRAINT property_tags_code_unique UNIQUE,
+      series text NOT NULL,
+      serial integer NOT NULL,
+      owner_user_id text REFERENCES users(id) ON DELETE SET NULL,
+      assigned_by text REFERENCES users(id) ON DELETE SET NULL,
+      assigned_at timestamptz,
+      created_at timestamptz DEFAULT now() NOT NULL,
+      updated_at timestamptz DEFAULT now() NOT NULL
+    )
+  `;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_property_tags_series_serial ON property_tags (series, serial)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_property_tags_group ON property_tags (group_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_property_tags_owner ON property_tags (owner_user_id)`;
+  console.log("  ✅ property_tag_groups + property_tags (unique code, unique series+serial, group/owner indexes)");
+
   console.log("✅ Migration complete!");
   await sql.end();
   process.exit(0);

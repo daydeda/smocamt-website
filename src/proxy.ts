@@ -33,6 +33,12 @@ export async function proxy(req: NextRequest) {
     // default (redirect-to-login below) already enforces that correctly.
     pathname === "/feedback/track" ||
     pathname === "/privacy" ||
+    // Property-tag sticker landing (/t/<code>). Public ROUTE, not public data:
+    // like /feedback/track it renders its own sign-in prompt (so the person
+    // comes back to the same sticker after login, which a bare proxy redirect
+    // to /login would lose) and shows the owner only to a signed-in,
+    // onboarded viewer — see src/app/t/[code]/page.tsx.
+    pathname.startsWith("/t/") ||
     pathname === "/api/events" ||
     pathname === "/api/houses" ||
     pathname.startsWith("/api/auth") ||

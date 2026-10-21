@@ -28,8 +28,9 @@ import {
   ClipboardList,
   ListChecks,
   Gift,
+  Tag,
 } from "lucide-react";
-import { isScannerOnlyAny, isGlobalRegistrationPosition, isShopFinancePosition, canAwardPrizes, canManagePrizes, PRIZES_HREF } from "@/lib/admin-access";
+import { isScannerOnlyAny, isGlobalRegistrationPosition, isShopFinancePosition, canAwardPrizes, canManagePrizes, PRIZES_HREF, canManagePropertyTags, PROPERTY_TAGS_HREF } from "@/lib/admin-access";
 import { REVIEW_PROPOSAL_ROLES } from "@/lib/event-proposals";
 
 export interface AdminNavContext {
@@ -200,6 +201,16 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     // wrong the moment a non-scanner-only role gets award-only rights.
     allowed: canSeePrizes,
   },
+  {
+    id: "propertyTags",
+    href: PROPERTY_TAGS_HREF,
+    i18nKey: "adminPropertyTags",
+    fallback: "Property Tags",
+    icon: Tag,
+    group: "events",
+    allowed: (ctx) => canManagePropertyTags(ctx.roles),
+    keywords: ["qr", "sticker", "bag", "label"],
+  },
 
   // Community group.
   {
@@ -315,7 +326,9 @@ function scannerOnlyAllowed(item: AdminNavItem, ctx: AdminNavContext): boolean {
     // smo/club_president/major_president staff the prize table, so they get the
     // link even though they can't configure a prize or pull the report — the
     // page's own gates narrow what they see once they're there.
-    (item.href === PRIZES_HREF && canAwardPrizes(ctx.roles))
+    (item.href === PRIZES_HREF && canAwardPrizes(ctx.roles)) ||
+    // smo manages property tags in full; presidents don't.
+    (item.href === PROPERTY_TAGS_HREF && canManagePropertyTags(ctx.roles))
   );
 }
 

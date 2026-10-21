@@ -274,6 +274,13 @@
       "when": 1792496057998,
       "tag": "0047_careful_quentin_quire",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1792577645536,
+      "tag": "0048_steady_red_wolf",
+      "breakpoints": true
     }
   ]
 }

@@ -1560,3 +1560,51 @@ export const prizeClaimsRelations = relations(prizeClaims, ({ one }) => ({
   event: one(events, { fields: [prizeClaims.eventId], references: [events.id], relationName: "prizeClaimEvent" }),
   awardedBy: one(users, { fields: [prizeClaims.claimedBy], references: [users.id], relationName: "prizeClaimAwardedBy" }),
 }));
+
+// Property tags (ป้ายทรัพย์สิน): printed QR stickers staff stick on a student's
+// bag/phone, then scan to assign an owner. Anyone signed in who scans the
+// sticker sees only the owner's name, รหัสนักศึกษา, major and year — see
+// docs/features/property-tags.md.
+//
+// A group is what the stickers are FOR ("Bag for Trekking"). It owns nothing
+// but a name; deleting it is not offered (archive instead), but the FK still
+// cascades so a hard delete from Studio can't leave orphaned tags.
+export const propertyTagGroups = pgTable("property_tag_groups", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  // 'open' | 'archived' — archived groups are hidden from the scanner tab but
+  // their tags still resolve, so a sticker already on a bag keeps working.
+  status: text("status").$type<"open" | "archived">().notNull().default("open"),
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ([
+  index("idx_property_tag_groups_status").on(table.status),
+]));
+
+// One row per printed sticker.
+export const propertyTags = pgTable("property_tags", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  groupId: uuid("group_id").references(() => propertyTagGroups.id, { onDelete: "cascade" }).notNull(),
+  // The secret: random, unguessable, printed as the QR (/t/<code>) and as text
+  // under it. The ONLY thing that resolves a tag to its owner.
+  code: text("code").notNull().unique(),
+  // Printed label "SMO-014": series + running number. Numbering is per SERIES
+  // across all groups (not per group) so two physically identical-looking
+  // stickers can never exist. Stock-keeping only — never compared against the
+  // owner's role, so a tag stays valid after its owner leaves SMO.
+  series: text("series").notNull(),
+  serial: integer("serial").notNull(),
+  // NULL = empty sticker. Unassigning nulls these three, so the same printed
+  // sticker can be handed to someone else.
+  ownerUserId: text("owner_user_id").references(() => users.id, { onDelete: "set null" }),
+  assignedBy: text("assigned_by").references(() => users.id, { onDelete: "set null" }),
+  assignedAt: timestamp("assigned_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ([
+  uniqueIndex("idx_property_tags_series_serial").on(table.series, table.serial),
+  index("idx_property_tags_group").on(table.groupId),
+  index("idx_property_tags_owner").on(table.ownerUserId),
+]));

@@ -36,17 +36,32 @@ import {
   ROLE_LABELS,
   type ProposalBase,
   type ProposalSessionRow,
-} from "../_propose-event/shared";
+} from "./shared";
 
 type Club = { id: string; name: string; isArchived: boolean };
 
-type ClubMember = { id: string; userId: string; role: string; userName: string | null; studentId: string | null; position: string | null };
+// One entry in the Event Staff picker. Club rosters (GET
+// /api/admin/clubs/[id]/members) and major rosters (GET
+// /api/admin/majors/[code]/members) return different shapes; both are mapped
+// to this one when loaded.
+type StaffCandidate = { userId: string; name: string | null; studentId: string | null; role: string | null; position: string | null };
+type ClubMemberRow = { userId: string; role: string; userName: string | null; studentId: string | null; position: string | null };
+type MajorMemberRow = { id: string; name: string | null; studentId: string | null; position: string | null };
 
+// Club proposals carry clubId/allowedClubs/club; major proposals carry majorCode.
 type Proposal = ProposalBase & {
-  clubId: string;
-  allowedClubs: string[] | null;
-  club: { id: string; name: string };
+  clubId?: string;
+  allowedClubs?: string[] | null;
+  club?: { id: string; name: string };
+  majorCode?: string | null;
 };
+
+// Which president is proposing. A club_president picks among the clubs they
+// preside over; a major_president represents exactly one major (their own
+// users.major), fixed for the whole component.
+export type ProposeEventScope =
+  | { kind: "club"; clubs: Club[] }
+  | { kind: "major"; major: string };
 
 const EMPTY_FORM = {
   ...EMPTY_FORM_BASE,
@@ -55,12 +70,13 @@ const EMPTY_FORM = {
 };
 
 
-// club_president-only section on the clubs page: submit a request for an
-// event. All requested fields (title/time/audience/poster/staff/etc.) are
+// club_president / major_president section (on /admin/clubs and
+// /admin/majors): submit a request for an event. All requested fields (title/time/audience/poster/staff/etc.) are
 // non-binding suggestions — staff still decides pointsAwarded/allowedRoles/
 // allowedMajors/managedByRoles/ownerClubIds explicitly when creating the real
 // event from an approved proposal (see POST /api/admin/events' proposalId
-// linkage). Own-club-scoped end to end: the clubs prop is already the clubs
+// linkage). Own-scope end to end (described here for clubs; majors use
+// GET /api/admin/majors/[code]/members and users.major instead): the clubs prop is already the clubs
 // THIS president presides over (from the page's own scoped GET
 // /api/admin/clubs), the proposals list/withdraw APIs independently
 // re-verify ownership server-side, and the suggested Event Staff picker below
@@ -189,9 +205,13 @@ function ClubDropdown({
 // dot + matching card border) without relying on reading the club name text.
 const CLUB_ACCENT_COLORS = ["var(--indigo-500)", "var(--green-500)", "var(--amber-500)", "var(--pink-500)", "var(--cyan-500)", "var(--violet-500)", "var(--red-500)", "var(--teal-500)"];
 
-export function ProposeEventSection({ clubs }: { clubs: Club[] }) {
+export function ProposeEventSection({ scope }: { scope: ProposeEventScope }) {
   const { t, lang } = useLanguage();
-  const activeClubs = clubs.filter((c) => !c.isArchived);
+  const isClub = scope.kind === "club";
+  const posterInputId = isClub ? "proposal-poster-upload" : "major-proposal-poster-upload";
+  // The major_president's own major; null in club mode.
+  const ownMajor = scope.kind === "major" ? scope.major : null;
+  const activeClubs = scope.kind === "club" ? scope.clubs.filter((c) => !c.isArchived) : [];
   const clubColor = (clubId: string) => {
     const idx = activeClubs.findIndex((c) => c.id === clubId);
     return CLUB_ACCENT_COLORS[(idx < 0 ? 0 : idx) % CLUB_ACCENT_COLORS.length];
@@ -224,11 +244,11 @@ export function ProposeEventSection({ clubs }: { clubs: Club[] }) {
   const set = <K extends keyof typeof EMPTY_FORM>(key: K, val: typeof EMPTY_FORM[K]) => setForm((f) => ({ ...f, [key]: val }));
 
   const load = () => {
-    // ?type=club: this page only ever renders club-owned proposals (each card
-    // assumes a non-null `club` relation) — a president who also holds
-    // major_president would otherwise get major-owned rows mixed in here too,
-    // since the unfiltered endpoint returns everything the viewer can see.
-    fetch("/api/admin/event-proposals?type=club")
+    // ?type=club / ?type=major: each page only renders its own kind of
+    // proposal — a president who holds both club_president and
+    // major_president would otherwise get the other kind mixed in, since the
+    // unfiltered endpoint returns everything the viewer can see.
+    fetch(`/api/admin/event-proposals?type=${scope.kind}`)
       .then((r) => (r.ok ? r.json() : []))
       .then((d) => { if (Array.isArray(d)) setProposals(d); })
       .catch(() => {})
@@ -268,7 +288,7 @@ export function ProposeEventSection({ clubs }: { clubs: Club[] }) {
   const openEditResubmit = (p: Proposal) => {
     setEditingProposalId(p.id);
     setForm({
-      clubId: p.clubId,
+      clubId: p.clubId ?? "",
       title: p.title,
       description: p.description ?? "",
       startTime: toDatetimeLocal(p.startTime),
@@ -373,25 +393,33 @@ export function ProposeEventSection({ clubs }: { clubs: Club[] }) {
     });
   };
 
-  // ---- Event Staff picker: THIS club's own roster only (never the global
-  // student directory — see the component-level comment above). Reloads
-  // whenever the selected club changes. ----
-  const [clubMembers, setClubMembers] = useState<ClubMember[]>([]);
+  // ---- Event Staff picker: THIS club's own roster, or students in THIS
+  // president's own major (never the global student directory — see the
+  // component-level comment above). Reloads whenever the selected club
+  // changes. ----
+  const [staffCandidates, setStaffCandidates] = useState<StaffCandidate[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [staffSearch, setStaffSearch] = useState("");
 
   useEffect(() => {
-    if (!showForm || !form.clubId) return;
+    if (!showForm) return;
+    if (isClub && !form.clubId) return;
     const timer = setTimeout(() => {
       setLoadingMembers(true);
-      fetch(`/api/admin/clubs/${form.clubId}/members`)
+      const url = isClub ? `/api/admin/clubs/${form.clubId}/members` : `/api/admin/majors/${ownMajor}/members`;
+      fetch(url)
         .then((r) => (r.ok ? r.json() : []))
-        .then((d) => { if (Array.isArray(d)) setClubMembers(d); })
+        .then((d) => {
+          if (!Array.isArray(d)) return;
+          setStaffCandidates(isClub
+            ? (d as ClubMemberRow[]).map((m) => ({ userId: m.userId, name: m.userName, studentId: m.studentId, role: m.role, position: m.position }))
+            : (d as MajorMemberRow[]).map((m) => ({ userId: m.id, name: m.name, studentId: m.studentId, role: null, position: m.position })));
+        })
         .catch(() => {})
         .finally(() => setLoadingMembers(false));
     }, 0);
     return () => clearTimeout(timer);
-  }, [showForm, form.clubId]);
+  }, [showForm, form.clubId, isClub, ownMajor]);
 
   // ---- Rich text description toolbar (bold / link / color) — mirrors the
   // staff create-event description editor byte-for-byte so proposal text
@@ -529,8 +557,8 @@ export function ProposeEventSection({ clubs }: { clubs: Club[] }) {
   };
 
   const submit = async () => {
-    if (!form.clubId || !form.title.trim() || !form.startTime || !form.endTime) {
-      setFormError("Club, title, start time, and end time are required.");
+    if ((isClub && !form.clubId) || !form.title.trim() || !form.startTime || !form.endTime) {
+      setFormError(isClub ? "Club, title, start time, and end time are required." : "Title, start time, and end time are required.");
       return;
     }
     // Only block when the president has opted into a per-day schedule
@@ -554,7 +582,7 @@ export function ProposeEventSection({ clubs }: { clubs: Club[] }) {
           method: isResubmit ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            ...(isResubmit ? { action: "resubmit" } : { clubId: form.clubId }),
+            ...(isResubmit ? { action: "resubmit" } : isClub ? { clubId: form.clubId } : { majorCode: ownMajor }),
             title: form.title.trim(),
           description: form.description.trim() || undefined,
           startTime: new Date(form.startTime).toISOString(),
@@ -576,7 +604,7 @@ export function ProposeEventSection({ clubs }: { clubs: Club[] }) {
           staffUserIds: form.staffUserIds.length > 0 ? form.staffUserIds : undefined,
           allowedRoles: form.allowedRoles.length > 0 ? form.allowedRoles : undefined,
           allowedMajors: form.allowedMajors.length > 0 ? form.allowedMajors : undefined,
-          allowedClubs: form.allowedClubs.length > 0 ? form.allowedClubs : undefined,
+          allowedClubs: isClub && form.allowedClubs.length > 0 ? form.allowedClubs : undefined,
           // Only sent when genuinely multi-day (2+ rows) — sessions now holds
           // EVERY day including day 1 (mirrors admin/events/page.tsx), so a
           // plain single-day proposal sends no sessions at all.
@@ -665,9 +693,9 @@ export function ProposeEventSection({ clubs }: { clubs: Club[] }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
         <h2 style={{ fontSize: 18, fontWeight: 800, display: "flex", alignItems: "center", gap: 8 }}>
           <CalendarPlus size={20} style={{ color: "var(--accent-primary)" }} />
-          {t.adminProposalsClubTitle}
+          {isClub ? t.adminProposalsClubTitle : t.adminProposalsMajorTitle}
         </h2>
-        {activeClubs.length > 0 && (
+        {(!isClub || activeClubs.length > 0) && (
           <button className="btn btn-primary btn-sm" onClick={openForm}>
             {t.adminProposalsSectionTitle}
           </button>
@@ -706,7 +734,7 @@ export function ProposeEventSection({ clubs }: { clubs: Club[] }) {
                   <div>
                     <p style={{ fontWeight: 700, fontSize: 14 }}>{p.title}</p>
                     <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
-                      {p.club.name} · {new Date(p.startTime).toLocaleString()}
+                      {p.club ? `${p.club.name} · ` : ""}{new Date(p.startTime).toLocaleString()}
                     </p>
                     <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
                       {t.adminProposalsRequestedByLabel} {p.proposer.name}{p.proposer.studentId ? ` (${p.proposer.studentId})` : ""}
@@ -891,6 +919,15 @@ export function ProposeEventSection({ clubs }: { clubs: Club[] }) {
                       placeholder={t.adminProposalsClubLabel}
                     />
                   )}
+                </div>
+              )}
+              {ownMajor && (
+                <div className="field">
+                  <label className="label" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <GraduationCap size={16} style={{ color: "var(--accent-primary)" }} />
+                    {lang === "th" ? "สาขาวิชา" : "Major"}
+                  </label>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{ownMajor}</p>
                 </div>
               )}
               <div className="field">
@@ -1268,7 +1305,8 @@ export function ProposeEventSection({ clubs }: { clubs: Club[] }) {
               )}
 
               {/* Event Staff — suggested helpers, drawn only from THIS club's
-                  own roster (see GET /api/admin/clubs/[id]/members). Staff can
+                  own roster (GET /api/admin/clubs/[id]/members) or THIS
+                  president's own major (GET /api/admin/majors/[code]/members). Staff can
                   freely add/remove people when creating the real event. */}
               <div className="field">
                 <label className="label" style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1277,16 +1315,16 @@ export function ProposeEventSection({ clubs }: { clubs: Club[] }) {
                 </label>
                 <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 10, fontWeight: 600 }}>
                   {lang === "th"
-                    ? "เลือกสมาชิกชมรมที่จะช่วยดูแลกิจกรรมนี้ (เป็นเพียงข้อเสนอแนะ ทีมงานฝ่ายจัดกิจกรรมสามารถปรับเปลี่ยนได้)"
-                    : "Suggest club members to help staff this event. This is only a suggestion — staff can adjust it when creating the real event."}
+                    ? (isClub ? "เลือกสมาชิกชมรมที่จะช่วยดูแลกิจกรรมนี้ (เป็นเพียงข้อเสนอแนะ ทีมงานฝ่ายจัดกิจกรรมสามารถปรับเปลี่ยนได้)" : "เลือกนักศึกษาในสาขาที่จะช่วยดูแลกิจกรรมนี้ (เป็นเพียงข้อเสนอแนะ ทีมงานฝ่ายจัดกิจกรรมสามารถปรับเปลี่ยนได้)")
+                    : (isClub ? "Suggest club members to help staff this event. This is only a suggestion — staff can adjust it when creating the real event." : "Suggest students in your major to help staff this event. This is only a suggestion — staff can adjust it when creating the real event.")}
                 </p>
                 {form.staffUserIds.length > 0 && (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
                     {form.staffUserIds.map((uid) => {
-                      const u = clubMembers.find((x) => x.userId === uid);
+                      const u = staffCandidates.find((x) => x.userId === uid);
                       return (
                         <span key={uid} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 99, fontSize: 12, fontWeight: 800, background: "rgb(var(--indigo-500-rgb) / 0.1)", color: "var(--indigo-500)", border: "1px solid rgb(var(--indigo-500-rgb) / 0.25)" }}>
-                          {u ? (u.userName || u.studentId || uid) : uid}
+                          {u ? (u.name || u.studentId || uid) : uid}
                           <button type="button" onClick={() => set("staffUserIds", form.staffUserIds.filter((x) => x !== uid))} style={{ background: "none", border: "none", color: "var(--indigo-500)", cursor: "pointer", fontWeight: 900, fontSize: 13, lineHeight: 1 }}>✕</button>
                         </span>
                       );
@@ -1297,35 +1335,35 @@ export function ProposeEventSection({ clubs }: { clubs: Club[] }) {
                   type="text"
                   className="input"
                   style={{ width: "100%", height: 42, borderRadius: 12, padding: "0 14px" }}
-                  placeholder={lang === "th" ? "ค้นหาด้วยชื่อหรือรหัสนักศึกษา…" : "Search club members by name or student ID…"}
+                  placeholder={lang === "th" ? "ค้นหาด้วยชื่อหรือรหัสนักศึกษา…" : (isClub ? "Search club members by name or student ID…" : "Search students in your major by name or student ID…")}
                   value={staffSearch}
                   onChange={(e) => setStaffSearch(e.target.value)}
                 />
                 {staffSearch.trim().length > 0 && (
                   <div style={{ marginTop: 8, maxHeight: 180, overflowY: "auto", border: "1px solid var(--border-subtle)", borderRadius: 12, background: "var(--bg-surface)" }}>
-                    {clubMembers
+                    {staffCandidates
                       .filter((u) => {
                         const q = staffSearch.trim().toLowerCase();
-                        return (u.userName || "").toLowerCase().includes(q) || (u.studentId || "").toLowerCase().includes(q);
+                        return (u.name || "").toLowerCase().includes(q) || (u.studentId || "").toLowerCase().includes(q);
                       })
                       .slice(0, 30)
                       .map((u) => {
                         const on = form.staffUserIds.includes(u.userId);
                         return (
                           <button
-                            key={u.id}
+                            key={u.userId}
                             type="button"
                             onClick={() => set("staffUserIds", on ? form.staffUserIds.filter((x) => x !== u.userId) : [...form.staffUserIds, u.userId])}
                             style={{ display: "flex", width: "100%", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 14px", border: "none", borderBottom: "1px solid var(--border-subtle)", background: on ? "rgb(var(--indigo-500-rgb) / 0.06)" : "transparent", cursor: "pointer", textAlign: "left", fontSize: 13 }}
                           >
-                            <span style={{ fontWeight: 700 }}>{u.userName || "—"} <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>· {u.studentId || u.role}{u.position ? ` · ${t[POSITION_I18N_KEY[u.position as keyof typeof POSITION_I18N_KEY] as keyof typeof t]}` : ""}</span></span>
+                            <span style={{ fontWeight: 700 }}>{u.name || "—"} <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>· {u.studentId || u.role || ""}{u.position ? ` · ${t[POSITION_I18N_KEY[u.position as keyof typeof POSITION_I18N_KEY] as keyof typeof t]}` : ""}</span></span>
                             <span style={{ fontSize: 12, fontWeight: 900, color: on ? "var(--indigo-500)" : "var(--accent-primary)" }}>{on ? "✓ Added" : "+ Add"}</span>
                           </button>
                         );
                       })}
-                    {clubMembers.length === 0 && (
+                    {staffCandidates.length === 0 && (
                       <p style={{ padding: 14, fontSize: 12, color: "var(--text-muted)" }}>
-                        {loadingMembers ? (lang === "th" ? "กำลังโหลดรายชื่อ…" : "Loading members…") : (lang === "th" ? "ไม่พบสมาชิกชมรม" : "No club members found.")}
+                        {loadingMembers ? (lang === "th" ? "กำลังโหลดรายชื่อ…" : "Loading members…") : (isClub ? (lang === "th" ? "ไม่พบสมาชิกชมรม" : "No club members found.") : (lang === "th" ? "ไม่พบนักศึกษาในสาขานี้" : "No students found in this major."))}
                       </p>
                     )}
                   </div>
@@ -1345,7 +1383,7 @@ export function ProposeEventSection({ clubs }: { clubs: Club[] }) {
                   always a safe default. */}
               <div className="field">
                 <label className="label" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <ShieldCheck size={16} style={{ color: "var(--indigo-500)" }} />
+                  {isClub ? <ShieldCheck size={16} style={{ color: "var(--indigo-500)" }} /> : <Users size={16} style={{ color: "var(--indigo-500)" }} />}
                   {lang === "th" ? "สิทธิ์การเข้าร่วมที่แนะนำ" : lang === "cn" ? "建议的访问权限" : lang === "mm" ? "အကြံပြု ဝင်ရောက်ခွင့်" : "Suggested Access"}
                 </label>
                 <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12, fontWeight: 600 }}>
@@ -1387,7 +1425,7 @@ export function ProposeEventSection({ clubs }: { clubs: Club[] }) {
                 <p style={{ fontSize: 12, fontWeight: 800, color: "var(--text-secondary)", marginBottom: 8 }}>
                   {lang === "th" ? "ตามสาขา" : lang === "cn" ? "按专业" : lang === "mm" ? "အထူးပြုဌာနအလိုက်" : "By major"}
                 </p>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: isClub ? 16 : 0 }}>
                   {ALL_MAJORS.map((major) => {
                     const isSelected = form.allowedMajors.includes(major);
                     return (
@@ -1410,6 +1448,7 @@ export function ProposeEventSection({ clubs }: { clubs: Club[] }) {
                   })}
                 </div>
 
+                {isClub && (<>
                 <p style={{ fontSize: 12, fontWeight: 800, color: "var(--text-secondary)", marginBottom: 8 }}>
                   {lang === "th" ? "ตามชมรม" : lang === "cn" ? "按社团" : lang === "mm" ? "ကလပ်အလိုက်" : "By club"}
                 </p>
@@ -1439,6 +1478,7 @@ export function ProposeEventSection({ clubs }: { clubs: Club[] }) {
                     );
                   })}
                 </div>
+                </>)}
               </div>
 
               {/* Event Poster */}
@@ -1482,7 +1522,7 @@ export function ProposeEventSection({ clubs }: { clubs: Club[] }) {
                   position: "relative", height: form.imageUrls.length > 0 ? 110 : 160, background: "var(--bg-elevated)", borderRadius: 20,
                   border: "2px dashed var(--border-medium)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                   overflow: "hidden", cursor: posterUploading > 0 ? "wait" : "pointer", transition: "all 0.2s",
-                }} onClick={() => { if (posterUploading === 0) document.getElementById("proposal-poster-upload")?.click(); }}>
+                }} onClick={() => { if (posterUploading === 0) document.getElementById(posterInputId)?.click(); }}>
                   {posterUploading > 0 ? (
                     <div style={{ textAlign: "center", padding: 20, display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
                       <RefreshCw size={24} className="animate-spin" style={{ color: "var(--accent-primary)" }} />
@@ -1507,7 +1547,7 @@ export function ProposeEventSection({ clubs }: { clubs: Club[] }) {
                   )}
                   <input
                     type="file"
-                    id="proposal-poster-upload"
+                    id={posterInputId}
                     accept="image/*"
                     multiple
                     style={{ display: "none" }}
@@ -1578,7 +1618,7 @@ export function ProposeEventSection({ clubs }: { clubs: Club[] }) {
             <div style={{ padding: "24px 32px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexShrink: 0 }}>
               <div>
                 <h3 style={{ fontSize: "clamp(18px, 3.5vw, 22px)", fontWeight: 900 }}>{viewingProposal.title}</h3>
-                <p style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600, marginTop: 4 }}>{viewingProposal.club.name}</p>
+                <p style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600, marginTop: 4 }}>{viewingProposal.club?.name ?? viewingProposal.majorCode}</p>
                 <p style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600, marginTop: 2 }}>
                   {t.adminProposalsRequestedByLabel} {viewingProposal.proposer.name}{viewingProposal.proposer.studentId ? ` (${viewingProposal.proposer.studentId})` : ""}
                 </p>

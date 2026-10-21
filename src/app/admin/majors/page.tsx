@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { effectiveRoles } from "@/lib/access/admin-access";
-import { MajorProposeEventSection } from "./MajorProposeEventSection";
+import { ProposeEventSection } from "../_propose-event/ProposeEventSection";
 import { MajorTeamSection } from "./MajorTeamSection";
 import { EventFeedbackFormsShortcut } from "@/components/admin/EventFeedbackFormsShortcut";
 import { GraduationCap } from "lucide-react";
@@ -60,7 +60,7 @@ export default function MajorsPage() {
         <>
           <EventFeedbackFormsShortcut scope="major" />
           <MajorTeamSection major={major} />
-          <MajorProposeEventSection major={major} />
+          <ProposeEventSection scope={{ kind: "major", major }} />
         </>
       ) : (
         <div

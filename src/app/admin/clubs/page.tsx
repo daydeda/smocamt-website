@@ -6,7 +6,7 @@ import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { effectiveRoles } from "@/lib/access/admin-access";
 import { NON_SMO_POSITION_IDS, POSITION_I18N_KEY } from "@/lib/access/positions";
 import { canonicalHouseName } from "@/lib/profile/faculties";
-import { ProposeEventSection } from "./ProposeEventSection";
+import { ProposeEventSection } from "../_propose-event/ProposeEventSection";
 import { EventFeedbackFormsShortcut } from "@/components/admin/EventFeedbackFormsShortcut";
 import {
   Building2, Plus, Pencil, Archive, ArchiveRestore, X, Users, Eye,
@@ -480,7 +480,7 @@ export default function ClubsPage() {
         )}
 
         {isClubPresident && <EventFeedbackFormsShortcut clubs={clubs} scope="club" />}
-        {isClubPresident && <ProposeEventSection clubs={clubs} />}
+        {isClubPresident && <ProposeEventSection scope={{ kind: "club", clubs }} />}
 
         {listError && (
           <div

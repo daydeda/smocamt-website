@@ -1,7 +1,6 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { calendarEntries } from "@/db/schema";
-import { AuditService, getClientIp } from "@/modules/audit/audit.service";
+import { getClientIp } from "@/modules/audit/audit.service";
+import { CalendarService } from "@/modules/calendar/calendar.service";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
@@ -53,35 +52,7 @@ export async function POST(req: Request) {
     const data = entrySchema.parse(await req.json().catch(() => null));
     const ip = getClientIp(req);
 
-    const entry = await db.transaction(async (tx) => {
-      const [created] = await tx
-        .insert(calendarEntries)
-        .values({
-          title: data.title,
-          description: data.description ?? null,
-          location: data.location ?? null,
-          startTime: new Date(data.startTime),
-          endTime: new Date(data.endTime),
-          allDay: data.allDay ?? false,
-          eventId: data.eventId ?? null,
-          allowedRoles: data.allowedRoles && data.allowedRoles.length > 0 ? data.allowedRoles : null,
-          allowedMajors: data.allowedMajors && data.allowedMajors.length > 0 ? data.allowedMajors : null,
-          targetThai: data.targetThai ?? true,
-          targetInternational: data.targetInternational ?? true,
-          recurrence: data.recurrence ?? "none",
-          recurrenceUntil: data.recurrenceUntil ? new Date(data.recurrenceUntil) : null,
-          createdBy: session.user!.id!,
-        })
-        .returning();
-
-      await AuditService.logActionInternal(tx, {
-        actorId: session.user!.id!,
-        action: `Created Calendar Entry: ${created.title}`,
-        ipAddress: ip,
-      });
-
-      return created;
-    });
+    const entry = await CalendarService.createEntry(data, session.user!.id!, ip);
 
     return NextResponse.json({ success: true, entry }, { status: 201 });
   } catch (error) {

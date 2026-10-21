@@ -139,4 +139,12 @@ export class UsersService {
     const [{ count: countVal }] = await db.select({ count: count() }).from(users);
     return countVal;
   }
+
+  /** A user's major only (calendar visibility filtering). */
+  static async getMajorById(userId: string) {
+    return db.query.users.findFirst({
+      where: eq(users.id, userId),
+      columns: { major: true },
+    });
+  }
 }

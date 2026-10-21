@@ -1,8 +1,6 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { calendarEntries } from "@/db/schema";
-import { AuditService, getClientIp } from "@/modules/audit/audit.service";
-import { eq } from "drizzle-orm";
+import { getClientIp } from "@/modules/audit/audit.service";
+import { CalendarService } from "@/modules/calendar/calendar.service";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
@@ -60,46 +58,9 @@ export async function PUT(
     const data = entryUpdateSchema.parse(await req.json().catch(() => null));
     const ip = getClientIp(req);
 
-    let updated: typeof calendarEntries.$inferSelect;
+    let updated: Awaited<ReturnType<typeof CalendarService.updateEntry>>;
     try {
-      updated = await db.transaction(async (tx) => {
-        const [row] = await tx
-          .update(calendarEntries)
-          .set({
-            ...(data.title && { title: data.title }),
-            ...(data.description !== undefined && { description: data.description }),
-            ...(data.location !== undefined && { location: data.location }),
-            ...(data.startTime && { startTime: new Date(data.startTime) }),
-            ...(data.endTime && { endTime: new Date(data.endTime) }),
-            ...(data.allDay !== undefined && { allDay: data.allDay }),
-            ...(data.eventId !== undefined && { eventId: data.eventId }),
-            ...(data.allowedRoles !== undefined && {
-              allowedRoles: data.allowedRoles && data.allowedRoles.length > 0 ? data.allowedRoles : null,
-            }),
-            ...(data.allowedMajors !== undefined && {
-              allowedMajors: data.allowedMajors && data.allowedMajors.length > 0 ? data.allowedMajors : null,
-            }),
-            ...(data.targetThai !== undefined && { targetThai: data.targetThai }),
-            ...(data.targetInternational !== undefined && { targetInternational: data.targetInternational }),
-            ...(data.recurrence !== undefined && { recurrence: data.recurrence }),
-            ...(data.recurrenceUntil !== undefined && {
-              recurrenceUntil: data.recurrenceUntil ? new Date(data.recurrenceUntil) : null,
-            }),
-            updatedAt: new Date(),
-          })
-          .where(eq(calendarEntries.id, id))
-          .returning();
-
-        if (!row) throw new Error("ENTRY_NOT_FOUND");
-
-        await AuditService.logActionInternal(tx, {
-          actorId: session.user!.id!,
-          action: `Updated Calendar Entry: ${row.title}`,
-          ipAddress: ip,
-        });
-
-        return row;
-      });
+      updated = await CalendarService.updateEntry(id, data, session.user!.id!, ip);
     } catch (e) {
       if (e instanceof Error && e.message === "ENTRY_NOT_FOUND") {
         return NextResponse.json({ error: "Calendar entry not found" }, { status: 404 });
@@ -137,20 +98,7 @@ export async function DELETE(
     const ip = getClientIp(req);
 
     try {
-      await db.transaction(async (tx) => {
-        const [deleted] = await tx
-          .delete(calendarEntries)
-          .where(eq(calendarEntries.id, id))
-          .returning({ id: calendarEntries.id, title: calendarEntries.title });
-
-        if (!deleted) throw new Error("ENTRY_NOT_FOUND");
-
-        await AuditService.logActionInternal(tx, {
-          actorId: session.user!.id!,
-          action: `Deleted Calendar Entry: ${deleted.title}`,
-          ipAddress: ip,
-        });
-      });
+      await CalendarService.deleteEntry(id, session.user!.id!, ip);
     } catch (e) {
       if (e instanceof Error && e.message === "ENTRY_NOT_FOUND") {
         return NextResponse.json({ error: "Calendar entry not found" }, { status: 404 });

@@ -1,9 +1,6 @@
-import { db } from "@/db";
-import { calendarFeedTokens, users } from "@/db/schema";
-import { eq } from "drizzle-orm";
 import { buildViewer } from "@/lib/access/event-access";
 import { ClubsService } from "@/modules/clubs/clubs.service";
-import { getCalendarItemsForViewer } from "@/modules/calendar/calendar.service";
+import { CalendarService, getCalendarItemsForViewer } from "@/modules/calendar/calendar.service";
 import { buildVCalendar, type CalItem } from "@/lib/calendar/ical";
 
 export const maxDuration = 20;
@@ -31,15 +28,10 @@ export async function GET(
     const { token } = await params;
     if (!token) return new Response("Not found", { status: 404 });
 
-    const tokenRow = await db.query.calendarFeedTokens.findFirst({
-      where: eq(calendarFeedTokens.token, token),
-    });
+    const tokenRow = await CalendarService.findFeedTokenRow(token);
     if (!tokenRow) return new Response("Not found", { status: 404 });
 
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, tokenRow.userId),
-      columns: { id: true, role: true, roles: true, major: true, studentId: true },
-    });
+    const user = await CalendarService.findFeedUser(tokenRow.userId);
     if (!user) return new Response("Not found", { status: 404 });
 
     const clubIds = await ClubsService.getMemberClubIds(user.id);
@@ -89,9 +81,7 @@ export async function GET(
     const ics = buildVCalendar(calItems);
 
     // Best-effort lastUsedAt bump — never fail the feed if this errors.
-    db.update(calendarFeedTokens)
-      .set({ lastUsedAt: new Date() })
-      .where(eq(calendarFeedTokens.token, token))
+    CalendarService.touchFeedTokenLastUsed(token)
       .catch(() => {});
 
     return new Response(ics, {

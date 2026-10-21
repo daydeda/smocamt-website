@@ -1,9 +1,7 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { users } from "@/db/schema";
-import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { buildViewer } from "@/lib/access/event-access";
+import { UsersService } from "@/modules/users/users.service";
 import { ClubsService } from "@/modules/clubs/clubs.service";
 import {
   getCalendarItemsForGuest,
@@ -24,10 +22,7 @@ export async function GET() {
       return NextResponse.json(await getCalendarItemsForGuest());
     }
 
-    const me = await db.query.users.findFirst({
-      where: eq(users.id, session.user.id!),
-      columns: { major: true },
-    });
+    const me = await UsersService.getMajorById(session.user.id!);
     const clubIds = await ClubsService.getMemberClubIds(session.user.id!);
     const viewer = buildViewer({
       roles: session.user.roles || [session.user.role || "student"],

@@ -1,6 +1,4 @@
-import { db } from "@/db";
-import { webrtcSignals } from "@/db/schema";
-import { sql } from "drizzle-orm";
+import { BattleService } from "@/modules/battle/battle.service";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { captureException } from "@/lib/util/logger";
@@ -37,9 +35,7 @@ export async function POST(
     const roomCode = code.toUpperCase();
     const userId = session.user.id;
 
-    const room = await db.query.gameRooms.findFirst({
-      where: (r, { eq }) => eq(r.roomCode, roomCode),
-    });
+    const room = await BattleService.findRoomByCode(roomCode);
 
     if (!room) {
       return NextResponse.json({ error: "Room not found" }, { status: 404 });
@@ -65,31 +61,8 @@ export async function POST(
       return NextResponse.json({ error: "Invalid role for this user" }, { status: 400 });
     }
 
-    // Browsers fire onicecandidate in rapid bursts, so concurrent POSTs for the
-    // same (room, role) are the common case, not the exception. A check-then-insert
-    // (SELECT existing, then INSERT if missing) races: two concurrent requests can
-    // both see "no row" and both INSERT, and the second violates the
-    // idx_webrtc_signals_room_role unique constraint. Upsert via ON CONFLICT makes
-    // the read-modify-write atomic at the DB level instead.
     if (iceCandidate !== undefined) {
-      const result = await db.insert(webrtcSignals)
-        .values({
-          roomId: room.id,
-          role,
-          iceCandidates: [iceCandidate],
-        })
-        .onConflictDoUpdate({
-          target: [webrtcSignals.roomId, webrtcSignals.role],
-          set: {
-            // Table-qualified: "excluded" (the proposed insert row) also has an
-            // ice_candidates column, so the bare name is ambiguous inside
-            // ON CONFLICT DO UPDATE and Postgres rejects the whole query.
-            iceCandidates: sql`webrtc_signals.ice_candidates || ${JSON.stringify(iceCandidate)}::jsonb`,
-            updatedAt: new Date(),
-          },
-          setWhere: sql`jsonb_typeof(webrtc_signals.ice_candidates) = 'array' AND jsonb_array_length(webrtc_signals.ice_candidates) < 30`,
-        })
-        .returning();
+      const result = await BattleService.appendIceCandidate(room.id, role, iceCandidate);
 
       if (result.length === 0) {
         return NextResponse.json({ error: "ICE candidates limit (30) reached" }, { status: 400 });
@@ -99,23 +72,7 @@ export async function POST(
         return NextResponse.json({ error: "ICE candidates limit (30) exceeded" }, { status: 400 });
       }
 
-      await db.insert(webrtcSignals)
-        .values({
-          roomId: room.id,
-          role,
-          sdpOffer: sdpOffer || null,
-          sdpAnswer: sdpAnswer || null,
-          iceCandidates: iceCandidates || [],
-        })
-        .onConflictDoUpdate({
-          target: [webrtcSignals.roomId, webrtcSignals.role],
-          set: {
-            ...(sdpOffer !== undefined ? { sdpOffer } : {}),
-            ...(sdpAnswer !== undefined ? { sdpAnswer } : {}),
-            ...(iceCandidates !== undefined ? { iceCandidates } : {}),
-            updatedAt: new Date(),
-          },
-        });
+      await BattleService.upsertSignals(room.id, role, { sdpOffer, sdpAnswer, iceCandidates });
     }
 
     return NextResponse.json({ success: true });
@@ -142,9 +99,7 @@ export async function GET(
     const roomCode = code.toUpperCase();
     const userId = session.user.id;
 
-    const room = await db.query.gameRooms.findFirst({
-      where: (r, { eq }) => eq(r.roomCode, roomCode),
-    });
+    const room = await BattleService.findRoomByCode(roomCode);
 
     if (!room) {
       return NextResponse.json({ error: "Room not found" }, { status: 404 });
@@ -157,9 +112,7 @@ export async function GET(
     const myRole = room.hostId === userId ? "host" : "guest";
     const opponentRole = myRole === "host" ? "guest" : "host";
 
-    const opponentSignal = await db.query.webrtcSignals.findFirst({
-      where: (s, { eq, and }) => and(eq(s.roomId, room.id), eq(s.role, opponentRole)),
-    });
+    const opponentSignal = await BattleService.getOpponentSignal(room.id, opponentRole);
 
     return NextResponse.json({
       role: opponentRole,

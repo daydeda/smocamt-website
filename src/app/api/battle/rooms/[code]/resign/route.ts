@@ -1,7 +1,6 @@
-import { db } from "@/db";
+import { BattleService } from "@/modules/battle/battle.service";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { finalizeGameInDb } from "@/lib/games/stats-helper";
 import { getClientIp, AuditService } from "@/modules/audit/audit.service";
 import { captureException } from "@/lib/util/logger";
 
@@ -21,9 +20,7 @@ export async function POST(
     const roomCode = code.toUpperCase();
     const userId = session.user.id;
 
-    const room = await db.query.gameRooms.findFirst({
-      where: (r, { eq }) => eq(r.roomCode, roomCode),
-    });
+    const room = await BattleService.findRoomByCode(roomCode);
 
     if (!room) {
       return NextResponse.json({ error: "Room not found" }, { status: 404 });
@@ -43,9 +40,7 @@ export async function POST(
       return NextResponse.json({ error: "Cannot resign against non-existent player" }, { status: 400 });
     }
 
-    await db.transaction(async (tx) => {
-      await finalizeGameInDb(tx, room, winnerId, "resign");
-    });
+    await BattleService.finalizeGame(room, winnerId, "resign");
 
     const ip = getClientIp(req);
     await AuditService.logAction({
@@ -55,17 +50,7 @@ export async function POST(
     });
 
     // Return final state
-    const freshRoom = await db.query.gameRooms.findFirst({
-      where: (r, { eq }) => eq(r.id, room.id),
-      with: {
-        host: {
-          columns: { id: true, name: true, nickname: true, houseId: true }
-        },
-        guest: {
-          columns: { id: true, name: true, nickname: true, houseId: true }
-        }
-      }
-    });
+    const freshRoom = await BattleService.findRoomByIdWithPlayers(room.id);
 
     return NextResponse.json({
       roomId: freshRoom?.id,

@@ -1,6 +1,4 @@
-import { db } from "@/db";
-import { gameRooms } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { BattleService } from "@/modules/battle/battle.service";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { captureException } from "@/lib/util/logger";
@@ -33,26 +31,19 @@ export async function POST(
     }
 
     // Verify guest user exists in database (handles stale session cookies after database resets)
-    const guestExists = await db.query.users.findFirst({
-      where: (u, { eq }) => eq(u.id, guestId),
-      columns: { id: true }
-    });
+    const guestExists = await BattleService.userExists(guestId);
     if (!guestExists) {
       return NextResponse.json({ error: "User not found in database. Please log out and sign in again." }, { status: 401 });
     }
 
-    const room = await db.query.gameRooms.findFirst({
-      where: (r, { eq }) => eq(r.roomCode, roomCode),
-    });
+    const room = await BattleService.findRoomByCode(roomCode);
 
     if (!room) {
       return NextResponse.json({ error: "Room not found" }, { status: 404 });
     }
 
     if (room.status === "waiting" && room.expiresAt < new Date()) {
-      await db.update(gameRooms)
-        .set({ status: "expired" })
-        .where(eq(gameRooms.id, room.id));
+      await BattleService.markRoomExpired(room.id);
       return NextResponse.json({ error: "Room has expired" }, { status: 400 });
     }
 
@@ -78,14 +69,7 @@ export async function POST(
 
     // Conditional on still being "waiting" so two simultaneous joiners can't
     // both win and overwrite each other's guestId.
-    const claimed = await db.update(gameRooms)
-      .set({
-        guestId,
-        status: "connecting",
-        updatedAt: new Date(),
-      })
-      .where(and(eq(gameRooms.id, room.id), eq(gameRooms.status, "waiting")))
-      .returning({ id: gameRooms.id });
+    const claimed = await BattleService.claimWaitingRoom(room.id, guestId);
 
     if (claimed.length === 0) {
       return NextResponse.json({ error: "Room is not joinable" }, { status: 409 });

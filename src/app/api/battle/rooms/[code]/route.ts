@@ -1,6 +1,4 @@
-import { db } from "@/db";
-import { gameRooms } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { BattleService } from "@/modules/battle/battle.service";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { captureException } from "@/lib/util/logger";
@@ -31,27 +29,7 @@ export async function GET(
       );
     }
 
-    const room = await db.query.gameRooms.findFirst({
-      where: (r, { eq }) => eq(r.roomCode, roomCode),
-      with: {
-        host: {
-          columns: {
-            id: true,
-            name: true,
-            nickname: true,
-            houseId: true,
-          }
-        },
-        guest: {
-          columns: {
-            id: true,
-            name: true,
-            nickname: true,
-            houseId: true,
-          }
-        }
-      }
-    });
+    const room = await BattleService.findRoomByCodeWithPlayers(roomCode);
 
     if (!room) {
       return NextResponse.json({ error: "Room not found" }, { status: 404 });
@@ -59,9 +37,7 @@ export async function GET(
 
     // Lazy evaluation for room expiration
     if (room.status === "waiting" && room.expiresAt < new Date()) {
-      await db.update(gameRooms)
-        .set({ status: "expired" })
-        .where(eq(gameRooms.id, room.id));
+      await BattleService.markRoomExpired(room.id);
       room.status = "expired";
     }
 

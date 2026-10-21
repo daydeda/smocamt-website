@@ -1,6 +1,4 @@
-import { db } from "@/db";
-import { gameStats } from "@/db/schema";
-import { desc } from "drizzle-orm";
+import { BattleService } from "@/modules/battle/battle.service";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { captureException } from "@/lib/util/logger";
@@ -21,16 +19,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Unsupported game type" }, { status: 400 });
     }
 
-    const leaderboard = await db.query.gameStats.findMany({
-      where: (gs, { eq }) => eq(gs.gameType, gameType),
-      orderBy: [desc(gameStats.wins), desc(gameStats.winStreak)],
-      limit: 20,
-      with: {
-        user: {
-          columns: { id: true, name: true, nickname: true, houseId: true, image: true }
-        }
-      }
-    });
+    const leaderboard = await BattleService.listLeaderboard(gameType);
 
     return NextResponse.json({
       leaderboard,

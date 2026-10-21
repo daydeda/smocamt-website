@@ -1,9 +1,6 @@
-import { db } from "@/db";
-import { gameRooms } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { BattleService } from "@/modules/battle/battle.service";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { finalizeGameInDb } from "@/lib/games/stats-helper";
 import { captureException } from "@/lib/util/logger";
 
 // GET /api/battle/rooms/[code]/state - Get current game/board state + lazy evaluations
@@ -26,9 +23,7 @@ export async function GET(
     // (US-PERF-21e) — the steady-state poll is then a single indexed lookup.
     const includePlayers = new URL(req.url).searchParams.get("players") === "1";
 
-    const room = await db.query.gameRooms.findFirst({
-      where: (r, { eq }) => eq(r.roomCode, roomCode),
-    });
+    const room = await BattleService.findRoomByCode(roomCode);
 
     if (!room) {
       return NextResponse.json({ error: "Room not found" }, { status: 404 });
@@ -42,9 +37,7 @@ export async function GET(
 
     // 1. Lazy evaluation of waiting room expiration
     if (room.status === "waiting" && room.expiresAt < now) {
-      await db.update(gameRooms)
-        .set({ status: "expired", updatedAt: now })
-        .where(eq(gameRooms.id, room.id));
+      await BattleService.markRoomExpired(room.id, now);
       room.status = "expired";
     }
 
@@ -53,14 +46,10 @@ export async function GET(
       const winnerId = room.currentTurn === 1 ? room.guestId : room.hostId;
 
       if (winnerId) {
-        await db.transaction(async (tx) => {
-          await finalizeGameInDb(tx, room, winnerId, "forfeit");
-        });
+        await BattleService.finalizeGame(room, winnerId, "forfeit");
 
         // Re-read from DB to get the actual finalized/current state (handles races)
-        const updatedRoom = await db.query.gameRooms.findFirst({
-          where: (r, { eq }) => eq(r.id, room.id),
-        });
+        const updatedRoom = await BattleService.findRoomById(room.id);
         if (updatedRoom) {
           Object.assign(room, updatedRoom);
         }
@@ -73,10 +62,7 @@ export async function GET(
     let guest: PlayerInfo | null = null;
     if (includePlayers) {
       const playerIds = [room.hostId, room.guestId].filter((id): id is string => Boolean(id));
-      const players = await db.query.users.findMany({
-        where: (u, { inArray }) => inArray(u.id, playerIds),
-        columns: { id: true, name: true, nickname: true, houseId: true },
-      });
+      const players = await BattleService.listPlayers(playerIds);
       host = players.find((p) => p.id === room.hostId) ?? null;
       guest = players.find((p) => p.id === room.guestId) ?? null;
     }

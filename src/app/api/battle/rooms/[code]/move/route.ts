@@ -1,10 +1,7 @@
-import { db } from "@/db";
-import { gameRooms } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { BattleService } from "@/modules/battle/battle.service";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { validateMove, applyMove, checkResult, OXState } from "@/lib/games/ox";
-import { finalizeGameInDb } from "@/lib/games/stats-helper";
 import { getClientIp, AuditService } from "@/modules/audit/audit.service";
 import { captureException } from "@/lib/util/logger";
 import { z } from "zod";
@@ -41,9 +38,7 @@ export async function POST(
 
     const { cell } = parsed.data;
 
-    const room = await db.query.gameRooms.findFirst({
-      where: (r, { eq }) => eq(r.roomCode, roomCode),
-    });
+    const room = await BattleService.findRoomByCode(roomCode);
 
     if (!room) {
       return NextResponse.json({ error: "Room not found" }, { status: 404 });
@@ -59,9 +54,7 @@ export async function POST(
     if (room.status === "active" && room.turnDeadline && room.turnDeadline < now) {
       const winnerId = room.currentTurn === 1 ? (room.guestId || null) : room.hostId;
       if (winnerId) {
-        await db.transaction(async (tx) => {
-          await finalizeGameInDb(tx, room, winnerId, "forfeit");
-        });
+        await BattleService.finalizeGame(room, winnerId, "forfeit");
       }
       return NextResponse.json({ error: "Turn timed out, game finished" }, { status: 400 });
     }
@@ -95,26 +88,7 @@ export async function POST(
       
       const reason = gameCheck.status === "win" ? "win" : "draw";
 
-      let updateSuccess = false;
-      await db.transaction(async (tx) => {
-        // Save final state of board conditionally to prevent race condition
-        const updated = await tx.update(gameRooms)
-          .set({ gameState: nextState })
-          .where(
-            and(
-              eq(gameRooms.id, room.id),
-              eq(gameRooms.status, "active"),
-              eq(gameRooms.currentTurn, playerTurn)
-            )
-          )
-          .returning();
-
-        if (updated.length > 0) {
-          updateSuccess = true;
-          // Finalize match and update stats
-          await finalizeGameInDb(tx, room, winnerId, reason);
-        }
-      });
+      const updateSuccess = await BattleService.applyFinalMove(room, nextState, playerTurn, winnerId, reason);
 
       if (!updateSuccess) {
         return NextResponse.json({ error: "Conflict: turn has already changed or game is not active" }, { status: 409 });
@@ -145,21 +119,7 @@ export async function POST(
       const nextTurn = room.currentTurn === 1 ? 2 : 1;
       const turnDeadline = new Date(Date.now() + 60 * 1000); // 60s
 
-      const updated = await db.update(gameRooms)
-        .set({
-          gameState: nextState,
-          currentTurn: nextTurn,
-          turnDeadline,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(gameRooms.id, room.id),
-            eq(gameRooms.status, "active"),
-            eq(gameRooms.currentTurn, playerTurn)
-          )
-        )
-        .returning();
+      const updated = await BattleService.applyOngoingMove(room.id, playerTurn, nextState, nextTurn, turnDeadline);
 
       if (updated.length === 0) {
         return NextResponse.json({ error: "Conflict: turn has already changed or game is not active" }, { status: 409 });

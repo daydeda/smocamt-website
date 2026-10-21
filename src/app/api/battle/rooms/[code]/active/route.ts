@@ -1,6 +1,4 @@
-import { db } from "@/db";
-import { gameRooms } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { BattleService } from "@/modules/battle/battle.service";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { captureException } from "@/lib/util/logger";
@@ -21,9 +19,7 @@ export async function POST(
     const roomCode = code.toUpperCase();
     const userId = session.user.id;
 
-    const room = await db.query.gameRooms.findFirst({
-      where: (r, { eq }) => eq(r.roomCode, roomCode),
-    });
+    const room = await BattleService.findRoomByCode(roomCode);
 
     if (!room) {
       return NextResponse.json({ error: "Room not found" }, { status: 404 });
@@ -44,23 +40,13 @@ export async function POST(
       const turnDeadline = new Date(Date.now() + 60 * 1000); // 60s
 
       // Conditional so both peers reporting "connected" can't reset the turn timer
-      const activated = await db.update(gameRooms)
-        .set({
-          status: "active",
-          turnDeadline,
-          updatedAt: new Date(),
-        })
-        .where(and(eq(gameRooms.id, room.id), eq(gameRooms.status, "connecting")))
-        .returning({ id: gameRooms.id });
+      const activated = await BattleService.activateConnectingRoom(room.id, turnDeadline);
 
       if (activated.length > 0) {
         return NextResponse.json({ success: true, status: "active", turnDeadline });
       }
 
-      const current = await db.query.gameRooms.findFirst({
-        where: (r, { eq }) => eq(r.id, room.id),
-        columns: { status: true, turnDeadline: true },
-      });
+      const current = await BattleService.getRoomStatusAndDeadline(room.id);
       return NextResponse.json({ success: true, status: current?.status ?? room.status, turnDeadline: current?.turnDeadline ?? null });
     }
 

@@ -1,16 +1,13 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { shopOrderItems, shopOrders, shopProducts, users } from "@/db/schema";
 import { AuditService } from "@/modules/audit/audit.service";
+import { ShopAdminService } from "@/modules/shop/shop-admin.service";
 import { UsersService } from "@/modules/users/users.service";
 import { resolveShopAccess, classifyOrdersByScope, type OrderScopeInfo } from "@/lib/shop/shop-scope";
 import { isProductOwnedByScope } from "@/lib/shop/shop-auth";
 import { isItemHandedOver } from "@/lib/shop/shop-fulfillment";
-import { HandoverRefused, handOverItems, undoItemHandover } from "@/lib/shop/shop-fulfillment-server";
+import { HandoverRefused } from "@/lib/shop/shop-fulfillment-server";
 import { rateLimit, getClientIp } from "@/lib/util/rate-limit";
 import { captureException } from "@/lib/util/logger";
-import { and, desc, eq, inArray } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -42,9 +39,6 @@ const schema = z.discriminatedUnion("action", [
   }),
   z.object({ action: z.literal("undo"), itemIds: z.array(uuid).min(1).max(50) }),
 ]);
-
-const fulfillers = alias(users, "fulfillers");
-const lineHanders = alias(users, "line_handers");
 
 type Line = {
   itemId: string;
@@ -79,7 +73,7 @@ export async function POST(req: Request) {
     // entirely theirs (same rule as payment review).
     const assertLinesInScope = async (itemIds: string[]) => {
       if (access.unscoped) return;
-      const owners = await db.select({ orderId: shopOrderItems.orderId }).from(shopOrderItems).where(inArray(shopOrderItems.id, itemIds));
+      const owners = await ShopAdminService.listOrderIdsForItems(itemIds);
       const orderIds = [...new Set(owners.map((o) => o.orderId))];
       const info = await classifyOrdersByScope(orderIds, access.scope, access.sellerId);
       if (orderIds.some((oid) => !info.get(oid)?.anyOwned || !info.get(oid)?.fullyOwned)) {
@@ -89,22 +83,12 @@ export async function POST(req: Request) {
 
     if (body.action === "undo") {
       await assertLinesInScope(body.itemIds);
-      const changes = await db.transaction((tx) => undoItemHandover(tx, { itemIds: body.itemIds, actorId: access.userId, ip }));
+      const changes = await ShopAdminService.undoHandover({ itemIds: body.itemIds, actorId: access.userId, ip });
       return NextResponse.json({ success: true, changes });
     }
 
     // The product the counter chose must be one this caller manages.
-    const [product] = await db
-      .select({
-        id: shopProducts.id,
-        name: shopProducts.name,
-        sellerId: shopProducts.sellerId,
-        ownerClubIds: shopProducts.ownerClubIds,
-        ownerMajors: shopProducts.ownerMajors,
-      })
-      .from(shopProducts)
-      .where(eq(shopProducts.id, body.productId))
-      .limit(1);
+    const product = await ShopAdminService.getProductForHandover(body.productId);
     if (!product || (!access.unscoped && !isProductOwnedByScope(product, access.scope, access.sellerId))) {
       return NextResponse.json({ error: "Product not found." }, { status: 404 });
     }
@@ -120,34 +104,20 @@ export async function POST(req: Request) {
 
     if (body.action === "confirm") {
       await assertLinesInScope(body.itemIds);
-      const changes = await db.transaction((tx) => handOverItems(tx, {
+      const changes = await ShopAdminService.confirmHandoverByQr({
         itemIds: body.itemIds,
         actorId: access.userId,
-        via: "qr",
         note: body.note,
         ip,
         buyerId: buyer.id,
         productId: product.id,
-      }));
+      });
       return NextResponse.json({ success: true, buyer, changes });
     }
 
     // preview: every paid-or-pending order of this buyer, filtered to the
     // caller's scope, then its lines sorted into what the counter should do.
-    const orders = await db
-      .select({
-        id: shopOrders.id,
-        status: shopOrders.status,
-        fulfillment: shopOrders.fulfillment,
-        fulfillmentStatus: shopOrders.fulfillmentStatus,
-        createdAt: shopOrders.createdAt,
-        fulfilledAt: shopOrders.fulfilledAt,
-        fulfilledByName: fulfillers.name,
-      })
-      .from(shopOrders)
-      .leftJoin(fulfillers, eq(shopOrders.fulfilledBy, fulfillers.id))
-      .where(and(eq(shopOrders.buyerId, buyer.id), inArray(shopOrders.status, ["pending", "approved"])))
-      .orderBy(desc(shopOrders.createdAt));
+    const orders = await ShopAdminService.listBuyerOpenOrders(buyer.id);
 
     let scopeInfo: Map<string, OrderScopeInfo> | null = null;
     if (!access.unscoped) scopeInfo = await classifyOrdersByScope(orders.map((o) => o.id), access.scope, access.sellerId);
@@ -155,21 +125,7 @@ export async function POST(req: Request) {
     const orderById = new Map(visible.map((o) => [o.id, o]));
 
     const items = visible.length
-      ? await db
-          .select({
-            id: shopOrderItems.id,
-            orderId: shopOrderItems.orderId,
-            productId: shopOrderItems.productId,
-            productName: shopOrderItems.productName,
-            variantLabel: shopOrderItems.variantLabel,
-            customValues: shopOrderItems.customValues,
-            quantity: shopOrderItems.quantity,
-            handedOverAt: shopOrderItems.handedOverAt,
-            handedOverByName: lineHanders.name,
-          })
-          .from(shopOrderItems)
-          .leftJoin(lineHanders, eq(shopOrderItems.handedOverBy, lineHanders.id))
-          .where(inArray(shopOrderItems.orderId, visible.map((o) => o.id)))
+      ? await ShopAdminService.listLinesForOrders(visible.map((o) => o.id))
       : [];
 
     const toLine = (i: (typeof items)[number]): Line => {

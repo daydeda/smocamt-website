@@ -1,10 +1,8 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { shopOrderItems, shopOrders, shopProducts, shopSellers } from "@/db/schema";
 import { resolveShopAccess } from "@/lib/shop/shop-scope";
 import { filterProductsByScope } from "@/lib/shop/shop-auth";
 import { captureException } from "@/lib/util/logger";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { ShopAdminService } from "@/modules/shop/shop-admin.service";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -19,40 +17,12 @@ export async function GET() {
     const access = await resolveShopAccess(session);
     if (!access.ok) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const rows = await db
-      .select({
-        id: shopProducts.id,
-        name: shopProducts.name,
-        price: shopProducts.price,
-        imageUrl: shopProducts.imageUrl,
-        imageUrls: shopProducts.imageUrls,
-        isActive: shopProducts.isActive,
-        sellerId: shopProducts.sellerId,
-        ownerClubIds: shopProducts.ownerClubIds,
-        ownerMajors: shopProducts.ownerMajors,
-        sellerName: shopSellers.displayName,
-      })
-      .from(shopProducts)
-      .leftJoin(shopSellers, eq(shopProducts.sellerId, shopSellers.id));
+    const rows = await ShopAdminService.listProductsForFulfillmentPicker();
     const products = access.unscoped ? rows : filterProductsByScope(rows, access.scope, access.sellerId);
 
     const ids = products.map((p) => p.id);
     const waiting = ids.length
-      ? await db
-          .select({
-            productId: shopOrderItems.productId,
-            quantity: sql<number>`coalesce(sum(${shopOrderItems.quantity}), 0)::int`,
-            buyers: sql<number>`count(distinct ${shopOrders.buyerId})::int`,
-          })
-          .from(shopOrderItems)
-          .innerJoin(shopOrders, eq(shopOrderItems.orderId, shopOrders.id))
-          .where(and(
-            inArray(shopOrderItems.productId, ids),
-            eq(shopOrders.status, "approved"),
-            inArray(shopOrders.fulfillmentStatus, ["awaiting", "ready", "partial"]),
-            isNull(shopOrderItems.handedOverAt),
-          ))
-          .groupBy(shopOrderItems.productId)
+      ? await ShopAdminService.listWaitingForHandover(ids)
       : [];
     const waitingById = new Map(waiting.map((w) => [w.productId, w]));
 

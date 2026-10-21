@@ -1,14 +1,13 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { clubs, shopOrderItems, shopOrders, shopProducts, shopSellers, shopVariants } from "@/db/schema";
-import { AuditService, getClientIp } from "@/modules/audit/audit.service";
+import { getClientIp } from "@/modules/audit/audit.service";
 import { filterProductsByScope, isOwnerAssignmentWithinScope } from "@/lib/shop/shop-auth";
 import { resolveShopAccess } from "@/lib/shop/shop-scope";
 import { FACULTIES } from "@/lib/profile/faculties";
 import { productSchema } from "@/lib/shop/shop-product-schema";
 import { resolveBundleDeals } from "@/lib/shop/shop-promotions";
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { ShopAdminService } from "@/modules/shop/shop-admin.service";
+import { ShopService } from "@/modules/shop/shop.service";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -31,10 +30,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const allProducts = await db
-      .select()
-      .from(shopProducts)
-      .orderBy(asc(shopProducts.sortOrder), desc(shopProducts.createdAt));
+    const allProducts = await ShopAdminService.listAllProducts();
 
     const products = access.unscoped
       ? allProducts
@@ -42,37 +38,25 @@ export async function GET() {
 
     const sellerIds = [...new Set(products.map((p) => p.sellerId).filter((id): id is string => !!id))];
     const sellers = sellerIds.length
-      ? await db
-          .select({ id: shopSellers.id, displayName: shopSellers.displayName })
-          .from(shopSellers)
-          .where(inArray(shopSellers.id, sellerIds))
+      ? await ShopAdminService.listSellerNames(sellerIds)
       : [];
     const sellerNameById = new Map(sellers.map((seller) => [seller.id, seller.displayName]));
 
     const productIds = products.map((p) => p.id);
     const variants = productIds.length
-      ? await db.select().from(shopVariants).where(inArray(shopVariants.productId, productIds)).orderBy(asc(shopVariants.sortOrder))
+      ? await ShopService.listVariantsForProducts(productIds)
       : [];
 
     const variantIds = variants.map((v) => v.id);
     const soldRows = variantIds.length
-      ? await db
-          .select({ variantId: shopOrderItems.variantId, sold: sql<number>`coalesce(sum(${shopOrderItems.quantity}), 0)` })
-          .from(shopOrderItems)
-          .innerJoin(shopOrders, eq(shopOrderItems.orderId, shopOrders.id))
-          .where(and(inArray(shopOrderItems.variantId, variantIds), ne(shopOrders.status, "rejected")))
-          .groupBy(shopOrderItems.variantId)
+      ? await ShopService.listSoldByVariant(variantIds)
       : [];
     const soldByVariant = new Map(soldRows.map((r) => [r.variantId, Number(r.sold)]));
 
     // Owner-picker options. A president can only ever assign their own club(s)/
     // major, so scope the list to that; an admin picks from all active clubs +
     // every major (or leaves it blank for a central product).
-    const activeClubs = await db
-      .select({ id: clubs.id, name: clubs.name })
-      .from(clubs)
-      .where(eq(clubs.isArchived, false))
-      .orderBy(asc(clubs.name));
+    const activeClubs = await ShopAdminService.listActiveClubsForOwnerPicker();
     const ownerOptions = access.unscoped
       ? { clubs: activeClubs, majors: ALL_MAJORS }
       : {
@@ -164,50 +148,14 @@ export async function POST(req: Request) {
 
     const autoApproved = access.unscoped && access.fullAdmin;
 
-    const productId = await db.transaction(async (tx) => {
-      const [product] = await tx
-        .insert(shopProducts)
-        .values({
-          name: data.name,
-          description: data.description,
-          price: data.price,
-          imageUrl: data.imageUrls[0] ?? null,
-          imageUrls: data.imageUrls,
-          maxPerOrder: data.maxPerOrder,
-          opensAt: data.opensAt,
-          closesAt: data.closesAt,
-          isActive: data.isActive,
-          allowedRoles: data.allowedRoles,
-          allowedMajors: data.allowedMajors,
-          targetThai: data.targetThai,
-          targetInternational: data.targetInternational,
-          customFields: data.customFields,
-          deliveryFee: data.deliveryFee,
-          deliveryTiers: data.deliveryTiers,
-          bundleDeals: bundle.deals,
-          sortOrder: data.sortOrder,
-          ownerClubIds: data.ownerClubIds,
-          ownerMajors: data.ownerMajors,
-          sellerId: access.unscoped ? null : access.sellerId,
-          approvalStatus: autoApproved ? "approved" : "pending",
-          approvalReason: null,
-        })
-        .returning({ id: shopProducts.id });
-
-      await tx.insert(shopVariants).values(
-        data.variants.map((v, i) => ({ id: variantIds[i], productId: product.id, label: v.label, stock: v.stock, allowCustom: v.allowCustom, priceDelta: v.priceDelta, sortOrder: i }))
-      );
-
-      const ownerNote = data.ownerClubIds.length || data.ownerMajors.length
-        ? ` (owner clubs: [${data.ownerClubIds.join(", ")}], majors: [${data.ownerMajors.join(", ")}])`
-        : " (central)";
-      await AuditService.logActionInternal(tx, {
-        actorId: access.userId,
-        action: `Created shop product "${data.name}"${ownerNote}${autoApproved ? " (approved)" : " (pending approval)"}`,
-        ipAddress: getClientIp(req),
-      });
-
-      return product.id;
+    const productId = await ShopAdminService.createProduct({
+      data,
+      variantIds,
+      bundleDeals: bundle.deals,
+      sellerId: access.unscoped ? null : access.sellerId,
+      autoApproved,
+      actorId: access.userId,
+      ipAddress: getClientIp(req),
     });
 
     return NextResponse.json({ success: true, id: productId }, { status: 201 });

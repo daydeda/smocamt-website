@@ -1,9 +1,7 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { shopOrderItems, shopOrders, shopSellers } from "@/db/schema";
 import { resolveShopAccess, classifyOrdersByScope } from "@/lib/shop/shop-scope";
 import { summarizeByProduct } from "@/lib/shop/shop-finance";
-import { eq, inArray } from "drizzle-orm";
+import { ShopAdminService } from "@/modules/shop/shop-admin.service";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -21,16 +19,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const orders = await db
-      .select({
-        id: shopOrders.id,
-        status: shopOrders.status,
-        discountAmount: shopOrders.discountAmount,
-        shippingFee: shopOrders.shippingFee,
-        sellerName: shopSellers.displayName,
-      })
-      .from(shopOrders)
-      .leftJoin(shopSellers, eq(shopOrders.sellerId, shopSellers.id));
+    const orders = await ShopAdminService.listOrdersForFinance();
 
     const scopeInfo = access.unscoped
       ? null
@@ -39,16 +28,7 @@ export async function GET() {
 
     const orderIds = visible.map((o) => o.id);
     const items = orderIds.length
-      ? await db
-          .select({
-            orderId: shopOrderItems.orderId,
-            productId: shopOrderItems.productId,
-            productName: shopOrderItems.productName,
-            unitPrice: shopOrderItems.unitPrice,
-            quantity: shopOrderItems.quantity,
-          })
-          .from(shopOrderItems)
-          .where(inArray(shopOrderItems.orderId, orderIds))
+      ? await ShopAdminService.listFinanceItemsForOrders(orderIds)
       : [];
     const itemsByOrder = new Map<string, typeof items>();
     for (const item of items) {

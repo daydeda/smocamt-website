@@ -1,9 +1,7 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { clubs } from "@/db/schema";
 import { resolveShopAccess } from "@/lib/shop/shop-scope";
 import { FACULTIES } from "@/lib/profile/faculties";
-import { asc, eq } from "drizzle-orm";
+import { ShopAdminService } from "@/modules/shop/shop-admin.service";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -23,11 +21,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const activeClubs = await db
-      .select({ id: clubs.id, name: clubs.name })
-      .from(clubs)
-      .where(eq(clubs.isArchived, false))
-      .orderBy(asc(clubs.name));
+    const activeClubs = await ShopAdminService.listActiveClubsForOwnerPicker();
 
     const ownerOptions = access.unscoped
       ? { clubs: activeClubs, majors: ALL_MAJORS }

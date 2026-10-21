@@ -1,15 +1,13 @@
 import ExcelJS from "exceljs";
 import sharp from "sharp";
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { shopOrderItems, shopOrders, shopProducts, users } from "@/db/schema";
 import { isProductOwnedByScope } from "@/lib/shop/shop-auth";
 import { classifyOrdersByScope, resolveShopAccess } from "@/lib/shop/shop-scope";
 import { downloadSlip } from "@/lib/shop/shop-storage";
 import { isVerifyUrl } from "@/lib/shop/shop-slip-verify";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { captureException } from "@/lib/util/logger";
-import { desc, eq } from "drizzle-orm";
+import { ShopAdminService } from "@/modules/shop/shop-admin.service";
 import { NextResponse } from "next/server";
 
 // GET /api/admin/shop/products/[id]/export — every order for one product as an
@@ -66,11 +64,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ error: "Invalid product id" }, { status: 400 });
     }
 
-    const [product] = await db
-      .select({ name: shopProducts.name, sellerId: shopProducts.sellerId, ownerClubIds: shopProducts.ownerClubIds, ownerMajors: shopProducts.ownerMajors })
-      .from(shopProducts)
-      .where(eq(shopProducts.id, id))
-      .limit(1);
+    const product = await ShopAdminService.getProductWithOwnership(id);
     if (!product) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
@@ -79,41 +73,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const rows = await db
-      .select({
-        orderId: shopOrders.id,
-        status: shopOrders.status,
-        createdAt: shopOrders.createdAt,
-        reviewedAt: shopOrders.reviewedAt,
-        rejectionReason: shopOrders.rejectionReason,
-        orderTotal: shopOrders.totalAmount,
-        slipPath: shopOrders.slipPath,
-        slipFlag: shopOrders.slipFlag,
-        slipQrPayload: shopOrders.slipQrPayload,
-        note: shopOrders.note,
-        fulfillment: shopOrders.fulfillment,
-        shippingFee: shopOrders.shippingFee,
-        discountAmount: shopOrders.discountAmount,
-        recipientName: shopOrders.recipientName,
-        recipientPhone: shopOrders.recipientPhone,
-        shippingAddress: shopOrders.shippingAddress,
-        variantLabel: shopOrderItems.variantLabel,
-        customValues: shopOrderItems.customValues,
-        quantity: shopOrderItems.quantity,
-        unitPrice: shopOrderItems.unitPrice,
-        buyerName: users.name,
-        nickname: users.nickname,
-        studentId: users.studentId,
-        email: users.email,
-        phone: users.phone,
-        major: users.major,
-        houseId: users.houseId,
-      })
-      .from(shopOrderItems)
-      .innerJoin(shopOrders, eq(shopOrderItems.orderId, shopOrders.id))
-      .leftJoin(users, eq(shopOrders.buyerId, users.id))
-      .where(eq(shopOrderItems.productId, id))
-      .orderBy(desc(shopOrders.createdAt));
+    const rows = await ShopAdminService.listOrderLinesForProductExport(id);
 
     // One slip per order (an order can hold several lines of this product).
     const orders = [...new Map(rows.map((r) => [r.orderId, r])).values()];

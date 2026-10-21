@@ -1,10 +1,8 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { shopOrderItems, shopProducts, shopVariants } from "@/db/schema";
-import { AuditService, getClientIp } from "@/modules/audit/audit.service";
+import { getClientIp } from "@/modules/audit/audit.service";
 import { isOwnerAssignmentWithinScope, isProductOwnedByScope, isShopAdmin, isShopFullAdmin } from "@/lib/shop/shop-auth";
 import { resolveShopAccess } from "@/lib/shop/shop-scope";
-import { and, eq, notInArray, or, sql } from "drizzle-orm";
+import { ShopAdminService } from "@/modules/shop/shop-admin.service";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { productSchema } from "@/lib/shop/shop-product-schema";
@@ -42,16 +40,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           { status: 403 },
         );
       }
-      const [current] = await db
-        .select({
-          sellerId: shopProducts.sellerId,
-          ownerClubIds: shopProducts.ownerClubIds,
-          ownerMajors: shopProducts.ownerMajors,
-          approvalStatus: shopProducts.approvalStatus,
-        })
-        .from(shopProducts)
-        .where(eq(shopProducts.id, id))
-        .limit(1);
+      const current = await ShopAdminService.getProductForEdit(id);
       if (!current || !isProductOwnedByScope(current, access.scope, access.sellerId)) {
         return NextResponse.json({ error: "Not found" }, { status: 404 });
       }
@@ -83,107 +72,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ error: bundle.error }, { status: 400 });
     }
 
-    await db.transaction(async (tx) => {
-      const [existing] = await tx.select({ id: shopProducts.id, name: shopProducts.name }).from(shopProducts).where(eq(shopProducts.id, id)).limit(1);
-      if (!existing) throw new z.ZodError([{ code: "custom", message: "Product not found", path: ["id"] }]);
-      // Snapshot current variant labels before the upsert loop below overwrites
-      // them, so a rename can be propagated to existing order lines afterward.
-      const priorVariants = await tx.select({ id: shopVariants.id, label: shopVariants.label }).from(shopVariants).where(eq(shopVariants.productId, id));
-      const priorLabelById = new Map(priorVariants.map((v) => [v.id, v.label]));
-
-      await tx
-        .update(shopProducts)
-        .set({
-          name: data.name,
-          description: data.description,
-          price: data.price,
-          imageUrl: data.imageUrls[0] ?? null,
-          imageUrls: data.imageUrls,
-          maxPerOrder: data.maxPerOrder,
-          opensAt: data.opensAt,
-          closesAt: data.closesAt,
-          isActive: data.isActive,
-          allowedRoles: data.allowedRoles,
-          allowedMajors: data.allowedMajors,
-          targetThai: data.targetThai,
-          targetInternational: data.targetInternational,
-          customFields: data.customFields,
-          deliveryFee: data.deliveryFee,
-          deliveryTiers: data.deliveryTiers,
-          bundleDeals: bundle.deals,
-          sortOrder: data.sortOrder,
-          ownerClubIds: data.ownerClubIds,
-          ownerMajors: data.ownerMajors,
-          ...(!access.unscoped ? { sellerId: scopedSellerId } : {}),
-          ...(needsReReview
-            ? { approvalStatus: "pending", approvalReason: null, reviewedBy: null, reviewedAt: null }
-            : {}),
-          updatedAt: new Date(),
-        })
-        .where(eq(shopProducts.id, id));
-
-      // Order lines snapshot productName/variantLabel at checkout so past orders
-      // read as what was actually bought — but a rename (fixing a typo, or just
-      // renaming "Pre-order" -> "Pre-order2") otherwise splits an order's history
-      // across two names in every admin list/filter/export that groups by them.
-      // Propagate a rename to EVERY existing order line for this product
-      // (regardless of status), so they stay one consistent group.
-      if (existing.name !== data.name) {
-        await tx.update(shopOrderItems).set({ productName: data.name }).where(eq(shopOrderItems.productId, id));
-      }
-
-      const keepIds = data.variants.map((v) => v.id).filter((v): v is string => Boolean(v));
-      // Delete variants the admin removed.
-      if (keepIds.length) {
-        await tx.delete(shopVariants).where(and(eq(shopVariants.productId, id), notInArray(shopVariants.id, keepIds)));
-      } else {
-        await tx.delete(shopVariants).where(eq(shopVariants.productId, id));
-      }
-
-      // Upsert each variant in order (sortOrder = position).
-      for (let i = 0; i < data.variants.length; i++) {
-        const v = data.variants[i];
-        if (v.id) {
-          await tx
-            .update(shopVariants)
-            .set({ label: v.label, stock: v.stock, allowCustom: v.allowCustom, priceDelta: v.priceDelta, sortOrder: i })
-            .where(and(eq(shopVariants.id, v.id), eq(shopVariants.productId, id)));
-
-          // Same propagation as the product name, for the variant label. A line's
-          // snapshot is either the bare label ("M") or, for an "Other (specify)"
-          // option, "M: <what the buyer typed>" — only replace the label PREFIX so
-          // the buyer's typed text survives. Matched with exact string ops
-          // (left()/char_length()), never LIKE, so a label containing a literal
-          // "%" or "_" (both SQL wildcards) can't widen the match; char_length()
-          // (not JS .length) keeps the cut point correct for multi-byte text.
-          // Guarded so a rename from "S" doesn't accidentally match a line
-          // snapshotted as "Small".
-          const priorLabel = priorLabelById.get(v.id);
-          if (priorLabel != null && priorLabel !== v.label) {
-            const prefixWithColon = `${priorLabel}: `;
-            await tx
-              .update(shopOrderItems)
-              .set({ variantLabel: sql`${v.label} || substring(${shopOrderItems.variantLabel} from char_length(${priorLabel}) + 1)` })
-              .where(
-                and(
-                  eq(shopOrderItems.variantId, v.id),
-                  or(
-                    eq(shopOrderItems.variantLabel, priorLabel),
-                    sql`left(${shopOrderItems.variantLabel}, char_length(${prefixWithColon})) = ${prefixWithColon}`
-                  )
-                )
-              );
-          }
-        } else {
-          await tx.insert(shopVariants).values({ id: variantIds[i], productId: id, label: v.label, stock: v.stock, allowCustom: v.allowCustom, priceDelta: v.priceDelta, sortOrder: i });
-        }
-      }
-
-      await AuditService.logActionInternal(tx, {
-        actorId: access.userId,
-        action: `Updated shop product "${data.name}" (owner clubs: [${data.ownerClubIds.join(", ")}], majors: [${data.ownerMajors.join(", ")}])`,
-        ipAddress: getClientIp(req),
-      });
+    await ShopAdminService.updateProduct({
+      id,
+      data,
+      variantIds,
+      bundleDeals: bundle.deals,
+      sellerScope: access.unscoped ? null : { sellerId: scopedSellerId },
+      needsReReview,
+      actorId: access.userId,
+      ipAddress: getClientIp(req),
     });
 
     return NextResponse.json({ success: true });
@@ -216,11 +113,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     }
     const { id } = await params;
 
-    const [product] = await db
-      .select({ name: shopProducts.name, sellerId: shopProducts.sellerId, ownerClubIds: shopProducts.ownerClubIds, ownerMajors: shopProducts.ownerMajors })
-      .from(shopProducts)
-      .where(eq(shopProducts.id, id))
-      .limit(1);
+    const product = await ShopAdminService.getProductWithOwnership(id);
     if (!product) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
@@ -229,14 +122,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    await db.transaction(async (tx) => {
-      await tx.delete(shopProducts).where(eq(shopProducts.id, id));
-      await AuditService.logActionInternal(tx, {
-        actorId: access.userId,
-        action: `Deleted shop product "${product.name}"`,
-        ipAddress: getClientIp(req),
-      });
-    });
+    await ShopAdminService.deleteProduct(id, product.name, access.userId, getClientIp(req));
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -262,35 +148,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: "A rejection reason is required." }, { status: 400 });
     }
 
-    const result = await db.transaction(async (tx) => {
-      const [product] = await tx
-        .select({ id: shopProducts.id, name: shopProducts.name, sellerId: shopProducts.sellerId })
-        .from(shopProducts)
-        .where(eq(shopProducts.id, id))
-        .limit(1);
-      if (!product) return { notFound: true as const };
-      if (!product.sellerId && !isShopFullAdmin(session)) return { central: true as const };
-
-      const status = data.action === "approve" ? "approved" : "rejected";
-      await tx
-        .update(shopProducts)
-        .set({
-          approvalStatus: status,
-          approvalReason: data.action === "reject" ? data.reason : null,
-          reviewedBy: session!.user!.id!,
-          reviewedAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(shopProducts.id, id));
-
-      await AuditService.logActionInternal(tx, {
-        actorId: session!.user!.id!,
-        targetId: id,
-        action: `${data.action === "approve" ? "Approved" : "Rejected"} ${product.sellerId ? "seller" : "central"} product "${product.name}" (${id})`,
-        ipAddress: getClientIp(req),
-      });
-      return { status };
-    });
+    const result = await ShopAdminService.reviewProduct(id, data, isShopFullAdmin(session), session!.user!.id!, getClientIp(req));
 
     if ("notFound" in result) return NextResponse.json({ error: "Not found" }, { status: 404 });
     if ("central" in result) return NextResponse.json({ error: "Only an admin can approve a central product." }, { status: 403 });

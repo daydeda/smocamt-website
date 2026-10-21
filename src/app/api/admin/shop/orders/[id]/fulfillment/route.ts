@@ -1,12 +1,11 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { shopOrderItems, shopOrders } from "@/db/schema";
-import { AuditService, getClientIp } from "@/modules/audit/audit.service";
+import { getClientIp } from "@/modules/audit/audit.service";
+import { ShopAdminService, TransitionRefused } from "@/modules/shop/shop-admin.service";
+import { ShopOrdersService } from "@/modules/shop/shop-orders.service";
 import { resolveShopAccess, classifyOrdersByScope } from "@/lib/shop/shop-scope";
-import { carrierLabel, nextFulfillmentStatus, validateShipment, type ShipmentValue } from "@/lib/shop/shop-fulfillment";
-import { HandoverRefused, SHIPMENT_ERROR_MESSAGE, handOverItems, staffFulfillmentPatch } from "@/lib/shop/shop-fulfillment-server";
+import { validateShipment, type ShipmentValue } from "@/lib/shop/shop-fulfillment";
+import { HandoverRefused, SHIPMENT_ERROR_MESSAGE } from "@/lib/shop/shop-fulfillment-server";
 import { PushService } from "@/modules/notifications/push.service";
-import { eq } from "drizzle-orm";
 import { after, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -24,15 +23,6 @@ const schema = z.object({
   itemIds: z.array(z.string().uuid()).min(1).max(100).optional(),
   note: z.string().max(500).optional(),
 });
-
-const LABEL = {
-  ready: "Marked ready for pickup",
-  ship: "Marked shipped",
-  handover: "Marked handed over (manual)",
-  reset: "Reset fulfilment of",
-} as const;
-
-class TransitionRefused extends Error {}
 
 // PATCH /api/admin/shop/orders/[id]/fulfillment — the per-order handover buttons
 // on the admin order card: ready-for-pickup, mark shipped (carrier + tracking),
@@ -67,7 +57,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       shipment = v.value;
     }
 
-    const [exists] = await db.select({ id: shopOrders.id }).from(shopOrders).where(eq(shopOrders.id, id)).limit(1);
+    const exists = await ShopOrdersService.orderExists(id);
     if (!exists) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     if (!access.unscoped) {
@@ -82,68 +72,23 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
 
     if (data.action === "handover") {
-      const changes = await db.transaction((tx) => handOverItems(tx, {
+      const changes = await ShopAdminService.handOverItemsManually({
         itemIds: data.itemIds!,
         orderId: id,
         actorId: access.userId,
-        via: "manual",
         note: data.note,
         ip: getClientIp(req),
-      }));
+      });
       return NextResponse.json({ success: true, fulfillmentStatus: changes[0]?.next });
     }
 
-    const result = await db.transaction(async (tx) => {
-      const [order] = await tx
-        .select({
-          buyerId: shopOrders.buyerId,
-          status: shopOrders.status,
-          fulfillment: shopOrders.fulfillment,
-          fulfillmentStatus: shopOrders.fulfillmentStatus,
-        })
-        .from(shopOrders)
-        .where(eq(shopOrders.id, id))
-        .limit(1)
-        .for("update");
-      if (!order) throw new TransitionRefused("Not found");
-
-      const next = nextFulfillmentStatus(order, data.action);
-      if (!next) {
-        throw new TransitionRefused(
-          order.status !== "approved"
-            ? "This order hasn't been approved (paid) yet."
-            : "This order can't do that in its current state — refresh the list and try again."
-        );
-      }
-
-      await tx
-        .update(shopOrders)
-        .set(staffFulfillmentPatch({
-          action: data.action,
-          from: order.fulfillmentStatus,
-          next,
-          actorId: access.userId,
-          via: "manual",
-          shipment,
-          note: data.note,
-        }))
-        .where(eq(shopOrders.id, id));
-      // Reset also forgets which lines were handed over.
-      if (data.action === "reset") {
-        await tx.update(shopOrderItems).set({ handedOverAt: null, handedOverBy: null }).where(eq(shopOrderItems.orderId, id));
-      }
-
-      const detail = shipment
-        ? ` (${carrierLabel(shipment.carrier, shipment.carrierName, false)}${shipment.trackingNumber ? ` ${shipment.trackingNumber}` : ""})`
-        : "";
-      await AuditService.logActionInternal(tx, {
-        actorId: access.userId,
-        targetId: id,
-        action: `${LABEL[data.action]} shop order ${id}${detail} [${order.fulfillmentStatus} → ${next}]`,
-        ipAddress: getClientIp(req),
-      });
-
-      return { buyerId: order.buyerId, next, from: order.fulfillmentStatus };
+    const result = await ShopAdminService.applyStaffTransition({
+      id,
+      action: data.action,
+      shipment,
+      note: data.note,
+      actorId: access.userId,
+      ipAddress: getClientIp(req),
     });
 
     // Tell the buyer when there's something for them to do: come and collect,

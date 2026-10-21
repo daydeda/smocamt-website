@@ -1,9 +1,7 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { shopSellers, shopSettings } from "@/db/schema";
-import { AuditService, getClientIp } from "@/modules/audit/audit.service";
+import { getClientIp } from "@/modules/audit/audit.service";
+import { ShopAdminService } from "@/modules/shop/shop-admin.service";
 import { resolveShopAccess } from "@/lib/shop/shop-scope";
-import { desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -33,32 +31,11 @@ export async function GET() {
       if (!access.sellerId) {
         return NextResponse.json({ error: "Seller approval is required before adding payment settings." }, { status: 403 });
       }
-      const [seller] = await db
-        .select({
-          paymentInfo: shopSellers.paymentInfo,
-          qrImageUrl: shopSellers.qrImageUrl,
-          deliveryEnabled: shopSellers.deliveryEnabled,
-          deliveryFee: shopSellers.deliveryFee,
-          pickupInfo: shopSellers.pickupInfo,
-        })
-        .from(shopSellers)
-        .where(eq(shopSellers.id, access.sellerId))
-        .limit(1);
+      const seller = await ShopAdminService.getSellerPaymentSettings(access.sellerId);
       if (!seller) return NextResponse.json({ error: "Not found" }, { status: 404 });
       return NextResponse.json({ ...seller, enabled: true, mode: "seller" });
     }
-    const [row] = await db
-      .select({
-        enabled: shopSettings.enabled,
-        paymentInfo: shopSettings.paymentInfo,
-        qrImageUrl: shopSettings.qrImageUrl,
-        deliveryEnabled: shopSettings.deliveryEnabled,
-        deliveryFee: shopSettings.deliveryFee,
-        pickupInfo: shopSettings.pickupInfo,
-      })
-      .from(shopSettings)
-      .orderBy(desc(shopSettings.updatedAt))
-      .limit(1);
+    const row = await ShopAdminService.getGlobalSettingsForAdmin();
     return NextResponse.json({
       ...(row ?? { enabled: false, paymentInfo: "", qrImageUrl: null, deliveryEnabled: false, deliveryFee: 0, pickupInfo: "" }),
       mode: "global",
@@ -83,60 +60,12 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Seller approval is required before adding payment settings." }, { status: 403 });
     }
 
-    await db.transaction(async (tx) => {
-      if (!access.unscoped) {
-        await tx
-          .update(shopSellers)
-          .set({
-            paymentInfo: data.paymentInfo,
-            qrImageUrl: data.qrImageUrl,
-            deliveryEnabled: data.deliveryEnabled,
-            deliveryFee: data.deliveryFee,
-            pickupInfo: data.pickupInfo,
-            updatedAt: new Date(),
-          })
-          .where(eq(shopSellers.id, access.sellerId!));
-      } else {
-        const [existing] = await tx
-          .select({ id: shopSettings.id })
-          .from(shopSettings)
-          .orderBy(desc(shopSettings.updatedAt))
-          .limit(1);
-
-        if (existing) {
-          await tx
-            .update(shopSettings)
-            .set({
-              enabled: data.enabled,
-              paymentInfo: data.paymentInfo,
-              qrImageUrl: data.qrImageUrl,
-              deliveryEnabled: data.deliveryEnabled,
-              deliveryFee: data.deliveryFee,
-              pickupInfo: data.pickupInfo,
-              updatedBy: session!.user!.id!,
-              updatedAt: new Date(),
-            })
-            .where(eq(shopSettings.id, existing.id));
-        } else {
-          await tx.insert(shopSettings).values({
-            enabled: data.enabled,
-            paymentInfo: data.paymentInfo,
-            qrImageUrl: data.qrImageUrl,
-            deliveryEnabled: data.deliveryEnabled,
-            deliveryFee: data.deliveryFee,
-            pickupInfo: data.pickupInfo,
-            updatedBy: session!.user!.id!,
-          });
-        }
-      }
-
-      await AuditService.logActionInternal(tx, {
-        actorId: access.userId,
-        action: access.unscoped
-          ? `Updated global shop settings (enabled: ${data.enabled})`
-          : `Updated seller payment and fulfilment settings (${access.sellerId})`,
-        ipAddress: getClientIp(req),
-      });
+    await ShopAdminService.saveSettings({
+      unscoped: access.unscoped,
+      sellerId: access.unscoped ? null : access.sellerId,
+      userId: access.userId,
+      data,
+      ipAddress: getClientIp(req),
     });
 
     return NextResponse.json({ success: true });

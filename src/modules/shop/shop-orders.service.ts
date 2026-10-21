@@ -386,4 +386,10 @@ export class ShopOrdersService {
   static async autoConfirmDueShipmentsForBuyer(buyerId: string) {
     await autoConfirmDueShipments(eq(shopOrders.buyerId, buyerId));
   }
+
+  /** Does an order with this id exist? (row with just the id, or undefined) */
+  static async orderExists(id: string) {
+    const [exists] = await db.select({ id: shopOrders.id }).from(shopOrders).where(eq(shopOrders.id, id)).limit(1);
+    return exists;
+  }
 }

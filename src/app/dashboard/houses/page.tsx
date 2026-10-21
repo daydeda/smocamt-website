@@ -546,12 +546,10 @@ export default function HousesPage() {
                   <div className="podium-avatar" style={{ background: alpha(topThreeIndividuals[1].house?.color || "var(--indigo-500)", 0.06), color: topThreeIndividuals[1].house?.color || "var(--accent-primary)" }}>
                     <Trophy size={28} />
                   </div>
-                  <h3 className="podium-name" style={{ textAlign: "center" }}>
-                    {topThreeIndividuals[1].name}
+                  <h3 className="podium-name podium-person" title={topThreeIndividuals[1].name}>
+                    <span className="podium-person-name">{topThreeIndividuals[1].name}</span>
                     {topThreeIndividuals[1].nickname && (
-                      <span style={{ display: "block", fontSize: 13, color: "var(--text-muted)", fontWeight: 600, marginTop: 2 }}>
-                        ({topThreeIndividuals[1].nickname})
-                      </span>
+                      <span className="podium-person-nick">({topThreeIndividuals[1].nickname})</span>
                     )}
                   </h3>
                   <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: topThreeIndividuals[1].house?.color || "var(--text-muted)", marginTop: -4 }}>
@@ -574,12 +572,10 @@ export default function HousesPage() {
                   <div className="podium-avatar" style={{ background: alpha(topThreeIndividuals[0].house?.color || "var(--indigo-500)", 0.06), color: topThreeIndividuals[0].house?.color || "var(--accent-primary)", boxShadow: `0 10px 25px ${alpha(topThreeIndividuals[0].house?.color || "var(--indigo-500)", 0.14)}` }}>
                     <Trophy size={36} />
                   </div>
-                  <h3 className="podium-name" style={{ textAlign: "center" }}>
-                    {topThreeIndividuals[0].name}
+                  <h3 className="podium-name podium-person" title={topThreeIndividuals[0].name}>
+                    <span className="podium-person-name">{topThreeIndividuals[0].name}</span>
                     {topThreeIndividuals[0].nickname && (
-                      <span style={{ display: "block", fontSize: 14, color: "var(--text-muted)", fontWeight: 600, marginTop: 2 }}>
-                        ({topThreeIndividuals[0].nickname})
-                      </span>
+                      <span className="podium-person-nick">({topThreeIndividuals[0].nickname})</span>
                     )}
                   </h3>
                   <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: topThreeIndividuals[0].house?.color || "var(--text-muted)", marginTop: -4 }}>
@@ -599,12 +595,10 @@ export default function HousesPage() {
                   <div className="podium-avatar" style={{ background: alpha(topThreeIndividuals[2].house?.color || "var(--indigo-500)", 0.06), color: topThreeIndividuals[2].house?.color || "var(--accent-primary)" }}>
                     <Trophy size={24} />
                   </div>
-                  <h3 className="podium-name" style={{ textAlign: "center" }}>
-                    {topThreeIndividuals[2].name}
+                  <h3 className="podium-name podium-person" title={topThreeIndividuals[2].name}>
+                    <span className="podium-person-name">{topThreeIndividuals[2].name}</span>
                     {topThreeIndividuals[2].nickname && (
-                      <span style={{ display: "block", fontSize: 12, color: "var(--text-muted)", fontWeight: 600, marginTop: 2 }}>
-                        ({topThreeIndividuals[2].nickname})
-                      </span>
+                      <span className="podium-person-nick">({topThreeIndividuals[2].nickname})</span>
                     )}
                   </h3>
                   <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: topThreeIndividuals[2].house?.color || "var(--text-muted)", marginTop: -4 }}>
@@ -825,6 +819,8 @@ export default function HousesPage() {
         }
         .podium-card {
           flex: 1;
+          /* Without this a long unbreakable name widens its card past its 1/3 share. */
+          min-width: 0;
           background: var(--bg-surface);
           border: 1px solid var(--border-subtle);
           border-radius: 28px;
@@ -914,6 +910,34 @@ export default function HousesPage() {
           color: var(--text-primary);
           margin: 0;
           letter-spacing: -0.02em;
+        }
+        /* Individual podium: long full names clamp to 2 lines so every card keeps
+           the same content height and the 1st > 2nd > 3rd podium shape holds. */
+        .podium-person {
+          width: 100%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 2px;
+          text-align: center;
+          font-size: 16px;
+          line-height: 1.3;
+        }
+        .podium-person-name {
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          overflow-wrap: anywhere;
+        }
+        .podium-person-nick {
+          max-width: 100%;
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--text-muted);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
         .podium-points {
           display: flex;
@@ -1363,6 +1387,8 @@ export default function HousesPage() {
           .podium-avatar { width: 48px; height: 48px; }
           .first-place .podium-avatar { width: 56px; height: 56px; }
           .podium-name { font-size: 14px; }
+          .podium-person { font-size: 13px; }
+          .podium-person-nick { font-size: 11px; }
           .points-num { font-size: 20px; }
           .highlight-points { font-size: 24px; }
           

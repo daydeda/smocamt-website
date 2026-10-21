@@ -445,6 +445,9 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
   // state, polled alongside events/houses so the badge and the blocked notice
   // stay live if staff apply or reset strikes while the dashboard is open.
   const [strikes, setStrikes] = useState<{ noShowCount: number; registrationBlocked: boolean } | null>(null);
+  // The student's authoritative individual balance (users.points) — the same number
+  // the leaderboard ranks on. Read from the same /api/profile poll as strikes.
+  const [myPoints, setMyPoints] = useState<number | null>(null);
   // Which events caused the strikes currently on the account (US-STRI-15c),
   // each carrying its OWN appeal (if any) — appeals are per-event, not one
   // blanket appeal for the account, so a student with 2 strikes can appeal
@@ -547,6 +550,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
         if (d && typeof d.noShowCount === "number") {
           setStrikes({ noShowCount: d.noShowCount, registrationBlocked: !!d.registrationBlocked });
         }
+        if (d && typeof d.points === "number") setMyPoints(d.points);
       })
       .catch(() => {});
 
@@ -775,13 +779,13 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
   ].filter((s) => s.items.length > 0);
 
   // --- Overview stats strip (logged-in students only). Counts are derived from the
-  // events list; pointsEarned sums the INDIVIDUAL points actually credited to this
-  // student (gated on pointsCredited, not just attendanceStatus — a requireCheckOut
-  // event's points aren't credited until check-out is confirmed). Note: pointsAwarded
-  // is the event's HOUSE-winner bonus, a different number — not summed here. ---
+  // events list. Points is the stored users.points balance (same as the leaderboard),
+  // NOT a sum over events: that sum missed form-submission points, staff score
+  // awards, per-day awards on multi-day events and no-show deductions, so it
+  // drifted from the leaderboard. ---
   const thisWeekCount = upcoming.filter((e) => new Date(e.startTime) < weekEnd).length;
   const attendedEvents = events.filter((e) => e.attendanceStatus === "attended");
-  const pointsEarned = events.reduce((sum, e) => sum + (e.pointsCredited ? (e.individualPointsAwarded || 0) : 0), 0);
+  const pointsEarned = myPoints ?? 0;
   const stats: { key: string; label: string; value: number; icon: typeof Calendar }[] = [
     { key: "upcoming", label: t.statUpcoming, value: upcoming.length, icon: Calendar },
     { key: "week", label: t.statThisWeek, value: thisWeekCount, icon: CalendarClock },

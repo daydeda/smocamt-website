@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
-import { OrdersTab, type ShopContext } from "../AdminShopClient";
+import { OrdersTab } from "../_components/OrdersTab";
+import type { ShopContext } from "../_components/shop-model";
 
 export default function ProductOrdersClient({ productId }: { productId: string }) {
   const { lang } = useLanguage();

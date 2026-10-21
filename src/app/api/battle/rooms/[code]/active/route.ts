@@ -1,11 +1,9 @@
 import { db } from "@/db";
 import { gameRooms } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { captureException } from "@/lib/logger";
-import { effectiveRoles } from "@/lib/admin-access";
-import { canAccessBattle } from "@/lib/battle-access";
 
 // POST /api/battle/rooms/[code]/active - Mark room as active (WebRTC connected)
 export async function POST(
@@ -18,9 +16,6 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!canAccessBattle(effectiveRoles(session.user.role, session.user.roles))) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
 
     const { code } = await params;
     const roomCode = code.toUpperCase();
@@ -38,18 +33,35 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    if (room.status === "waiting" || room.status === "connecting") {
+    // A room can only go active once a guest has joined ("connecting"); a
+    // "waiting" room has no opponent, so activating it would start a game
+    // nobody can finish.
+    if (room.status === "waiting") {
+      return NextResponse.json({ error: "Waiting for an opponent to join" }, { status: 400 });
+    }
+
+    if (room.status === "connecting") {
       const turnDeadline = new Date(Date.now() + 60 * 1000); // 60s
-      
-      await db.update(gameRooms)
+
+      // Conditional so both peers reporting "connected" can't reset the turn timer
+      const activated = await db.update(gameRooms)
         .set({
           status: "active",
           turnDeadline,
           updatedAt: new Date(),
         })
-        .where(eq(gameRooms.id, room.id));
+        .where(and(eq(gameRooms.id, room.id), eq(gameRooms.status, "connecting")))
+        .returning({ id: gameRooms.id });
 
-      return NextResponse.json({ success: true, status: "active", turnDeadline });
+      if (activated.length > 0) {
+        return NextResponse.json({ success: true, status: "active", turnDeadline });
+      }
+
+      const current = await db.query.gameRooms.findFirst({
+        where: (r, { eq }) => eq(r.id, room.id),
+        columns: { status: true, turnDeadline: true },
+      });
+      return NextResponse.json({ success: true, status: current?.status ?? room.status, turnDeadline: current?.turnDeadline ?? null });
     }
 
     return NextResponse.json({ success: true, status: room.status });

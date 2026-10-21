@@ -970,8 +970,6 @@ export const translations = {
     battleErrorQrReadFailed: "Could not read room code from QR.",
     battleErrorCameraInitFailed: "Could not initialize camera scanner.",
     battleErrorCameraPermissionDenied: "Camera permission denied. Please allow camera access in browser settings.",
-    battleTestingNoticeTitle: "P2P Battle is in Testing",
-    battleTestingNoticeDesc: "This feature is currently being tested by the SMO/ANUSMO/Admin team before it's rolled out to everyone. Check back soon!",
     // Property tags (ป้ายทรัพย์สิน)
     adminPropertyTags: "Property Tags",
     adminPtSubtitle: "Print QR stickers for students' belongings, then scan a sticker to assign its owner.",
@@ -2068,8 +2066,6 @@ export const translations = {
     battleErrorQrReadFailed: "ไม่สามารถอ่านรหัสห้องจาก QR Code ได้",
     battleErrorCameraInitFailed: "ไม่สามารถเริ่มการทำงานของกล้องสแกนได้",
     battleErrorCameraPermissionDenied: "การเข้าถึงกล้องถูกปฏิเสธ กรุณาอนุญาตให้เข้าถึงกล้องในการตั้งค่าเบราว์เซอร์",
-    battleTestingNoticeTitle: "P2P Battle อยู่ระหว่างการทดสอบ",
-    battleTestingNoticeDesc: "ฟีเจอร์นี้กำลังอยู่ในระหว่างการทดสอบโดยทีม SMO/ANUSMO/Admin ก่อนเปิดให้ทุกคนใช้งาน กลับมาเช็กอีกครั้งเร็วๆ นี้!",
     // Property tags (ป้ายทรัพย์สิน)
     adminPropertyTags: "ป้ายทรัพย์สิน",
     adminPtSubtitle: "พิมพ์สติกเกอร์ QR ติดของของนักศึกษา แล้วสแกนเพื่อผูกเจ้าของ",
@@ -3154,8 +3150,6 @@ export const translations = {
     battleErrorQrReadFailed: "QR Code မှ အခန်းကုဒ်ကို ဖတ်၍မရပါ။",
     battleErrorCameraInitFailed: "ကင်မရာစကင်နာကို အစပြု၍မရပါ။",
     battleErrorCameraPermissionDenied: "ကင်မရာခွင့်ပြုချက်ကို ငြင်းပယ်လိုက်သည်။ ဘရောက်ဆာ ဆက်တင်များတွင် ကင်မရာအသုံးပြုခွင့်ကို ခွင့်ပြုပေးပါ။",
-    battleTestingNoticeTitle: "P2P Battle ကို စမ်းသပ်နေဆဲဖြစ်သည်",
-    battleTestingNoticeDesc: "ဤဝန်ဆောင်မှုကို လူတိုင်းအသုံးပြုနိုင်မည့်မတိုင်မီ SMO/ANUSMO/Admin အဖွဲ့က လက်ရှိစမ်းသပ်နေပါသည်။ မကြာမီ ပြန်လည်စစ်ဆေးပါ။",
     // Property tags (ป้ายทรัพย์สิน)
     tagPageTitle: "ပိုင်ဆိုင်မှု တံဆိပ်",
     tagSignInPrompt: "ဤပစ္စည်း မည်သူ့ပိုင်ဖြစ်ကြောင်း ကြည့်ရန် အကောင့်ဝင်ပါ။",
@@ -4131,8 +4125,6 @@ export const translations = {
     battleErrorQrReadFailed: "无法从二维码中读取房间代码。",
     battleErrorCameraInitFailed: "无法初始化摄像头扫描器。",
     battleErrorCameraPermissionDenied: "摄像头权限被拒绝。请在浏览器设置中允许访问摄像头。",
-    battleTestingNoticeTitle: "P2P 对战功能测试中",
-    battleTestingNoticeDesc: "此功能目前正由 SMO/ANUSMO/Admin 团队测试，尚未对所有人开放。请稍后再来查看！",
     // Property tags (ป้ายทรัพย์สิน)
     tagPageTitle: "物品标签",
     tagSignInPrompt: "登录后即可查看此物品的主人。",

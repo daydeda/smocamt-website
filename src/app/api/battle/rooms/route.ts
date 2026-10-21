@@ -5,8 +5,6 @@ import { auth } from "@/auth";
 import { createInitialState } from "@/lib/games/ox";
 import { getClientIp, AuditService } from "@/modules/audit/audit.service";
 import { captureException } from "@/lib/logger";
-import { effectiveRoles } from "@/lib/admin-access";
-import { canAccessBattle } from "@/lib/battle-access";
 import { z } from "zod";
 
 const createRoomSchema = z.object({
@@ -28,11 +26,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Staged rollout: P2P Battle is SMO/ANUSMO/Admin-only for prod testing —
-    // this is the real gate, the proxy/layout redirects are UX only.
-    if (!canAccessBattle(effectiveRoles(session.user.role, session.user.roles))) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
 
     const hostId = session.user.id;
 
@@ -60,6 +53,7 @@ export async function POST(req: Request) {
     // Generate unique room code
     let roomCode = "";
     let attempts = 0;
+    let unique = false;
     while (attempts < 10) {
       roomCode = generateRoomCode();
       const existing = await db.query.gameRooms.findFirst({
@@ -69,11 +63,14 @@ export async function POST(req: Request) {
           eq(r.status, "waiting")
         )
       });
-      if (!existing) break;
+      if (!existing) {
+        unique = true;
+        break;
+      }
       attempts++;
     }
 
-    if (!roomCode) {
+    if (!unique) {
       return NextResponse.json({ error: "Failed to generate room code" }, { status: 500 });
     }
 

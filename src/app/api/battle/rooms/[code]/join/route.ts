@@ -1,12 +1,10 @@
 import { db } from "@/db";
 import { gameRooms } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { captureException } from "@/lib/logger";
 import { rateLimit } from "@/lib/rate-limit";
-import { effectiveRoles } from "@/lib/admin-access";
-import { canAccessBattle } from "@/lib/battle-access";
 
 // POST /api/battle/rooms/[code]/join - Guest joins a room
 export async function POST(
@@ -19,9 +17,6 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!canAccessBattle(effectiveRoles(session.user.role, session.user.roles))) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
 
     const { code } = await params;
     const roomCode = code.toUpperCase();
@@ -61,6 +56,18 @@ export async function POST(
       return NextResponse.json({ error: "Room has expired" }, { status: 400 });
     }
 
+    // Idempotent re-join (page refresh / double submit) by the same guest
+    if (room.guestId === guestId && (room.status === "connecting" || room.status === "active")) {
+      return NextResponse.json({
+        roomId: room.id,
+        roomCode: room.roomCode,
+        gameType: room.gameType,
+        status: room.status,
+        hostId: room.hostId,
+        guestId,
+      });
+    }
+
     if (room.status !== "waiting") {
       return NextResponse.json({ error: "Room is not joinable" }, { status: 400 });
     }
@@ -69,13 +76,20 @@ export async function POST(
       return NextResponse.json({ error: "You cannot join your own room" }, { status: 400 });
     }
 
-    await db.update(gameRooms)
+    // Conditional on still being "waiting" so two simultaneous joiners can't
+    // both win and overwrite each other's guestId.
+    const claimed = await db.update(gameRooms)
       .set({
         guestId,
         status: "connecting",
         updatedAt: new Date(),
       })
-      .where(eq(gameRooms.id, room.id));
+      .where(and(eq(gameRooms.id, room.id), eq(gameRooms.status, "waiting")))
+      .returning({ id: gameRooms.id });
+
+    if (claimed.length === 0) {
+      return NextResponse.json({ error: "Room is not joinable" }, { status: 409 });
+    }
 
     // Joining a room is NOT audit-logged (US-FIX-20i AC-3 decision): the audit_logs
     // hash chain is reserved for compliance-relevant events. For games only room

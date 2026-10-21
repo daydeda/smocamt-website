@@ -13,7 +13,6 @@ Gamepad2
 } from "lucide-react";
 import { useLanguage } from "@/lib/LanguageContext";
 import { canEnterAdminAny, effectiveRoles } from "@/lib/admin-access";
-import { canAccessBattle } from "@/lib/battle-access";
 import { getPinnedItems, resolveHref, type NavContext } from "@/lib/nav-config";
 import { unsubscribePushBeforeSignOut } from "@/lib/push-client";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
@@ -230,12 +229,8 @@ onNavigate={() => setIsProfileDropdownOpen(false)}
 {/* Battle shortcut: a floating action button, not a nav item — it's a side
     activity, not a core destination, so it shouldn't compete with the tab
     bar or the account menu for space. Fixed bottom-right on every viewport.
-    Staged rollout: SMO/ANUSMO/Admin only while battle is tested on prod —
-    hiding it for everyone else avoids a dead-end into the /dashboard bounce
-    the proxy/layout gates already enforce. Deliberately kept OUT of
-    nav-config.ts: folding it into the launcher grid would mean re-wiring
-    canAccessBattle a second time and risks it drifting from the FAB's gate. */}
-{user && canAccessBattle(effectiveRoles(user.role, user.roles)) && (
+    Shown to every signed-in user. Deliberately kept OUT of nav-config.ts. */}
+{user && (
 <Link
 href="/battle"
 className={`battle-fab ${pathname.startsWith("/battle") ? "active" : ""}`}

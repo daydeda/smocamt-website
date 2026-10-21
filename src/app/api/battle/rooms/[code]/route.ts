@@ -5,8 +5,6 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { captureException } from "@/lib/logger";
 import { rateLimit } from "@/lib/rate-limit";
-import { effectiveRoles } from "@/lib/admin-access";
-import { canAccessBattle } from "@/lib/battle-access";
 
 // GET /api/battle/rooms/[code] - Inspect room status
 export async function GET(
@@ -19,9 +17,6 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!canAccessBattle(effectiveRoles(session.user.role, session.user.roles))) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
 
     const { code } = await params;
     const roomCode = code.toUpperCase();

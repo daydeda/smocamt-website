@@ -115,12 +115,6 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL(SCANNER_HREF, req.url));
   }
 
-  // P2P Battle is staged for SMO/ANUSMO/Admin testing on prod — everyone else
-  // still reaches /battle (no redirect here), but src/app/battle/layout.tsx
-  // renders an "in testing" notice instead of the real UI, so a shared room
-  // link doesn't look like a broken link. API routes under /api/battle are the
-  // real gate (this proxy never runs on /api/*).
-
   // Organizer cannot access students list. Gate on the role SET (like the rest of
   // this proxy) so it can't desync from ROLE_PRIORITY: redirect only when the user
   // is an organizer with no higher students-capable role. Restrictive-only; the

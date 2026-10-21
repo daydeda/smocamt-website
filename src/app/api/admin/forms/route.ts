@@ -1,8 +1,6 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { forms } from "@/db/schema";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
-import { desc, eq, count } from "drizzle-orm";
+import { FormsService } from "@/modules/forms/forms.service";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
@@ -30,16 +28,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const list = await db.query.forms.findMany({
-      orderBy: [desc(forms.createdAt)],
-      with: {
-        submissions: {
-          columns: {
-            id: true
-          }
-        }
-      }
-    });
+    const list = await FormsService.listFormsWithSubmissions();
 
     const enriched = list.map(f => ({
       id: f.id,
@@ -78,14 +67,14 @@ export async function POST(req: Request) {
 
     const { eventId, title, description, pointsAwarded, questions } = result.data;
 
-    const [newForm] = await db.insert(forms).values({
+    const newForm = await FormsService.createForm({
       eventId,
       title,
       description,
       pointsAwarded: pointsAwarded ?? 0,
       questions: questions,
       isActive: true
-    }).returning();
+    });
 
     // Log audit log (through the service so the hash chain stays intact)
     await AuditService.logAction({

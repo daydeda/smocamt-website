@@ -1,9 +1,7 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { houses, scoreHistory } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { AuditService, getClientIp } from "@/modules/audit/audit.service";
+import { getClientIp } from "@/modules/audit/audit.service";
+import { HousesService } from "@/modules/houses/houses.service";
 import { captureException } from "@/lib/util/logger";
 import { revalidateLeaderboards } from "@/lib/points/leaderboard-cache";
 
@@ -36,30 +34,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // FE-08: Atomic point update
-    await db.transaction(async (tx) => {
-      // 1. Update house points
-      await tx
-        .update(houses)
-        .set({
-          points: sql`${houses.points} + ${parsedDelta}`,
-        })
-        .where(eq(houses.id, houseId));
-
-      // 2. Log score history
-      await tx.insert(scoreHistory).values({
-        houseId,
-        delta: parsedDelta,
-        reason,
-      });
-
-      // 3. Audit log (through the service so the hash chain stays intact)
-      await AuditService.logActionInternal(tx, {
-        actorId: session.user!.id!,
-        action: `Adjusted house ${houseId} points by ${parsedDelta}. Reason: ${reason}`,
-        ipAddress: getClientIp(req),
-      });
-    });
+    await HousesService.adjustPoints({ houseId, delta: parsedDelta, reason, actorId: session.user!.id!, ipAddress: getClientIp(req) });
 
     // Bust the cached leaderboard so this manual adjustment appears on the next
     // poll instead of waiting out the 15s cache window.

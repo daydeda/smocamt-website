@@ -213,4 +213,58 @@ export class HousesService {
       },
     });
   }
+
+  /** The colour houses for the admin point-adjustment picker, in a stable order. */
+  static async listForPointAdjustment() {
+    // Returns the 4 CAMT colour houses for point adjustments. Ordered for a stable UI.
+    return db.query.houses.findMany({
+      columns: {
+        id: true,
+        name: true,
+        color: true,
+        points: true,
+        faculty: true,
+        colorGroup: true,
+      },
+      orderBy: (houses, { asc }) => [asc(houses.faculty), asc(houses.colorGroup)],
+    });
+  }
+
+  /**
+   * Manual house point adjustment: house update, score history row and audit
+   * log all in one transaction.
+   */
+  static async adjustPoints(params: {
+    houseId: string;
+    delta: number;
+    reason: string;
+    actorId: string;
+    ipAddress: string;
+  }) {
+    const { houseId, delta: parsedDelta, reason, actorId, ipAddress } = params;
+    // FE-08: Atomic point update
+    await db.transaction(async (tx) => {
+      // 1. Update house points
+      await tx
+        .update(houses)
+        .set({
+          points: sql`${houses.points} + ${parsedDelta}`,
+        })
+        .where(eq(houses.id, houseId));
+
+      // 2. Log score history
+      await tx.insert(scoreHistory).values({
+        houseId,
+        delta: parsedDelta,
+        reason,
+      });
+
+      // 3. Audit log (through the service so the hash chain stays intact)
+      await AuditService.logActionInternal(tx, {
+        actorId,
+        action: `Adjusted house ${houseId} points by ${parsedDelta}. Reason: ${reason}`,
+        ipAddress,
+      });
+    });
+  }
 }

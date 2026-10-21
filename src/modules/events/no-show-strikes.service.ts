@@ -6,18 +6,16 @@ import { deductIndividualPoints } from "@/lib/points/award-individual-points";
 import { NO_SHOW_STRIKE_THRESHOLD } from "@/lib/points/strikes";
 
 export class NoShowStrikesService {
-  /**
-   * Students holding a 'registered' attendance row for this event with NO
-   * 'attended' row anywhere in the event — i.e. they signed up and never checked
-   * in on any session. Plain two-query set-difference (not a SQL subquery) to
-   * match this codebase's existing straightforward query style.
-   *
-   * isStaff=false excludes event staff from the registered pool: staff commonly
-   * register for an event they're running but are never personally scanned in
-   * (they're operating the scanner, not being scanned) — without this filter
-   * they'd be wrongly struck as no-shows, which can eventually block their own
-   * future registrations via registrationBlocked.
-   */
+  // Students holding a 'registered' attendance row for this event with NO
+  // 'attended' row anywhere in the event — i.e. they signed up and never checked
+  // in on any session. Plain two-query set-difference (not a SQL subquery) to
+  // match this codebase's existing straightforward query style.
+  //
+  // isStaff=false excludes event staff from the registered pool: staff commonly
+  // register for an event they're running but are never personally scanned in
+  // (they're operating the scanner, not being scanned) — without this filter
+  // they'd be wrongly struck as no-shows, which can eventually block their own
+  // future registrations via registrationBlocked.
   static async findNoShowStudentIds(eventId: string): Promise<string[]> {
     const attendedRows = await db
       .selectDistinct({ studentId: attendance.studentId })

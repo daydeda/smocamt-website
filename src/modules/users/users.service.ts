@@ -206,6 +206,7 @@ export class UsersService {
    * operation — FE-12: Log the sensitive data access (Immutable Audit Trail).
    */
   static async getStudentSensitiveDetail(targetStudentId: string, actorId: string, ipAddress: string) {
+    // FE-12: Log the sensitive data access (Immutable Audit Trail)
     await AuditService.logAction({
       actorId,
       targetId: targetStudentId,
@@ -313,6 +314,13 @@ export class UsersService {
     actorId: string,
     ipAddress: string,
   ) {
+    // Some foreign keys referencing users.id lack ON DELETE CASCADE in the
+    // production schema (attendance.student_id / scanned_by). Clean those up in
+    // a transaction first, otherwise Postgres rejects the delete with a FK
+    // violation. accounts / sessions / authenticators / form_submissions
+    // already cascade. audit_logs rows are NEVER rewritten — their actor_id /
+    // target_id values are baked into the tamper-evident row hashes, so the
+    // FK constraints on audit_logs were dropped instead (migration step 27).
     await db.transaction(async (tx) => {
       // Remove this user's own event registrations/attendance.
       await tx.delete(attendance).where(eq(attendance.studentId, userId));

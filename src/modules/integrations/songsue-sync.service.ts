@@ -334,6 +334,9 @@ export class SongsueSyncService {
       return v != null && !(Array.isArray(v) && v.length === 0) && v !== "";
     });
     if (exposedFields.length > 0) {
+      // Same actor-id convention as SongsueSyncService's SYNC_ACTOR_ID (no real
+      // staff session behind a service-to-service call) — audit_logs.actorId has
+      // no FK, see AuditService.
       await AuditService.logAction({
         actorId: SYNC_ACTOR_ID,
         targetId: user.id,

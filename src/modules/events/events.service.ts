@@ -133,9 +133,11 @@ export class EventsService {
    * transaction. Throws Error("EVENT_NOT_FOUND" | "ALREADY_STARTED" | "NOT_TODAY").
    */
   static async goLiveNow(id: string, now: Date, actorId: string, ipAddress: string) {
-  return db.transaction(async (tx) => {
+    return db.transaction(async (tx) => {
       const current = await tx.query.events.findFirst({ where: eq(events.id, id) });
       if (!current) throw new Error("EVENT_NOT_FOUND");
+      // Re-checked inside the transaction so two staff tapping at once can't
+      // both "start" it — the second one sees it already started.
       if (current.startTime.getTime() <= now.getTime()) throw new Error("ALREADY_STARTED");
       if (bangkokDateKey(current.startTime.toISOString()) !== bangkokDateKey(now.toISOString())) {
         throw new Error("NOT_TODAY");

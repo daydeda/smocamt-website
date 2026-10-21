@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { events, eventSessions } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { events, eventSessions, forms } from "@/db/schema";
+import { and, eq, isNotNull } from "drizzle-orm";
 
 export class EventsService {
   /**
@@ -48,5 +48,43 @@ export class EventsService {
     return await db.query.events.findMany({
       orderBy: (events, { desc }) => [desc(events.startTime)],
     });
+  }
+
+  /**
+   * Everything a club/major president has submitted that awaits staff review:
+   * pending Feedback Forms and pending event detail edits (admin reviews page).
+   */
+  static async listPendingReviewItems() {
+    const pendingForms = await db.query.forms.findMany({
+      where: eq(forms.reviewStatus, "pending"),
+      orderBy: (f, { desc }) => [desc(f.updatedAt)],
+      with: {
+        event: { columns: { id: true, title: true } },
+      },
+    });
+
+    const pendingEventsRaw = await db.query.events.findMany({
+      // Requires an actual pendingDetailsChanges diff, not just the status flag —
+      // a stale/defaulted 'pending' status with no diff (e.g. a pre-existing event
+      // backfilled by the details_review_status column's DEFAULT 'pending', see
+      // drizzle/0030_backfill_details_review_status.sql) has nothing to review.
+      where: and(eq(events.detailsReviewStatus, "pending"), isNotNull(events.pendingDetailsChanges)),
+      columns: {
+        id: true,
+        title: true,
+        startTime: true,
+        ownerClubIds: true,
+        ownerMajors: true,
+        updatedAt: true,
+      },
+    });
+    // Only genuinely president-owned events — a plain staff-created event
+    // defaults to 'pending' too (see events.detailsReviewStatus in schema.ts)
+    // but was never edited by a president and has nothing here to review.
+    const pendingEvents = pendingEventsRaw.filter(
+      (e) => (e.ownerClubIds && e.ownerClubIds.length > 0) || (e.ownerMajors && e.ownerMajors.length > 0)
+    );
+
+    return { pendingForms, pendingEvents };
   }
 }

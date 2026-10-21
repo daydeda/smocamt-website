@@ -1,9 +1,7 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { forms, events } from "@/db/schema";
 import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 import { REVIEW_PROPOSAL_ROLES } from "@/lib/events/event-proposals";
-import { and, eq, isNotNull } from "drizzle-orm";
+import { EventsService } from "@/modules/events/events.service";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -26,35 +24,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const pendingForms = await db.query.forms.findMany({
-      where: eq(forms.reviewStatus, "pending"),
-      orderBy: (f, { desc }) => [desc(f.updatedAt)],
-      with: {
-        event: { columns: { id: true, title: true } },
-      },
-    });
-
-    const pendingEventsRaw = await db.query.events.findMany({
-      // Requires an actual pendingDetailsChanges diff, not just the status flag —
-      // a stale/defaulted 'pending' status with no diff (e.g. a pre-existing event
-      // backfilled by the details_review_status column's DEFAULT 'pending', see
-      // drizzle/0030_backfill_details_review_status.sql) has nothing to review.
-      where: and(eq(events.detailsReviewStatus, "pending"), isNotNull(events.pendingDetailsChanges)),
-      columns: {
-        id: true,
-        title: true,
-        startTime: true,
-        ownerClubIds: true,
-        ownerMajors: true,
-        updatedAt: true,
-      },
-    });
-    // Only genuinely president-owned events — a plain staff-created event
-    // defaults to 'pending' too (see events.detailsReviewStatus in schema.ts)
-    // but was never edited by a president and has nothing here to review.
-    const pendingEvents = pendingEventsRaw.filter(
-      (e) => (e.ownerClubIds && e.ownerClubIds.length > 0) || (e.ownerMajors && e.ownerMajors.length > 0)
-    );
+    const { pendingForms, pendingEvents } = await EventsService.listPendingReviewItems();
 
     return NextResponse.json({
       forms: pendingForms.map((f) => ({

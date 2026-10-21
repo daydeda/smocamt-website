@@ -1,54 +1,12 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { attendance, events } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { EventScopeService } from "@/modules/events/event-scope.service";
+import { EventsService } from "@/modules/events/events.service";
+import { AttendanceService } from "@/modules/events/attendance.service";
 import { isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 import { redactEmergencyContacts } from "@/lib/pdpa/emergency-contacts";
 import { medicalCategoriesOf } from "@/lib/pdpa/medical-signal";
-
-// Columns read for a normal/staff roster. Medical free-text + emergency contacts
-// are fetched so super_admin/admin (and, per the sanitize step, a club/major
-// president viewing their own event) get full detail and registration/organizer
-// can have the medical-CATEGORY signal derived below; they are stripped per-role
-// in the sanitize step.
-const FULL_USER_COLUMNS = {
-  id: true,
-  name: true,
-  nickname: true,
-  studentId: true,
-  major: true,
-  phone: true,
-  role: true,
-  roles: true,
-  chronicDiseases: true,
-  medicalHistory: true,
-  drugAllergies: true,
-  foodAllergies: true,
-  dietaryRestrictions: true,
-  faintingHistory: true,
-  emergencyMedication: true,
-  emergencyContacts: true,
-  noShowCount: true,
-} as const;
-
-// Thin-roster role (smo) only ever receives identity + check-in (see sanitize
-// step), so don't even fetch phone, emergency contacts, or medical detail. A
-// strict subset of FULL_USER_COLUMNS. noShowCount is the exception — it's a
-// strike tally, not PDPA-sensitive, so every role that reaches this roster
-// gets it (powers the no-show filter).
-const THIN_USER_COLUMNS = {
-  id: true,
-  name: true,
-  nickname: true,
-  studentId: true,
-  major: true,
-  role: true,
-  roles: true,
-  noShowCount: true,
-} as const;
 
 export async function GET(
   req: Request,
@@ -110,10 +68,7 @@ export async function GET(
     // club doesn't own — see isEventUnscopedStaff's doc comment in admin-access.ts.
     let deniedFallbackToThin = false;
     if (!isStaffRole && (isPresidentRole || isPositionScopedRegistration)) {
-      const ev = await db.query.events.findFirst({
-        where: eq(events.id, eventId),
-        columns: { ownerClubIds: true, ownerMajors: true },
-      });
+      const ev = await EventsService.getEventOwnership(eventId);
       const access = await EventScopeService.resolveEventAccess({
         userId: session.user.id!, roles: myRoles, smoPosition, anusmoPosition, isUnscopedStaff: false, hasPresidentTag: isPresidentRole,
       });
@@ -138,39 +93,7 @@ export async function GET(
     // Optional ?sessionId= filter narrows the roster to one day of a multi-day event.
     const sessionIdFilter = new URL(req.url).searchParams.get("sessionId");
 
-    const list = await db.query.attendance.findMany({
-      where: sessionIdFilter
-        ? and(eq(attendance.eventId, eventId), eq(attendance.sessionId, sessionIdFilter))
-        : eq(attendance.eventId, eventId),
-      with: {
-        // Which session (day) this check-in belongs to, for per-day reporting.
-        session: {
-          columns: { id: true, title: true, sortOrder: true, startTime: true, endTime: true },
-        },
-        user: {
-          // Staff get the full SELECT (medical detail is read here so the
-          // "has a condition" signal can be derived, then forwarded only to
-          // super_admin/admin). Thin-roster roles get a reduced SELECT — phone /
-          // emergency contacts / medical are stripped from their response anyway,
-          // so they aren't fetched. The cast keeps the inferred row type stable;
-          // the omitted columns are simply absent at runtime and never read on the
-          // thin-roster path.
-          columns: (isThinRoster
-            ? THIN_USER_COLUMNS
-            : FULL_USER_COLUMNS) as typeof FULL_USER_COLUMNS,
-          with: {
-            house: {
-              columns: {
-                id: true,
-                name: true,
-                color: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: (attendance, { desc }) => [desc(attendance.checkInTime)],
-    });
+    const list = await AttendanceService.listRosterForEvent(eventId, sessionIdFilter, isThinRoster);
 
     // Which medical CATEGORIES a user filled in (mirrors hasActualMedicalInfo
     // on the client). The identifiers match i18n keys so the client can
@@ -249,10 +172,7 @@ export async function GET(
     // still literally holds club_president but must not be logged as having
     // viewed president-tier health detail they were never shown.
     if (canViewMedical || !isThinRoster) {
-      const ev = await db.query.events.findFirst({
-        where: eq(events.id, eventId),
-        columns: { title: true },
-      });
+      const ev = await EventsService.getEventTitle(eventId);
       const eventLabel = ev ? `"${ev.title}" (${eventId})` : eventId;
 
       if (canViewMedical) {
@@ -310,29 +230,12 @@ export async function DELETE(
       return NextResponse.json({ error: "studentId is required" }, { status: 400 });
     }
 
-    const ev = await db.query.events.findFirst({
-      where: eq(events.id, eventId),
-      columns: { id: true, title: true },
-    });
+    const ev = await EventsService.getEventIdAndTitle(eventId);
     if (!ev) {
       return NextResponse.json({ error: "Event not found" }, { status: 404 });
     }
 
-    const removedRows = await db.transaction(async (tx) => {
-      const deleted = await tx
-        .delete(attendance)
-        .where(and(eq(attendance.eventId, eventId), eq(attendance.studentId, studentId)))
-        .returning({ id: attendance.id });
-      if (deleted.length > 0) {
-        await AuditService.logActionInternal(tx, {
-          actorId: session.user.id!,
-          targetId: studentId,
-          action: `Removed registration for student ${studentId} from event "${ev.title}" (${eventId}) — ${deleted.length} row(s)`,
-          ipAddress: getClientIp(req),
-        });
-      }
-      return deleted;
-    });
+    const removedRows = await AttendanceService.removeStudentRegistration(eventId, studentId, ev.title, session.user.id!, getClientIp(req));
 
     if (removedRows.length === 0) {
       return NextResponse.json({ error: "Student is not registered for this event" }, { status: 404 });

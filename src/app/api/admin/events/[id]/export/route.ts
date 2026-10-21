@@ -1,10 +1,9 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { attendance, events, eventSessions, users } from "@/db/schema";
-import { and, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { EventScopeService } from "@/modules/events/event-scope.service";
+import { EventsService } from "@/modules/events/events.service";
+import { AttendanceService } from "@/modules/events/attendance.service";
 import { redactEmergencyContacts } from "@/lib/pdpa/emergency-contacts";
 import { canonicalHouseName } from "@/lib/profile/faculties";
 import { medicalCategoriesOf, MEDICAL_CATEGORY_LABELS } from "@/lib/pdpa/medical-signal";
@@ -128,10 +127,7 @@ export async function GET(
     // mirroring the on-screen roster's day picker.
     const sessionIdFilter = new URL(req.url).searchParams.get("sessionId");
 
-    const event = await db.query.events.findFirst({
-      where: eq(events.id, eventId),
-      columns: { id: true, title: true, managedByRoles: true, ownerClubIds: true, ownerMajors: true, staffUserIds: true, requireCheckOut: true },
-    });
+    const event = await EventsService.getEventForExport(eventId);
     if (!event) {
       return NextResponse.json({ error: "Event not found" }, { status: 404 });
     }
@@ -163,10 +159,7 @@ export async function GET(
     // Resolve the day's label for the audit log + filename when a day is selected.
     let sessionLabelForFile: string | null = null;
     if (sessionIdFilter) {
-      const s = await db.query.eventSessions.findFirst({
-        where: and(eq(eventSessions.id, sessionIdFilter), eq(eventSessions.eventId, eventId)),
-        columns: { title: true, sortOrder: true },
-      });
+      const s = await EventsService.getSessionTitleOrder(sessionIdFilter, eventId);
       if (!s) {
         return NextResponse.json({ error: "Session not found" }, { status: 404 });
       }
@@ -176,40 +169,14 @@ export async function GET(
     // Shared column selection for an attendee's `user` relation — also reused
     // below (with `id` added) to fetch users who are on events.staffUserIds but
     // have no attendance row of their own.
-    const attendeeUserColumns = {
-      name: true,
-      nickname: true,
-      studentId: true,
-      email: includeFullContactColumns,
-      phone: !isThinRoster,
-      contactChannels: includeFullContactColumns,
-      major: true,
-      role: true,
-      chronicDiseases: fetchMedicalFields,
-      medicalHistory: fetchMedicalFields,
-      drugAllergies: fetchMedicalFields,
-      foodAllergies: fetchMedicalFields,
-      dietaryRestrictions: fetchMedicalFields,
-      faintingHistory: fetchMedicalFields,
-      emergencyMedication: fetchMedicalFields,
-      emergencyContacts: includeMedicalColumns,
-    } as const;
-
-    const attendanceRows = await db.query.attendance.findMany({
-      where: sessionIdFilter
-        ? and(eq(attendance.eventId, eventId), eq(attendance.sessionId, sessionIdFilter))
-        : eq(attendance.eventId, eventId),
-      with: {
-        session: { columns: { title: true, sortOrder: true } },
-        user: {
-          columns: attendeeUserColumns,
-          with: {
-            house: { columns: { id: true, name: true } },
-          },
-        },
-      },
-      orderBy: (attendance, { desc }) => [desc(attendance.checkInTime)],
+    const attendeeUserColumns = AttendanceService.buildAttendeeUserColumns({
+      includeFullContactColumns,
+      isThinRoster,
+      fetchMedicalFields,
+      includeMedicalColumns,
     });
+
+    const attendanceRows = await AttendanceService.listExportRows(eventId, sessionIdFilter, attendeeUserColumns);
     type Att = (typeof attendanceRows)[number];
 
     // Sessions are needed both to attach a real sessionId to the synthetic staff
@@ -217,11 +184,7 @@ export async function GET(
     // group the roster into per-day sheets — fetch once and reuse both places.
     const allSessions = sessionIdFilter
       ? []
-      : await db.query.eventSessions.findMany({
-          where: eq(eventSessions.eventId, eventId),
-          columns: { id: true, title: true, sortOrder: true },
-          orderBy: (s, { asc }) => [asc(s.sortOrder), asc(s.startTime)],
-        });
+      : await EventsService.listSessionsBrief(eventId);
 
     // events.staffUserIds is the authoritative, explicitly-assigned staff roster
     // (set from the admin Edit Event form) — but it's independent of attendance:
@@ -237,11 +200,7 @@ export async function GET(
     );
     const syntheticStaffRows: Att[] = [];
     if (missingStaffIds.length > 0) {
-      const missingUsers = await db.query.users.findMany({
-        where: inArray(users.id, missingStaffIds),
-        columns: { id: true, ...attendeeUserColumns },
-        with: { house: { columns: { id: true, name: true } } },
-      });
+      const missingUsers = await AttendanceService.listUsersForExport(missingStaffIds, attendeeUserColumns);
       const sessionIdsToAttach: (string | null)[] = sessionIdFilter
         ? [sessionIdFilter]
         : allSessions.length > 0

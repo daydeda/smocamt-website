@@ -1,16 +1,14 @@
 import type { Session } from "next-auth";
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { forms, events } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { normalizeForm, computeScore, type AnswerMap } from "@/lib/forms/form-schema";
 import { ASSIGNABLE_ROLES, canSeeRespondentIdentity } from "@/lib/access/form-access";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
-import { revertFormAward } from "@/lib/points/award-points";
 import { revalidateLeaderboards } from "@/lib/points/leaderboard-cache";
 import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 import { EventScopeService } from "@/modules/events/event-scope.service";
+import { EventsService } from "@/modules/events/events.service";
+import { FormsService } from "@/modules/forms/forms.service";
 
 // Staff manage every event's forms, unscoped. club_president/major_president may
 // also fully manage forms (create/edit/delete/schedule/identity toggle), but only
@@ -52,10 +50,7 @@ async function gateEventForms(eventId: string, session: Session | null, write: b
   }
 
   // Only presidents / a position-scoped registration holder left — must own the event.
-  const event = await db.query.events.findFirst({
-    where: eq(events.id, eventId),
-    columns: { id: true, ownerClubIds: true, ownerMajors: true },
-  });
+  const event = await EventsService.getEventIdAndOwnership(eventId);
   if (!event) {
     return { error: NextResponse.json({ error: "Event not found" }, { status: 404 }), isStaff };
   }
@@ -130,28 +125,7 @@ export async function GET(
     const gate = await gateEventForms(eventId, session, false);
     if (gate.error) return gate.error;
 
-    const allForms = await db.query.forms.findMany({
-      where: eq(forms.eventId, eventId),
-      with: {
-        submissions: {
-          with: {
-            user: {
-              columns: {
-                name: true,
-                studentId: true,
-                houseId: true,
-                nickname: true,
-                major: true,
-                phone: true,
-                contactChannels: true,
-              },
-            },
-          },
-          orderBy: (s, { desc }) => [desc(s.submittedAt)],
-        },
-      },
-      orderBy: (f, { asc }) => [asc(f.sortOrder), asc(f.createdAt)],
-    });
+    const allForms = await FormsService.listFormsWithSubmissionsForEvent(eventId);
 
     let identityVisibleSubmissions = 0;
     const result = allForms.map((formObj) => {
@@ -218,10 +192,7 @@ export async function GET(
     // the attendance-list access log. Hard (not best-effort): if we can't record
     // the read, we don't serve it.
     const submissionCount = result.reduce((n, f) => n + f.submissions.length, 0);
-    const event = await db.query.events.findFirst({
-      where: eq(events.id, eventId),
-      columns: { title: true },
-    });
+    const event = await EventsService.getEventTitle(eventId);
     const eventLabel = event ? `"${event.title}" (${eventId})` : eventId;
     await AuditService.logAction({
       actorId: session!.user!.id!,
@@ -281,9 +252,7 @@ export async function POST(
     // immediately self-approved; a president's create always starts 'pending'
     // until admin/registration reviews it — it's visible-but-closed to
     // participants until then (see getFormAvailability).
-    const [result] = await db
-      .insert(forms)
-      .values({
+    const result = await FormsService.createEventForm({
         eventId,
         formType: formType || "K_post",
         sortOrder: sortOrder ?? 0,
@@ -307,8 +276,7 @@ export async function POST(
         reviewStatus: gate.isStaff ? "approved" : "pending",
         reviewedBy: gate.isStaff ? session!.user!.id! : null,
         reviewedAt: gate.isStaff ? new Date() : null,
-      })
-      .returning();
+    });
 
     await AuditService.logAction({
       actorId: session!.user!.id!,
@@ -344,9 +312,7 @@ export async function PATCH(
       return NextResponse.json({ error: "formId is required" }, { status: 400 });
     }
 
-    const existing = await db.query.forms.findFirst({
-      where: and(eq(forms.id, formId), eq(forms.eventId, eventId)),
-    });
+    const existing = await FormsService.findFormInEvent(formId, eventId);
 
     if (!existing) {
       return NextResponse.json({ error: "Form not found" }, { status: 404 });
@@ -361,17 +327,11 @@ export async function PATCH(
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
       const note = typeof reviewNote === "string" ? reviewNote.trim().slice(0, 1000) || null : null;
-      const [reviewed] = await db
-        .update(forms)
-        .set({
-          reviewStatus: action === "approve" ? "approved" : "pending",
-          reviewedBy: session!.user!.id!,
-          reviewedAt: new Date(),
-          reviewNote: note,
-          updatedAt: new Date(),
-        })
-        .where(and(eq(forms.id, formId), eq(forms.eventId, eventId)))
-        .returning();
+      const reviewed = await FormsService.reviewEventForm(formId, eventId, {
+        reviewStatus: action === "approve" ? "approved" : "pending",
+        reviewedBy: session!.user!.id!,
+        reviewNote: note,
+      });
 
       await AuditService.logAction({
         actorId: session!.user!.id!,
@@ -417,20 +377,13 @@ export async function PATCH(
       );
     }
 
-    const result = await db.transaction(async (tx) => {
-      let revertNote = "";
-      if (reopening) {
-        const reverted = await revertFormAward(tx, formId);
-        revertNote = reverted.length
-          ? " Reverted award: " +
-            reverted.map((r) => `${r.houseId} -${r.points} PTS`).join(", ") +
-            "."
-          : " No points needed reverting.";
-      }
-
-      const [updated] = await tx
-        .update(forms)
-        .set({
+    const result = await FormsService.updateEventForm({
+      formId,
+      eventId,
+      reopening,
+      actorId: session!.user!.id!,
+      ipAddress: getClientIp(req),
+      buildValues: () => ({
           title: title ?? existing.title,
           description: description ?? existing.description,
           questions: questions ?? existing.questions,
@@ -459,19 +412,7 @@ export async function PATCH(
           reviewedAt: gate.isStaff ? new Date() : null,
           reviewNote: null,
           updatedAt: new Date(),
-        })
-        .where(and(eq(forms.id, formId), eq(forms.eventId, eventId)))
-        .returning();
-
-      await AuditService.logActionInternal(tx, {
-        actorId: session!.user!.id!,
-        action: reopening
-          ? `Re-opened awarded form "${updated.title}" (${formId}) for event ${eventId}.${revertNote}`
-          : `Updated form "${updated.title}" (${formId}) for event ${eventId}, review status: ${updated.reviewStatus}`,
-        ipAddress: getClientIp(req),
-      });
-
-      return updated;
+      }),
     });
 
     // A revert changed house totals — bust the cached leaderboard so it reflects
@@ -508,9 +449,7 @@ export async function DELETE(
       return NextResponse.json({ error: "formId is required" }, { status: 400 });
     }
 
-    const existing = await db.query.forms.findFirst({
-      where: and(eq(forms.id, formId), eq(forms.eventId, eventId)),
-    });
+    const existing = await FormsService.findFormInEvent(formId, eventId);
 
     if (!existing) {
       return NextResponse.json({ error: "Form not found" }, { status: 404 });
@@ -520,7 +459,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Cannot delete a form that has already awarded points." }, { status: 400 });
     }
 
-    await db.delete(forms).where(and(eq(forms.id, formId), eq(forms.eventId, eventId)));
+    await FormsService.deleteEventForm(formId, eventId);
 
     await AuditService.logAction({
       actorId: session!.user!.id!,

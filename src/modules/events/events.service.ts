@@ -136,8 +136,6 @@ export class EventsService {
   return db.transaction(async (tx) => {
       const current = await tx.query.events.findFirst({ where: eq(events.id, id) });
       if (!current) throw new Error("EVENT_NOT_FOUND");
-      // Re-checked inside the transaction so two staff tapping at once can't
-      // both "start" it — the second one sees it already started.
       if (current.startTime.getTime() <= now.getTime()) throw new Error("ALREADY_STARTED");
       if (bangkokDateKey(current.startTime.toISOString()) !== bangkokDateKey(now.toISOString())) {
         throw new Error("NOT_TODAY");
@@ -195,6 +193,46 @@ export class EventsService {
       where: eq(eventSessions.eventId, eventId),
       columns: { id: true, title: true, sortOrder: true },
       orderBy: (s, { asc }) => [asc(s.sortOrder), asc(s.startTime)],
+    });
+  }
+
+  /** An event's title only. */
+  static async getEventTitle(eventId: string) {
+    return db.query.events.findFirst({
+      where: eq(events.id, eventId),
+      columns: { title: true },
+    });
+  }
+
+  /** An event's id + title only. */
+  static async getEventIdAndTitle(eventId: string) {
+    return db.query.events.findFirst({
+      where: eq(events.id, eventId),
+      columns: { id: true, title: true },
+    });
+  }
+
+  /** The event columns the attendee export needs (title, management scope, staff list, check-out flag). */
+  static async getEventForExport(eventId: string) {
+    return db.query.events.findFirst({
+      where: eq(events.id, eventId),
+      columns: { id: true, title: true, managedByRoles: true, ownerClubIds: true, ownerMajors: true, staffUserIds: true, requireCheckOut: true },
+    });
+  }
+
+  /** One session's title + sortOrder, only if it belongs to the event. */
+  static async getSessionTitleOrder(sessionId: string, eventId: string) {
+    return db.query.eventSessions.findFirst({
+      where: and(eq(eventSessions.id, sessionId), eq(eventSessions.eventId, eventId)),
+      columns: { title: true, sortOrder: true },
+    });
+  }
+
+  /** An event's id + owner club/major lists (president-scope check). */
+  static async getEventIdAndOwnership(eventId: string) {
+    return db.query.events.findFirst({
+      where: eq(events.id, eventId),
+      columns: { id: true, ownerClubIds: true, ownerMajors: true },
     });
   }
 }

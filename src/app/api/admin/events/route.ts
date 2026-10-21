@@ -1,16 +1,14 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { events, attendance, eventSessions, eventProposals, users } from "@/db/schema";
 import { effectiveRoles, isGlobalRegistrationPosition, isEventUnscopedStaff } from "@/lib/access/admin-access";
-import { AuditService, getClientIp } from "@/modules/audit/audit.service";
+import { getClientIp } from "@/modules/audit/audit.service";
 import { EventScopeService } from "@/modules/events/event-scope.service";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { AdminEventsService } from "@/modules/events/admin-events.service";
+import { EventsService } from "@/modules/events/events.service";
 import { unstable_cache } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { allowedEventYearsSchema, sessionInputSchema, sessionsHaveInvalidSpan } from "@/lib/events/event-schema";
 import { syncEventToSongsue } from "@/lib/integrations/songsue-sync";
-import { eventYearFields } from "@/lib/access/event-access";
 
 const eventSchema = z.object({
   title: z.string().min(1),
@@ -103,17 +101,7 @@ const eventSchema = z.object({
 // The counts are global; the per-president scoping is applied in-memory after. Up to
 // 15s of count staleness during a live event is an accepted tradeoff.
 const getAttendeeCounts = unstable_cache(
-  async () =>
-    db
-      .select({
-        eventId: attendance.eventId,
-        count: sql<number>`count(distinct ${attendance.studentId})`,
-      })
-      .from(attendance)
-      // Staff rows don't count toward the displayed "X registered" headcount —
-      // mirrors the quota exemption in register/route.ts and scanner.service.ts.
-      .where(eq(attendance.isStaff, false))
-      .groupBy(attendance.eventId),
+  async () => AdminEventsService.getAttendeeCounts(),
   ["admin-events-attendee-counts"],
   { revalidate: 15, tags: ["admin-events-attendee-counts"] },
 );
@@ -156,14 +144,7 @@ export async function GET() {
     // /api/cron/award-points). Pulling every attendance row in here just to count
     // it is what starved the DB pooler and 504'd the site; this is polled every 8s.
 
-    const list = await db.query.events.findMany({
-      orderBy: (events, { desc }) => [desc(events.startTime)],
-      with: {
-        // Joined so the pending-changes review banner can show who submitted
-        // the edit, not just when — see events.pendingDetailsSubmittedBy.
-        pendingSubmitter: { columns: { id: true, name: true } },
-      },
-    });
+    const list = await AdminEventsService.listEventsWithSubmitter();
 
     // Attendee counts via a single grouped aggregate (DISTINCT students — a multi-day
     // 'once' event has one attended row per day for the same person). Cached for 15s
@@ -174,9 +155,7 @@ export async function GET() {
 
     // Sessions for every event in one query, grouped in memory (O(events) rows).
     // The scanner's day picker and the admin event editor both read these.
-    const allSessions = await db.query.eventSessions.findMany({
-      orderBy: (s, { asc }) => [asc(s.sortOrder), asc(s.startTime)],
-    });
+    const allSessions = await AdminEventsService.listAllSessions();
     const sessionsByEvent = new Map<string, typeof allSessions>();
     for (const s of allSessions) {
       const arr = sessionsByEvent.get(s.eventId) ?? [];
@@ -237,111 +216,19 @@ export async function POST(req: Request) {
 
     const ip = getClientIp(req);
 
-    const event = await db.transaction(async (tx) => {
-      const [created] = await tx
-        .insert(events)
-        .values({
-          title: data.title,
-          description: data.description,
-          startTime: new Date(data.startTime),
-          endTime: new Date(data.endTime),
-          registrationOpenTime: data.registrationOpenTime ? new Date(data.registrationOpenTime) : null,
-          registrationCloseTime: data.registrationCloseTime ? new Date(data.registrationCloseTime) : null,
-          quota: data.quota,
-          location: data.location,
-          pointsAwarded: data.pointsAwarded ?? 0,
-          individualPointsAwarded: data.individualPointsAwarded ?? 0,
-          imageUrl: cover,
-          imageUrls: posters,
-          // walkInsOnly implies walkInsEnabled regardless of what the client sent —
-          // an event that only accepts walk-ins obviously must accept walk-ins.
-          walkInsEnabled: data.walkInsOnly ? true : (data.walkInsEnabled ?? false),
-          walkInsOnly: data.walkInsOnly ?? false,
-          quotaWalkIn: data.quotaWalkIn,
-          registrationMode: data.registrationMode ?? "once",
-          checkInMode: data.checkInMode ?? "qr",
-          requireCheckOut: data.requireCheckOut ?? false,
-          checkOutEvidenceRequired: data.checkOutEvidenceRequired ?? true,
-          targetThai: data.targetThai ?? true,
-          targetInternational: data.targetInternational ?? true,
-          quotaThai: data.quotaThai,
-          quotaInternational: data.quotaInternational,
-          allowedRoles: data.allowedRoles && data.allowedRoles.length > 0 ? data.allowedRoles : null,
-          allowedMajors: data.allowedMajors && data.allowedMajors.length > 0 ? data.allowedMajors : null,
-          allowedClubs: data.allowedClubs && data.allowedClubs.length > 0 ? data.allowedClubs : null,
-          ...eventYearFields(data),
-          managedByRoles: data.managedByRoles && data.managedByRoles.length > 0 ? data.managedByRoles : null,
-          ownerClubIds: data.ownerClubIds && data.ownerClubIds.length > 0 ? data.ownerClubIds : null,
-          ownerMajors: data.ownerMajors && data.ownerMajors.length > 0 ? data.ownerMajors : null,
-          staffUserIds: data.staffUserIds && data.staffUserIds.length > 0 ? data.staffUserIds : null,
-          songsueLinked: data.songsueLinked ?? false,
-          // Staff is creating (and has therefore already reviewed) every field
-          // right now — unlike the DB column default of 'pending', which exists
-          // for the president-edit-triggers-re-review case (see PUT
-          // /api/admin/events/[id]). Without this, every brand-new event opened
-          // in the editor showed a "pending review" banner with nothing to
-          // review yet.
-          detailsReviewStatus: "approved",
-          detailsReviewedBy: session.user!.id!,
-          detailsReviewedAt: new Date(),
-        })
-        .returning();
-
-      await tx.insert(eventSessions).values(
-        sessionsInput.map((s, i) => ({
-          eventId: created.id,
-          title: s.title?.trim() ? s.title.trim() : null,
-          startTime: new Date(s.startTime),
-          endTime: new Date(s.endTime),
-          sortOrder: i,
-          quotaWalkIn: s.quotaWalkIn ?? null,
-          evidenceNonce: s.evidenceNonce ?? null,
-          evidencePrompt: s.evidencePrompt?.trim() ? s.evidencePrompt.trim() : null,
-        }))
-      );
-
-      // Log the event creation (through the service so the hash chain stays intact)
-      await AuditService.logActionInternal(tx, {
-        actorId: session.user!.id!,
-        action: `Created Event: ${created.title} (${sessionsInput.length} session${sessionsInput.length > 1 ? "s" : ""})`,
-        ipAddress: ip,
-      });
-
-      // Approving a club_president's proposal is a SIDE EFFECT of staff creating
-      // the real event from it, not a separate mutation — this rides the
-      // already-audited create transaction instead of adding a second
-      // privileged write path. The WHERE status='pending' guard means a
-      // proposal that was concurrently withdrawn/rejected/already-approved is
-      // simply left untouched; event creation still succeeds either way.
-      if (data.proposalId) {
-        const [linked] = await tx
-          .update(eventProposals)
-          .set({
-            status: "approved",
-            reviewedBy: session.user!.id!,
-            reviewedAt: new Date(),
-            resultingEventId: created.id,
-            updatedAt: new Date(),
-          })
-          .where(and(eq(eventProposals.id, data.proposalId), eq(eventProposals.status, "pending")))
-          .returning({ id: eventProposals.id });
-
-        await AuditService.logActionInternal(tx, {
-          actorId: session.user!.id!,
-          action: linked
-            ? `Approved event proposal ${data.proposalId} -> created event ${created.id}`
-            : `Created event ${created.id} from proposal ${data.proposalId} (proposal was no longer pending; left untouched)`,
-          ipAddress: ip,
-        });
-      }
-
-      return created;
+    const event = await AdminEventsService.createEvent({
+      data,
+      posters,
+      cover,
+      sessionsInput,
+      actorId: session.user!.id!,
+      ipAddress: ip,
     });
 
     // Best-effort mirror into Songsue — never blocks this save (see songsue-sync.ts).
     if (event.songsueLinked) {
       const staff = event.staffUserIds && event.staffUserIds.length > 0
-        ? await db.select({ email: users.email, name: users.name }).from(users).where(inArray(users.id, event.staffUserIds))
+        ? await EventsService.listStaffContacts(event.staffUserIds)
         : [];
       await syncEventToSongsue({
         externalId: event.id,

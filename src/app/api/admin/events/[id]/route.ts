@@ -1,15 +1,13 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { events, eventSessions, attendance, users } from "@/db/schema";
-import { and, count, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { AuditService, getClientIp } from "@/modules/audit/audit.service";
+import { getClientIp } from "@/modules/audit/audit.service";
 import { allowedEventYearsSchema, sessionInputSchema, sessionsHaveInvalidSpan } from "@/lib/events/event-schema";
 import { canEditEventDirectly, effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
-import { EventScopeService } from "@/modules/events/event-scope.service";
 import { syncEventToSongsue } from "@/lib/integrations/songsue-sync";
-import { eventYearFields, getAllowedEventYears } from "@/lib/access/event-access";
+import { eventYearFields } from "@/lib/access/event-access";
+import { AdminEventsService } from "@/modules/events/admin-events.service";
+import { EventsService } from "@/modules/events/events.service";
 
 const eventUpdateSchema = z.object({
   title: z.string().min(1).optional(),
@@ -100,132 +98,6 @@ const eventUpdateSchema = z.object({
   },
 );
 
-type EventUpdateData = z.infer<typeof eventUpdateSchema>;
-
-// Fields a club/major president may propose changes to on an EXISTING event —
-// title/schedule/quota/etc. Role/access/points/staff fields are deliberately
-// excluded (those stay staff-only, see the admin-only branch in PUT below).
-// This single list drives three things that must never drift apart: what a
-// president's diff is allowed to contain, the "did anything actually change"
-// check, and what gets applied to live columns when staff approve it.
-const PRESIDENT_EDITABLE_FIELDS = [
-  "title", "description", "startTime", "endTime", "registrationOpenTime",
-  "registrationCloseTime", "quota", "location", "imageUrl", "imageUrls",
-  "walkInsEnabled", "walkInsOnly", "quotaWalkIn", "registrationMode",
-  "sessions", "targetThai", "targetInternational", "quotaThai",
-  "quotaInternational", "firstYearOnly", "allowedYears",
-] as const;
-type PresidentEditableField = (typeof PRESIDENT_EDITABLE_FIELDS)[number];
-type PendingDetailsPayload = Partial<Pick<EventUpdateData, PresidentEditableField>>;
-
-function pickEditableFields(data: EventUpdateData): PendingDetailsPayload {
-  const picked: PendingDetailsPayload = {};
-  for (const field of PRESIDENT_EDITABLE_FIELDS) {
-    const value = data[field];
-    if (value !== undefined) {
-      (picked as Record<string, unknown>)[field] = value;
-    }
-  }
-  return picked;
-}
-
-// Builds the events-table SET clause shared by (a) a direct staff edit and
-// (b) applying an approved pending president diff (see PUT below) — kept in
-// one place so those two paths can never disagree on how a field is written.
-function buildEventSetFields(
-  data: EventUpdateData,
-  posters: string[] | undefined,
-  coverFromPosters: string | null | undefined
-) {
-  return {
-    ...(data.title && { title: data.title }),
-    ...(data.description !== undefined && { description: data.description }),
-    ...(data.startTime && { startTime: new Date(data.startTime) }),
-    ...(data.endTime && { endTime: new Date(data.endTime) }),
-    ...(data.registrationOpenTime !== undefined && {
-        registrationOpenTime: data.registrationOpenTime ? new Date(data.registrationOpenTime) : null
-    }),
-    ...(data.registrationCloseTime !== undefined && {
-        registrationCloseTime: data.registrationCloseTime ? new Date(data.registrationCloseTime) : null
-    }),
-    ...(data.quota !== undefined && { quota: data.quota }),
-    ...(data.location !== undefined && { location: data.location }),
-    ...(data.pointsAwarded !== undefined && { pointsAwarded: data.pointsAwarded }),
-    ...(data.individualPointsAwarded !== undefined && { individualPointsAwarded: data.individualPointsAwarded }),
-    ...(posters !== undefined
-      ? { imageUrls: posters, imageUrl: coverFromPosters }
-      : (data.imageUrl !== undefined && { imageUrl: data.imageUrl })),
-    // walkInsOnly implies walkInsEnabled regardless of what the client sent.
-    ...(data.walkInsOnly !== undefined && { walkInsOnly: data.walkInsOnly }),
-    ...(data.walkInsOnly
-      ? { walkInsEnabled: true }
-      : (data.walkInsEnabled !== undefined && { walkInsEnabled: data.walkInsEnabled })),
-    ...(data.quotaWalkIn !== undefined && { quotaWalkIn: data.quotaWalkIn }),
-    ...(data.registrationMode !== undefined && { registrationMode: data.registrationMode }),
-    ...(data.checkInMode !== undefined && { checkInMode: data.checkInMode }),
-    ...(data.requireCheckOut !== undefined && { requireCheckOut: data.requireCheckOut }),
-    ...(data.checkOutEvidenceRequired !== undefined && { checkOutEvidenceRequired: data.checkOutEvidenceRequired }),
-    ...(data.targetThai !== undefined && { targetThai: data.targetThai }),
-    ...(data.targetInternational !== undefined && { targetInternational: data.targetInternational }),
-    ...(data.quotaThai !== undefined && { quotaThai: data.quotaThai }),
-    ...(data.quotaInternational !== undefined && { quotaInternational: data.quotaInternational }),
-    ...(data.allowedRoles !== undefined && {
-      allowedRoles: data.allowedRoles && data.allowedRoles.length > 0 ? data.allowedRoles : null
-    }),
-    ...(data.allowedMajors !== undefined && {
-      allowedMajors: data.allowedMajors && data.allowedMajors.length > 0 ? data.allowedMajors : null
-    }),
-    ...(data.allowedClubs !== undefined && {
-      allowedClubs: data.allowedClubs && data.allowedClubs.length > 0 ? data.allowedClubs : null
-    }),
-    ...eventYearFields(data),
-    ...(data.managedByRoles !== undefined && {
-      managedByRoles: data.managedByRoles && data.managedByRoles.length > 0 ? data.managedByRoles : null
-    }),
-    ...(data.ownerClubIds !== undefined && {
-      ownerClubIds: data.ownerClubIds && data.ownerClubIds.length > 0 ? data.ownerClubIds : null
-    }),
-    ...(data.ownerMajors !== undefined && {
-      ownerMajors: data.ownerMajors && data.ownerMajors.length > 0 ? data.ownerMajors : null
-    }),
-    ...(data.staffUserIds !== undefined && {
-      staffUserIds: data.staffUserIds && data.staffUserIds.length > 0 ? data.staffUserIds : null
-    }),
-    ...(data.songsueLinked !== undefined && { songsueLinked: data.songsueLinked }),
-  };
-}
-
-const DATE_FIELDS = new Set(["startTime", "endTime", "registrationOpenTime", "registrationCloseTime"]);
-
-// No diff library in this repo (see the analogous manual string-diff builder
-// in src/app/api/admin/users/[id]/route.ts) — a plain JSON-stringify compare
-// is precise enough for the scalar/array fields here, with dates normalized
-// to epoch millis first since a submitted ISO string and a fetched Date must
-// compare equal when they represent the same instant.
-function editableValueChanged(field: string, submitted: unknown, current: unknown): boolean {
-  if (submitted === undefined) return false;
-  if (DATE_FIELDS.has(field)) {
-    const s = submitted == null ? null : new Date(submitted as string).getTime();
-    const c = current == null ? null : new Date(current as string | Date).getTime();
-    return s !== c;
-  }
-  return JSON.stringify(submitted ?? null) !== JSON.stringify(current ?? null);
-}
-
-function normalizeSessionForCompare(s: {
-  title?: string | null;
-  startTime: string | Date;
-  endTime: string | Date;
-  quotaWalkIn?: number | null;
-}) {
-  return {
-    title: s.title?.trim() || null,
-    startTime: new Date(s.startTime).toISOString(),
-    endTime: new Date(s.endTime).toISOString(),
-    quotaWalkIn: s.quotaWalkIn ?? null,
-  };
-}
-
 // PUT /api/admin/events/[id] — Update event
 export async function PUT(
   req: Request,
@@ -269,301 +141,20 @@ export async function PUT(
     // held-for-review edit or a no-op discard never fires a sync of stale data.
     let liveColumnsChanged = false;
 
-    let updated: typeof events.$inferSelect;
+    let updated: Awaited<ReturnType<typeof AdminEventsService.updateEvent>>["updated"];
     try {
-      updated = await db.transaction(async (tx) => {
-        const current = await tx.query.events.findFirst({ where: eq(events.id, id) });
-        if (!current) {
-          throw new Error("EVENT_NOT_FOUND");
-        }
-
-        // A club/major president may edit their OWN event's details (title,
-        // description, schedule, location, quota, etc.) — but the edit is
-        // held as a pending proposal (events.pendingDetailsChanges) instead
-        // of ever touching the live columns; those are only written once
-        // staff approve it below. Role/access/points/Managed By/staff stay
-        // staff-only, enforced by PRESIDENT_EDITABLE_FIELDS being an
-        // allowlist (pickEditableFields), not by stripping a denylist.
-        if (!isAdminRole) {
-          const scope = await EventScopeService.getPresidentScope(session.user.id!, myRoles);
-          if (!EventScopeService.isEventManagedByScope(current, scope)) {
-            throw new Error("UNAUTHORIZED_SCOPE");
-          }
-
-          const editablePayload = pickEditableFields(data);
-          if (posters !== undefined) {
-            editablePayload.imageUrls = posters;
-            editablePayload.imageUrl = coverFromPosters;
-          }
-
-          // Compare against the MOST RECENT proposed state, not always the
-          // live row — an already-outstanding pending edit (from an earlier,
-          // still-unreviewed submission) is what the president is actually
-          // looking at when they reopen the form (see handleEdit's draft
-          // merge client-side), so resubmitting it unchanged must read as a
-          // no-op too, not as a fresh change every time.
-          const existingPending = (current.pendingDetailsChanges as PendingDetailsPayload | null) ?? {};
-          const comparisonBase: Record<string, unknown> = { ...current, allowedYears: getAllowedEventYears(current), ...existingPending, ...eventYearFields(existingPending) };
-
-          let sessionsChanged = false;
-          if (data.sessions !== undefined) {
-            let baseSessions: { title: string | null; startTime: string | Date; endTime: string | Date; quotaWalkIn: number | null }[];
-            if (existingPending.sessions !== undefined) {
-              baseSessions = existingPending.sessions.map((s) => ({
-                title: s.title ?? null,
-                startTime: s.startTime,
-                endTime: s.endTime,
-                quotaWalkIn: s.quotaWalkIn ?? null,
-              }));
-            } else {
-              baseSessions = await tx
-                .select({
-                  title: eventSessions.title,
-                  startTime: eventSessions.startTime,
-                  endTime: eventSessions.endTime,
-                  quotaWalkIn: eventSessions.quotaWalkIn,
-                })
-                .from(eventSessions)
-                .where(eq(eventSessions.eventId, id))
-                .orderBy(eventSessions.sortOrder);
-            }
-            sessionsChanged = JSON.stringify(data.sessions.map(normalizeSessionForCompare))
-              !== JSON.stringify(baseSessions.map(normalizeSessionForCompare));
-          }
-
-          const scalarChanged = PRESIDENT_EDITABLE_FIELDS.some((field) => {
-            if (field === "sessions") return false;
-            const submitted = (editablePayload as Record<string, unknown>)[field];
-            return editableValueChanged(field, submitted, comparisonBase[field]);
-          });
-
-          if (!scalarChanged && !sessionsChanged) {
-            // No-op save (president opened the editor and saved without
-            // changing anything) — don't create a spurious pending-review
-            // flag or touch any review-state column.
-            return current;
-          }
-
-          const [row] = await tx
-            .update(events)
-            .set({
-              pendingDetailsChanges: editablePayload,
-              pendingDetailsSubmittedBy: session.user!.id!,
-              pendingDetailsSubmittedAt: new Date(),
-              detailsReviewStatus: "pending",
-              // detailsReviewedBy/At deliberately left untouched — they
-              // describe who approved the CURRENT LIVE content, which this
-              // branch never modifies. A pending edit sitting on top doesn't
-              // make the live content's last approval any less accurate.
-              updatedAt: new Date(),
-            })
-            .where(eq(events.id, id))
-            .returning();
-          if (!row) throw new Error("EVENT_NOT_FOUND");
-
-          await AuditService.logActionInternal(tx, {
-            actorId: session.user!.id!,
-            action: `Submitted pending changes for review: ${row.title}`,
-            ipAddress: ip,
-          });
-
-          return row;
-        }
-
-        // Staff-only: drop a pending president edit without applying it —
-        // live fields stay exactly as they are (they were never touched).
-        if (data.discardPendingDetails) {
-          const [row] = await tx
-            .update(events)
-            .set({
-              pendingDetailsChanges: null,
-              pendingDetailsSubmittedBy: null,
-              pendingDetailsSubmittedAt: null,
-              detailsReviewStatus: "approved",
-              updatedAt: new Date(),
-            })
-            .where(eq(events.id, id))
-            .returning();
-          if (!row) throw new Error("EVENT_NOT_FOUND");
-
-          await AuditService.logActionInternal(tx, {
-            actorId: session.user!.id!,
-            action: `Discarded pending changes: ${row.title}`,
-            ipAddress: ip,
-          });
-
-          return row;
-        }
-
-        // Approving a pending president diff: apply its stored values to the
-        // live columns via the same field-mapper a direct staff edit uses.
-        // Anything the admin ALSO explicitly sent in this same request takes
-        // precedence over the stored diff (in practice the UI only ever
-        // sends the isolated { detailsReviewStatus: "approved" } call below).
-        const approvingPending = data.detailsReviewStatus === "approved" && current.pendingDetailsChanges != null;
-        // Trusted without re-validation: this JSON only ever holds a payload
-        // that already passed eventUpdateSchema.parse() at submission time.
-        const pendingAsData = approvingPending
-          ? (current.pendingDetailsChanges as Partial<EventUpdateData>)
-          : undefined;
-        const effectiveData: EventUpdateData = pendingAsData ? { ...pendingAsData, ...data } : data;
-
-        let effectivePosters = posters;
-        let effectiveCover = coverFromPosters;
-        if (pendingAsData && posters === undefined && pendingAsData.imageUrls !== undefined) {
-          effectivePosters = (pendingAsData.imageUrls ?? [])
-            .filter((u): u is string => typeof u === "string" && u.trim() !== "");
-          effectiveCover = effectivePosters[0] ?? null;
-        }
-
-        const previousStaffUserIds = effectiveData.staffUserIds !== undefined
-          ? (current.staffUserIds ?? [])
-          : [];
-
-        liveColumnsChanged = true;
-
-        const [row] = await tx
-          .update(events)
-          .set({
-            ...buildEventSetFields(effectiveData, effectivePosters, effectiveCover),
-            // Staff-only approve/reopen toggle (never reached for president
-            // actors) — approving sets the reviewer/timestamp; reopening
-            // clears them, since they no longer describe the current state.
-            ...(data.detailsReviewStatus !== undefined && {
-              detailsReviewStatus: data.detailsReviewStatus,
-              detailsReviewedBy: data.detailsReviewStatus === "approved" ? session.user!.id! : null,
-              detailsReviewedAt: data.detailsReviewStatus === "approved" ? new Date() : null,
-            }),
-            ...(approvingPending && {
-              pendingDetailsChanges: null,
-              pendingDetailsSubmittedBy: null,
-              pendingDetailsSubmittedAt: null,
-            }),
-            updatedAt: new Date(),
-          })
-          .where(eq(events.id, id))
-          .returning();
-
-        if (!row) {
-          throw new Error("EVENT_NOT_FOUND");
-        }
-
-        // Keep attendance.isStaff in sync with staffUserIds both ways, so
-        // assign/unassign is a clean, reversible action from the admin's
-        // point of view (the Attendance roster's Staff/Students split and
-        // the quota/no-show tallies all key off this per-row flag — see
-        // schema.ts comment).
-        if (effectiveData.staffUserIds !== undefined) {
-          const newStaffIds = effectiveData.staffUserIds ?? [];
-          // Newly assigned: someone who already had an attendance/registration
-          // row for this event BEFORE being added to staffUserIds (e.g. they
-          // self-registered as a regular attendee, then were assigned as staff
-          // afterward). Without this, isStaff stays frozen at its register-time
-          // snapshot and they'd never be exempted from quota/no-show strikes or
-          // show up in the Attendance staff section.
-          const newlyAddedStaffIds = newStaffIds.filter(
-            (uid) => !previousStaffUserIds.includes(uid)
-          );
-          if (newlyAddedStaffIds.length > 0) {
-            await tx
-              .update(attendance)
-              .set({ isStaff: true })
-              .where(
-                and(
-                  eq(attendance.eventId, id),
-                  inArray(attendance.studentId, newlyAddedStaffIds),
-                  eq(attendance.isStaff, false)
-                )
-              );
-          }
-          // Newly removed: reverting isStaff back to false so unassigning
-          // actually moves them back to Students and normal quota/no-show
-          // counting, instead of leaving them permanently misclassified as
-          // staff. This does mean their existing registration can retroactively
-          // count against quota/no-show strikes once unassigned — that's the
-          // intended, accurate behavior of undoing a staff assignment.
-          const newlyRemovedStaffIds = previousStaffUserIds.filter(
-            (uid) => !newStaffIds.includes(uid)
-          );
-          if (newlyRemovedStaffIds.length > 0) {
-            await tx
-              .update(attendance)
-              .set({ isStaff: false })
-              .where(
-                and(
-                  eq(attendance.eventId, id),
-                  inArray(attendance.studentId, newlyRemovedStaffIds),
-                  eq(attendance.isStaff, true)
-                )
-              );
-          }
-        }
-
-        // Reconcile sessions when the editor sends them (either directly, or
-        // via an approved pending diff). Match by id (update), insert new,
-        // drop removed — but NEVER delete a session that already has
-        // attendance (non-destructive). An event must always keep ≥1 session.
-        if (effectiveData.sessions !== undefined) {
-          const incoming = effectiveData.sessions;
-          const existing = await tx
-            .select({ id: eventSessions.id })
-            .from(eventSessions)
-            .where(eq(eventSessions.eventId, id));
-          const existingIds = new Set(existing.map((s) => s.id));
-          const incomingIds = new Set(incoming.filter((s) => s.id).map((s) => s.id!));
-
-          for (let i = 0; i < incoming.length; i++) {
-            const s = incoming[i];
-            const fields = {
-              title: s.title?.trim() ? s.title.trim() : null,
-              startTime: new Date(s.startTime),
-              endTime: new Date(s.endTime),
-              sortOrder: i,
-              quotaWalkIn: s.quotaWalkIn ?? null,
-              evidenceNonce: s.evidenceNonce ?? null,
-              evidencePrompt: s.evidencePrompt?.trim() ? s.evidencePrompt.trim() : null,
-            };
-            if (s.id && existingIds.has(s.id)) {
-              await tx.update(eventSessions)
-                .set({ ...fields, updatedAt: new Date() })
-                .where(eq(eventSessions.id, s.id));
-            } else {
-              await tx.insert(eventSessions).values({ eventId: id, ...fields });
-            }
-          }
-
-          const removedIds = [...existingIds].filter((eid) => !incomingIds.has(eid));
-          if (removedIds.length > 0) {
-            const withAttendance = await tx
-              .select({ sessionId: attendance.sessionId })
-              .from(attendance)
-              .where(inArray(attendance.sessionId, removedIds))
-              .groupBy(attendance.sessionId);
-            const blocked = new Set(withAttendance.map((r) => r.sessionId));
-            const deletable = removedIds.filter((rid) => !blocked.has(rid));
-            if (deletable.length > 0) {
-              await tx.delete(eventSessions).where(inArray(eventSessions.id, deletable));
-            }
-          }
-
-          const [{ value: remaining }] = await tx
-            .select({ value: count() })
-            .from(eventSessions)
-            .where(eq(eventSessions.eventId, id));
-          if (remaining === 0) throw new Error("NO_SESSIONS_LEFT");
-        }
-
-        // Log the event update (through the service so the hash chain stays intact)
-        await AuditService.logActionInternal(tx, {
-          actorId: session.user!.id!,
-          action: approvingPending
-            ? `Approved pending changes: ${row.title}`
-            : `Updated Event: ${row.title}`,
-          ipAddress: ip,
-        });
-
-        return row;
+      const result = await AdminEventsService.updateEvent({
+        id,
+        data,
+        posters,
+        coverFromPosters,
+        isAdminRole,
+        myRoles,
+        actorId: session.user!.id!,
+        ipAddress: ip,
       });
+      updated = result.updated;
+      liveColumnsChanged = result.liveColumnsChanged;
     } catch (e) {
       if (e instanceof Error && e.message === "EVENT_NOT_FOUND") {
         return NextResponse.json({ error: "Event not found" }, { status: 404 });
@@ -582,7 +173,7 @@ export async function PUT(
     // president's held-for-review diff, not a bare discard).
     if (liveColumnsChanged && updated.songsueLinked) {
       const staff = updated.staffUserIds && updated.staffUserIds.length > 0
-        ? await db.select({ email: users.email, name: users.name }).from(users).where(inArray(users.id, updated.staffUserIds))
+        ? await EventsService.listStaffContacts(updated.staffUserIds)
         : [];
       await syncEventToSongsue({
         externalId: updated.id,
@@ -629,30 +220,7 @@ export async function DELETE(
 
     const { id } = await params;
 
-    // Delete related records manually to avoid FK constraints if cascade isn't applied
-    await db.transaction(async (tx) => {
-      // 1. Attendance
-      const { attendance, scoreHistory } = await import("@/db/schema");
-      await tx.delete(attendance).where(eq(attendance.eventId, id));
-      // 2. Score History
-      await tx.delete(scoreHistory).where(eq(scoreHistory.eventId, id));
-      // 3. The Event itself
-      const [deleted] = await tx
-        .delete(events)
-        .where(eq(events.id, id))
-        .returning({ id: events.id, title: events.title });
-
-      if (!deleted) {
-        throw new Error("Event not found");
-      }
-
-      // 4. Log the deletion in audit trail (through the service to keep the chain intact)
-      await AuditService.logActionInternal(tx, {
-        actorId: session.user!.id!,
-        action: `Deleted Event: ${deleted.title} (${deleted.id})`,
-        ipAddress: getClientIp(req),
-      });
-    });
+    await AdminEventsService.deleteEvent(id, session.user!.id!, getClientIp(req));
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

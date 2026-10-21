@@ -1,10 +1,8 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { shopOrders } from "@/db/schema";
 import { downloadSlip } from "@/lib/shop/shop-storage";
 import { isShopAdmin } from "@/lib/shop/shop-auth";
 import { resolveShopAccess, classifyOrdersByScope } from "@/lib/shop/shop-scope";
-import { eq } from "drizzle-orm";
+import { ShopOrdersService } from "@/modules/shop/shop-orders.service";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { NextResponse } from "next/server";
 
@@ -27,11 +25,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (!UUID_PATTERN.test(id)) {
       return NextResponse.json({ error: "Invalid order id" }, { status: 400 });
     }
-    const [order] = await db
-      .select({ buyerId: shopOrders.buyerId, slipPath: shopOrders.slipPath })
-      .from(shopOrders)
-      .where(eq(shopOrders.id, id))
-      .limit(1);
+    const order = await ShopOrdersService.getOrderSlipRef(id);
 
     if (!order || !order.slipPath) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });

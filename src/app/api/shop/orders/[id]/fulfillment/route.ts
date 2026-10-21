@@ -1,10 +1,7 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { shopOrderItems, shopOrders } from "@/db/schema";
-import { nextFulfillmentStatus } from "@/lib/shop/shop-fulfillment";
 import { getShopOrderAudienceUserIds } from "@/modules/notifications/push-audience";
 import { PushService } from "@/modules/notifications/push.service";
-import { and, eq } from "drizzle-orm";
+import { ShopOrdersService } from "@/modules/shop/shop-orders.service";
 import { after, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -29,32 +26,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (!z.string().uuid().safeParse(id).success) return NextResponse.json({ error: "Not found" }, { status: 404 });
     const data = schema.parse(await req.json());
 
-    const outcome = await db.transaction(async (tx) => {
-      const [order] = await tx
-        .select({
-          status: shopOrders.status,
-          fulfillment: shopOrders.fulfillment,
-          fulfillmentStatus: shopOrders.fulfillmentStatus,
-          sellerId: shopOrders.sellerId,
-        })
-        .from(shopOrders)
-        .where(and(eq(shopOrders.id, id), eq(shopOrders.buyerId, buyerId)))
-        .limit(1)
-        .for("update");
-      if (!order) return { kind: "not_found" as const };
-
-      const next = nextFulfillmentStatus(order, data.action);
-      if (!next) return { kind: "refused" as const };
-
-      const now = new Date();
-      await tx
-        .update(shopOrders)
-        .set(data.action === "confirm"
-          ? { fulfillmentStatus: next, fulfilledAt: now, fulfilledBy: null, fulfilledVia: "buyer", updatedAt: now }
-          : { fulfillmentStatus: next, issueNote: data.note, issueAt: now, updatedAt: now })
-        .where(eq(shopOrders.id, id));
-      return { kind: "ok" as const, next, sellerId: order.sellerId };
-    });
+    const outcome = await ShopOrdersService.applyBuyerFulfillmentAction(id, buyerId, data);
 
     if (outcome.kind === "not_found") return NextResponse.json({ error: "Not found" }, { status: 404 });
     if (outcome.kind === "refused") {
@@ -64,7 +36,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (data.action === "report") {
       // Same audience as a new order: shop admins + whoever owns these products.
       after(async () => {
-        const items = await db.select({ productId: shopOrderItems.productId }).from(shopOrderItems).where(eq(shopOrderItems.orderId, id));
+        const items = await ShopOrdersService.listProductIdsForOrder(id);
         const audienceIds = await getShopOrderAudienceUserIds(
           items.map((i) => i.productId).filter((p): p is string => !!p),
           outcome.sellerId,

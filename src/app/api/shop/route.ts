@@ -1,8 +1,7 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { shopOrderItems, shopOrders, shopProducts, shopSellers, shopSettings, shopVariants, users } from "@/db/schema";
 import { buildViewer, isEligibleFor } from "@/lib/access/event-access";
-import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { ShopService } from "@/modules/shop/shop.service";
+import { UsersService } from "@/modules/users/users.service";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -17,11 +16,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const [settings] = await db
-      .select()
-      .from(shopSettings)
-      .orderBy(desc(shopSettings.updatedAt))
-      .limit(1);
+    const settings = await ShopService.getCurrentSettings();
 
     // Shop turned off — hide everything but report the flag so the UI can explain.
     if (!settings || !settings.enabled) {
@@ -30,36 +25,18 @@ export async function GET() {
 
     // Major lives on the users row (not on the session token); needed for the
     // major-based visibility check. Roles + studentId come from the session.
-    const me = await db.query.users.findFirst({
-      where: eq(users.id, session.user.id!),
-      columns: { major: true },
-    });
+    const me = await UsersService.getMajorById(session.user.id!);
     const viewer = buildViewer({
       roles: session.user.roles || [session.user.role || "student"],
       studentId: session.user.studentId,
       major: me?.major,
     });
 
-    const activeProducts = await db
-      .select()
-      .from(shopProducts)
-      .where(and(eq(shopProducts.isActive, true), eq(shopProducts.approvalStatus, "approved")))
-      .orderBy(asc(shopProducts.sortOrder), desc(shopProducts.createdAt));
+    const activeProducts = await ShopService.listActiveApprovedProducts();
 
     const sellerIds = [...new Set(activeProducts.map((p) => p.sellerId).filter((id): id is string => !!id))];
     const approvedSellers = sellerIds.length
-      ? await db
-          .select({
-            id: shopSellers.id,
-            displayName: shopSellers.displayName,
-            paymentInfo: shopSellers.paymentInfo,
-            qrImageUrl: shopSellers.qrImageUrl,
-            deliveryEnabled: shopSellers.deliveryEnabled,
-            deliveryFee: shopSellers.deliveryFee,
-            pickupInfo: shopSellers.pickupInfo,
-          })
-          .from(shopSellers)
-          .where(and(inArray(shopSellers.id, sellerIds), eq(shopSellers.status, "approved")))
+      ? await ShopService.listApprovedSellersByIds(sellerIds)
       : [];
     const sellerById = new Map(approvedSellers.map((seller) => [seller.id, seller]));
 
@@ -71,26 +48,14 @@ export async function GET() {
 
     const productIds = products.map((p) => p.id);
     const variants = productIds.length
-      ? await db
-          .select()
-          .from(shopVariants)
-          .where(inArray(shopVariants.productId, productIds))
-          .orderBy(asc(shopVariants.sortOrder))
+      ? await ShopService.listVariantsForProducts(productIds)
       : [];
 
     // Units already committed per variant (everything not rejected counts against
     // stock). One grouped query instead of N.
     const variantIds = variants.map((v) => v.id);
     const soldRows = variantIds.length
-      ? await db
-          .select({
-            variantId: shopOrderItems.variantId,
-            sold: sql<number>`coalesce(sum(${shopOrderItems.quantity}), 0)`,
-          })
-          .from(shopOrderItems)
-          .innerJoin(shopOrders, eq(shopOrderItems.orderId, shopOrders.id))
-          .where(and(inArray(shopOrderItems.variantId, variantIds), ne(shopOrders.status, "rejected")))
-          .groupBy(shopOrderItems.variantId)
+      ? await ShopService.listSoldByVariant(variantIds)
       : [];
     const soldByVariant = new Map(soldRows.map((r) => [r.variantId, Number(r.sold)]));
 

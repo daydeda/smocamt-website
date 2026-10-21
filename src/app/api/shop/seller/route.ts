@@ -1,10 +1,8 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { shopSellers } from "@/db/schema";
-import { AuditService, getClientIp } from "@/modules/audit/audit.service";
+import { getClientIp } from "@/modules/audit/audit.service";
+import { ShopService } from "@/modules/shop/shop.service";
 import { getShopAdminUserIds } from "@/modules/notifications/push-audience";
 import { PushService } from "@/modules/notifications/push.service";
-import { eq } from "drizzle-orm";
 import { after, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -22,18 +20,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const [seller] = await db
-      .select({
-        id: shopSellers.id,
-        displayName: shopSellers.displayName,
-        status: shopSellers.status,
-        reviewNote: shopSellers.reviewNote,
-        appliedAt: shopSellers.appliedAt,
-        reviewedAt: shopSellers.reviewedAt,
-      })
-      .from(shopSellers)
-      .where(eq(shopSellers.userId, session.user.id!))
-      .limit(1);
+    const seller = await ShopService.getOwnSellerApplication(session.user.id!);
 
     return NextResponse.json({ seller: seller ?? null });
   } catch (error) {
@@ -57,45 +44,7 @@ export async function POST(req: Request) {
 
     const data = applicationSchema.parse(await req.json());
 
-    const result = await db.transaction(async (tx) => {
-      const [existing] = await tx
-        .select({ id: shopSellers.id, status: shopSellers.status })
-        .from(shopSellers)
-        .where(eq(shopSellers.userId, session.user.id!))
-        .limit(1);
-
-      if (existing?.status === "approved") return { conflict: "Your seller account is already approved." };
-      if (existing?.status === "pending") return { conflict: "Your seller application is already pending." };
-      if (existing?.status === "suspended") return { conflict: "This seller account is suspended. Contact a shop administrator." };
-
-      if (existing) {
-        await tx
-          .update(shopSellers)
-          .set({
-            displayName: data.displayName,
-            status: "pending",
-            reviewNote: null,
-            appliedAt: new Date(),
-            reviewedBy: null,
-            reviewedAt: null,
-            updatedAt: new Date(),
-          })
-          .where(eq(shopSellers.id, existing.id));
-      } else {
-        await tx.insert(shopSellers).values({
-          userId: session.user.id!,
-          displayName: data.displayName,
-          status: "pending",
-        });
-      }
-
-      await AuditService.logActionInternal(tx, {
-        actorId: session.user.id!,
-        action: existing ? "Re-applied for shop seller access" : "Applied for shop seller access",
-        ipAddress: getClientIp(req),
-      });
-      return { success: true as const };
-    });
+    const result = await ShopService.applyToSell(session.user.id!, data.displayName, getClientIp(req));
 
     if ("conflict" in result) {
       return NextResponse.json({ error: result.conflict }, { status: 409 });

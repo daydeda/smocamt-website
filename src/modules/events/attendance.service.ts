@@ -89,4 +89,21 @@ export class AttendanceService {
       ),
     });
   }
+
+  /**
+   * Every attendance row of an event with roster fields only (no medical
+   * detail), for the attendance report xlsx.
+   */
+  static async listReportRows(eventId: string) {
+    // This report is reachable by scanner-only roles (smo) and registration/
+    // organizer, so it deliberately pulls NO medical detail — only the roster
+    // fields below.
+    return db.query.attendance.findMany({
+      where: eq(attendance.eventId, eventId),
+      with: {
+        user: { columns: { studentId: true, name: true, nickname: true } },
+        session: { columns: { id: true, title: true, sortOrder: true } },
+      },
+    });
+  }
 }

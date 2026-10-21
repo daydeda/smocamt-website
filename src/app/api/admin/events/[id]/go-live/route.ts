@@ -1,11 +1,8 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { events, eventSessions, users } from "@/db/schema";
-import { asc, eq, inArray } from "drizzle-orm";
+import { EventsService } from "@/modules/events/events.service";
 import { NextResponse } from "next/server";
-import { AuditService, getClientIp } from "@/modules/audit/audit.service";
+import { getClientIp } from "@/modules/audit/audit.service";
 import { canEditEventDirectly, effectiveRoles } from "@/lib/access/admin-access";
-import { bangkokDateKey } from "@/lib/events/event-schema";
 import { syncEventToSongsue } from "@/lib/integrations/songsue-sync";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -42,49 +39,9 @@ export async function POST(
     const now = new Date();
     const ip = getClientIp(req);
 
-    let result: { event: typeof events.$inferSelect; sessions: (typeof eventSessions.$inferSelect)[] };
+    let result: Awaited<ReturnType<typeof EventsService.goLiveNow>>;
     try {
-      result = await db.transaction(async (tx) => {
-        const current = await tx.query.events.findFirst({ where: eq(events.id, id) });
-        if (!current) throw new Error("EVENT_NOT_FOUND");
-        // Re-checked inside the transaction so two staff tapping at once can't
-        // both "start" it — the second one sees it already started.
-        if (current.startTime.getTime() <= now.getTime()) throw new Error("ALREADY_STARTED");
-        if (bangkokDateKey(current.startTime.toISOString()) !== bangkokDateKey(now.toISOString())) {
-          throw new Error("NOT_TODAY");
-        }
-
-        const sessions = await tx
-          .select()
-          .from(eventSessions)
-          .where(eq(eventSessions.eventId, id))
-          .orderBy(asc(eventSessions.sortOrder), asc(eventSessions.startTime));
-        const first = sessions[0];
-        if (first && first.startTime.getTime() > now.getTime()) {
-          if (bangkokDateKey(first.startTime.toISOString()) !== bangkokDateKey(now.toISOString())) {
-            throw new Error("NOT_TODAY");
-          }
-          await tx
-            .update(eventSessions)
-            .set({ startTime: now, updatedAt: now })
-            .where(eq(eventSessions.id, first.id));
-          first.startTime = now;
-        }
-
-        const [row] = await tx
-          .update(events)
-          .set({ startTime: now, updatedAt: now })
-          .where(eq(events.id, id))
-          .returning();
-
-        await AuditService.logActionInternal(tx, {
-          actorId: session.user!.id!,
-          action: `Started event early (Go live now): ${row.title} (${id}) — start moved from ${current.startTime.toISOString()} to ${now.toISOString()}`,
-          ipAddress: ip,
-        });
-
-        return { event: row, sessions };
-      });
+      result = await EventsService.goLiveNow(id, now, session.user.id!, ip);
     } catch (e) {
       if (e instanceof Error && e.message === "EVENT_NOT_FOUND") {
         return NextResponse.json({ error: "Event not found" }, { status: 404 });
@@ -103,7 +60,7 @@ export async function POST(
     // Best-effort mirror into Songsue, same as a staff edit of the schedule.
     if (updated.songsueLinked) {
       const staff = updated.staffUserIds && updated.staffUserIds.length > 0
-        ? await db.select({ email: users.email, name: users.name }).from(users).where(inArray(users.id, updated.staffUserIds))
+        ? await EventsService.listStaffContacts(updated.staffUserIds)
         : [];
       await syncEventToSongsue({
         externalId: updated.id,

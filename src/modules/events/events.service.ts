@@ -1,6 +1,8 @@
 import { db } from "@/db";
-import { attendance, events, eventSessions, forms } from "@/db/schema";
-import { and, eq, isNotNull, sql } from "drizzle-orm";
+import { attendance, events, eventSessions, forms, users } from "@/db/schema";
+import { AuditService } from "@/modules/audit/audit.service";
+import { bangkokDateKey } from "@/lib/events/event-schema";
+import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 
 export class EventsService {
   /**
@@ -122,6 +124,77 @@ export class EventsService {
   static async listAllByStartTime() {
     return db.query.events.findMany({
       orderBy: (events, { asc }) => [asc(events.startTime)],
+    });
+  }
+
+  /**
+   * Starts a not-yet-started event early ("Go live now"): moves the event's
+   * start AND its first session's start to `now`, plus the audit log, in one
+   * transaction. Throws Error("EVENT_NOT_FOUND" | "ALREADY_STARTED" | "NOT_TODAY").
+   */
+  static async goLiveNow(id: string, now: Date, actorId: string, ipAddress: string) {
+  return db.transaction(async (tx) => {
+      const current = await tx.query.events.findFirst({ where: eq(events.id, id) });
+      if (!current) throw new Error("EVENT_NOT_FOUND");
+      // Re-checked inside the transaction so two staff tapping at once can't
+      // both "start" it — the second one sees it already started.
+      if (current.startTime.getTime() <= now.getTime()) throw new Error("ALREADY_STARTED");
+      if (bangkokDateKey(current.startTime.toISOString()) !== bangkokDateKey(now.toISOString())) {
+        throw new Error("NOT_TODAY");
+      }
+
+      const sessions = await tx
+        .select()
+        .from(eventSessions)
+        .where(eq(eventSessions.eventId, id))
+        .orderBy(asc(eventSessions.sortOrder), asc(eventSessions.startTime));
+      const first = sessions[0];
+      if (first && first.startTime.getTime() > now.getTime()) {
+        if (bangkokDateKey(first.startTime.toISOString()) !== bangkokDateKey(now.toISOString())) {
+          throw new Error("NOT_TODAY");
+        }
+        await tx
+          .update(eventSessions)
+          .set({ startTime: now, updatedAt: now })
+          .where(eq(eventSessions.id, first.id));
+        first.startTime = now;
+      }
+
+      const [row] = await tx
+        .update(events)
+        .set({ startTime: now, updatedAt: now })
+        .where(eq(events.id, id))
+        .returning();
+
+      await AuditService.logActionInternal(tx, {
+        actorId: actorId,
+        action: `Started event early (Go live now): ${row.title} (${id}) — start moved from ${current.startTime.toISOString()} to ${now.toISOString()}`,
+        ipAddress,
+      });
+
+      return { event: row, sessions };
+    });
+  }
+
+  /** email + name of the given staff users (Songsue event mirror payload). */
+  static async listStaffContacts(staffUserIds: string[]) {
+    return db.select({ email: users.email, name: users.name }).from(users).where(inArray(users.id, staffUserIds));
+  }
+
+  /** The event columns the attendance report needs (title + management/ownership scope). */
+  static async getEventForReport(eventId: string) {
+    return db.query.events.findFirst({
+      where: eq(events.id, eventId),
+      columns: { id: true, title: true, managedByRoles: true, ownerClubIds: true, ownerMajors: true },
+    });
+  }
+
+  /** Sessions of an event (id/title/sortOrder only) in display order. */
+  static async listSessionsBrief(eventId: string) {
+    return db.query.eventSessions.findMany({
+      where: eq(eventSessions.eventId, eventId),
+      columns: { id: true, title: true, sortOrder: true },
+      orderBy: (s, { asc }) => [asc(s.sortOrder), asc(s.startTime)],
     });
   }
 }

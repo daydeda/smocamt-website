@@ -1,9 +1,8 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { attendance, events, users } from "@/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { EventsService } from "@/modules/events/events.service";
+import { SongsueSyncService } from "@/modules/integrations/songsue-sync.service";
 import { NextResponse } from "next/server";
-import { AuditService, getClientIp } from "@/modules/audit/audit.service";
+import { getClientIp } from "@/modules/audit/audit.service";
 import { effectiveRoles } from "@/lib/access/admin-access";
 import { syncEventToSongsue, syncRegistrationToSongsue, type SongsueEmergencyContact } from "@/lib/integrations/songsue-sync";
 
@@ -56,7 +55,7 @@ export async function POST(
     }
 
     const { id } = await params;
-    const event = await db.query.events.findFirst({ where: eq(events.id, id) });
+    const event = await EventsService.getEventById(id);
     if (!event) {
       return NextResponse.json({ error: "Event not found" }, { status: 404 });
     }
@@ -65,7 +64,7 @@ export async function POST(
     }
 
     const staff = event.staffUserIds && event.staffUserIds.length > 0
-      ? await db.select({ email: users.email, name: users.name }).from(users).where(inArray(users.id, event.staffUserIds))
+      ? await EventsService.listStaffContacts(event.staffUserIds)
       : [];
     await syncEventToSongsue({
       externalId: event.id,
@@ -89,32 +88,7 @@ export async function POST(
     // multi-day (per-session) event can have several attendance rows per
     // student — collapse to one status per student, 'attended' winning over
     // 'registered', since Songsue's mirror is per-student, not per-session.
-    const rows = await db
-      .select({
-        email: users.email,
-        studentId: users.studentId,
-        name: users.name,
-        prefix: users.prefix,
-        faculty: users.faculty,
-        major: users.major,
-        phone: users.phone,
-        nickname: users.nickname,
-        image: users.image,
-        religion: users.religion,
-        contactChannels: users.contactChannels,
-        chronicDiseases: users.chronicDiseases,
-        medicalHistory: users.medicalHistory,
-        drugAllergies: users.drugAllergies,
-        foodAllergies: users.foodAllergies,
-        dietaryRestrictions: users.dietaryRestrictions,
-        faintingHistory: users.faintingHistory,
-        emergencyMedication: users.emergencyMedication,
-        emergencyContacts: users.emergencyContacts,
-        status: attendance.status,
-      })
-      .from(attendance)
-      .innerJoin(users, eq(attendance.studentId, users.id))
-      .where(eq(attendance.eventId, event.id));
+    const rows = await SongsueSyncService.listAttendeeProfilesForResync(event.id);
 
     const byEmail = new Map<string, (typeof rows)[number]>();
     for (const row of rows) {
@@ -135,16 +109,12 @@ export async function POST(
       });
     }
 
-    await db.transaction(async (tx) => {
-      await AuditService.logActionInternal(tx, {
-        actorId: session.user!.id!,
-        action: `Manually resynced Event to Songsue: ${event.title} (${byEmail.size} attendee${byEmail.size === 1 ? "" : "s"} backfilled` +
-          (attendeesWithSensitiveData > 0
-            ? `, including medical/emergency-contact detail for ${attendeesWithSensitiveData} of them`
-            : "") +
-          ")",
-        ipAddress: getClientIp(req),
-      });
+    await SongsueSyncService.logManualResync({
+      actorId: session.user!.id!,
+      eventTitle: event.title,
+      attendeeCount: byEmail.size,
+      attendeesWithSensitiveData,
+      ipAddress: getClientIp(req),
     });
 
     return NextResponse.json({ success: true, attendeesBackfilled: byEmail.size });

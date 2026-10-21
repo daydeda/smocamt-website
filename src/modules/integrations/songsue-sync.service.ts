@@ -344,4 +344,60 @@ export class SongsueSyncService {
 
     return user;
   }
+
+  /**
+   * Every current attendee's profile (identity + medical/emergency detail) with
+   * their attendance status for the manual Songsue resync backfill. The route
+   * writes the PDPA audit entry for this read via logManualResync.
+   */
+  static async listAttendeeProfilesForResync(eventId: string) {
+    return db
+      .select({
+        email: users.email,
+        studentId: users.studentId,
+        name: users.name,
+        prefix: users.prefix,
+        faculty: users.faculty,
+        major: users.major,
+        phone: users.phone,
+        nickname: users.nickname,
+        image: users.image,
+        religion: users.religion,
+        contactChannels: users.contactChannels,
+        chronicDiseases: users.chronicDiseases,
+        medicalHistory: users.medicalHistory,
+        drugAllergies: users.drugAllergies,
+        foodAllergies: users.foodAllergies,
+        dietaryRestrictions: users.dietaryRestrictions,
+        faintingHistory: users.faintingHistory,
+        emergencyMedication: users.emergencyMedication,
+        emergencyContacts: users.emergencyContacts,
+        status: attendance.status,
+      })
+      .from(attendance)
+      .innerJoin(users, eq(attendance.studentId, users.id))
+      .where(eq(attendance.eventId, eventId));
+  }
+
+  /** Audit entry for a manual Songsue resync (records the medical/emergency backfill count). */
+  static async logManualResync(params: {
+    actorId: string;
+    eventTitle: string;
+    attendeeCount: number;
+    attendeesWithSensitiveData: number;
+    ipAddress: string;
+  }) {
+    const { actorId, eventTitle, attendeeCount, attendeesWithSensitiveData, ipAddress } = params;
+    await db.transaction(async (tx) => {
+      await AuditService.logActionInternal(tx, {
+        actorId: actorId,
+        action: `Manually resynced Event to Songsue: ${eventTitle} (${attendeeCount} attendee${attendeeCount === 1 ? "" : "s"} backfilled` +
+          (attendeesWithSensitiveData > 0
+            ? `, including medical/emergency-contact detail for ${attendeesWithSensitiveData} of them`
+            : "") +
+          ")",
+        ipAddress: ipAddress,
+      });
+    });
+  }
 }

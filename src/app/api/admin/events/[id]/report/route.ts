@@ -1,10 +1,9 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { attendance, eventSessions, events } from "@/db/schema";
-import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { EventScopeService } from "@/modules/events/event-scope.service";
+import { EventsService } from "@/modules/events/events.service";
+import { AttendanceService } from "@/modules/events/attendance.service";
 import { isEventUnscopedStaff } from "@/lib/access/admin-access";
 
 // xlsx is a CommonJS package — keep this route on the Node.js runtime.
@@ -28,10 +27,7 @@ export async function GET(
 
     const { id: eventId } = await params;
 
-    const event = await db.query.events.findFirst({
-      where: eq(events.id, eventId),
-      columns: { id: true, title: true, managedByRoles: true, ownerClubIds: true, ownerMajors: true },
-    });
+    const event = await EventsService.getEventForReport(eventId);
     if (!event) {
       return NextResponse.json({ error: "Event not found" }, { status: 404 });
     }
@@ -62,13 +58,7 @@ export async function GET(
     // This report is reachable by scanner-only roles (smo) and registration/
     // organizer, so it deliberately pulls NO medical detail — only the roster
     // fields below.
-    const allAttendance = await db.query.attendance.findMany({
-      where: eq(attendance.eventId, eventId),
-      with: {
-        user: { columns: { studentId: true, name: true, nickname: true } },
-        session: { columns: { id: true, title: true, sortOrder: true } },
-      },
-    });
+    const allAttendance = await AttendanceService.listReportRows(eventId);
 
     // Defensive cap: the whole roster + the xlsx buffer are built in memory (xlsx
     // can't stream). Per-event this is bounded, but refuse a pathologically large
@@ -103,11 +93,7 @@ export async function GET(
     // One worksheet per day. Enumerate sessions so even days with no check-ins
     // still get a (header-only) sheet; attendance with no/unknown session falls
     // into an "Unassigned" sheet.
-    const sessions = await db.query.eventSessions.findMany({
-      where: eq(eventSessions.eventId, eventId),
-      columns: { id: true, title: true, sortOrder: true },
-      orderBy: (s, { asc }) => [asc(s.sortOrder), asc(s.startTime)],
-    });
+    const sessions = await EventsService.listSessionsBrief(eventId);
     // Group raw attendance by day so the per-day sheets and the per-day summary
     // are both derived from the same source.
     type Att = (typeof allAttendance)[number];

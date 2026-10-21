@@ -53,6 +53,9 @@ export const productSchema = z.object({
         // Surcharge in whole ฿ added on top of the product price for this variant
         // (e.g. a special/larger size). 0 = no surcharge. Surcharge only (never < 0).
         priceDelta: z.number().int().min(0).max(1_000_000).default(0),
+        // Welfare unit price for this option (absolute ฿, for the product's
+        // welfareRoles). null = none. See shop-welfare.ts.
+        welfarePrice: z.number().int().min(0).max(1_000_000).nullable().default(null),
       })
     )
     .min(1)

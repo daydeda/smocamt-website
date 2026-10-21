@@ -5,13 +5,16 @@ import { validateCustomAnswers } from "@/lib/shop/shop-custom-fields";
 import { computeProductDeliveryFee } from "@/lib/shop/shop-delivery";
 import { computeBundleDiscount } from "@/lib/shop/shop-promotions";
 import { blocksPaymentReview } from "@/lib/shop/shop-fulfillment";
-import { applyWelfare } from "@/lib/shop/shop-welfare";
+import { effectiveUnitPrice, normalUnitPrice } from "@/lib/shop/shop-welfare";
 
-// An order that was welfare-priced at checkout keeps its welfare price on later
-// edits, even if the buyer's roles changed since. Assume the buyer qualifies
-// for each product's own welfare roles (the snapshot decision was made then).
-const welfareKept = <T extends { price: number; welfarePrice: number | null; welfareRoles: string[] | null }>(p: T) =>
-  applyWelfare(p, p.welfareRoles ?? []);
+// An order that was welfare-priced at checkout keeps its welfare prices on later
+// edits, even if the buyer's roles changed since. Assume the buyer qualifies for
+// each product's own welfare roles (the decision was made at checkout).
+const optionPrice = (
+  welfareApplied: boolean,
+  product: { price: number; welfarePrice: number | null; welfareRoles: string[] | null },
+  variant: { priceDelta: number | null; welfarePrice: number | null },
+) => (welfareApplied ? effectiveUnitPrice(product, variant, product.welfareRoles ?? []) : normalUnitPrice(product, variant));
 import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 
 const LABEL_BY_ACTION = { approve: "Approved", reject: "Rejected", revert: "Reverted to pending" } as const;
@@ -247,10 +250,7 @@ export class ShopOrderReviewService {
       const products = productIds.length
         ? await tx.select().from(shopProducts).where(inArray(shopProducts.id, productIds))
         : [];
-      // A welfare order keeps its welfare base price when a line is re-priced or
-      // the bundle discount is recomputed (both read product.price). The order
-      // was priced at checkout, so the welfare is kept as-applied on that order.
-      const productById = new Map(products.map((p) => [p.id, lockedOrder.welfareApplied ? welfareKept(p) : p]));
+      const productById = new Map(products.map((p) => [p.id, p]));
 
       // A swap must stay within the same product as the item being edited.
       for (const edit of data.items) {
@@ -338,14 +338,14 @@ export class ShopOrderReviewService {
         const missingProductIds = [...qtyByProduct.keys()].filter((pid) => !productById.has(pid));
         if (missingProductIds.length) {
           const extraProducts = await tx.select().from(shopProducts).where(inArray(shopProducts.id, missingProductIds));
-          for (const p of extraProducts) productById.set(p.id, lockedOrder.welfareApplied ? welfareKept(p) : p);
+          for (const p of extraProducts) productById.set(p.id, p);
         }
 
         // A deal's reference price is its cheapest eligible option, so pass ALL of
         // each product's options, not just the ones on this order.
         const productVariants = qtyByProduct.size
           ? await tx
-              .select({ id: shopVariants.id, productId: shopVariants.productId, priceDelta: shopVariants.priceDelta })
+              .select({ id: shopVariants.id, productId: shopVariants.productId, priceDelta: shopVariants.priceDelta, welfarePrice: shopVariants.welfarePrice })
               .from(shopVariants)
               .where(inArray(shopVariants.productId, [...qtyByProduct.keys()]))
           : [];
@@ -353,7 +353,11 @@ export class ShopOrderReviewService {
         for (const pid of qtyByProduct.keys()) {
           const product = productById.get(pid);
           if (!product) continue; // product since deleted — no deal config left to apply
-          discountAmount += computeBundleDiscount(product, productVariants.filter((v) => v.productId === pid), qtyByVariant);
+          discountAmount += computeBundleDiscount(
+            product,
+            productVariants.filter((v) => v.productId === pid).map((v) => ({ ...v, unitPrice: optionPrice(lockedOrder.welfareApplied, product, v) })),
+            qtyByVariant,
+          );
         }
       }
       if (anyQuantityChanged && lockedOrder.fulfillment === "delivery") {
@@ -418,7 +422,7 @@ export class ShopOrderReviewService {
           throw new EditValidation(`${product.name} was already handed over, so it can't be changed. Undo the handover first.`);
         }
 
-        const unitPrice = optionChanged ? product.price + (variant.priceDelta ?? 0) : item.unitPrice;
+        const unitPrice = optionChanged ? optionPrice(lockedOrder.welfareApplied, product, variant) : item.unitPrice;
         newTotal += unitPrice * edit.quantity;
 
         await tx

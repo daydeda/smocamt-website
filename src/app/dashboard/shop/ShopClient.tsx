@@ -21,8 +21,9 @@ interface Variant { id: string; label: string; remaining: number | null; allowCu
 interface Product {
   id: string; name: string; description: string; price: number;
   // Set only when the buyer's roles qualify for a welfare price (สวัสดิการ):
-  // `price` is then the welfare price and `normalPrice` the usual one.
-  welfare?: boolean; normalPrice?: number;
+  // `price` + each option's `priceDelta` are then the welfare prices, and
+  // `normalUnitPrices` are the usual per-option prices (same order as variants).
+  welfare?: boolean; normalUnitPrices?: number[];
   imageUrls: string[]; maxPerOrder: number | null; variants: Variant[];
   opensAt?: string | null; closesAt?: string | null; saleStatus?: "open" | "upcoming" | "closed";
   customFields?: ShopCustomField[];
@@ -69,9 +70,11 @@ const priceLabel = (p: Product) => {
 const WelfarePrice = ({ p, th }: { p: Product; th: boolean }) => (
   <>
     {priceLabel(p)}
-    {p.welfare && p.normalPrice != null && (
+    {p.welfare && p.normalUnitPrices && p.normalUnitPrices.length > 0 && (
       <span style={{ fontSize: "0.7em", fontWeight: 600, color: "var(--text-muted)", textDecoration: "line-through", marginLeft: 8 }} title={th ? "ราคาปกติ" : "Regular price"}>
-        {baht(p.normalPrice)}
+        {Math.min(...p.normalUnitPrices) === Math.max(...p.normalUnitPrices)
+          ? baht(Math.min(...p.normalUnitPrices))
+          : `${baht(Math.min(...p.normalUnitPrices))} – ${baht(Math.max(...p.normalUnitPrices))}`}
       </span>
     )}
   </>

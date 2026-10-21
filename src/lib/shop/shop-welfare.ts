@@ -1,21 +1,26 @@
-// Welfare pricing (สวัสดิการ). An admin sets, per product, an at-cost base price
-// (shop_products.welfarePrice) and the roles that get it (welfareRoles, e.g.
-// ["smo"]). A buyer holding any of those roles is charged the welfare price in
-// place of `price`. Variant surcharges still add on top, and bundle deals are
-// computed off the welfare base, so a qualifying buyer never pays more than the
-// normal buyer would for the same order.
+// Welfare pricing (สวัสดิการ). An admin picks, per product, the roles that get
+// welfare (welfareRoles, e.g. ["smo"]) and sets a welfare price on each option
+// (shop_variants.welfarePrice, an absolute unit price: option 1 ฿39 → ฿29,
+// option 2 ฿89 → ฿69). The product-level welfarePrice is a fallback base for
+// options without their own price (welfarePrice + that option's surcharge).
+// A buyer holding any chosen role is charged the welfare unit price. Welfare can
+// only ever lower an option's price.
 //
-// Who sees it: the storefront sends welfarePrice ONLY to a qualifying buyer, so
-// it never reaches anyone else's browser. Reused by:
-//   - GET /api/shop (whether to include welfarePrice),
-//   - POST /api/shop/orders (authoritative unit price + bundle discount),
-//   - the admin order edit (a re-priced line keeps the welfare price), and
-//   - the storefront (ShopClient) for the live estimate.
+// Who sees it: the storefront sends welfare prices ONLY to a qualifying buyer, so
+// they never reach anyone else's browser. Reused by:
+//   - GET /api/shop (the buyer's effective prices),
+//   - POST /api/shop/orders (authoritative unit price + bundle discount), and
+//   - the admin order edit (a re-priced line keeps the welfare price).
 
 export interface WelfareProduct {
   price: number;
   welfarePrice?: number | null;
   welfareRoles?: readonly string[] | null;
+}
+
+export interface WelfareVariant {
+  priceDelta?: number | null;
+  welfarePrice?: number | null;
 }
 
 /** Does this buyer hold a role the product's welfare is for? */
@@ -27,19 +32,37 @@ export function qualifiesForWelfare(
   return welfareRoles.length > 0 && (buyerRoles ?? []).some((r) => welfareRoles.includes(r));
 }
 
-/** A product has a usable welfare price: set, below the normal price, and roles chosen. */
-export function hasWelfarePrice(product: WelfareProduct): boolean {
-  return product.welfarePrice != null
-    && product.welfarePrice < product.price
-    && (product.welfareRoles?.length ?? 0) > 0;
+/** The option's normal unit price: product price plus its surcharge. */
+export function normalUnitPrice(product: Pick<WelfareProduct, "price">, variant: Pick<WelfareVariant, "priceDelta">): number {
+  return product.price + (variant.priceDelta ?? 0);
 }
 
 /**
- * The product as this buyer is charged for it: `price` swapped for the welfare
- * price when the buyer qualifies and the product has a usable welfare price.
- * Welfare can only ever lower the price, never raise it.
+ * The welfare unit price for one option, or null when it has none (no roles
+ * chosen, no price set, or the price isn't below the normal price).
  */
-export function applyWelfare<T extends WelfareProduct>(product: T, buyerRoles: readonly string[] | null | undefined): T {
-  if (!hasWelfarePrice(product) || !qualifiesForWelfare(product, buyerRoles)) return product;
-  return { ...product, price: product.welfarePrice! };
+export function welfareUnitPrice(product: WelfareProduct, variant: WelfareVariant): number | null {
+  if ((product.welfareRoles?.length ?? 0) === 0) return null;
+  const normal = normalUnitPrice(product, variant);
+  const welfare = variant.welfarePrice
+    ?? (product.welfarePrice != null ? product.welfarePrice + (variant.priceDelta ?? 0) : null);
+  return welfare != null && welfare >= 0 && welfare < normal ? welfare : null;
+}
+
+/** Does any option of this product carry a usable welfare price? */
+export function hasWelfare(product: WelfareProduct, variants: readonly WelfareVariant[]): boolean {
+  return variants.some((v) => welfareUnitPrice(product, v) != null);
+}
+
+/**
+ * What this buyer pays per unit of this option: the welfare price when their
+ * roles qualify and the option has one, otherwise the normal price.
+ */
+export function effectiveUnitPrice(
+  product: WelfareProduct,
+  variant: WelfareVariant,
+  buyerRoles: readonly string[] | null | undefined,
+): number {
+  const welfare = qualifiesForWelfare(product, buyerRoles) ? welfareUnitPrice(product, variant) : null;
+  return welfare ?? normalUnitPrice(product, variant);
 }

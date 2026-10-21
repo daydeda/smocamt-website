@@ -1668,6 +1668,13 @@ async function migrate() {
   await sql`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS welfare_applied boolean NOT NULL DEFAULT false`;
   console.log("  ✅ shop_products.welfare_price / welfare_roles, shop_orders.welfare_applied");
 
+  // 102. Per-option welfare price: shop_variants.welfare_price is the absolute
+  // welfare unit price for one option (NULL = none, so every existing option is
+  // unchanged). See src/lib/shop/shop-welfare.ts. Mirrors the shop_variants
+  // column in the generated drizzle migration. Additive, idempotent, non-destructive.
+  await sql`ALTER TABLE shop_variants ADD COLUMN IF NOT EXISTS welfare_price integer`;
+  console.log("  ✅ shop_variants.welfare_price");
+
   console.log("✅ Migration complete!");
   await sql.end();
   process.exit(0);

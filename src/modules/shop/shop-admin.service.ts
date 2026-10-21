@@ -513,7 +513,7 @@ export class ShopAdminService {
         .returning({ id: shopProducts.id });
 
       await tx.insert(shopVariants).values(
-        data.variants.map((v, i) => ({ id: variantIds[i], productId: product.id, label: v.label, stock: v.stock, allowCustom: v.allowCustom, priceDelta: v.priceDelta, sortOrder: i }))
+        data.variants.map((v, i) => ({ id: variantIds[i], productId: product.id, label: v.label, stock: v.stock, allowCustom: v.allowCustom, priceDelta: v.priceDelta, welfarePrice: v.welfarePrice, sortOrder: i }))
       );
 
       const ownerNote = data.ownerClubIds.length || data.ownerMajors.length
@@ -637,7 +637,7 @@ export class ShopAdminService {
         if (v.id) {
           await tx
             .update(shopVariants)
-            .set({ label: v.label, stock: v.stock, allowCustom: v.allowCustom, priceDelta: v.priceDelta, sortOrder: i })
+            .set({ label: v.label, stock: v.stock, allowCustom: v.allowCustom, priceDelta: v.priceDelta, welfarePrice: v.welfarePrice, sortOrder: i })
             .where(and(eq(shopVariants.id, v.id), eq(shopVariants.productId, id)));
 
           // Same propagation as the product name, for the variant label. A line's
@@ -666,7 +666,7 @@ export class ShopAdminService {
               );
           }
         } else {
-          await tx.insert(shopVariants).values({ id: variantIds[i], productId: id, label: v.label, stock: v.stock, allowCustom: v.allowCustom, priceDelta: v.priceDelta, sortOrder: i });
+          await tx.insert(shopVariants).values({ id: variantIds[i], productId: id, label: v.label, stock: v.stock, allowCustom: v.allowCustom, priceDelta: v.priceDelta, welfarePrice: v.welfarePrice, sortOrder: i });
         }
       }
 

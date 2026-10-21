@@ -812,6 +812,10 @@ export const shopVariants = pgTable("shop_variants", {
   // surcharge (the common case). The order line snapshots the resolved unit price
   // (product.price + priceDelta) at checkout, so later edits don't move old orders.
   priceDelta: integer("price_delta").notNull().default(0),
+  // Welfare price (สวัสดิการ) for THIS option: the absolute unit price (฿) charged
+  // to buyers holding one of the product's welfareRoles. NULL = fall back to the
+  // product-level welfarePrice + priceDelta, or no welfare. See shop-welfare.ts.
+  welfarePrice: integer("welfare_price"),
   // When true this is an "Other (specify)" option: the buyer must type a value,
   // which is appended to the snapshot label on their order line.
   allowCustom: boolean("allow_custom").notNull().default(false),

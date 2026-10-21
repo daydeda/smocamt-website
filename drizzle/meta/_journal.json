@@ -288,6 +288,13 @@
       "when": 1792623038864,
       "tag": "0049_tan_maverick",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1792624270891,
+      "tag": "0050_certain_luke_cage",
+      "breakpoints": true
     }
   ]
 }

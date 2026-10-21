@@ -60,6 +60,21 @@ export const adminPriceLabel = (p: { price: number; variants: { priceDelta?: num
   return min === max ? baht(min) : `${baht(min)} – ${baht(max)}`;
 };
 
+// "฿min – ฿max" of the welfare prices a product's options carry, or null when it
+// has none. Mirrors welfareUnitPrice in shop-welfare.ts, so a product saved with
+// only the older product-level welfare base still shows its per-option prices.
+export const adminWelfareLabel = (p: { price: number; welfarePrice?: number | null; welfareRoles?: string[]; variants: AdminVariant[] }) => {
+  if ((p.welfareRoles?.length ?? 0) === 0) return null;
+  const prices = p.variants
+    .map((v) => ({ normal: p.price + (v.priceDelta ?? 0), welfare: v.welfarePrice ?? (p.welfarePrice != null ? p.welfarePrice + (v.priceDelta ?? 0) : null) }))
+    .filter((x) => x.welfare != null && x.welfare < x.normal)
+    .map((x) => x.welfare as number);
+  if (prices.length === 0) return null;
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  return min === max ? baht(min) : `${baht(min)} – ${baht(max)}`;
+};
+
 // Short owner tag for a product row: "Central (SMO)" when no owner, else the
 // club name(s) / major code(s) that own it. Club names come from ownerOptions
 // (falls back to the raw id if the club isn't in the caller's option list).
@@ -93,7 +108,7 @@ export const isAudienceLimited = (p: AdminProduct) =>
   p.targetThai === false ||
   p.targetInternational === false;
 
-export interface AdminVariant { id?: string; label: string; stock: number | null; allowCustom?: boolean; priceDelta?: number; sold?: number }
+export interface AdminVariant { id?: string; label: string; stock: number | null; allowCustom?: boolean; priceDelta?: number; welfarePrice?: number | null; sold?: number }
 
 export interface AdminProduct {
   id: string; name: string; description: string; price: number; imageUrls: string[];

@@ -39,6 +39,9 @@ export interface ProductBundleConfig {
 export interface BundleVariant {
   id: string;
   priceDelta?: number | null;
+  // Resolved unit price for this buyer (e.g. a welfare price). When set it
+  // replaces product.price + priceDelta.
+  unitPrice?: number | null;
 }
 
 // What the admin form submits: options are referenced by their INDEX in the
@@ -97,7 +100,7 @@ export function computeBundleDiscount(
     groups.set(key, [...(groups.get(key) ?? []), d]);
   }
 
-  const unitPriceOf = (v: BundleVariant) => product.price + (v.priceDelta ?? 0);
+  const unitPriceOf = (v: BundleVariant) => v.unitPrice ?? product.price + (v.priceDelta ?? 0);
   const claimed = new Set<string>(); // a unit counts toward at most one group
   let discount = 0;
   for (const [key, groupDeals] of groups) {

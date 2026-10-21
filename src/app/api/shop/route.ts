@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { buildViewer, isEligibleFor } from "@/lib/access/event-access";
-import { hasWelfarePrice, qualifiesForWelfare } from "@/lib/shop/shop-welfare";
+import { effectiveUnitPrice, normalUnitPrice, qualifiesForWelfare } from "@/lib/shop/shop-welfare";
 import { ShopService } from "@/modules/shop/shop.service";
 import { UsersService } from "@/modules/users/users.service";
 import { NextResponse } from "next/server";
@@ -64,16 +64,25 @@ export async function GET() {
 
     const now = new Date();
     const result = products.map((p) => {
-      // The price THIS buyer pays: the welfare price when their roles qualify, so
-      // every client-side estimate (and the bundle math) uses the real figure.
-      const welfare = hasWelfarePrice(p) && qualifiesForWelfare(p, buyerRoles);
+      const productVariants = variants.filter((v) => v.productId === p.id);
+      // The prices THIS buyer pays, option by option. For a qualifying buyer the
+      // welfare prices are folded into price + priceDelta (price = their cheapest
+      // option, each delta = its gap above that), so every client-side estimate and
+      // the bundle math use the real figures without knowing about welfare.
+      const normalPrices = productVariants.map((v) => normalUnitPrice(p, v));
+      const payPrices = qualifiesForWelfare(p, buyerRoles)
+        ? productVariants.map((v) => effectiveUnitPrice(p, v, buyerRoles))
+        : normalPrices;
+      const welfare = payPrices.some((pay, k) => pay < normalPrices[k]);
+      const basePrice = welfare ? Math.min(...payPrices) : p.price;
+      const deltaOf = (k: number) => (welfare ? payPrices[k] - basePrice : productVariants[k].priceDelta ?? 0);
       return {
       id: p.id,
       name: p.name,
       description: p.description,
-      price: welfare ? p.welfarePrice! : p.price,
-      // Shown struck-through beside the welfare price. Only present when it applies.
-      ...(welfare ? { normalPrice: p.price, welfare: true } : {}),
+      price: basePrice,
+      // Shown struck-through beside the welfare prices. Only present when it applies.
+      ...(welfare ? { normalUnitPrices: normalPrices, welfare: true } : {}),
       imageUrls: p.imageUrls ?? (p.imageUrl ? [p.imageUrl] : []),
       maxPerOrder: p.maxPerOrder,
       opensAt: p.opensAt,
@@ -87,15 +96,14 @@ export async function GET() {
       // "Buy N for ฿X" promotions; the order route recomputes the discount anyway.
       bundleDeals: p.bundleDeals ?? [],
       seller: p.sellerId ? sellerById.get(p.sellerId) ?? null : null,
-      variants: variants
-        .filter((v) => v.productId === p.id)
-        .map((v) => ({
+      variants: productVariants
+        .map((v, k) => ({
           id: v.id,
           label: v.label,
           allowCustom: v.allowCustom,
           // Surcharge (฿) added on top of the product price for this variant. The
           // buyer UI must add it to the unit price; the server recomputes anyway.
-          priceDelta: v.priceDelta ?? 0,
+          priceDelta: deltaOf(k),
           // null stock = unlimited; otherwise remaining after committed units.
           remaining: v.stock == null ? null : Math.max(0, v.stock - (soldByVariant.get(v.id) ?? 0)),
         })),

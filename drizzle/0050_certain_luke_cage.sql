@@ -1,0 +1,1 @@
+ALTER TABLE "shop_variants" ADD COLUMN "welfare_price" integer;

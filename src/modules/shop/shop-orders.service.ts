@@ -8,7 +8,7 @@ import { nextFulfillmentStatus } from "@/lib/shop/shop-fulfillment";
 import { autoConfirmDueShipments } from "@/lib/shop/shop-fulfillment-server";
 import { classifySlipAmount } from "@/lib/shop/shop-slip-amount";
 import { classifySlip } from "@/lib/shop/shop-slip-verify";
-import { applyWelfare } from "@/lib/shop/shop-welfare";
+import { effectiveUnitPrice, normalUnitPrice } from "@/lib/shop/shop-welfare";
 import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 
 // Advisory-lock namespace (int4) for serializing a single buyer's concurrent shop
@@ -170,11 +170,9 @@ export class ShopOrdersService {
         .select()
         .from(shopProducts)
         .where(inArray(shopProducts.id, productIds));
-      // Price every product as THIS buyer is charged for it: a buyer with a welfare
-      // role gets the welfare base price, which the unit price and the bundle
-      // discount below both read through product.price.
-      const productById = new Map(products.map((p) => [p.id, applyWelfare(p, buyerRoles)]));
-      const welfareApplied = products.some((p) => productById.get(p.id)!.price !== p.price);
+      const productById = new Map(products.map((p) => [p.id, p]));
+      // True once any line is charged below its normal price (a welfare option).
+      let welfareApplied = false;
 
       const sellerKeys = new Set(products.map((product) => product.sellerId ?? "central"));
       if (sellerKeys.size !== 1) {
@@ -294,7 +292,9 @@ export class ShopOrdersService {
         // Resolved unit price = base product price + this variant's surcharge
         // (e.g. a special/larger size). Server-authoritative; never trust a client
         // price. Snapshotted onto the line so later edits don't move this order.
-        const unitPrice = product.price + (v.priceDelta ?? 0);
+        // A buyer with a welfare role pays that option's welfare price instead.
+        const unitPrice = effectiveUnitPrice(product, v, buyerRoles);
+        if (unitPrice < normalUnitPrice(product, v)) welfareApplied = true;
         total += unitPrice * qty;
         lines.push({
           orderId: "", // filled after the order row is created
@@ -317,13 +317,15 @@ export class ShopOrdersService {
       const productsWithDeals = productIds.filter((pid) => (productById.get(pid)!.bundleDeals ?? []).length > 0);
       if (productsWithDeals.length) {
         const allVariants = await tx
-          .select({ id: shopVariants.id, productId: shopVariants.productId, priceDelta: shopVariants.priceDelta })
+          .select({ id: shopVariants.id, productId: shopVariants.productId, priceDelta: shopVariants.priceDelta, welfarePrice: shopVariants.welfarePrice })
           .from(shopVariants)
           .where(inArray(shopVariants.productId, productsWithDeals));
         for (const pid of productsWithDeals) {
+          const product = productById.get(pid)!;
           discountAmount += computeBundleDiscount(
-            productById.get(pid)!,
-            allVariants.filter((v) => v.productId === pid),
+            product,
+            // Each option's unit price as THIS buyer pays it (welfare included).
+            allVariants.filter((v) => v.productId === pid).map((v) => ({ ...v, unitPrice: effectiveUnitPrice(product, v, buyerRoles) })),
             qtyByVariant
           );
         }

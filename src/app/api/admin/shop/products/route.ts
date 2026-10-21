@@ -93,7 +93,7 @@ export async function GET() {
       approvalReason: p.approvalReason,
       variants: variants
         .filter((v) => v.productId === p.id)
-        .map((v) => ({ id: v.id, label: v.label, stock: v.stock, allowCustom: v.allowCustom, priceDelta: v.priceDelta ?? 0, sold: soldByVariant.get(v.id) ?? 0 })),
+        .map((v) => ({ id: v.id, label: v.label, stock: v.stock, allowCustom: v.allowCustom, priceDelta: v.priceDelta ?? 0, welfarePrice: v.welfarePrice ?? null, sold: soldByVariant.get(v.id) ?? 0 })),
     }));
 
     return NextResponse.json({

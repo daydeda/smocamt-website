@@ -4,9 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import PrizeAwardPanel from "./PrizeAwardPanel";
 import { Gift, Plus, QrCode, FileSpreadsheet, Printer, Loader2, ImageOff, Lock, X, PackageOpen, Pencil, Camera, Check, ImagePlus, Trash2, AlertTriangle } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
-import { compressImageFile } from "@/lib/compress-image";
-import { uploadFormViaXHR } from "@/lib/xhr-upload";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { compressImageFile } from "@/lib/media/compress-image";
+import { uploadFormViaXHR } from "@/lib/media/xhr-upload";
 
 // /admin/prizes — the top-level prize tab.
 //

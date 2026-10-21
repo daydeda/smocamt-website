@@ -1,7 +1,7 @@
-import { checkAndAwardClosedForms } from "@/lib/award-points";
+import { checkAndAwardClosedForms } from "@/lib/points/award-points";
 import { NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
-import { captureException } from "@/lib/logger";
+import { captureException } from "@/lib/util/logger";
 import { HousesService } from "@/modules/houses/houses.service";
 
 // Fail fast instead of hanging to the 300s platform default if the DB pooler stalls.

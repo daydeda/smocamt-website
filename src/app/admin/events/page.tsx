@@ -10,15 +10,15 @@ import {
   AlertTriangle, GraduationCap, DoorOpen, UserX, Building2, QrCode, Check
 } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { NO_SHOW_PENALTY_MAX, NO_SHOW_PENALTY_MIN, NO_SHOW_PENALTY_POINTS, NO_SHOW_STRIKE_THRESHOLD } from "@/lib/strikes";
-import { parseRichText } from "@/lib/rich-text";
-import { eventYearFields, getAllowedEventYears, yearOfStudy } from "@/lib/event-access";
-import { sessionSpansTooLong, splitIntoDailySessions } from "@/lib/event-schema";
-import { useLanguage } from "@/lib/LanguageContext";
-import { usePolling } from "@/lib/usePolling";
+import { NO_SHOW_PENALTY_MAX, NO_SHOW_PENALTY_MIN, NO_SHOW_PENALTY_POINTS, NO_SHOW_STRIKE_THRESHOLD } from "@/lib/points/strikes";
+import { parseRichText } from "@/lib/ui/rich-text";
+import { eventYearFields, getAllowedEventYears, yearOfStudy } from "@/lib/access/event-access";
+import { sessionSpansTooLong, splitIntoDailySessions } from "@/lib/events/event-schema";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { usePolling } from "@/lib/hooks/usePolling";
 import { EventFormBuilderModal } from "@/components/admin/EventFormBuilderModal";
-import { isGlobalRegistrationPosition } from "@/lib/admin-access";
-import { alpha } from "@/lib/color";
+import { isGlobalRegistrationPosition } from "@/lib/access/admin-access";
+import { alpha } from "@/lib/ui/color";
 
 interface AdminEvent {
   id: string;

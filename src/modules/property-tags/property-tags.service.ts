@@ -3,10 +3,10 @@ import { propertyTagGroups, propertyTags, users } from "@/db/schema";
 import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { AuditService } from "../audit/audit.service";
-import { effectiveRoles } from "@/lib/admin-access";
-import { yearOfStudy } from "@/lib/event-access";
-import { splitCombinedQrToken, verifyCrossAppQrToken, verifyQrToken } from "@/lib/qr-token";
-import { formatTagLabel, generateTagCode, maskPhone, seriesRoleMismatch } from "@/lib/property-tag";
+import { effectiveRoles } from "@/lib/access/admin-access";
+import { yearOfStudy } from "@/lib/access/event-access";
+import { splitCombinedQrToken, verifyCrossAppQrToken, verifyQrToken } from "@/lib/qr/qr-token";
+import { formatTagLabel, generateTagCode, maskPhone, seriesRoleMismatch } from "@/lib/property-tags/property-tag";
 
 // Property tags (ป้ายทรัพย์สิน) — see docs/features/property-tags.md.
 //

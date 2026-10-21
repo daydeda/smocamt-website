@@ -5,7 +5,7 @@ import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/admin-access";
+import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 
 const MANAGING_ROLES = ["super_admin", "admin", "registration", "organizer"];
 

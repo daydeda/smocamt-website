@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { db } from "@/db";
 import { attendance, forms, formSubmissions, events } from "@/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
-import { isFormOpenForSubmission, canAccessSkillForm } from "@/lib/form-access";
+import { isFormOpenForSubmission, canAccessSkillForm } from "@/lib/access/form-access";
 import { NextResponse } from "next/server";
 
 // Fail fast instead of hanging to the platform default if the DB pooler stalls.

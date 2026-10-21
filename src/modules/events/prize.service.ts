@@ -9,7 +9,7 @@ import {
   isPrizeOpen,
   meetsCheckInRequirement,
   type PrizeEligibilityInput,
-} from "@/lib/prize-eligibility";
+} from "@/lib/prizes/prize-eligibility";
 
 // Prize claim (การรับรางวัล) — see docs/features/prize-claim.md.
 //

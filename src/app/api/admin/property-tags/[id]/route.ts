@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { PropertyTagsService } from "@/modules/property-tags/property-tags.service";
-import { resolvePropertyTagStaff, UUID_PATTERN } from "@/lib/property-tag-access";
-import { getClientIp } from "@/lib/rate-limit";
-import { captureException } from "@/lib/logger";
-import { formatTagLabel } from "@/lib/property-tag";
+import { resolvePropertyTagStaff, UUID_PATTERN } from "@/lib/property-tags/property-tag-access";
+import { getClientIp } from "@/lib/util/rate-limit";
+import { captureException } from "@/lib/util/logger";
+import { formatTagLabel } from "@/lib/property-tags/property-tag";
 
 export const dynamic = "force-dynamic";
 

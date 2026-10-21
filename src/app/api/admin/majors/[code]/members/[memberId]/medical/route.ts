@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { effectiveRoles } from "@/lib/admin-access";
+import { effectiveRoles } from "@/lib/access/admin-access";
 import { EventScopeService } from "@/modules/events/event-scope.service";
 import { MajorsService } from "@/modules/majors/majors.service";
 import { NextResponse } from "next/server";

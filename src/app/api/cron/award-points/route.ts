@@ -1,4 +1,4 @@
-import { checkAndAwardPastEventPoints, checkAndAwardClosedForms } from "@/lib/award-points";
+import { checkAndAwardPastEventPoints, checkAndAwardClosedForms } from "@/lib/points/award-points";
 import { cleanupOldGameRooms } from "@/lib/games/stats-helper";
 import { NextResponse } from "next/server";
 import { createHash, timingSafeEqual } from "crypto";

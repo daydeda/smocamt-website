@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { StudentNav } from "@/components/layout/StudentNav";
-import { useLanguage } from "@/lib/LanguageContext";
-import { compressImageFile } from "@/lib/compress-image";
-import { uploadFormViaXHR } from "@/lib/xhr-upload";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { compressImageFile } from "@/lib/media/compress-image";
+import { uploadFormViaXHR } from "@/lib/media/xhr-upload";
 import {
   ArrowLeft, Camera, CheckCircle2, Clock, Lock, Paperclip, ShieldAlert, Upload, X,
 } from "lucide-react";

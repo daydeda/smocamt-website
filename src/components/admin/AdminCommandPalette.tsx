@@ -15,8 +15,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Search, X } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
-import { getVisibleAdminItems, type AdminNavContext, type AdminNavItem } from "@/lib/admin-nav-config";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { getVisibleAdminItems, type AdminNavContext, type AdminNavItem } from "@/lib/access/admin-nav-config";
 
 const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), input:not([disabled])';
 

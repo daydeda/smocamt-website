@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { PRIVACY_COPY, PRIVACY_UPDATED, PrivacySections, privacyLangFor } from "@/components/PrivacyPolicyContent";
 
 /**

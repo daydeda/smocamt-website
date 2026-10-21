@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ClipboardList, CheckCircle2, XCircle, Loader2, Clock, Building2, UserCheck } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
-import { parseRichText } from "@/lib/rich-text";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { parseRichText } from "@/lib/ui/rich-text";
 
 type Proposal = {
   id: string;

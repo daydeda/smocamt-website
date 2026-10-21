@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useLanguage } from "@/lib/LanguageContext";
-import { compressImageFile } from "@/lib/compress-image";
-import { uploadFormViaXHR } from "@/lib/xhr-upload";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { compressImageFile } from "@/lib/media/compress-image";
+import { uploadFormViaXHR } from "@/lib/media/xhr-upload";
 import { Calendar, History, Trophy, Sparkles, ArrowRight, ArrowLeft, X, Star, CheckCircle2, ClipboardList, Lock, Save, AlertTriangle, Paperclip } from "lucide-react";
 import { StudentNav } from "@/components/layout/StudentNav";
 import Link from "next/link";
@@ -15,7 +15,7 @@ import {
   type NormalizedForm,
   type FormQuestion as Question,
   type AnswerMap,
-} from "@/lib/form-schema";
+} from "@/lib/forms/form-schema";
 
 const FORM_TYPE_LABELS: Record<string, string> = {
   K_pre: "K Pre-Test",

@@ -3,23 +3,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useLanguage } from "@/lib/LanguageContext";
-import { compressImageFile } from "@/lib/compress-image";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { compressImageFile } from "@/lib/media/compress-image";
 import { RichTextEditor } from "@/components/RichTextEditor";
-import type { ShopCustomField, ShopCustomValue, ShopCustomFieldType } from "@/lib/shop-custom-fields";
-import { normalizeTiers, type ShopDeliveryTier } from "@/lib/shop-delivery";
-import { findBundleScopeConflict, type ShopBundleDeal } from "@/lib/shop-promotions";
-import { orderBreakdown, type FinanceBucket, type ProductFinanceRow } from "@/lib/shop-finance";
+import type { ShopCustomField, ShopCustomValue, ShopCustomFieldType } from "@/lib/shop/shop-custom-fields";
+import { normalizeTiers, type ShopDeliveryTier } from "@/lib/shop/shop-delivery";
+import { findBundleScopeConflict, type ShopBundleDeal } from "@/lib/shop/shop-promotions";
+import { orderBreakdown, type FinanceBucket, type ProductFinanceRow } from "@/lib/shop/shop-finance";
 import {
   ShoppingBag, Package, ReceiptText, Settings as SettingsIcon, Plus, Trash2, Pencil,
   Upload, Loader2, X, CheckCircle2, XCircle, Clock, GripVertical, Save, RotateCcw, Download,
   Check, FileText, Truck, Store, Users, ChevronLeft, ChevronRight, ChevronDown,
   AlertTriangle, ExternalLink, Tag, Wallet, ScanLine, Search,
 } from "lucide-react";
-import { isItemHandedOver, type StaffFulfillmentAction } from "@/lib/shop-fulfillment";
+import { isItemHandedOver, type StaffFulfillmentAction } from "@/lib/shop/shop-fulfillment";
 import ShopHandoverScanner from "./ShopHandoverScanner";
 import { FulfillmentChip, FulfillmentPanel, FulfilModal, canRevertPayment, type FulfilRequest } from "./ShopFulfillmentControls";
-import { alpha } from "@/lib/color";
+import { alpha } from "@/lib/ui/color";
 
 // True when a decoded slip QR payload is a link the admin can tap to open the
 // issuing bank's own verify page. Deliberately NOT imported from

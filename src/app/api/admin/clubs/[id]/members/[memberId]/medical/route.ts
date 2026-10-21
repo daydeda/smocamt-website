@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { clubs } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { ClubsService } from "@/modules/clubs/clubs.service";
-import { effectiveRoles } from "@/lib/admin-access";
+import { effectiveRoles } from "@/lib/access/admin-access";
 import { NextResponse } from "next/server";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 

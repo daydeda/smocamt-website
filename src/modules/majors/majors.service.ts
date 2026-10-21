@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { houses, users } from "@/db/schema";
 import { and, asc, eq } from "drizzle-orm";
-import { redactEmergencyContacts } from "@/lib/emergency-contacts";
+import { redactEmergencyContacts } from "@/lib/pdpa/emergency-contacts";
 
 export class MajorsService {
   /**

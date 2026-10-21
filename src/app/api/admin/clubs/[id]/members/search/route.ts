@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { ClubsService } from "@/modules/clubs/clubs.service";
-import { effectiveRoles } from "@/lib/admin-access";
+import { effectiveRoles } from "@/lib/access/admin-access";
 import { or, ilike } from "drizzle-orm";
 import { NextResponse } from "next/server";
 

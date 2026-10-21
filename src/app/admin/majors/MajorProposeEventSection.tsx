@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { useLanguage } from "@/lib/LanguageContext";
-import { currentFirstYearPrefix } from "@/lib/event-access";
-import { sessionSpansTooLong, splitIntoDailySessions } from "@/lib/event-schema";
-import { parseRichText } from "@/lib/rich-text";
-import { POSITION_I18N_KEY } from "@/lib/positions";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { currentFirstYearPrefix } from "@/lib/access/event-access";
+import { sessionSpansTooLong, splitIntoDailySessions } from "@/lib/events/event-schema";
+import { parseRichText } from "@/lib/ui/rich-text";
+import { POSITION_I18N_KEY } from "@/lib/access/positions";
 import {
   AlertCircle,
   CalendarPlus,

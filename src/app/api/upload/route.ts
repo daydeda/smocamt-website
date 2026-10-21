@@ -3,7 +3,7 @@ import { writeFile, mkdir } from "fs/promises";
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import path from "path";
-import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { rateLimit, getClientIp } from "@/lib/util/rate-limit";
 
 // MIME type and extension are both client-controlled, so the only trustworthy
 // signal is the file's own magic bytes. A spoofed "image" that slips through

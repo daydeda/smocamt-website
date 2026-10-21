@@ -3,8 +3,8 @@ import { gameRooms } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { captureException } from "@/lib/logger";
-import { rateLimit } from "@/lib/rate-limit";
+import { captureException } from "@/lib/util/logger";
+import { rateLimit } from "@/lib/util/rate-limit";
 
 // GET /api/battle/rooms/[code] - Inspect room status
 export async function GET(

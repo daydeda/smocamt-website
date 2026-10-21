@@ -1,11 +1,11 @@
 import { auth } from "@/auth";
-import { effectiveRoles } from "@/lib/admin-access";
+import { effectiveRoles } from "@/lib/access/admin-access";
 import { EventScopeService } from "@/modules/events/event-scope.service";
 import { MajorsService } from "@/modules/majors/majors.service";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { NON_SMO_POSITION_IDS } from "@/lib/positions";
-import { formatAuditTargetList } from "@/lib/audit-target-list";
+import { NON_SMO_POSITION_IDS } from "@/lib/access/positions";
+import { formatAuditTargetList } from "@/lib/util/audit-target-list";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 
 const memberPositionSchema = z.object({

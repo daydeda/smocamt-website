@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { CheckCircle2, Award, ClipboardList, ArrowRight, House, X } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 import type { NotifItem } from "@/components/NotificationToasts";
-import { alpha } from "@/lib/color";
+import { alpha } from "@/lib/ui/color";
 
 // Auto-dismiss after a few seconds so the modal confirms-then-clears without the
 // student having to tap (it can still be dismissed by tap / backdrop / close).

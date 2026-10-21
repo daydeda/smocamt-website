@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ProfileReviewModal } from "@/components/ProfileReviewModal";
-import { shouldShowProfileReview } from "@/lib/profile-review";
+import { shouldShowProfileReview } from "@/lib/profile/profile-review";
 
 /**
  * Shows the periodic profile check-in modal on the dashboard. Same modal and same

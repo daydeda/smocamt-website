@@ -7,7 +7,7 @@ import { db } from "@/db"
 import { accounts, sessions, users, verificationTokens, clubMembers } from "@/db/schema"
 import { eq, and, isNotNull } from "drizzle-orm"
 import { AuditService } from "@/modules/audit/audit.service"
-import { isSiteMoved } from "@/lib/site-moved"
+import { isSiteMoved } from "@/lib/ui/site-moved"
 import { isRemoteDatabase } from "@/db/guard"
 
 // Fail fast at runtime if AUTH_URL is missing in production: with trustHost:true an

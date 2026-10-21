@@ -4,8 +4,8 @@
 import type { Session } from "next-auth";
 import { useSession, signOut } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
-import { usePolling } from "@/lib/usePolling";
-import { useQrToken } from "@/lib/useQrToken";
+import { usePolling } from "@/lib/hooks/usePolling";
+import { useQrToken } from "@/lib/hooks/useQrToken";
 import dynamic from "next/dynamic";
 // Canvas, not SVG: Android/Chrome "force dark" auto-inverts inline <svg> DOM
 // content like any other element, even with `color-scheme: only light` set
@@ -53,16 +53,16 @@ import {
   CalendarX2,
   Camera
 } from "lucide-react";
-import { parseRichText } from "@/lib/rich-text";
-import { useLanguage } from "@/lib/LanguageContext";
+import { parseRichText } from "@/lib/ui/rich-text";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { StudentNav } from "@/components/layout/StudentNav";
 import { NotificationModal } from "@/components/NotificationModal";
 import { ProfileReviewGate } from "@/components/ProfileReviewGate";
 import { FormsDueBanner } from "@/components/FormsDueBanner";
-import { useNotifications } from "@/lib/useNotifications";
+import { useNotifications } from "@/lib/hooks/useNotifications";
 import { useRouter } from "next/navigation";
-import { NO_SHOW_STRIKE_THRESHOLD } from "@/lib/strikes";
-import { alpha } from "@/lib/color";
+import { NO_SHOW_STRIKE_THRESHOLD } from "@/lib/points/strikes";
+import { alpha } from "@/lib/ui/color";
 
 // House mascot logos (background removed). Keyed by both the house id (color) and
 // its name so it resolves whichever identifier the API returns.

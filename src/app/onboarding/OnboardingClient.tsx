@@ -4,12 +4,12 @@ import { useSession, signOut } from "next-auth/react";
 import type { Session } from "next-auth";
 import { useState, useEffect, useCallback } from "react";
 import { Camera, Check, Loader2, LogOut, User, Menu, X, AlertTriangle, Lock } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
-import { compressImageFile } from "@/lib/compress-image";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { compressImageFile } from "@/lib/media/compress-image";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { PrivacyPolicyModal } from "@/components/PrivacyPolicyModal";
-import { FACULTIES, majorsForFaculty, facultyFromStudentId } from "@/lib/faculties";
-import { unsubscribePushBeforeSignOut } from "@/lib/push-client";
+import { FACULTIES, majorsForFaculty, facultyFromStudentId } from "@/lib/profile/faculties";
+import { unsubscribePushBeforeSignOut } from "@/lib/push/push-client";
 
 // Rich CAMT major labels; other faculties show their bare code (or no Major
 // dropdown at all until their major lists are provided).

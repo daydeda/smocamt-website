@@ -62,7 +62,7 @@ vi.mock("@/db", () => ({
 vi.mock("@/modules/audit/audit.service", () => ({
   AuditService: { log: vi.fn() },
 }));
-vi.mock("@/lib/site-moved", () => ({ isSiteMoved: vi.fn(() => false) }));
+vi.mock("@/lib/ui/site-moved", () => ({ isSiteMoved: vi.fn(() => false) }));
 vi.mock("@/db/guard", () => ({ isRemoteDatabase: vi.fn(() => false) }));
 
 await import("@/auth");

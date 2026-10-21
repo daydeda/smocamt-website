@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronRight, Loader2, PackageOpen, Plus, QrCode, Tag, Trash2 } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 import PropertyTagPanel from "./PropertyTagPanel";
 
 // /admin/property-tags — the list of tag groups ("Bag for Trekking", …).

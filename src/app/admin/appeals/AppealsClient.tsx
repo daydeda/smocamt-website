@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { MessageSquareWarning, CheckCircle2, XCircle, Loader2, Clock, UserCheck, CalendarX2 } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
-import { effectiveRoles } from "@/lib/admin-access";
-import { canonicalHouseName } from "@/lib/faculties";
-import { NO_SHOW_STRIKE_THRESHOLD, RESOLVE_APPEALS_ROLES } from "@/lib/strikes";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { effectiveRoles } from "@/lib/access/admin-access";
+import { canonicalHouseName } from "@/lib/profile/faculties";
+import { NO_SHOW_STRIKE_THRESHOLD, RESOLVE_APPEALS_ROLES } from "@/lib/points/strikes";
 
 type Appeal = {
   id: string;

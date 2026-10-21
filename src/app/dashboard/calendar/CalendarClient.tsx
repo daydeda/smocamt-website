@@ -19,16 +19,16 @@ import {
   AlertTriangle,
   Rss,
 } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
-import { parseRichText } from "@/lib/rich-text";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { parseRichText } from "@/lib/ui/rich-text";
 import { StudentNav } from "@/components/layout/StudentNav";
 import {
   buildVCalendar,
   googleCalendarUrl,
   outlookCalendarUrl,
   type CalItem,
-} from "@/lib/ical";
-import { occurrencesInWindow, type RecurrenceRule } from "@/lib/recurrence";
+} from "@/lib/calendar/ical";
+import { occurrencesInWindow, type RecurrenceRule } from "@/lib/calendar/recurrence";
 
 // Unified item shape returned by GET /api/calendar (kept local so this client
 // component never imports the server-only calendar service).

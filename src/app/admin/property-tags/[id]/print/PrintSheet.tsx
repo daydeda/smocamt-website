@@ -4,15 +4,15 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import { AlertTriangle, ArrowLeft, Download, Loader2 } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
-import { buildTagSheetPdf } from "@/lib/property-tag-pdf";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { buildTagSheetPdf } from "@/lib/property-tags/property-tag-pdf";
 import {
   formatTagLabel,
   labelGridForPerPage,
   MAX_TAGS_PER_PAGE,
   MIN_RECOMMENDED_QR_MM,
   tagUrl,
-} from "@/lib/property-tag";
+} from "@/lib/property-tags/property-tag";
 
 interface PrintTag {
   code: string;

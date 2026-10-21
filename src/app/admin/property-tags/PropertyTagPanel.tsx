@@ -4,9 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Html5Qrcode } from "html5-qrcode";
 import { AlertTriangle, Check, Loader2, ScanLine, Tag, UserMinus, UserPlus, X } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
-import { normalizeTagCode } from "@/lib/property-tag";
-import { QR_SCANNER_CONSTRUCTOR_CONFIG, QR_SCANNER_START_CONFIG } from "@/lib/qr-scanner-config";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { normalizeTagCode } from "@/lib/property-tags/property-tag";
+import { QR_SCANNER_CONSTRUCTOR_CONFIG, QR_SCANNER_START_CONFIG } from "@/lib/qr/qr-scanner-config";
 // Same dialog shell as the prize booth, so staff get one visual language for
 // "a camera dialog that resolves something and asks to confirm".
 import styles from "../prizes/PrizeAwardPanel.module.css";

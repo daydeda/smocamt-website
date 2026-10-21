@@ -2,11 +2,11 @@ import { db } from "@/db";
 import { prizes } from "@/db/schema";
 import { PrizeService } from "@/modules/events/prize.service";
 import { AuditService } from "@/modules/audit/audit.service";
-import { getClientIp } from "@/lib/rate-limit";
-import { canReachPrize, resolvePrizeAccess } from "@/lib/prize-scope";
+import { getClientIp } from "@/lib/util/rate-limit";
+import { canReachPrize, resolvePrizeAccess } from "@/lib/prizes/prize-scope";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { captureException } from "@/lib/logger";
+import { captureException } from "@/lib/util/logger";
 
 export const dynamic = "force-dynamic";
 

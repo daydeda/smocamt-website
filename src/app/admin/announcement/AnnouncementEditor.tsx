@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Megaphone, Save, Eye, EyeOff, Bold, Link2, AlertTriangle, Check } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
-import { parseRichText } from "@/lib/rich-text";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { parseRichText } from "@/lib/ui/rich-text";
 
 export function AnnouncementEditor() {
   const { t } = useLanguage();

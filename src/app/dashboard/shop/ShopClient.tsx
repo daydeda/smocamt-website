@@ -4,14 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { StudentNav } from "@/components/layout/StudentNav";
-import { useLanguage } from "@/lib/LanguageContext";
-import { compressImageFile } from "@/lib/compress-image";
-import { uploadFormViaXHR } from "@/lib/xhr-upload";
-import { parseRichText } from "@/lib/rich-text";
-import type { ShopCustomField, ShopCustomValue } from "@/lib/shop-custom-fields";
-import { computeProductDeliveryFee, type ShopDeliveryTier } from "@/lib/shop-delivery";
-import { computeBundleDiscount, type ShopBundleDeal } from "@/lib/shop-promotions";
-import { carrierLabel, daysUntilAutoConfirm, isItemHandedOver, nextFulfillmentStatus, trackingLinkFor } from "@/lib/shop-fulfillment";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { compressImageFile } from "@/lib/media/compress-image";
+import { uploadFormViaXHR } from "@/lib/media/xhr-upload";
+import { parseRichText } from "@/lib/ui/rich-text";
+import type { ShopCustomField, ShopCustomValue } from "@/lib/shop/shop-custom-fields";
+import { computeProductDeliveryFee, type ShopDeliveryTier } from "@/lib/shop/shop-delivery";
+import { computeBundleDiscount, type ShopBundleDeal } from "@/lib/shop/shop-promotions";
+import { carrierLabel, daysUntilAutoConfirm, isItemHandedOver, nextFulfillmentStatus, trackingLinkFor } from "@/lib/shop/shop-fulfillment";
 import {
   ShoppingBag, X, ChevronLeft, ChevronRight, ChevronDown, Check, Upload, Loader2, CheckCircle2,
   Clock, XCircle, Package, Minus, Plus, ReceiptText, Store, Tag, Truck, Copy, ExternalLink, AlertTriangle, QrCode,

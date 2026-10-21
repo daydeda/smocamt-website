@@ -4,8 +4,8 @@ import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
-import { effectiveRoles } from "@/lib/admin-access";
-import { RESET_STRIKES_ROLES } from "@/lib/strikes";
+import { effectiveRoles } from "@/lib/access/admin-access";
+import { RESET_STRIKES_ROLES } from "@/lib/points/strikes";
 
 // POST /api/admin/students/[id]/strikes/reset — clears a student's no-show
 // strikes and unblocks pre-registration. Narrower than the roles that can

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useLanguage } from "@/lib/LanguageContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 import {
   PRIVACY_COPY,
   PRIVACY_UPDATED,

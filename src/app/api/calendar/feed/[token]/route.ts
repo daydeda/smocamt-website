@@ -1,10 +1,10 @@
 import { db } from "@/db";
 import { calendarFeedTokens, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { buildViewer } from "@/lib/event-access";
+import { buildViewer } from "@/lib/access/event-access";
 import { ClubsService } from "@/modules/clubs/clubs.service";
 import { getCalendarItemsForViewer } from "@/modules/calendar/calendar.service";
-import { buildVCalendar, type CalItem } from "@/lib/ical";
+import { buildVCalendar, type CalItem } from "@/lib/calendar/ical";
 
 export const maxDuration = 20;
 

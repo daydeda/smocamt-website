@@ -1,8 +1,8 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { clubs } from "@/db/schema";
-import { resolveShopAccess } from "@/lib/shop-scope";
-import { FACULTIES } from "@/lib/faculties";
+import { resolveShopAccess } from "@/lib/shop/shop-scope";
+import { FACULTIES } from "@/lib/profile/faculties";
 import { asc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 

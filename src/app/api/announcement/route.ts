@@ -3,7 +3,7 @@ import { announcements } from "@/db/schema";
 import { desc } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
-import { captureException } from "@/lib/logger";
+import { captureException } from "@/lib/util/logger";
 
 // Cache the singleton read at the app layer for 30s. The s-maxage header only helps
 // behind a CDN (Vercel); self-hosted behind plain nginx there is none, so without

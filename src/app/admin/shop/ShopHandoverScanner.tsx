@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Html5Qrcode } from "html5-qrcode";
-import { QR_SCANNER_CONSTRUCTOR_CONFIG, QR_SCANNER_START_CONFIG } from "@/lib/qr-scanner-config";
+import { QR_SCANNER_CONSTRUCTOR_CONFIG, QR_SCANNER_START_CONFIG } from "@/lib/qr/qr-scanner-config";
 import viewfinderStyles from "@/components/admin/QrViewfinder.module.css";
 import { AlertTriangle, CheckCircle2, Clock, Loader2, ScanLine, Store, Truck, Undo2, X } from "lucide-react";
 import HandoverProductList, { ProductThumb, type HandoverProduct } from "./ShopHandoverProducts";

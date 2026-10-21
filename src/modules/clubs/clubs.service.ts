@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { clubs, clubMembers, events, houses, users } from "@/db/schema";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import { redactEmergencyContacts } from "@/lib/emergency-contacts";
+import { redactEmergencyContacts } from "@/lib/pdpa/emergency-contacts";
 
 // Mirrors AuditService's DBTransaction type (src/modules/audit/audit.service.ts) so
 // callers that need setUserClubPresidencies to be atomic with their own writes (e.g.

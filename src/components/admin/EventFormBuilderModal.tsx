@@ -8,8 +8,8 @@ import {
   ClipboardList, CornerDownRight, Download, Eye, EyeOff, FileText, Lock, MessageSquare,
   Plus, Sparkles, Trash2, Trophy, X, Zap,
 } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
-import { isGlobalRegistrationPosition } from "@/lib/admin-access";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 import {
   normalizeForm,
   serializeForm,
@@ -18,7 +18,7 @@ import {
   BRANCH_SUBMIT,
   type FormQuestion,
   type FormSection,
-} from "@/lib/form-schema";
+} from "@/lib/forms/form-schema";
 
 interface FormBuilderSubmission {
   id: string;

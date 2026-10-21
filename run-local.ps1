@@ -157,7 +157,7 @@ function Test-DbConnection {
     }
     
     # รัน script ตรวจสอบ
-    npx tsx test-db.ts
+    npx tsx scripts/test-db.ts
     if ($LASTEXITCODE -eq 0) {
         Write-Host "✅ เชื่อมต่อฐานข้อมูลสำเร็จ!" -ForegroundColor Green
         return $true
@@ -239,7 +239,7 @@ function Promote-Admin {
     }
     
     Load-EnvFile
-    npx tsx elevate-admin.ts $email
+    npx tsx scripts/elevate-admin.ts $email
     Read-Host "กด Enter เพื่อทำต่อ..."
 }
 

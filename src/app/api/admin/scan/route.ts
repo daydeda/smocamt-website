@@ -1,16 +1,16 @@
 import { auth } from "@/auth";
-import { canEnterAdminAny, canGiveIndividualScoreAny, effectiveRoles, isEventUnscopedStaff } from "@/lib/admin-access";
+import { canEnterAdminAny, canGiveIndividualScoreAny, effectiveRoles, isEventUnscopedStaff } from "@/lib/access/admin-access";
 import { ScannerService } from "@/modules/events/scanner.service";
 import { EventsService } from "@/modules/events/events.service";
 import { EventScopeService } from "@/modules/events/event-scope.service";
-import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { rateLimit, getClientIp } from "@/lib/util/rate-limit";
 import { db } from "@/db";
 import { events } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { captureException } from "@/lib/logger";
-import { revalidateLeaderboards } from "@/lib/leaderboard-cache";
+import { captureException } from "@/lib/util/logger";
+import { revalidateLeaderboards } from "@/lib/points/leaderboard-cache";
 
 // Fail fast instead of hanging to the 300s platform default if the DB pooler stalls.
 // Scanning must stay responsive during the event even under load.

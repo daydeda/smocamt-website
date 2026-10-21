@@ -2,13 +2,13 @@ import { auth } from "@/auth";
 import { db } from "@/db";
 import { clubs } from "@/db/schema";
 import { ClubsService } from "@/modules/clubs/clubs.service";
-import { effectiveRoles } from "@/lib/admin-access";
-import { POSITION_LABEL_EN, type PositionId } from "@/lib/positions";
-import { formatAuditTargetList } from "@/lib/audit-target-list";
+import { effectiveRoles } from "@/lib/access/admin-access";
+import { POSITION_LABEL_EN, type PositionId } from "@/lib/access/positions";
+import { formatAuditTargetList } from "@/lib/util/audit-target-list";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
-import { canonicalHouseName } from "@/lib/faculties";
+import { canonicalHouseName } from "@/lib/profile/faculties";
 
 // xlsx is a CommonJS package — keep this route on the Node.js runtime.
 export const runtime = "nodejs";

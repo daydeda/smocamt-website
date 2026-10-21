@@ -1,9 +1,9 @@
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { effectiveRoles } from "@/lib/admin-access";
-import { isFeedbackManagerAny } from "@/lib/feedback-access";
-import { FEEDBACK_SEVERITIES, FEEDBACK_STATUSES } from "@/lib/feedback-token";
+import { effectiveRoles } from "@/lib/access/admin-access";
+import { isFeedbackManagerAny } from "@/lib/feedback/feedback-access";
+import { FEEDBACK_SEVERITIES, FEEDBACK_STATUSES } from "@/lib/feedback/feedback-token";
 import { FeedbackService } from "@/modules/feedback/feedback.service";
 
 export const dynamic = "force-dynamic";

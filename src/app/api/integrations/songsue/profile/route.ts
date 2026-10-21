@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { isAuthorizedSongsueSync } from "@/lib/integration-auth";
-import { rateLimit, getClientIp } from "@/lib/rate-limit";
-import { verifyCrossAppQrToken } from "@/lib/qr-token";
+import { isAuthorizedSongsueSync } from "@/lib/integrations/integration-auth";
+import { rateLimit, getClientIp } from "@/lib/util/rate-limit";
+import { verifyCrossAppQrToken } from "@/lib/qr/qr-token";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";

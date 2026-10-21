@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Users, Trophy, ShieldAlert, Crown, MessageCircle, ChevronLeft, ChevronRight } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { StudentNav } from "@/components/layout/StudentNav";
-import { alpha } from "@/lib/color";
+import { alpha } from "@/lib/ui/color";
 
 // Shared LINE group everyone joins (same group on the rankings page and every
 // house page).

@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { adminLandingHrefForRoles, effectiveRoles } from "@/lib/admin-access";
-import { isFeedbackManagerAny } from "@/lib/feedback-access";
+import { adminLandingHrefForRoles, effectiveRoles } from "@/lib/access/admin-access";
+import { isFeedbackManagerAny } from "@/lib/feedback/feedback-access";
 import { FeedbackAdminClient } from "./FeedbackAdminClient";
 
 export const dynamic = "force-dynamic";

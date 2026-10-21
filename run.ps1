@@ -158,7 +158,7 @@ function Test-DbConnection {
         return $false
     }
     
-    npx tsx test-db.ts
+    npx tsx scripts/test-db.ts
     if ($LASTEXITCODE -eq 0) {
         Write-Host "✅ เชื่อมต่อฐานข้อมูลสำเร็จ!" -ForegroundColor Green
         return $true
@@ -227,7 +227,7 @@ function Manage-DatabaseMenu {
         Write-Host "[3] ใส่ข้อมูลจำลองและสิทธิ์ระบบตั้งต้น (db:seed)"
         Write-Host "[4] ล้างฐานข้อมูลทั้งหมดใหม่ (db:reset) - ⚠️ ข้อมูลเก่าจะหายหมด"
         Write-Host "[5] เปิดหน้าจัดการฐานข้อมูลแบบเว็บดีไซน์ (drizzle-kit studio)"
-        Write-Host "[6] ตรวจสอบการเชื่อมต่อฐานข้อมูลปัจจุบัน (test-db.ts)"
+        Write-Host "[6] ตรวจสอบการเชื่อมต่อฐานข้อมูลปัจจุบัน (scripts/test-db.ts)"
         Write-Host "[7] กลับเมนูหลัก"
         Write-Host ""
         
@@ -299,7 +299,7 @@ function Promote-Admin {
     
     if ($platform -eq "1") {
         Write-Host "[*] กำลังดำเนินการยกระดับสิทธิ์..." -ForegroundColor Cyan
-        npx tsx --env-file=.env elevate-admin.ts $email
+        npx tsx --env-file=.env scripts/elevate-admin.ts $email
     }
     elseif ($platform -eq "2") {
         $docker = Check-DockerStatus
@@ -307,7 +307,7 @@ function Promote-Admin {
             Write-Host "❌ คอนเทนเนอร์ Docker ไม่ได้รันอยู่ หรือระบบไม่ได้ติดตั้ง Docker" -ForegroundColor Red
         } else {
             Write-Host "[*] กำลังส่งคำสั่งไปยัง Docker Container..." -ForegroundColor Cyan
-            docker compose exec web npx tsx --env-file=.env elevate-admin.ts $email
+            docker compose exec web npx tsx --env-file=.env scripts/elevate-admin.ts $email
         }
     }
     else {

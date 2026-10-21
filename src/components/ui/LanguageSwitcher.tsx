@@ -1,7 +1,7 @@
 "use client";
 
-import { useLanguage } from "@/lib/LanguageContext";
-import { Language } from "@/lib/i18n";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { Language } from "@/lib/i18n/i18n";
 import { Globe, Check, ChevronDown } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 

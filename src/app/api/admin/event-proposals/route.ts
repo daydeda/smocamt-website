@@ -1,18 +1,18 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { eventProposals } from "@/db/schema";
-import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/admin-access";
-import { REVIEW_PROPOSAL_ROLES, SUBMIT_PROPOSAL_ROLES } from "@/lib/event-proposals";
+import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
+import { REVIEW_PROPOSAL_ROLES, SUBMIT_PROPOSAL_ROLES } from "@/lib/events/event-proposals";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { ClubsService } from "@/modules/clubs/clubs.service";
 import { EventProposalsService } from "@/modules/events/event-proposals.service";
 import { MajorsService } from "@/modules/majors/majors.service";
-import { majorsForFaculty, DEFAULT_FACULTY } from "@/lib/faculties";
+import { majorsForFaculty, DEFAULT_FACULTY } from "@/lib/profile/faculties";
 import { getProposalReviewerUserIds } from "@/modules/notifications/push-audience";
 import { PushService } from "@/modules/notifications/push.service";
 import { after, NextResponse } from "next/server";
 import { z } from "zod";
-import { sessionsHaveInvalidSpan } from "@/lib/event-schema";
+import { sessionsHaveInvalidSpan } from "@/lib/events/event-schema";
 
 export const dynamic = "force-dynamic";
 

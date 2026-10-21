@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { CheckCircle2, Award, ClipboardList, X } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 export type NotifItem = {
   id: string;

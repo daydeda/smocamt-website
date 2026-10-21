@@ -1,8 +1,8 @@
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { effectiveRoles } from "@/lib/admin-access";
-import { isFeedbackManagerAny } from "@/lib/feedback-access";
+import { effectiveRoles } from "@/lib/access/admin-access";
+import { isFeedbackManagerAny } from "@/lib/feedback/feedback-access";
 import { FeedbackService } from "@/modules/feedback/feedback.service";
 
 export const dynamic = "force-dynamic";

@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { Bell, BellOff, Loader2 } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 import {
   canRequestPushPermission,
   disablePushNotifications,
   enablePushNotifications,
   getExistingPushSubscription,
   isPushSupported,
-} from "@/lib/push-client";
+} from "@/lib/push/push-client";
 
 type Status = "loading" | "unsupported" | "ios-not-installed" | "denied" | "off" | "on";
 

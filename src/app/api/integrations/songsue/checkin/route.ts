@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { isAuthorizedSongsueSync } from "@/lib/integration-auth";
-import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { isAuthorizedSongsueSync } from "@/lib/integrations/integration-auth";
+import { rateLimit, getClientIp } from "@/lib/util/rate-limit";
 import { SongsueSyncService, SongsueSyncError } from "@/modules/integrations/songsue-sync.service";
 
 export const dynamic = "force-dynamic";

@@ -1,9 +1,9 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { shopOrderItems, shopOrders, shopProducts, shopSellers } from "@/db/schema";
-import { resolveShopAccess } from "@/lib/shop-scope";
-import { filterProductsByScope } from "@/lib/shop-auth";
-import { captureException } from "@/lib/logger";
+import { resolveShopAccess } from "@/lib/shop/shop-scope";
+import { filterProductsByScope } from "@/lib/shop/shop-auth";
+import { captureException } from "@/lib/util/logger";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 

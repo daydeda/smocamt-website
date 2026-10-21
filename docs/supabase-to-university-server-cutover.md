@@ -104,7 +104,7 @@ Sign in once at `https://activecamt.camt.cmu.ac.th` via Google, then in the web
 console (note the `CONFIRM=yes` — `guard.ts` blocks privileged scripts under
 `NODE_ENV=production`):
 ```sh
-CONFIRM=yes npx tsx elevate-admin.ts you@cmu.ac.th
+CONFIRM=yes npx tsx scripts/elevate-admin.ts you@cmu.ac.th
 ```
 
 ## 8. Verify before announcing

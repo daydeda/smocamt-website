@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { useLanguage } from "@/lib/LanguageContext";
-import { effectiveRoles } from "@/lib/admin-access";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { effectiveRoles } from "@/lib/access/admin-access";
 import { MajorProposeEventSection } from "./MajorProposeEventSection";
 import { MajorTeamSection } from "./MajorTeamSection";
 import { EventFeedbackFormsShortcut } from "@/components/admin/EventFeedbackFormsShortcut";

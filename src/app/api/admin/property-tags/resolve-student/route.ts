@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { PropertyTagsService } from "@/modules/property-tags/property-tags.service";
-import { resolvePropertyTagStaff } from "@/lib/property-tag-access";
-import { captureException } from "@/lib/logger";
+import { resolvePropertyTagStaff } from "@/lib/property-tags/property-tag-access";
+import { captureException } from "@/lib/util/logger";
 
 export const dynamic = "force-dynamic";
 

@@ -2,11 +2,11 @@ import { db } from "@/db";
 import { prizes } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { PrizeService } from "@/modules/events/prize.service";
-import { canReachPrize, resolvePrizeAccess } from "@/lib/prize-scope";
-import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { canReachPrize, resolvePrizeAccess } from "@/lib/prizes/prize-scope";
+import { rateLimit, getClientIp } from "@/lib/util/rate-limit";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { captureException } from "@/lib/logger";
+import { captureException } from "@/lib/util/logger";
 
 // POST /api/admin/prizes/[id]/claim — the booth endpoint.
 //

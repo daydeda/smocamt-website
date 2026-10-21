@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Html5Qrcode } from "html5-qrcode";
-import { compressImageFile } from "@/lib/compress-image";
-import { uploadFormViaXHR } from "@/lib/xhr-upload";
-import { useLanguage } from "@/lib/LanguageContext";
-import { QR_SCANNER_CONSTRUCTOR_CONFIG, QR_SCANNER_START_CONFIG } from "@/lib/qr-scanner-config";
+import { compressImageFile } from "@/lib/media/compress-image";
+import { uploadFormViaXHR } from "@/lib/media/xhr-upload";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { QR_SCANNER_CONSTRUCTOR_CONFIG, QR_SCANNER_START_CONFIG } from "@/lib/qr/qr-scanner-config";
 import { Camera, Check, X, AlertTriangle, Loader2, Search, ImagePlus } from "lucide-react";
 import styles from "./PrizeAwardPanel.module.css";
 import viewfinderStyles from "@/components/admin/QrViewfinder.module.css";

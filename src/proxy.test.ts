@@ -8,7 +8,7 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock("@/auth", () => ({ auth: vi.fn(async () => state.session) }));
-vi.mock("@/lib/site-moved", () => ({ isSiteMoved: vi.fn(() => false) }));
+vi.mock("@/lib/ui/site-moved", () => ({ isSiteMoved: vi.fn(() => false) }));
 
 import { proxy } from "@/proxy";
 

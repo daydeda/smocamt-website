@@ -2,8 +2,8 @@ import webpush from "web-push";
 import { db } from "@/db";
 import { pushSubscriptions } from "@/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
-import { serializePushPayload, type PushNotificationPayload } from "@/lib/push-payload";
-import { shouldPruneAfterFailure } from "@/lib/push-errors";
+import { serializePushPayload, type PushNotificationPayload } from "@/lib/push/push-payload";
+import { shouldPruneAfterFailure } from "@/lib/push/push-errors";
 
 // How many sends run concurrently per fan-out. Uncapped Promise.all over
 // hundreds of subscriptions would open that many simultaneous HTTPS

@@ -1,8 +1,8 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { attendance, noShowAppeals, users } from "@/db/schema";
-import { effectiveRoles } from "@/lib/admin-access";
-import { NO_SHOW_STRIKE_THRESHOLD, RESOLVE_APPEALS_ROLES } from "@/lib/strikes";
+import { effectiveRoles } from "@/lib/access/admin-access";
+import { NO_SHOW_STRIKE_THRESHOLD, RESOLVE_APPEALS_ROLES } from "@/lib/points/strikes";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { EventScopeService } from "@/modules/events/event-scope.service";
 import { PushService } from "@/modules/notifications/push.service";

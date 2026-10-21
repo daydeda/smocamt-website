@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Archive, ArchiveRestore, ArrowLeft, Loader2, Pencil, Printer, QrCode, Search, Tag } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
-import { formatTagLabel, MAX_TAGS_PER_BATCH, normalizeSeries } from "@/lib/property-tag";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { formatTagLabel, MAX_TAGS_PER_BATCH, normalizeSeries } from "@/lib/property-tags/property-tag";
 import PropertyTagPanel from "../PropertyTagPanel";
 
 // /admin/property-tags/[id] — one group: generate tags, see who owns which,

@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { isStaffBypassEmail } from "@/lib/staff-bypass";
+import { isStaffBypassEmail } from "@/lib/access/staff-bypass";
 import { UsersService } from "@/modules/users/users.service";
 import OnboardingClient from "./OnboardingClient";
 

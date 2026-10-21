@@ -1,6 +1,6 @@
 "use client";
 
-import { useLanguage } from "@/lib/LanguageContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 // Site-wide credit/copyright footer for the student-facing pages. Mounted once
 // from the dashboard/ and battle/ layouts (not per page like StudentNav), so

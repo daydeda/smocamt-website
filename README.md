@@ -118,7 +118,7 @@ Production runs as a Docker stack (app + Postgres) on the university server, man
 docker-compose up -d --build
 ```
 
-For the server setup, see [`docker-stack.yml`](./docker-stack.yml), [`university_server_deployment_guide.md`](./university_server_deployment_guide.md) and [`production_deployment_architecture.md`](./production_deployment_architecture.md).
+For the server setup, see [`docker-stack.yml`](./docker-stack.yml), [`university_server_deployment_guide.md`](./docs/deployment/university_server_deployment_guide.md) and [`production_deployment_architecture.md`](./docs/deployment/production_deployment_architecture.md).
 
 > [!WARNING]
 > Nothing migrates automatically on container start. Run `npm run db:migrate:container` from the Portainer console of the app container **before** deploying code that reads a new or changed column. Migrations must be idempotent and non-destructive.

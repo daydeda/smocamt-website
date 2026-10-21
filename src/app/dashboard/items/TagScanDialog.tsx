@@ -5,9 +5,9 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import type { Html5Qrcode } from "html5-qrcode";
 import { AlertTriangle, Loader2, X } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
-import { normalizeTagCode } from "@/lib/property-tag";
-import { QR_SCANNER_CONSTRUCTOR_CONFIG, QR_SCANNER_START_CONFIG } from "@/lib/qr-scanner-config";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { normalizeTagCode } from "@/lib/property-tags/property-tag";
+import { QR_SCANNER_CONSTRUCTOR_CONFIG, QR_SCANNER_START_CONFIG } from "@/lib/qr/qr-scanner-config";
 // Same dialog shell + viewfinder as the staff camera dialogs.
 import styles from "@/app/admin/prizes/PrizeAwardPanel.module.css";
 import viewfinderStyles from "@/components/admin/QrViewfinder.module.css";

@@ -3,7 +3,7 @@ import { webrtcSignals } from "@/db/schema";
 import { sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { captureException } from "@/lib/logger";
+import { captureException } from "@/lib/util/logger";
 import { z } from "zod";
 
 const iceCandidateSchema = z.object({

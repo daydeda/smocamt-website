@@ -5,11 +5,11 @@ import { and, count, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
-import { allowedEventYearsSchema, sessionInputSchema, sessionsHaveInvalidSpan } from "@/lib/event-schema";
-import { canEditEventDirectly, effectiveRoles, isGlobalRegistrationPosition } from "@/lib/admin-access";
+import { allowedEventYearsSchema, sessionInputSchema, sessionsHaveInvalidSpan } from "@/lib/events/event-schema";
+import { canEditEventDirectly, effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 import { EventScopeService } from "@/modules/events/event-scope.service";
-import { syncEventToSongsue } from "@/lib/songsue-sync";
-import { eventYearFields, getAllowedEventYears } from "@/lib/event-access";
+import { syncEventToSongsue } from "@/lib/integrations/songsue-sync";
+import { eventYearFields, getAllowedEventYears } from "@/lib/access/event-access";
 
 const eventUpdateSchema = z.object({
   title: z.string().min(1).optional(),

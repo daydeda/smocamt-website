@@ -4,8 +4,8 @@ import { attendance, events, users, forms, formSubmissions } from "@/db/schema";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
-import { getFormAvailability } from "@/lib/form-access";
-import { buildViewer, isEligibleFor, isEligibleForGuest } from "@/lib/event-access";
+import { getFormAvailability } from "@/lib/access/form-access";
+import { buildViewer, isEligibleFor, isEligibleForGuest } from "@/lib/access/event-access";
 import { ClubsService } from "@/modules/clubs/clubs.service";
 
 // Fail fast instead of hanging to the 300s platform default if the DB pooler stalls.

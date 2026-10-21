@@ -5,9 +5,9 @@ import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { EventScopeService } from "@/modules/events/event-scope.service";
-import { isGlobalRegistrationPosition } from "@/lib/admin-access";
-import { redactEmergencyContacts } from "@/lib/emergency-contacts";
-import { medicalCategoriesOf } from "@/lib/medical-signal";
+import { isGlobalRegistrationPosition } from "@/lib/access/admin-access";
+import { redactEmergencyContacts } from "@/lib/pdpa/emergency-contacts";
+import { medicalCategoriesOf } from "@/lib/pdpa/medical-signal";
 
 // Columns read for a normal/staff roster. Medical free-text + emergency contacts
 // are fetched so super_admin/admin (and, per the sanitize step, a club/major

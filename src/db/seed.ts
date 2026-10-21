@@ -9,7 +9,7 @@ import { db } from "./index";
 import { houses, users } from "./schema";
 import { eq } from "drizzle-orm";
 import { assertDestructiveAllowed } from "./guard";
-import { ALL_HOUSE_ROWS } from "../lib/faculties";
+import { ALL_HOUSE_ROWS } from "../lib/profile/faculties";
 
 // The 4 CAMT colour houses. ActiveCAMT is CAMT-only, so ids stay the bare
 // colour ids ('red'…) — house_id foreign keys never move.

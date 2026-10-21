@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useLanguage } from "@/lib/LanguageContext";
-import { usePolling } from "@/lib/usePolling";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { usePolling } from "@/lib/hooks/usePolling";
 import Link from "next/link";
 import {
   Users,
@@ -15,7 +15,7 @@ import {
   ArrowUpRight,
   User
 } from "lucide-react";
-import { alpha } from "@/lib/color";
+import { alpha } from "@/lib/ui/color";
 
 type DashboardStats = {
   totalUsers: number;

@@ -3,11 +3,11 @@ import { db } from "@/db";
 import { attendance, events, users, houses } from "@/db/schema";
 import { count, sql, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { csvCell } from "@/lib/csv";
+import { csvCell } from "@/lib/util/csv";
 import { unstable_cache } from "next/cache";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
-import { captureException, logger } from "@/lib/logger";
-import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/admin-access";
+import { captureException, logger } from "@/lib/util/logger";
+import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 
 // Hard ceiling: a request must never hang at the platform's 300s default. If a DB
 // call stalls (e.g. the Supabase pooler is momentarily queueing), fail fast at 20s,

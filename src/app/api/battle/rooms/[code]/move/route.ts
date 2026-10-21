@@ -6,7 +6,7 @@ import { auth } from "@/auth";
 import { validateMove, applyMove, checkResult, OXState } from "@/lib/games/ox";
 import { finalizeGameInDb } from "@/lib/games/stats-helper";
 import { getClientIp, AuditService } from "@/modules/audit/audit.service";
-import { captureException } from "@/lib/logger";
+import { captureException } from "@/lib/util/logger";
 import { z } from "zod";
 
 const moveSchema = z.object({

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 // Type-only: the runtime module is imported dynamically inside startScanner so the
 // (heavy) scanner lib stays out of the initial page bundle.
 import type { Html5Qrcode } from "html5-qrcode";
-import type { MedicalFlags } from "@/lib/medical-signal";
+import type { MedicalFlags } from "@/lib/pdpa/medical-signal";
 import { 
   Search, 
   CheckCircle2, 
@@ -30,21 +30,21 @@ import {
   X,
   Loader2
 } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { useSession } from "next-auth/react";
-import { canAwardPrizes, canEditEventDirectly, canGiveIndividualScoreAny, canManagePropertyTags, effectiveRoles } from "@/lib/admin-access";
-import { bangkokDateKey } from "@/lib/event-schema";
-import { compressImageFile } from "@/lib/compress-image";
-import { uploadFormViaXHR } from "@/lib/xhr-upload";
-import { usePolling } from "@/lib/usePolling";
-import { QR_SCANNER_CONSTRUCTOR_CONFIG, QR_SCANNER_START_CONFIG } from "@/lib/qr-scanner-config";
+import { canAwardPrizes, canEditEventDirectly, canGiveIndividualScoreAny, canManagePropertyTags, effectiveRoles } from "@/lib/access/admin-access";
+import { bangkokDateKey } from "@/lib/events/event-schema";
+import { compressImageFile } from "@/lib/media/compress-image";
+import { uploadFormViaXHR } from "@/lib/media/xhr-upload";
+import { usePolling } from "@/lib/hooks/usePolling";
+import { QR_SCANNER_CONSTRUCTOR_CONFIG, QR_SCANNER_START_CONFIG } from "@/lib/qr/qr-scanner-config";
 import viewfinderStyles from "@/components/admin/QrViewfinder.module.css";
 import dynamic from "next/dynamic";
 import ScannerPrizeTab from "./ScannerPrizeTab";
 import ScannerShopTab from "./ScannerShopTab";
 import ScannerPropertyTab from "./ScannerPropertyTab";
-import { isShopManager } from "@/lib/shop-auth";
-import { alpha } from "@/lib/color";
+import { isShopManager } from "@/lib/shop/shop-auth";
+import { alpha } from "@/lib/ui/color";
 
 // Pre-test warning QR — client-only (qrcode.react reads the DOM). Canvas, not
 // SVG: Android/Chrome "force dark" auto-inverts inline <svg> DOM content, but

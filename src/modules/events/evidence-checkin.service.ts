@@ -9,8 +9,8 @@
 import { db } from "@/db";
 import { attendance, events, eventSessions, users } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
-import { awardIndividualPoints } from "@/lib/award-individual-points";
-import { checkEvidenceEligibility, type EvidenceEligibility } from "@/lib/evidence-checkin";
+import { awardIndividualPoints } from "@/lib/points/award-individual-points";
+import { checkEvidenceEligibility, type EvidenceEligibility } from "@/lib/qr/evidence-checkin";
 
 type EvidenceIneligibleReason = Extract<EvidenceEligibility, { ok: false }>["reason"];
 

@@ -5,7 +5,7 @@ import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { desc, eq, count } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/admin-access";
+import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 
 const formCreateSchema = z.object({
   eventId: z.string().uuid(),

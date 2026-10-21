@@ -2,8 +2,8 @@ import { auth } from "@/auth";
 import { db } from "@/db";
 import { events, eventSessions, attendance } from "@/db/schema";
 import { EvidenceCheckinService } from "@/modules/events/evidence-checkin.service";
-import { getEvidenceWindowStatus } from "@/lib/evidence-checkin";
-import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { getEvidenceWindowStatus } from "@/lib/qr/evidence-checkin";
+import { rateLimit, getClientIp } from "@/lib/util/rate-limit";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 

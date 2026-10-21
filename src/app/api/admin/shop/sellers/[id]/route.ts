@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { shopSellers, users } from "@/db/schema";
-import { isShopAdmin } from "@/lib/shop-auth";
+import { isShopAdmin } from "@/lib/shop/shop-auth";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";

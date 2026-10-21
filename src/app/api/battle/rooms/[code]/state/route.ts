@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { finalizeGameInDb } from "@/lib/games/stats-helper";
-import { captureException } from "@/lib/logger";
+import { captureException } from "@/lib/util/logger";
 
 // GET /api/battle/rooms/[code]/state - Get current game/board state + lazy evaluations
 export async function GET(

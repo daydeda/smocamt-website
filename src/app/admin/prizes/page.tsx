@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { canAwardPrizes, canManagePrizes, effectiveRoles } from "@/lib/admin-access";
+import { canAwardPrizes, canManagePrizes, effectiveRoles } from "@/lib/access/admin-access";
 import PrizesClient from "./PrizesClient";
 
 export const dynamic = "force-dynamic";

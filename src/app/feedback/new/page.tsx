@@ -14,9 +14,9 @@ import {
   ShieldAlert,
   Sparkles,
 } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
-import { FEEDBACK_CATEGORY_META, categoryMeta } from "@/lib/feedback-ui";
-import type { FeedbackCategory } from "@/lib/feedback-token";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { FEEDBACK_CATEGORY_META, categoryMeta } from "@/lib/feedback/feedback-ui";
+import type { FeedbackCategory } from "@/lib/feedback/feedback-token";
 
 type Step = "category" | "message" | "review" | "done";
 

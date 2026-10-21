@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Swords, Trophy, AlertTriangle, ArrowLeft, Loader2, Zap, Hourglass, LogOut, Award, RefreshCcw, RotateCcw, Info, PartyPopper, Frown, Handshake } from "lucide-react";
 import Link from "next/link";
-import { useLanguage } from "@/lib/LanguageContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 import dynamic from "next/dynamic";
 
 // Canvas, not SVG: Android/Chrome "force dark" auto-inverts inline <svg> DOM

@@ -3,7 +3,7 @@ import { attendance, events, users } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { AuditService } from "@/modules/audit/audit.service";
 import { EventsService } from "@/modules/events/events.service";
-import { normalizeFaculty } from "@/lib/faculties";
+import { normalizeFaculty } from "@/lib/profile/faculties";
 
 // Actor id recorded on audit rows written by this service. Deliberately not a
 // real users.id (audit_logs.actorId has no FK — see AuditService) since there

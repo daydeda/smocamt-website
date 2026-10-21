@@ -4,8 +4,8 @@ import { attendance, events } from "@/db/schema";
 import { and, eq, count } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { captureException } from "@/lib/logger";
-import { canEnterAdminAny, effectiveRoles, isEventUnscopedStaff } from "@/lib/admin-access";
+import { captureException } from "@/lib/util/logger";
+import { canEnterAdminAny, effectiveRoles, isEventUnscopedStaff } from "@/lib/access/admin-access";
 import { EventScopeService } from "@/modules/events/event-scope.service";
 
 // GET /api/admin/scan/count?eventId=<uuid>&sessionId=<uuid>

@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { useLanguage } from "@/lib/LanguageContext";
-import { usePolling } from "@/lib/usePolling";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { usePolling } from "@/lib/hooks/usePolling";
 import {
   Trophy,
   Award,
@@ -16,9 +16,9 @@ import {
   ChevronRight,
   ChevronRight as ArrowRight
 } from "lucide-react";
-import { houseSlug } from "@/lib/houses";
+import { houseSlug } from "@/lib/points/houses";
 import { StudentNav } from "@/components/layout/StudentNav";
-import { alpha } from "@/lib/color";
+import { alpha } from "@/lib/ui/color";
 
 // Shared LINE group everyone joins (same group on both rankings tabs and every
 // house page).

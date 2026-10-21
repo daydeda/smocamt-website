@@ -1,8 +1,8 @@
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { canEnterAdminAny, isScannerOnlyAny, isScannerOnlyAllowedPath, effectiveRoles, SCANNER_HREF } from "@/lib/admin-access";
-import { isSiteMoved } from "@/lib/site-moved";
+import { canEnterAdminAny, isScannerOnlyAny, isScannerOnlyAllowedPath, effectiveRoles, SCANNER_HREF } from "@/lib/access/admin-access";
+import { isSiteMoved } from "@/lib/ui/site-moved";
 
 // Next.js 16: "middleware" renamed to "proxy"
 export async function proxy(req: NextRequest) {

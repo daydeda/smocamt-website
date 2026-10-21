@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { OrdersTab, type ShopContext } from "../AdminShopClient";
 
 export default function ProductOrdersClient({ productId }: { productId: string }) {

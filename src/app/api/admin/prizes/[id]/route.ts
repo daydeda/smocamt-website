@@ -3,12 +3,12 @@ import { prizes } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { PrizeService } from "@/modules/events/prize.service";
 import { AuditService } from "@/modules/audit/audit.service";
-import { canReachPrize, resolvePrizeAccess } from "@/lib/prize-scope";
-import { getClientIp } from "@/lib/rate-limit";
-import { deleteFormFile } from "@/lib/form-file-storage";
+import { canReachPrize, resolvePrizeAccess } from "@/lib/prizes/prize-scope";
+import { getClientIp } from "@/lib/util/rate-limit";
+import { deleteFormFile } from "@/lib/forms/form-file-storage";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { captureException } from "@/lib/logger";
+import { captureException } from "@/lib/util/logger";
 
 export const dynamic = "force-dynamic";
 

@@ -23,12 +23,12 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 import {
   getAllGroups,
   resolveHref,
   type NavContext,
-} from "@/lib/nav-config";
+} from "@/lib/ui/nav-config";
 
 const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled])';
 

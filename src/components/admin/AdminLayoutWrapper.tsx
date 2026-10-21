@@ -4,10 +4,10 @@ import { useEffect, useState } from "react";
 import { Menu, X, User } from "lucide-react";
 import { AdminNav } from "./AdminNav";
 import { AdminCommandPalette } from "./AdminCommandPalette";
-import { LanguageProvider } from "@/lib/LanguageContext";
+import { LanguageProvider } from "@/lib/i18n/LanguageContext";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import { effectiveRoles } from "@/lib/admin-access";
-import { buildAdminNavContext } from "@/lib/admin-nav-config";
+import { effectiveRoles } from "@/lib/access/admin-access";
+import { buildAdminNavContext } from "@/lib/access/admin-nav-config";
 import Link from "next/link";
 
 export function AdminLayoutWrapper({

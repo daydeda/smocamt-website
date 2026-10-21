@@ -5,10 +5,10 @@ import { and, eq, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { FACULTY_IDS } from "@/lib/faculties";
+import { FACULTY_IDS } from "@/lib/profile/faculties";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { HousesService, HOUSE_BALANCE_LOCK_KEY } from "@/modules/houses/houses.service";
-import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/admin-access";
+import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 
 // Emergency contacts are stored as a jsonb array of {name, relationship, phone}.
 // Validate the shape instead of accepting z.any() — the onboarding form always

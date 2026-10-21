@@ -113,7 +113,7 @@ sudo docker compose exec web npm run db:seed
 1. กดเข้าหน้าเว็บผ่านคอมพิวเตอร์และลงทะเบียนล็อกอินด้วยบัญชี Google มหาวิทยาลัยครั้งแรกก่อนเพื่อให้มีข้อมูลผู้ใช้ในระบบ
 2. กลับมายังหน้าต่าง Terminal ของเซิร์ฟเวอร์ รันคำสั่งต่อไปนี้โดยเปลี่ยนค่าเป็นอีเมลของท่านเพื่อยกระดับเป็นแอดมิน:
    ```bash
-   sudo docker compose exec web npx tsx --env-file=.env elevate-admin.ts your-email@university.ac.th
+   sudo docker compose exec web npx tsx --env-file=.env scripts/elevate-admin.ts your-email@university.ac.th
    ```
    *(คำสั่งนี้จะแก้ไขข้อมูลบทบาทสิทธิ์ให้บัญชีของท่านกลายเป็นสิทธิ์ `'admin'` ทันทีและบันทึกประวัติลง Audit Trail ความปลอดภัย)*
 

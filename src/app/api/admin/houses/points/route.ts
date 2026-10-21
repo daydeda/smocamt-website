@@ -4,8 +4,8 @@ import { houses, scoreHistory } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
-import { captureException } from "@/lib/logger";
-import { revalidateLeaderboards } from "@/lib/leaderboard-cache";
+import { captureException } from "@/lib/util/logger";
+import { revalidateLeaderboards } from "@/lib/points/leaderboard-cache";
 
 export async function POST(req: Request) {
   try {

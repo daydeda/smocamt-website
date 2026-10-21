@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { PropertyTagsService } from "@/modules/property-tags/property-tags.service";
-import { resolvePropertyTagStaff } from "@/lib/property-tag-access";
-import { getClientIp } from "@/lib/rate-limit";
-import { captureException } from "@/lib/logger";
+import { resolvePropertyTagStaff } from "@/lib/property-tags/property-tag-access";
+import { getClientIp } from "@/lib/util/rate-limit";
+import { captureException } from "@/lib/util/logger";
 
 export const dynamic = "force-dynamic";
 

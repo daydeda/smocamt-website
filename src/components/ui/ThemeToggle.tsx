@@ -2,8 +2,8 @@
 
 import { useSyncExternalStore } from "react";
 import { Moon, Sun } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
-import { THEME_STORAGE_KEY, applyTheme, readStoredTheme, systemTheme, type Theme } from "@/lib/theme";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { THEME_STORAGE_KEY, applyTheme, readStoredTheme, systemTheme, type Theme } from "@/lib/ui/theme";
 
 // The theme lives on <html data-theme> (set before paint by the inline script in
 // layout.tsx), so the DOM attribute is the store: every toggle instance on the

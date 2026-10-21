@@ -1,10 +1,10 @@
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { and, eq, or, sql } from "drizzle-orm";
-import { verifyQrToken, verifyCrossAppQrToken, splitCombinedQrToken } from "@/lib/qr-token";
-import { fetchSongsueProfileByEmail } from "@/lib/songsue-sync";
+import { verifyQrToken, verifyCrossAppQrToken, splitCombinedQrToken } from "@/lib/qr/qr-token";
+import { fetchSongsueProfileByEmail } from "@/lib/integrations/songsue-sync";
 import { SongsueSyncService } from "@/modules/integrations/songsue-sync.service";
-import { getStaffBypassNickname } from "@/lib/staff-bypass";
+import { getStaffBypassNickname } from "@/lib/access/staff-bypass";
 import { HousesService, HOUSE_BALANCE_LOCK_KEY } from "@/modules/houses/houses.service";
 
 export class UsersService {

@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { createInitialState } from "@/lib/games/ox";
 import { getClientIp, AuditService } from "@/modules/audit/audit.service";
-import { captureException } from "@/lib/logger";
+import { captureException } from "@/lib/util/logger";
 import { z } from "zod";
 
 const createRoomSchema = z.object({

@@ -4,8 +4,8 @@ import { useState } from "react";
 import dynamic from "next/dynamic";
 import { QrCode } from "lucide-react";
 import { StudentNav } from "@/components/layout/StudentNav";
-import { useLanguage } from "@/lib/LanguageContext";
-import type { ScanModeId } from "@/lib/scan-modes";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import type { ScanModeId } from "@/lib/qr/scan-modes";
 import ScannerPrizeTab from "@/app/admin/scanner/ScannerPrizeTab";
 import ScannerShopTab from "@/app/admin/scanner/ScannerShopTab";
 

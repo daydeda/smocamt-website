@@ -85,7 +85,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
 # present because the `deps` stage runs `npm ci` (installs devDependencies too).
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/scripts ./scripts
-COPY --from=builder /app/elevate-admin.ts ./elevate-admin.ts
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
 
 USER nextjs

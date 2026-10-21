@@ -1,9 +1,9 @@
 import { pgTable, text, timestamp, uuid, integer, boolean, jsonb, bigserial, primaryKey, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 import type { AdapterAccountType } from "next-auth/adapters";
-import type { ShopCustomField, ShopCustomValue } from "@/lib/shop-custom-fields";
-import type { ShopDeliveryTier } from "@/lib/shop-delivery";
-import type { ShopBundleDeal } from "@/lib/shop-promotions";
+import type { ShopCustomField, ShopCustomValue } from "@/lib/shop/shop-custom-fields";
+import type { ShopDeliveryTier } from "@/lib/shop/shop-delivery";
+import type { ShopBundleDeal } from "@/lib/shop/shop-promotions";
 
 export const houses = pgTable("houses", {
   // House id, e.g. 'red'. ActiveCAMT is CAMT-only (see src/lib/faculties.ts) so

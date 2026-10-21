@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { adminLandingHrefForRoles, effectiveRoles, isGlobalRegistrationPosition } from "@/lib/admin-access";
-import { REVIEW_PROPOSAL_ROLES } from "@/lib/event-proposals";
+import { adminLandingHrefForRoles, effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
+import { REVIEW_PROPOSAL_ROLES } from "@/lib/events/event-proposals";
 import { PendingReviewsClient } from "./PendingReviewsClient";
 
 export const dynamic = "force-dynamic";

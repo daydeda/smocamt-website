@@ -5,10 +5,10 @@ import { UsersService } from "../users/users.service";
 import { EventsService } from "./events.service";
 import { AuditService } from "../audit/audit.service";
 import { HousesService } from "../houses/houses.service";
-import { canGiveIndividualScore } from "@/lib/admin-access";
-import { awardIndividualPoints } from "@/lib/award-individual-points";
-import { syncRegistrationToSongsue, type SongsueEmergencyContact } from "@/lib/songsue-sync";
-import { toMedicalFlags, type MedicalFlags } from "@/lib/medical-signal";
+import { canGiveIndividualScore } from "@/lib/access/admin-access";
+import { awardIndividualPoints } from "@/lib/points/award-individual-points";
+import { syncRegistrationToSongsue, type SongsueEmergencyContact } from "@/lib/integrations/songsue-sync";
+import { toMedicalFlags, type MedicalFlags } from "@/lib/pdpa/medical-signal";
 
 type ResolvedStudent = NonNullable<Awaited<ReturnType<typeof UsersService.resolveStudentByToken>>>;
 type DBTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];

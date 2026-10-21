@@ -4,7 +4,7 @@ import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
-import { effectiveRoles } from "@/lib/admin-access";
+import { effectiveRoles } from "@/lib/access/admin-access";
 
 // Next.js 15+: params is a Promise and must be awaited
 export async function GET(

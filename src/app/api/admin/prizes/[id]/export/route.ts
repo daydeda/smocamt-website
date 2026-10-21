@@ -2,11 +2,11 @@ import ExcelJS from "exceljs";
 import sharp from "sharp";
 import { PrizeService } from "@/modules/events/prize.service";
 import { AuditService } from "@/modules/audit/audit.service";
-import { canReachPrize, resolvePrizeAccess } from "@/lib/prize-scope";
-import { downloadFormFile } from "@/lib/form-file-storage";
-import { getClientIp } from "@/lib/rate-limit";
+import { canReachPrize, resolvePrizeAccess } from "@/lib/prizes/prize-scope";
+import { downloadFormFile } from "@/lib/forms/form-file-storage";
+import { getClientIp } from "@/lib/util/rate-limit";
 import { NextResponse } from "next/server";
-import { captureException } from "@/lib/logger";
+import { captureException } from "@/lib/util/logger";
 
 // GET /api/admin/prizes/[id]/export — the dean report as an EDITABLE .xlsx with
 // the proof photos embedded.

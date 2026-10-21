@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Html5Qrcode } from "html5-qrcode";
 import { Swords, Camera, AlertTriangle, ArrowLeft, Loader2, CameraOff, Info } from "lucide-react";
 import Link from "next/link";
-import { useLanguage } from "@/lib/LanguageContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 interface JoinClientProps {
   initialSession: { user: { id: string; name?: string | null } } | null;

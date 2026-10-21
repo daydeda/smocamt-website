@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { ArrowLeft, Check, Loader2, LogIn, Send } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
-import { FEEDBACK_SEVERITY_META, FEEDBACK_STATUS_META, categoryMeta } from "@/lib/feedback-ui";
-import type { FeedbackCategory, FeedbackSeverity, FeedbackStatus } from "@/lib/feedback-token";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { FEEDBACK_SEVERITY_META, FEEDBACK_STATUS_META, categoryMeta } from "@/lib/feedback/feedback-ui";
+import type { FeedbackCategory, FeedbackSeverity, FeedbackStatus } from "@/lib/feedback/feedback-token";
 
 interface ThreadMessage {
   id: string;

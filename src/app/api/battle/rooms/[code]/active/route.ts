@@ -3,7 +3,7 @@ import { gameRooms } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { captureException } from "@/lib/logger";
+import { captureException } from "@/lib/util/logger";
 
 // POST /api/battle/rooms/[code]/active - Mark room as active (WebRTC connected)
 export async function POST(

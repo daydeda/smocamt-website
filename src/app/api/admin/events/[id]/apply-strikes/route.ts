@@ -5,10 +5,10 @@ import { attendance, events, users } from "@/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
-import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/admin-access";
-import { deductIndividualPoints } from "@/lib/award-individual-points";
-import { APPLY_STRIKES_ROLES, NO_SHOW_PENALTY_MAX, NO_SHOW_PENALTY_MIN, NO_SHOW_PENALTY_POINTS, NO_SHOW_STRIKE_THRESHOLD } from "@/lib/strikes";
-import { revalidateLeaderboards } from "@/lib/leaderboard-cache";
+import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
+import { deductIndividualPoints } from "@/lib/points/award-individual-points";
+import { APPLY_STRIKES_ROLES, NO_SHOW_PENALTY_MAX, NO_SHOW_PENALTY_MIN, NO_SHOW_PENALTY_POINTS, NO_SHOW_STRIKE_THRESHOLD } from "@/lib/points/strikes";
+import { revalidateLeaderboards } from "@/lib/points/leaderboard-cache";
 import { EventScopeService } from "@/modules/events/event-scope.service";
 
 // Students holding a 'registered' attendance row for this event with NO

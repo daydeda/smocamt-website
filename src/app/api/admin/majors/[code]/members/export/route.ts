@@ -1,12 +1,12 @@
 import { auth } from "@/auth";
-import { effectiveRoles } from "@/lib/admin-access";
-import { POSITION_LABEL_EN, type PositionId } from "@/lib/positions";
+import { effectiveRoles } from "@/lib/access/admin-access";
+import { POSITION_LABEL_EN, type PositionId } from "@/lib/access/positions";
 import { EventScopeService } from "@/modules/events/event-scope.service";
 import { MajorsService } from "@/modules/majors/majors.service";
-import { formatAuditTargetList } from "@/lib/audit-target-list";
+import { formatAuditTargetList } from "@/lib/util/audit-target-list";
 import { NextResponse } from "next/server";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
-import { canonicalHouseName } from "@/lib/faculties";
+import { canonicalHouseName } from "@/lib/profile/faculties";
 
 // xlsx is a CommonJS package — keep this route on the Node.js runtime.
 export const runtime = "nodejs";

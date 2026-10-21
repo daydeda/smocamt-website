@@ -1,8 +1,8 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { forms, events } from "@/db/schema";
-import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/admin-access";
-import { REVIEW_PROPOSAL_ROLES } from "@/lib/event-proposals";
+import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
+import { REVIEW_PROPOSAL_ROLES } from "@/lib/events/event-proposals";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
 

@@ -1,8 +1,8 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { shopOrderItems, shopOrders, shopSellers } from "@/db/schema";
-import { resolveShopAccess, classifyOrdersByScope } from "@/lib/shop-scope";
-import { summarizeByProduct } from "@/lib/shop-finance";
+import { resolveShopAccess, classifyOrdersByScope } from "@/lib/shop/shop-scope";
+import { summarizeByProduct } from "@/lib/shop/shop-finance";
 import { eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 

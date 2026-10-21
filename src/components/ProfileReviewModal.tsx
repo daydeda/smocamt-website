@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ClipboardCheck, Loader2 } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 /**
  * Periodic (every 3 months) prompt to re-confirm personal / medical / emergency

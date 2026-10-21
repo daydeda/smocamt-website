@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ClipboardList, Calendar, AlertCircle, CheckCircle2, Clock, FileQuestion } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { EventFormBuilderModal } from "./EventFormBuilderModal";
 
 type EventOption = {

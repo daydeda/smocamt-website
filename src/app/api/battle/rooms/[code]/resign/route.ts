@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { finalizeGameInDb } from "@/lib/games/stats-helper";
 import { getClientIp, AuditService } from "@/modules/audit/audit.service";
-import { captureException } from "@/lib/logger";
+import { captureException } from "@/lib/util/logger";
 
 // POST /api/battle/rooms/[code]/resign - Resign the game
 export async function POST(

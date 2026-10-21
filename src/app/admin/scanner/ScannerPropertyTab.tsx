@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowRight, QrCode, Tag } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 import PropertyTagPanel from "../property-tags/PropertyTagPanel";
 
 // The scanner's "Tags" tab — assign or check a property tag without leaving

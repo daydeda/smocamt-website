@@ -14,10 +14,10 @@
 import { db } from "@/db";
 import { clubMembers, shopProducts, shopSellers, users } from "@/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
-import { effectiveRoles, isGlobalRegistrationPosition, isShopFinancePosition } from "@/lib/admin-access";
-import { REVIEW_PROPOSAL_ROLES } from "@/lib/event-proposals";
-import { VIEW_APPEALS_ROLES } from "@/lib/strikes";
-import { FEEDBACK_MANAGER_ROLES } from "@/lib/feedback-access";
+import { effectiveRoles, isGlobalRegistrationPosition, isShopFinancePosition } from "@/lib/access/admin-access";
+import { REVIEW_PROPOSAL_ROLES } from "@/lib/events/event-proposals";
+import { VIEW_APPEALS_ROLES } from "@/lib/points/strikes";
+import { FEEDBACK_MANAGER_ROLES } from "@/lib/feedback/feedback-access";
 
 type StaffRow = {
   id: string;

@@ -1,11 +1,11 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { formSubmissions } from "@/db/schema";
-import { downloadFormFile } from "@/lib/form-file-storage";
+import { downloadFormFile } from "@/lib/forms/form-file-storage";
 import { eq } from "drizzle-orm";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { NextResponse } from "next/server";
-import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/admin-access";
+import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 
 export const dynamic = "force-dynamic";
 

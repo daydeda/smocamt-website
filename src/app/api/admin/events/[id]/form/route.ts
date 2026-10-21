@@ -4,12 +4,12 @@ import { db } from "@/db";
 import { forms, events } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { normalizeForm, computeScore, type AnswerMap } from "@/lib/form-schema";
-import { ASSIGNABLE_ROLES, canSeeRespondentIdentity } from "@/lib/form-access";
+import { normalizeForm, computeScore, type AnswerMap } from "@/lib/forms/form-schema";
+import { ASSIGNABLE_ROLES, canSeeRespondentIdentity } from "@/lib/access/form-access";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
-import { revertFormAward } from "@/lib/award-points";
-import { revalidateLeaderboards } from "@/lib/leaderboard-cache";
-import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/admin-access";
+import { revertFormAward } from "@/lib/points/award-points";
+import { revalidateLeaderboards } from "@/lib/points/leaderboard-cache";
+import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 import { EventScopeService } from "@/modules/events/event-scope.service";
 
 // Staff manage every event's forms, unscoped. club_president/major_president may

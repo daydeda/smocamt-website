@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Swords } from "lucide-react";
 import { StudentNav } from "@/components/layout/StudentNav";
-import { useLanguage } from "@/lib/LanguageContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 export default function CreateRoomPage() {
   const router = useRouter();

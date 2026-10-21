@@ -6,8 +6,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { ClubsService } from "@/modules/clubs/clubs.service";
-import { POSITION_IDS } from "@/lib/positions";
-import { effectiveRoles } from "@/lib/admin-access";
+import { POSITION_IDS } from "@/lib/access/positions";
+import { effectiveRoles } from "@/lib/access/admin-access";
 
 // Every role the system recognizes, highest-privilege first. Used both to derive
 // the primary `role` from a roles[] set and (via roleEnum) to validate incoming

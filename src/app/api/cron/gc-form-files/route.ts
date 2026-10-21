@@ -1,4 +1,4 @@
-import { sweepOrphanFormFiles } from "@/lib/form-file-gc";
+import { sweepOrphanFormFiles } from "@/lib/forms/form-file-gc";
 import { NextResponse } from "next/server";
 import { createHash, timingSafeEqual } from "crypto";
 

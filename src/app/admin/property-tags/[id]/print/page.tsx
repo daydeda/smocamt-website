@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { resolvePropertyTagStaff, UUID_PATTERN } from "@/lib/property-tag-access";
+import { resolvePropertyTagStaff, UUID_PATTERN } from "@/lib/property-tags/property-tag-access";
 import { PropertyTagsService } from "@/modules/property-tags/property-tags.service";
 import PrintSheet from "./PrintSheet";
 

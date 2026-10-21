@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Trophy, User, ArrowLeft, Search } from "lucide-react";
 import Link from "next/link";
-import { useLanguage } from "@/lib/LanguageContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 type Activity = 
   | { type: "checkin"; studentName: string; studentId: string; eventTitle: string; timestamp: string }

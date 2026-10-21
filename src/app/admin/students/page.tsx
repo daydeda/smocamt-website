@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useLanguage } from "@/lib/LanguageContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { useSession } from "next-auth/react";
-import { yearOfStudy } from "@/lib/event-access";
-import { effectiveRoles } from "@/lib/admin-access";
+import { yearOfStudy } from "@/lib/access/event-access";
+import { effectiveRoles } from "@/lib/access/admin-access";
 import {
   Search, Users, ShieldAlert, Heart, Phone,
   X, ShieldCheck, User as UserIcon,
@@ -12,9 +12,9 @@ import {
   Edit2, Trash2, Check, Home, Shield,
   BookOpen, Briefcase, Award, AlertTriangle, RotateCcw
 } from "lucide-react";
-import { NO_SHOW_STRIKE_THRESHOLD, RESET_STRIKES_ROLES } from "@/lib/strikes";
-import { POSITION_IDS, POSITION_I18N_KEY } from "@/lib/positions";
-import { alpha } from "@/lib/color";
+import { NO_SHOW_STRIKE_THRESHOLD, RESET_STRIKES_ROLES } from "@/lib/points/strikes";
+import { POSITION_IDS, POSITION_I18N_KEY } from "@/lib/access/positions";
+import { alpha } from "@/lib/ui/color";
 
 type Student = {
   id: string;

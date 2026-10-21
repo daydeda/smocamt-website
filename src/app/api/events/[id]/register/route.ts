@@ -3,10 +3,10 @@ import { db } from "@/db";
 import { attendance, events, users, forms, formSubmissions, eventSessions } from "@/db/schema";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { getFormAvailability } from "@/lib/form-access";
-import { isEligibleForEventYear, yearOfStudy } from "@/lib/event-access";
+import { getFormAvailability } from "@/lib/access/form-access";
+import { isEligibleForEventYear, yearOfStudy } from "@/lib/access/event-access";
 import { ClubsService } from "@/modules/clubs/clubs.service";
-import { syncRegistrationToSongsue, type SongsueEmergencyContact } from "@/lib/songsue-sync";
+import { syncRegistrationToSongsue, type SongsueEmergencyContact } from "@/lib/integrations/songsue-sync";
 
 // POST /api/events/[id]/register — One-click registration (FE-05)
 export async function POST(

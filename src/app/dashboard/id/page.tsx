@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
-import { usePolling } from "@/lib/usePolling";
+import { usePolling } from "@/lib/hooks/usePolling";
 import dynamic from "next/dynamic";
 // Canvas, not SVG: Android/Chrome "force dark" auto-inverts inline <svg> DOM
 // content like any other element, even with `color-scheme: only light` set
@@ -28,13 +28,13 @@ import {
   RefreshCw,
   Star
 } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { StudentNav } from "@/components/layout/StudentNav";
-import { useQrToken } from "@/lib/useQrToken";
-import { useNotifications } from "@/lib/useNotifications";
+import { useQrToken } from "@/lib/hooks/useQrToken";
+import { useNotifications } from "@/lib/hooks/useNotifications";
 import { NotificationModal } from "@/components/NotificationModal";
 import { FormsDueBanner } from "@/components/FormsDueBanner";
-import { alpha } from "@/lib/color";
+import { alpha } from "@/lib/ui/color";
 
 // House mascot logos (background removed). Keyed by both the house id (color) and
 // its name so it resolves whichever identifier the API returns.

@@ -118,7 +118,7 @@ AUTH_GOOGLE_SECRET="your-google-oauth-client-secret"
 docker-compose up -d --build
 ```
 
-รายละเอียดการตั้งค่าเซิร์ฟเวอร์ดูที่ [`docker-stack.yml`](./docker-stack.yml), [`university_server_deployment_guide.md`](./university_server_deployment_guide.md) และ [`production_deployment_architecture.md`](./production_deployment_architecture.md)
+รายละเอียดการตั้งค่าเซิร์ฟเวอร์ดูที่ [`docker-stack.yml`](./docker-stack.yml), [`university_server_deployment_guide.md`](./docs/deployment/university_server_deployment_guide.md) และ [`production_deployment_architecture.md`](./docs/deployment/production_deployment_architecture.md)
 
 > [!WARNING]
 > ระบบจะไม่ migrate ให้เองตอนคอนเทนเนอร์เริ่มทำงาน ให้รัน `npm run db:migrate:container` จากคอนโซล Portainer ของคอนเทนเนอร์แอป **ก่อน** deploy โค้ดที่อ่านคอลัมน์ใหม่หรือที่เปลี่ยนไป และ migration ต้องรันซ้ำได้ (idempotent) และห้ามทำลายข้อมูล

@@ -3,7 +3,7 @@ import { gameRooms } from "@/db/schema";
 import { desc } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { captureException } from "@/lib/logger";
+import { captureException } from "@/lib/util/logger";
 
 // GET /api/battle/stats/me - Retrieve my OX stats and match history
 export async function GET() {

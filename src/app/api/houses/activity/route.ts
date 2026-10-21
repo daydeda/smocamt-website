@@ -4,7 +4,7 @@ import { scoreHistory } from "@/db/schema";
 import { desc } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
-import { captureException } from "@/lib/logger";
+import { captureException } from "@/lib/util/logger";
 
 // The activity feed is identical for every viewer, so cache the read for 15s and
 // share it across all polling clients — one query per window instead of one per

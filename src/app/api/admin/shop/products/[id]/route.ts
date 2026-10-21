@@ -2,13 +2,13 @@ import { auth } from "@/auth";
 import { db } from "@/db";
 import { shopOrderItems, shopProducts, shopVariants } from "@/db/schema";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
-import { isOwnerAssignmentWithinScope, isProductOwnedByScope, isShopAdmin, isShopFullAdmin } from "@/lib/shop-auth";
-import { resolveShopAccess } from "@/lib/shop-scope";
+import { isOwnerAssignmentWithinScope, isProductOwnedByScope, isShopAdmin, isShopFullAdmin } from "@/lib/shop/shop-auth";
+import { resolveShopAccess } from "@/lib/shop/shop-scope";
 import { and, eq, notInArray, or, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { productSchema } from "@/lib/shop-product-schema";
-import { resolveBundleDeals } from "@/lib/shop-promotions";
+import { productSchema } from "@/lib/shop/shop-product-schema";
+import { resolveBundleDeals } from "@/lib/shop/shop-promotions";
 import { randomUUID } from "node:crypto";
 
 export const dynamic = "force-dynamic";

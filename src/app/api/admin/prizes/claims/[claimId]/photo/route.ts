@@ -4,12 +4,12 @@ import { prizeClaims, prizes } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { PrizeService } from "@/modules/events/prize.service";
 import { AuditService } from "@/modules/audit/audit.service";
-import { canReachPrize, resolvePrizeAccess } from "@/lib/prize-scope";
-import { downloadFormFile, deleteFormFile } from "@/lib/form-file-storage";
-import { getClientIp } from "@/lib/rate-limit";
+import { canReachPrize, resolvePrizeAccess } from "@/lib/prizes/prize-scope";
+import { downloadFormFile, deleteFormFile } from "@/lib/forms/form-file-storage";
+import { getClientIp } from "@/lib/util/rate-limit";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { captureException } from "@/lib/logger";
+import { captureException } from "@/lib/util/logger";
 
 export const dynamic = "force-dynamic";
 // Streams a stored object — Node runtime, not edge.

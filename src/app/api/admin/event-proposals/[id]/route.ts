@@ -1,9 +1,9 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { eventProposals } from "@/db/schema";
-import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/admin-access";
-import { REVIEW_PROPOSAL_ROLES } from "@/lib/event-proposals";
-import { sessionsHaveInvalidSpan } from "@/lib/event-schema";
+import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
+import { REVIEW_PROPOSAL_ROLES } from "@/lib/events/event-proposals";
+import { sessionsHaveInvalidSpan } from "@/lib/events/event-schema";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { ClubsService } from "@/modules/clubs/clubs.service";
 import { EventProposalsService } from "@/modules/events/event-proposals.service";

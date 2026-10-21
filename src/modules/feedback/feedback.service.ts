@@ -14,8 +14,8 @@ import {
   type FeedbackCategory,
   type FeedbackSeverity,
   type FeedbackStatus,
-} from "@/lib/feedback-token";
-import { notifyComplaintResolved, notifyNewComplaint, notifyStaffMessage, notifySubmitterMessage } from "@/lib/feedback-notify";
+} from "@/lib/feedback/feedback-token";
+import { notifyComplaintResolved, notifyNewComplaint, notifyStaffMessage, notifySubmitterMessage } from "@/lib/feedback/feedback-notify";
 import { getFeedbackManagerUserIds } from "@/modules/notifications/push-audience";
 import { PushService } from "@/modules/notifications/push.service";
 

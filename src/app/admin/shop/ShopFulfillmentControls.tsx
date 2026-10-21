@@ -4,7 +4,7 @@ import { useState } from "react";
 import {
   SHOP_CARRIERS, blocksPaymentReview, carrierLabel, daysUntilAutoConfirm, findCarrier, isItemHandedOver, nextFulfillmentStatus,
   trackingLinkFor, validateShipment, type ShipmentError, type StaffFulfillmentAction,
-} from "@/lib/shop-fulfillment";
+} from "@/lib/shop/shop-fulfillment";
 import { AlertTriangle, Bell, CheckCircle2, ExternalLink, Loader2, PackageCheck, RotateCcw, Truck, X } from "lucide-react";
 
 // Handover (fulfilment) UI for one admin order card, plus the ship / handover /

@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { shopOrderItems, shopOrders } from "@/db/schema";
-import { nextFulfillmentStatus } from "@/lib/shop-fulfillment";
+import { nextFulfillmentStatus } from "@/lib/shop/shop-fulfillment";
 import { getShopOrderAudienceUserIds } from "@/modules/notifications/push-audience";
 import { PushService } from "@/modules/notifications/push.service";
 import { and, eq } from "drizzle-orm";

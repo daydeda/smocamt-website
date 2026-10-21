@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { buildViewer } from "@/lib/event-access";
+import { buildViewer } from "@/lib/access/event-access";
 import { ClubsService } from "@/modules/clubs/clubs.service";
 import {
   getCalendarItemsForGuest,

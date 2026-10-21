@@ -3,12 +3,12 @@ import sharp from "sharp";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { shopOrderItems, shopOrders, shopProducts, users } from "@/db/schema";
-import { isProductOwnedByScope } from "@/lib/shop-auth";
-import { classifyOrdersByScope, resolveShopAccess } from "@/lib/shop-scope";
-import { downloadSlip } from "@/lib/shop-storage";
-import { isVerifyUrl } from "@/lib/shop-slip-verify";
+import { isProductOwnedByScope } from "@/lib/shop/shop-auth";
+import { classifyOrdersByScope, resolveShopAccess } from "@/lib/shop/shop-scope";
+import { downloadSlip } from "@/lib/shop/shop-storage";
+import { isVerifyUrl } from "@/lib/shop/shop-slip-verify";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
-import { captureException } from "@/lib/logger";
+import { captureException } from "@/lib/util/logger";
 import { desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Gift, QrCode, Loader2, PackageOpen, ImageOff, ArrowRight } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 import PrizeAwardPanel from "../prizes/PrizeAwardPanel";
 
 // The scanner's "Prize" tab — a booth shortcut so staff running check-in don't

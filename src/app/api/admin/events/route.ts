@@ -1,16 +1,16 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { events, attendance, eventSessions, eventProposals, users } from "@/db/schema";
-import { effectiveRoles, isGlobalRegistrationPosition, isEventUnscopedStaff } from "@/lib/admin-access";
+import { effectiveRoles, isGlobalRegistrationPosition, isEventUnscopedStaff } from "@/lib/access/admin-access";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { EventScopeService } from "@/modules/events/event-scope.service";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { allowedEventYearsSchema, sessionInputSchema, sessionsHaveInvalidSpan } from "@/lib/event-schema";
-import { syncEventToSongsue } from "@/lib/songsue-sync";
-import { eventYearFields } from "@/lib/event-access";
+import { allowedEventYearsSchema, sessionInputSchema, sessionsHaveInvalidSpan } from "@/lib/events/event-schema";
+import { syncEventToSongsue } from "@/lib/integrations/songsue-sync";
+import { eventYearFields } from "@/lib/access/event-access";
 
 const eventSchema = z.object({
   title: z.string().min(1),

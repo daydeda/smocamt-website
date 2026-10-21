@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { PackageOpen, QrCode, Tag } from "lucide-react";
 import { StudentNav } from "@/components/layout/StudentNav";
-import { useLanguage } from "@/lib/LanguageContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 interface Item {
   label: string;

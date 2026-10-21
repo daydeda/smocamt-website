@@ -4,9 +4,9 @@ import { events, eventSessions, users } from "@/db/schema";
 import { asc, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
-import { canEditEventDirectly, effectiveRoles } from "@/lib/admin-access";
-import { bangkokDateKey } from "@/lib/event-schema";
-import { syncEventToSongsue } from "@/lib/songsue-sync";
+import { canEditEventDirectly, effectiveRoles } from "@/lib/access/admin-access";
+import { bangkokDateKey } from "@/lib/events/event-schema";
+import { syncEventToSongsue } from "@/lib/integrations/songsue-sync";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

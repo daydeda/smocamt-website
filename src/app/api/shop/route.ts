@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { shopOrderItems, shopOrders, shopProducts, shopSellers, shopSettings, shopVariants, users } from "@/db/schema";
-import { buildViewer, isEligibleFor } from "@/lib/event-access";
+import { buildViewer, isEligibleFor } from "@/lib/access/event-access";
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 

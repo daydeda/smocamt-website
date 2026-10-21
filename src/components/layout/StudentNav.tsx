@@ -11,10 +11,10 @@ Menu,
 LayoutGrid,
 Gamepad2
 } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
-import { canEnterAdminAny, effectiveRoles } from "@/lib/admin-access";
-import { getPinnedItems, resolveHref, type NavContext } from "@/lib/nav-config";
-import { unsubscribePushBeforeSignOut } from "@/lib/push-client";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { canEnterAdminAny, effectiveRoles } from "@/lib/access/admin-access";
+import { getPinnedItems, resolveHref, type NavContext } from "@/lib/ui/nav-config";
+import { unsubscribePushBeforeSignOut } from "@/lib/push/push-client";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { ServicesLauncher } from "@/components/layout/ServicesLauncher";

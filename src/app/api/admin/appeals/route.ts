@@ -1,8 +1,8 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { noShowAppeals } from "@/db/schema";
-import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/admin-access";
-import { VIEW_APPEALS_ROLES } from "@/lib/strikes";
+import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
+import { VIEW_APPEALS_ROLES } from "@/lib/points/strikes";
 import { EventScopeService } from "@/modules/events/event-scope.service";
 import { desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";

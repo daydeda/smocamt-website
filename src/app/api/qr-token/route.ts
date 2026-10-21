@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { signCombinedQrToken } from "@/lib/qr-token";
+import { signCombinedQrToken } from "@/lib/qr/qr-token";
 import { NextResponse } from "next/server";
 
 export async function GET() {

@@ -3,7 +3,7 @@ import { gameStats } from "@/db/schema";
 import { desc } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { captureException } from "@/lib/logger";
+import { captureException } from "@/lib/util/logger";
 
 // GET /api/battle/leaderboard - Retrieve top players sorted by wins DESC
 export async function GET(req: Request) {

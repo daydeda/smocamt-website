@@ -2,10 +2,10 @@ import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { FeedbackService, ACCOUNT_DAILY_SUBMISSION_LIMIT } from "@/modules/feedback/feedback.service";
-import { FEEDBACK_CATEGORIES } from "@/lib/feedback-token";
-import { rateLimit } from "@/lib/rate-limit";
+import { FEEDBACK_CATEGORIES } from "@/lib/feedback/feedback-token";
+import { rateLimit } from "@/lib/util/rate-limit";
 import { getClientIp } from "@/modules/audit/audit.service";
-import { captureException } from "@/lib/logger";
+import { captureException } from "@/lib/util/logger";
 
 // Severity is deliberately NOT accepted from the client — FeedbackService
 // always derives it from CATEGORY_DEFAULT_SEVERITY server-side, so a

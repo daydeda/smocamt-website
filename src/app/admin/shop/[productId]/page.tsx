@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { isShopManager } from "@/lib/shop-auth";
+import { isShopManager } from "@/lib/shop/shop-auth";
 import ProductOrdersClient from "./ProductOrdersClient";
 
 export const dynamic = "force-dynamic";

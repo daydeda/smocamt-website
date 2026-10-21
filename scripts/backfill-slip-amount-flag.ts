@@ -23,8 +23,8 @@ import { and, eq, inArray, isNotNull, isNull, or } from "drizzle-orm";
 import { db } from "../src/db";
 import { shopOrders, users } from "../src/db/schema";
 import { AuditService } from "../src/modules/audit/audit.service";
-import { classifySlipAmount, readSlipAmounts } from "../src/lib/shop-slip-amount";
-import { downloadSlip } from "../src/lib/shop-storage";
+import { classifySlipAmount, readSlipAmounts } from "../src/lib/shop/shop-slip-amount";
+import { downloadSlip } from "../src/lib/shop/shop-storage";
 
 const args = process.argv.slice(2);
 const apply = args.includes("--apply");

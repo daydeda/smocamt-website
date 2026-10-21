@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { attendance, forms, formSubmissions } from "@/db/schema";
 import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { canAccessSkillForm, getFormAvailability } from "@/lib/form-access";
+import { canAccessSkillForm, getFormAvailability } from "@/lib/access/form-access";
 
 // Shape of a form as it appears in a history entry's `forms` array.
 type FormStatus = "available" | "submitted" | "closed" | "upcoming";

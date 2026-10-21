@@ -2,11 +2,11 @@ import { db } from "@/db";
 import { prizes } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { PrizeService } from "@/modules/events/prize.service";
-import { canReachPrize, resolvePrizeAccess } from "@/lib/prize-scope";
+import { canReachPrize, resolvePrizeAccess } from "@/lib/prizes/prize-scope";
 import { AuditService } from "@/modules/audit/audit.service";
-import { getClientIp } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/util/rate-limit";
 import { NextResponse } from "next/server";
-import { captureException } from "@/lib/logger";
+import { captureException } from "@/lib/util/logger";
 
 export const dynamic = "force-dynamic";
 

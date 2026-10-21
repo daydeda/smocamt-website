@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { resolvePropertyTagStaff } from "@/lib/property-tag-access";
+import { resolvePropertyTagStaff } from "@/lib/property-tags/property-tag-access";
 import PropertyTagsClient from "./PropertyTagsClient";
 
 export const dynamic = "force-dynamic";

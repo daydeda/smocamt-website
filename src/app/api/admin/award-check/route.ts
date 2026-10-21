@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
-import { checkAndAwardPastEventPoints } from "@/lib/award-points";
+import { checkAndAwardPastEventPoints } from "@/lib/points/award-points";
 import { NextResponse } from "next/server";
-import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/admin-access";
+import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 
 export const dynamic = "force-dynamic";
 // Hard ceiling on this function. Even in the worst case it dies at 15s instead of

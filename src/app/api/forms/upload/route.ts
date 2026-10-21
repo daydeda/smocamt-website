@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
-import { hardenImageUpload, ImageValidationError } from "@/lib/image-upload";
-import { uploadFormFile, deleteFormFile, StorageError } from "@/lib/form-file-storage";
-import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { hardenImageUpload, ImageValidationError } from "@/lib/media/image-upload";
+import { uploadFormFile, deleteFormFile, StorageError } from "@/lib/forms/form-file-storage";
+import { rateLimit, getClientIp } from "@/lib/util/rate-limit";
 import { NextResponse } from "next/server";
 
 // A stored key is always "<uuid>.<ext>"; reject anything else so DELETE can only

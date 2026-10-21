@@ -3,8 +3,8 @@ import { gameRooms } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { captureException } from "@/lib/logger";
-import { rateLimit } from "@/lib/rate-limit";
+import { captureException } from "@/lib/util/logger";
+import { rateLimit } from "@/lib/util/rate-limit";
 
 // POST /api/battle/rooms/[code]/join - Guest joins a room
 export async function POST(

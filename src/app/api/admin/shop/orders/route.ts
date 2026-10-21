@@ -1,8 +1,8 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { shopOrderItems, shopOrders, shopSellers, users } from "@/db/schema";
-import { resolveShopAccess, classifyOrdersByScope } from "@/lib/shop-scope";
-import { autoConfirmDueShipments } from "@/lib/shop-fulfillment-server";
+import { resolveShopAccess, classifyOrdersByScope } from "@/lib/shop/shop-scope";
+import { autoConfirmDueShipments } from "@/lib/shop/shop-fulfillment-server";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { desc, eq, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";

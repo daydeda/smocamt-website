@@ -8,14 +8,14 @@ import {
   HeartPulse, ShieldAlert, Phone, Camera, Loader2,
   Maximize, Move, AlertTriangle, Check
 } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
-import { compressImageFile } from "@/lib/compress-image";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { compressImageFile } from "@/lib/media/compress-image";
 import { useRouter } from "next/navigation";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
-import { FACULTIES, majorsForFaculty, facultyFromStudentId } from "@/lib/faculties";
+import { FACULTIES, majorsForFaculty, facultyFromStudentId } from "@/lib/profile/faculties";
 import { PushNotificationToggle } from "@/components/PushNotificationToggle";
 import { ProfileReviewModal } from "@/components/ProfileReviewModal";
-import { shouldShowProfileReview } from "@/lib/profile-review";
+import { shouldShowProfileReview } from "@/lib/profile/profile-review";
 
 // Rich CAMT major labels; other faculties show their bare code.
 const MAJOR_LABELS: Record<string, string> = {

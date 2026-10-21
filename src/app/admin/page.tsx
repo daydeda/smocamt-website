@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { adminLandingHrefForRoles, effectiveRoles } from "@/lib/admin-access";
+import { adminLandingHrefForRoles, effectiveRoles } from "@/lib/access/admin-access";
 
 // Canonical admin entry. The "Admin Panel" links all point here so the landing
 // page is decided server-side from the authoritative session roles — not from a

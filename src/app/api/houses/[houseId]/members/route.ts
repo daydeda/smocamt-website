@@ -1,11 +1,11 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { houses, users } from "@/db/schema";
-import { houseIdFromParam } from "@/lib/houses";
-import { COLORS, colorGroupOfHouseId } from "@/lib/faculties";
+import { houseIdFromParam } from "@/lib/points/houses";
+import { COLORS, colorGroupOfHouseId } from "@/lib/profile/faculties";
 import { and, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/admin-access";
+import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 
 export async function GET(
   _req: Request,

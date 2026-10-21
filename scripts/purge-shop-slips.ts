@@ -32,7 +32,7 @@ import { db } from "../src/db";
 import { shopOrderItems, shopOrders, users } from "../src/db/schema";
 import { assertDestructiveAllowed } from "../src/db/guard";
 import { AuditService } from "../src/modules/audit/audit.service";
-import { deleteSlip, listSlips } from "../src/lib/shop-storage";
+import { deleteSlip, listSlips } from "../src/lib/shop/shop-storage";
 
 const SLIP_KEY_PATTERN = /^[0-9a-f-]{36}\.[a-z0-9]+$/i;
 const ORPHAN_MIN_AGE_MS = 24 * 60 * 60 * 1000;

@@ -4,7 +4,7 @@ import { calendarEntries } from "@/db/schema";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/admin-access";
+import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 
 // Only the four managing roles may create/edit/delete calendar entries. Scanner
 // roles (smo, club_president, major_president) are deliberately excluded — same

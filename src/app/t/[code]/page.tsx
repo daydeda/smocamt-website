@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { auth } from "@/auth";
 import { PropertyTagsService } from "@/modules/property-tags/property-tags.service";
-import { normalizeTagCode } from "@/lib/property-tag";
-import { rateLimit } from "@/lib/rate-limit";
-import { captureException } from "@/lib/logger";
+import { normalizeTagCode } from "@/lib/property-tags/property-tag";
+import { rateLimit } from "@/lib/util/rate-limit";
+import { captureException } from "@/lib/util/logger";
 import TagView, { type TagViewState } from "./TagView";
 
 export const dynamic = "force-dynamic";

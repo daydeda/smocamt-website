@@ -5,7 +5,7 @@ import {
   type Viewer,
   isEligibleFor,
   isEligibleForGuest,
-} from "@/lib/event-access";
+} from "@/lib/access/event-access";
 
 // Unified calendar item shape returned to the grid and used to build .ics /
 // "add to calendar" links. `kind` lets the UI style + route the two sources:

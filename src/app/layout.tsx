@@ -71,12 +71,12 @@ export const viewport: Viewport = {
 };
 
 import { SessionProvider } from "@/components/providers/SessionProvider";
-import { LanguageProvider } from "@/lib/LanguageContext";
-import { LanguageWrapper } from "@/lib/LanguageWrapper";
+import { LanguageProvider } from "@/lib/i18n/LanguageContext";
+import { LanguageWrapper } from "@/lib/i18n/LanguageWrapper";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { MovedNotice } from "@/components/MovedNotice";
-import { isSiteMoved } from "@/lib/site-moved";
+import { isSiteMoved } from "@/lib/ui/site-moved";
 import { PWARegister } from "@/components/PWARegister";
 
 // The app is now self-hosted at activecamt.camt.cmu.ac.th. The retired Vercel

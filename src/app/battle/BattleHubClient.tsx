@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Swords, Trophy, History, Play, Users, Medal, Zap, RotateCcw, AlertTriangle, Flame } from "lucide-react";
 import Link from "next/link";
-import { useLanguage } from "@/lib/LanguageContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 interface SessionUser {
   id: string;

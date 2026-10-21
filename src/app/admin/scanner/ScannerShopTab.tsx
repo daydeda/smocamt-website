@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowRight, ShoppingBag } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 import HandoverProductList, { type HandoverProduct } from "../shop/ShopHandoverProducts";
 import ShopHandoverScanner from "../shop/ShopHandoverScanner";
 

@@ -4,13 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ChevronDown, Search, User } from "lucide-react";
-import { useLanguage } from "@/lib/LanguageContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import {
   buildAdminNavContext,
   getVisibleAdminGroups,
   type AdminNavGroup,
-} from "@/lib/admin-nav-config";
+} from "@/lib/access/admin-nav-config";
 
 // Sidebar item/group data now lives in src/lib/admin-nav-config.ts (single
 // source of truth shared with AdminCommandPalette) rather than an inline

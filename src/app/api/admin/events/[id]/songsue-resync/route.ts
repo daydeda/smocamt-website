@@ -4,8 +4,8 @@ import { attendance, events, users } from "@/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
-import { effectiveRoles } from "@/lib/admin-access";
-import { syncEventToSongsue, syncRegistrationToSongsue, type SongsueEmergencyContact } from "@/lib/songsue-sync";
+import { effectiveRoles } from "@/lib/access/admin-access";
+import { syncEventToSongsue, syncRegistrationToSongsue, type SongsueEmergencyContact } from "@/lib/integrations/songsue-sync";
 
 export const dynamic = "force-dynamic";
 

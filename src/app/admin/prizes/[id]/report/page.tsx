@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { PrizeService } from "@/modules/events/prize.service";
 import { AuditService } from "@/modules/audit/audit.service";
-import { canReachPrize, resolvePrizeAccess } from "@/lib/prize-scope";
+import { canReachPrize, resolvePrizeAccess } from "@/lib/prizes/prize-scope";
 import { headers } from "next/headers";
 import PrintButton from "./PrintButton";
 

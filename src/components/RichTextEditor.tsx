@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { Bold, Link2 } from "lucide-react";
-import { parseRichText } from "@/lib/rich-text";
+import { parseRichText } from "@/lib/ui/rich-text";
 
 // Reusable rich-text editor: a textarea plus a Bold / Link / Color toolbar that
 // inserts the same **bold** / [text](url) / {{color:#hex|text}} markup the rest of

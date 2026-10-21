@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useLanguage } from "@/lib/LanguageContext";
-import { NON_SMO_POSITION_IDS, POSITION_I18N_KEY } from "@/lib/positions";
-import { canonicalHouseName } from "@/lib/faculties";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { NON_SMO_POSITION_IDS, POSITION_I18N_KEY } from "@/lib/access/positions";
+import { canonicalHouseName } from "@/lib/profile/faculties";
 import { Download, Users, HeartPulse, ChevronDown, ChevronUp, Plus } from "lucide-react";
 
 type MajorTeamMember = {

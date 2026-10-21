@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { houses, scoreHistory, users } from "@/db/schema";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { AuditService } from "../audit/audit.service";
-import { COLORS, DEFAULT_FACULTY, normalizeFaculty } from "@/lib/faculties";
+import { COLORS, DEFAULT_FACULTY, normalizeFaculty } from "@/lib/profile/faculties";
 
 // Transaction-scoped advisory lock key serializing concurrent house assignments
 // (student onboarding AND staff-bypass provisioning) so two new members can't both

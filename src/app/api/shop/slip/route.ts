@@ -1,9 +1,9 @@
 import { auth } from "@/auth";
-import { hardenImageUpload, ImageValidationError } from "@/lib/image-upload";
-import { rateLimit, getClientIp } from "@/lib/rate-limit";
-import { readSlipAmounts } from "@/lib/shop-slip-amount";
-import { decodeSlipQr, hashSlip, signSlipMeta } from "@/lib/shop-slip-verify";
-import { uploadSlip, StorageError } from "@/lib/shop-storage";
+import { hardenImageUpload, ImageValidationError } from "@/lib/media/image-upload";
+import { rateLimit, getClientIp } from "@/lib/util/rate-limit";
+import { readSlipAmounts } from "@/lib/shop/shop-slip-amount";
+import { decodeSlipQr, hashSlip, signSlipMeta } from "@/lib/shop/shop-slip-verify";
+import { uploadSlip, StorageError } from "@/lib/shop/shop-storage";
 import { NextResponse } from "next/server";
 
 // POST /api/shop/slip — upload a payment slip to the PRIVATE bucket. Returns the

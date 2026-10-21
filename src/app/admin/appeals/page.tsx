@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { adminLandingHrefForRoles, effectiveRoles, isGlobalRegistrationPosition } from "@/lib/admin-access";
-import { VIEW_APPEALS_ROLES } from "@/lib/strikes";
+import { adminLandingHrefForRoles, effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
+import { VIEW_APPEALS_ROLES } from "@/lib/points/strikes";
 import { AppealsClient } from "./AppealsClient";
 
 export const dynamic = "force-dynamic";

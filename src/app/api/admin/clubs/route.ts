@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { ClubsService } from "@/modules/clubs/clubs.service";
-import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/admin-access";
+import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 

@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { db } from "@/db";
 import { shopSellers, shopSettings } from "@/db/schema";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
-import { resolveShopAccess } from "@/lib/shop-scope";
+import { resolveShopAccess } from "@/lib/shop/shop-scope";
 import { desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";

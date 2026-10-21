@@ -5,9 +5,9 @@ import { and, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { EventScopeService } from "@/modules/events/event-scope.service";
-import { redactEmergencyContacts } from "@/lib/emergency-contacts";
-import { canonicalHouseName } from "@/lib/faculties";
-import { medicalCategoriesOf, MEDICAL_CATEGORY_LABELS } from "@/lib/medical-signal";
+import { redactEmergencyContacts } from "@/lib/pdpa/emergency-contacts";
+import { canonicalHouseName } from "@/lib/profile/faculties";
+import { medicalCategoriesOf, MEDICAL_CATEGORY_LABELS } from "@/lib/pdpa/medical-signal";
 
 // xlsx is a CommonJS package — keep this route on the Node.js runtime.
 export const runtime = "nodejs";

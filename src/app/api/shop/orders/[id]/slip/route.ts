@@ -1,9 +1,9 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { shopOrders } from "@/db/schema";
-import { downloadSlip } from "@/lib/shop-storage";
-import { isShopAdmin } from "@/lib/shop-auth";
-import { resolveShopAccess, classifyOrdersByScope } from "@/lib/shop-scope";
+import { downloadSlip } from "@/lib/shop/shop-storage";
+import { isShopAdmin } from "@/lib/shop/shop-auth";
+import { resolveShopAccess, classifyOrdersByScope } from "@/lib/shop/shop-scope";
 import { eq } from "drizzle-orm";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { NextResponse } from "next/server";

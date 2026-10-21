@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { db } from "@/db";
 import { forms, formSubmissions, attendance, users } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { awardIndividualPoints } from "@/lib/award-individual-points";
+import { awardIndividualPoints } from "@/lib/points/award-individual-points";
 import { NextResponse } from "next/server";
 import {
   normalizeForm,
@@ -10,9 +10,9 @@ import {
   getVisitedSectionIndices,
   isQuestionVisible,
   type AnswerMap,
-} from "@/lib/form-schema";
-import { canAccessSkillForm, getFormAvailability } from "@/lib/form-access";
-import { revalidateLeaderboards } from "@/lib/leaderboard-cache";
+} from "@/lib/forms/form-schema";
+import { canAccessSkillForm, getFormAvailability } from "@/lib/access/form-access";
+import { revalidateLeaderboards } from "@/lib/points/leaderboard-cache";
 
 // A "file" answer must be an app-minted storage key ("<uuid>.<ext>"); mirrors the
 // pattern in /api/forms/file and /api/forms/upload so a forged value is rejected.

@@ -1,8 +1,8 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { effectiveRoles } from "@/lib/admin-access";
-import { isShopManager } from "@/lib/shop-auth";
-import { availableScanModes, scansTagAsStaff } from "@/lib/scan-modes";
+import { effectiveRoles } from "@/lib/access/admin-access";
+import { isShopManager } from "@/lib/shop/shop-auth";
+import { availableScanModes, scansTagAsStaff } from "@/lib/qr/scan-modes";
 import ScanClient from "./ScanClient";
 
 export const dynamic = "force-dynamic";

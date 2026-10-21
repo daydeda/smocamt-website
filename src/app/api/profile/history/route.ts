@@ -1,7 +1,6 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { attendance, forms, formSubmissions } from "@/db/schema";
-import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { AttendanceService } from "@/modules/events/attendance.service";
+import { FormsService, type FormRow } from "@/modules/forms/forms.service";
 import { NextResponse } from "next/server";
 import { canAccessSkillForm, getFormAvailability } from "@/lib/access/form-access";
 
@@ -42,7 +41,7 @@ export async function GET() {
 
     // Compute the per-viewer status of a form (submitted / available / scheduled).
     const buildFormStatus = (
-      formObj: typeof forms.$inferSelect,
+      formObj: FormRow,
       hasSubmission: boolean
     ): EventFormStatus => {
       let formStatus: FormStatus;
@@ -65,11 +64,7 @@ export async function GET() {
       };
     };
 
-    const userAttendances = await db.query.attendance.findMany({
-      where: eq(attendance.studentId, userId),
-      with: { event: true, session: true },
-      orderBy: (a, { desc }) => [desc(a.checkInTime)],
-    });
+    const userAttendances = await AttendanceService.listHistoryForStudent(userId);
 
     const attendedEventIds = new Set(userAttendances.map((a) => a.eventId));
 
@@ -79,19 +74,13 @@ export async function GET() {
 
     // 1. All of THIS student's form submissions, as a Set of formIds (was a findFirst
     //    per form). hasSubmission is now an in-memory lookup.
-    const submittedRows = await db
-      .select({ formId: formSubmissions.formId })
-      .from(formSubmissions)
-      .where(eq(formSubmissions.studentId, userId));
+    const submittedRows = await FormsService.listSubmittedFormIds(userId);
     const submittedFormIds = new Set(submittedRows.map((s) => s.formId));
 
     // 2. Every form for every attended event, grouped by eventId (was a forms.findMany
     //    per event inside the loop).
     const allEventForms = attendedEventIds.size
-      ? await db.query.forms.findMany({
-          where: inArray(forms.eventId, [...attendedEventIds]),
-          orderBy: (f, { asc }) => [asc(f.sortOrder), asc(f.createdAt)],
-        })
+      ? await FormsService.listFormsForEvents([...attendedEventIds])
       : [];
     const formsByEvent = new Map<string, typeof allEventForms>();
     for (const f of allEventForms) {
@@ -108,19 +97,7 @@ export async function GET() {
     ];
     const rankBySession = new Map<string, number>();
     if (checkedInSessionIds.length > 0) {
-      const ranked = db
-        .select({
-          sessionId: attendance.sessionId,
-          studentId: attendance.studentId,
-          rnk: sql<number>`rank() over (partition by ${attendance.sessionId} order by ${attendance.checkInTime})`.as("rnk"),
-        })
-        .from(attendance)
-        .where(and(inArray(attendance.sessionId, checkedInSessionIds), isNotNull(attendance.checkInTime)))
-        .as("ranked");
-      const rankRows = await db
-        .select({ sessionId: ranked.sessionId, rnk: ranked.rnk })
-        .from(ranked)
-        .where(eq(ranked.studentId, userId));
+      const rankRows = await AttendanceService.getArrivalRanksForStudent(userId, checkedInSessionIds);
       for (const r of rankRows) rankBySession.set(r.sessionId, Number(r.rnk));
     }
 
@@ -197,11 +174,7 @@ export async function GET() {
     // S forms the viewer is assigned to on events they did NOT attend — surfaced
     // so assigned evaluators can fill them without being a participant.
     const assignedSForms = (
-      await db.query.forms.findMany({
-        where: eq(forms.formType, "S"),
-        with: { event: true },
-        orderBy: (f, { asc }) => [asc(f.sortOrder), asc(f.createdAt)],
-      })
+      await FormsService.listSkillFormsWithEvent()
     ).filter((f) => f.event && !attendedEventIds.has(f.eventId) && isAssignedTo(f));
 
     // Group assigned forms by event into synthetic (no check-in) history entries.

@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { attendance } from "@/db/schema";
-import { and, eq, count } from "drizzle-orm";
+import { and, eq, count, inArray, isNotNull, sql } from "drizzle-orm";
 
 export class AttendanceService {
   /**
@@ -29,5 +29,35 @@ export class AttendanceService {
             ),
       );
     return row?.value ?? 0;
+  }
+
+  /** All of a student's attendance rows with event + session, newest check-in first (history page). */
+  static async listHistoryForStudent(studentId: string) {
+    return db.query.attendance.findMany({
+      where: eq(attendance.studentId, studentId),
+      with: { event: true, session: true },
+      orderBy: (a, { desc }) => [desc(a.checkInTime)],
+    });
+  }
+
+  /**
+   * This student's arrival rank for each of the given sessions, in ONE windowed
+   * query. rank() over each session's check-in order; only this student's rows
+   * are kept.
+   */
+  static async getArrivalRanksForStudent(studentId: string, sessionIds: string[]) {
+    const ranked = db
+      .select({
+        sessionId: attendance.sessionId,
+        studentId: attendance.studentId,
+        rnk: sql<number>`rank() over (partition by ${attendance.sessionId} order by ${attendance.checkInTime})`.as("rnk"),
+      })
+      .from(attendance)
+      .where(and(inArray(attendance.sessionId, sessionIds), isNotNull(attendance.checkInTime)))
+      .as("ranked");
+    return db
+      .select({ sessionId: ranked.sessionId, rnk: ranked.rnk })
+      .from(ranked)
+      .where(eq(ranked.studentId, studentId));
   }
 }

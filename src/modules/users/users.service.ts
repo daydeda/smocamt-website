@@ -9,6 +9,27 @@ import { getStaffBypassNickname } from "@/lib/access/staff-bypass";
 import { HousesService, HOUSE_BALANCE_LOCK_KEY } from "@/modules/houses/houses.service";
 import { AuditService } from "@/modules/audit/audit.service";
 
+// Sensitive medical/emergency fields. Self-edits to these are recorded (field NAMES
+// only, never values) as a PDPA change-trail — the actor here is the data subject.
+const SENSITIVE_FIELDS = [
+  "chronicDiseases", "medicalHistory", "drugAllergies", "foodAllergies",
+  "dietaryRestrictions", "emergencyMedication", "faintingHistory", "emergencyContacts",
+] as const;
+
+// Normalize a sensitive value for presence/change comparison: null/undefined and a
+// bare "-" both count as empty; arrays (emergency contacts) compare by JSON.
+function normSensitive(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "boolean") return v ? "true" : "false";
+  if (Array.isArray(v)) return JSON.stringify(v);
+  const s = String(v).trim();
+  return s === "-" ? "" : s;
+}
+const isSensitiveProvided = (v: unknown) => normSensitive(v) !== "";
+const sensitiveChanged = (a: unknown, b: unknown) => normSensitive(a) !== normSensitive(b);
+
+export type ProfileFieldsInput = Partial<typeof users.$inferInsert>;
+
 export class UsersService {
   /**
    * Resolves a student profile from a QR scan token.
@@ -308,6 +329,139 @@ export class UsersService {
         action: `Deleted user account: ${targetUser.name}${targetUser.studentId ? ` (${targetUser.studentId})` : ""}`,
         ipAddress,
       });
+    });
+  }
+
+  /** The signed-in user's own profile row with house (no qrToken — it is a long-lived check-in credential). */
+  static async getOwnProfile(userId: string) {
+    return db.query.users.findFirst({
+      where: eq(users.id, userId),
+      // The static qrToken is a long-lived check-in credential — the dashboard
+      // gets short-lived signed tokens from /api/qr-token instead, so it must
+      // never ride along in profile responses.
+      columns: { qrToken: false },
+      with: { house: true }
+    });
+  }
+
+  /**
+   * Initial onboarding write. Returns the updated row, or null if a concurrent
+   * request already completed onboarding (the caller maps that to "already
+   * completed").
+   */
+  static async completeOnboarding(userId: string, data: ProfileFieldsInput, ipAddress: string) {
+    // 2. Update User in a transaction so the guard + PDPA audit write + house
+    // assignment all commit atomically. House is assigned HERE, at onboarding
+    // completion: the least-populated colour house within the student's chosen
+    // faculty, picked under the same advisory lock (HOUSE_BALANCE_LOCK_KEY) the
+    // staff-bypass provisioning uses (UsersService.provisionStaffBypass), so two
+    // students onboarding at once can't both read "house X has fewest" and pile
+    // into it. COALESCE in the SET below preserves any houseId an admin may have
+    // already set manually before onboarding completed. ScannerService.
+    // ensureHouseAssigned remains as a fallback safety net for any pre-existing
+    // student who onboarded before this and still has no house.
+    return db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${HOUSE_BALANCE_LOCK_KEY})`);
+      const faculty = data.faculty ?? "CAMT";
+      const pickedHouseId = await HousesService.pickBalancedHouseIdForFaculty(faculty, tx);
+
+      const [row] = await tx
+        .update(users)
+        .set({
+          ...data,
+          faculty,
+          houseId: sql`COALESCE(${users.houseId}, ${pickedHouseId})`,
+          profileCompleted: true,
+          profileReviewedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        // Guard on profileCompleted=false (mirrors provisionStaffBypass) so a
+        // concurrent same-user POST that slipped past the pre-tx check updates 0
+        // rows here — preventing a duplicate onboarding/PDPA audit row. 0 rows ⇒
+        // already completed (handled below).
+        .where(and(eq(users.id, userId), eq(users.profileCompleted, false)))
+        .returning();
+
+      if (!row) return null; // already completed by a concurrent request — skip the audit write
+
+      // PDPA change-trail (field NAMES only): the data subject provided medical/
+      // emergency info at onboarding. Same tx, so it commits atomically with the row.
+      const provided = SENSITIVE_FIELDS.filter((f) => isSensitiveProvided((data as Record<string, unknown>)[f]));
+      if (provided.length > 0) {
+        await AuditService.logActionInternal(tx, {
+          actorId: userId,
+          targetId: userId,
+          action: `Self: provided medical/emergency info at onboarding (${provided.join(", ")})`,
+          ipAddress,
+        });
+      }
+      return row;
+    });
+  }
+
+  /** Regular self profile update (medical-field changes are audit-logged in the same transaction). */
+  static async updateOwnProfile(userId: string, data: ProfileFieldsInput, ipAddress: string) {
+    return db.transaction(async (tx) => {
+      // Read current sensitive fields first so we can record which the data subject
+      // actually CHANGED (names only). The audit write shares this tx — atomic with
+      // the update, no read-without-log window.
+      const before = await tx.query.users.findFirst({
+        where: eq(users.id, userId),
+        columns: {
+          chronicDiseases: true, medicalHistory: true, drugAllergies: true,
+          foodAllergies: true, dietaryRestrictions: true, emergencyMedication: true,
+          faintingHistory: true, emergencyContacts: true,
+        },
+      });
+
+      const [row] = await tx
+        .update(users)
+        .set({
+          ...data,
+          // Saving the form counts as the periodic re-confirmation.
+          profileReviewedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, userId))
+        .returning();
+
+      const beforeRec = (before ?? {}) as Record<string, unknown>;
+      const dataRec = data as Record<string, unknown>;
+      const changed = SENSITIVE_FIELDS.filter(
+        (f) => dataRec[f] !== undefined && sensitiveChanged(beforeRec[f], dataRec[f])
+      );
+      if (changed.length > 0) {
+        await AuditService.logActionInternal(tx, {
+          actorId: userId,
+          targetId: userId,
+          action: `Self: updated own medical/emergency fields (${changed.join(", ")})`,
+          ipAddress,
+        });
+      }
+      return row;
+    });
+  }
+
+  /**
+   * Stamps profileReviewedAt for a completed profile ("my info is unchanged")
+   * and writes the audit entry in one transaction. Returns false if the
+   * profile isn't completed.
+   */
+  static async stampProfileReviewed(userId: string, reviewedAt: Date, ipAddress: string) {
+    return db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(users)
+        .set({ profileReviewedAt: reviewedAt })
+        .where(and(eq(users.id, userId), eq(users.profileCompleted, true)))
+        .returning({ id: users.id });
+      if (!row) return false;
+      await AuditService.logActionInternal(tx, {
+        actorId: userId,
+        targetId: userId,
+        action: "Self: confirmed profile info unchanged (periodic review)",
+        ipAddress,
+      });
+      return true;
     });
   }
 }

@@ -1,9 +1,7 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { users } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { AuditService, getClientIp } from "@/modules/audit/audit.service";
+import { getClientIp } from "@/modules/audit/audit.service";
+import { UsersService } from "@/modules/users/users.service";
 
 // POST: the student confirms their existing personal/medical/emergency info is
 // still correct. Only stamps profileReviewedAt — no profile fields are touched.
@@ -17,21 +15,7 @@ export async function POST(req: Request) {
     const userId = session.user.id;
 
     const reviewedAt = new Date();
-    const stamped = await db.transaction(async (tx) => {
-      const [row] = await tx
-        .update(users)
-        .set({ profileReviewedAt: reviewedAt })
-        .where(and(eq(users.id, userId), eq(users.profileCompleted, true)))
-        .returning({ id: users.id });
-      if (!row) return false;
-      await AuditService.logActionInternal(tx, {
-        actorId: userId,
-        targetId: userId,
-        action: "Self: confirmed profile info unchanged (periodic review)",
-        ipAddress: getClientIp(req),
-      });
-      return true;
-    });
+    const stamped = await UsersService.stampProfileReviewed(userId, reviewedAt, getClientIp(req));
 
     if (!stamped) {
       return NextResponse.json({ error: "Profile not completed" }, { status: 400 });

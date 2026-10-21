@@ -37,7 +37,7 @@ export async function proxy(req: NextRequest) {
     // like /feedback/track it renders its own sign-in prompt (so the person
     // comes back to the same sticker after login, which a bare proxy redirect
     // to /login would lose) and shows the owner only to a signed-in,
-    // onboarded viewer — see src/app/t/[code]/page.tsx.
+    // onboarded viewer — see src/app/property-tag/[code]/page.tsx.
     pathname.startsWith("/t/") ||
     pathname === "/api/events" ||
     pathname === "/api/houses" ||

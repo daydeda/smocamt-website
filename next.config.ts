@@ -40,7 +40,13 @@ const nextConfig: NextConfig = {
   // src/app/api/media/[name]/route.ts. Keeps every /uploads/... URL already saved
   // in the DB working. No-op when Supabase Storage is configured (absolute URLs).
   async rewrites() {
-    return [{ source: "/uploads/:name", destination: "/api/media/:name" }];
+    return [
+      { source: "/uploads/:name", destination: "/api/media/:name" },
+      // Short public URL printed on property-tag QR stickers (kept short on
+      // purpose: less dense QR). The page lives in src/app/property-tag/ so the
+      // folder name says what it is; this rewrite keeps every printed /t/<code> working.
+      { source: "/t/:code", destination: "/property-tag/:code" },
+    ];
   },
   async headers() {
     return [

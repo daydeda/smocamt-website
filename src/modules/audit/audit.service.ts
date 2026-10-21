@@ -236,4 +236,24 @@ export class AuditService {
       },
     });
   }
+
+  /**
+   * One page of audit logs (newest first by timestamp) with actor/target, plus
+   * the total row count, for the admin audit-log viewer.
+   */
+  static async listLogsPage(page: number, pageSize: number) {
+    const [logs, total] = await Promise.all([
+      db.query.auditLogs.findMany({
+        with: {
+          actor: { columns: { id: true, name: true, role: true } },
+          target: { columns: { id: true, studentId: true, name: true } },
+        },
+        orderBy: (auditLogs, { desc }) => [desc(auditLogs.timestamp)],
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
+      }),
+      db.$count(auditLogs),
+    ]);
+    return { logs, total };
+  }
 }

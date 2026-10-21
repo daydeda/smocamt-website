@@ -1,6 +1,5 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { auditLogs } from "@/db/schema";
+import { AuditService } from "@/modules/audit/audit.service";
 import { NextResponse, type NextRequest } from "next/server";
 
 const PAGE_SIZE = 30;
@@ -17,18 +16,7 @@ export async function GET(request: NextRequest) {
     const page = Math.max(1, Number(params.get("page")) || 1);
     const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, Number(params.get("pageSize")) || PAGE_SIZE));
 
-    const [logs, total] = await Promise.all([
-      db.query.auditLogs.findMany({
-        with: {
-          actor: { columns: { id: true, name: true, role: true } },
-          target: { columns: { id: true, studentId: true, name: true } },
-        },
-        orderBy: (auditLogs, { desc }) => [desc(auditLogs.timestamp)],
-        limit: pageSize,
-        offset: (page - 1) * pageSize,
-      }),
-      db.$count(auditLogs),
-    ]);
+    const { logs, total } = await AuditService.listLogsPage(page, pageSize);
 
     // targetId has no FK to users (schema.ts) — most rows are a real user's id
     // and resolve via the `target` relation above, but bulk-roster-read rows

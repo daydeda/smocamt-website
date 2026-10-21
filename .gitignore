@@ -48,7 +48,6 @@ next-env.d.ts
 .claude/settings.local.json
 #.agents/
 AGENTS.md
-CLAUDE.md
 /scratch/
 
 # Private (non-public) dev uploads — payment slips

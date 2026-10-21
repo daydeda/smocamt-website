@@ -1,6 +1,6 @@
 ---
 name: safe-deploy
-description: Safe deploy + DB migration checklist for ActiveCAMT (Next.js; self-hosted Docker+Postgres via Portainer, or legacy Vercel+Supabase). Use before deploying any change that touches the database schema, or before deploying code that reads a new or changed column. Enforces feature branch (never main), idempotent and non-destructive migrations, and migrating prod before deploying code that reads it — including the Portainer container-console migration step for the self-hosted deploy.
+description: Safe deploy + DB migration checklist for ActiveCAMT (Next.js; self-hosted Docker+Postgres via Portainer, or legacy Vercel+Supabase). Use before deploying any change that touches the database schema, or before deploying code that reads a new or changed column. Enforces idempotent and non-destructive migrations, and migrating prod before deploying code that reads it — including the Portainer container-console migration step for the self-hosted deploy.
 ---
 
 # Safe Deploy (ActiveCAMT)
@@ -30,7 +30,8 @@ step in §3 — `npm run db:migrate` is the wrong target.
 
 ## Hard rules (never violate)
 
-1. **Never push to `main`.** Always work on a feature branch and open a PR.
+1. **Commit and push straight to `main`** (no feature branch, no PR). A push to `main`
+   auto-redeploys prod, so prod must already be migrated and build + lint must pass first.
 2. **`npm run db:migrate` ALWAYS writes whatever `.env` points at — currently Supabase.**
    It runs `tsx --env-file=.env src/db/migrate.ts`, and `.env`'s active `DATABASE_URL` is
    the **Supabase** pooler. `.env.local` is localhost. Treat every `db:migrate` as a prod
@@ -68,12 +69,11 @@ thing in this repo (it has wiped a feed before).
 ### 1. Pre-flight
 
 ```bash
-git rev-parse --abbrev-ref HEAD   # confirm NOT on main
+git rev-parse --abbrev-ref HEAD   # confirm on main
 git status                        # working tree state
 ```
 
-If on `main`, create a feature branch first (`git switch -c <type>/<short-desc>`,
-e.g. `feat/`, `fix/`, `chore/`). See the branch policy memory.
+Work happens on `main`. Do not create a feature branch.
 
 ### 2. If the change touches the schema
 
@@ -167,14 +167,13 @@ npm run dev          # smoke-test the path that reads the new column
 
 ```bash
 git add -A
-git commit -m "<message>"   # end with the Co-Authored-By trailer
-git push -u origin HEAD     # feature branch, never main
-gh pr create                # open PR; mention any DELETE/data-conversion in the body
+git commit -m "<message>"   # your own git identity only, no Co-Authored-By trailer
+git push origin main        # or use /ship (commit, push, tag, release, changelog)
 ```
 
 Because prod is already migrated, the new code reads a schema that exists.
 
-- **Self-hosted (Portainer):** after merge, rebuild/pull the `activecamt-app` image and
+- **Self-hosted (Portainer):** the push auto-redeploys; otherwise rebuild/pull the `activecamt-app` image and
   recreate the service in Portainer (or `docker compose up -d --build` on the server).
   The migration from §3 has already run inside the container, so the new image comes up
   against an existing schema.
@@ -202,4 +201,4 @@ destructive step and violates the DELETE rule. Leave the schema; revert the code
 | Migrate localhost | `docker start activecamt-db` then `npx tsx --env-file=.env.local src/db/migrate.ts` |
 | Start local DB | `docker start activecamt-db` (it's often stopped) |
 | Schema types | `src/db/schema.ts` (keep in sync with migrate.ts) |
-| Branch | feature branch only — never push to `main` |
+| Branch | `main` directly — no feature branch, no PR, never force-push |

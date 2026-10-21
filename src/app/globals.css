@@ -221,6 +221,18 @@
   --bg-base-rgb: 252 252 253;
 }
 
+/* Smooth light <-> dark switch. `theme-transition` is added by applyTheme()
+   (src/lib/theme.ts) for ~350ms around a toggle, then removed. */
+html.theme-transition,
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
+  transition-property: background-color, color, border-color, outline-color, fill, stroke, box-shadow !important;
+  transition-duration: 0.3s !important;
+  transition-timing-function: ease !important;
+  transition-delay: 0s !important;
+}
+
 :root[data-theme="dark"] {
   /* tints → dim washes */
   --red-50:     rgb(var(--red-500-rgb) / 0.12);

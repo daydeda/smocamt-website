@@ -16,6 +16,20 @@ export function systemTheme(): Theme {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
+// Must outlast the duration of `html.theme-transition` in globals.css.
+const THEME_FADE_MS = 350;
+let fadeTimer: ReturnType<typeof setTimeout> | undefined;
+
 export function applyTheme(theme: Theme) {
-  document.documentElement.setAttribute("data-theme", theme);
+  const root = document.documentElement;
+  if (root.getAttribute("data-theme") === theme) return;
+  // Fade the colours instead of snapping, which is a harsh flash on a dark room's
+  // screen. Skipped for reduced motion; the class is dropped once the fade is done
+  // so it never slows down ordinary hover/focus transitions.
+  if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    root.classList.add("theme-transition");
+    clearTimeout(fadeTimer);
+    fadeTimer = setTimeout(() => root.classList.remove("theme-transition"), THEME_FADE_MS);
+  }
+  root.setAttribute("data-theme", theme);
 }

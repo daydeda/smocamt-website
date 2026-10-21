@@ -1,7 +1,5 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { attendance, events, users, houses } from "@/db/schema";
-import { count, sql, eq } from "drizzle-orm";
+import { DashboardService } from "@/modules/dashboard/dashboard.service";
 import { NextResponse } from "next/server";
 import { csvCell } from "@/lib/util/csv";
 import { unstable_cache } from "next/cache";
@@ -42,45 +40,13 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // entry is correct. Dates are computed inside so each 15s fill re-anchors "today"
 // and the 30-day window itself.
 const getDashboardCounts = unstable_cache(
-  async () => {
-    const BKK_OFFSET_MS = 7 * 60 * 60 * 1000;
-    const bkkNow = new Date(Date.now() + BKK_OFFSET_MS);
-    bkkNow.setUTCHours(0, 0, 0, 0);
-    const startOfToday = new Date(bkkNow.getTime() - BKK_OFFSET_MS);
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const countsResult = await db.execute(sql`
-      SELECT
-        (SELECT count(*)::int FROM ${users}) AS "totalUsers",
-        (SELECT count(*)::int FROM ${events}) AS "totalEvents",
-        (SELECT count(*)::int FROM ${attendance} WHERE ${attendance.checkInTime} >= ${startOfToday.toISOString()}) AS "checkinsToday",
-        (SELECT count(*)::int FROM ${users} WHERE ${users.createdAt} >= ${thirtyDaysAgo.toISOString()}) AS "newUsers30d"
-    `);
-    return {
-      totalUsers: (countsResult[0]?.totalUsers as number) ?? 0,
-      totalEvents: (countsResult[0]?.totalEvents as number) ?? 0,
-      checkinsToday: (countsResult[0]?.checkinsToday as number) ?? 0,
-      newUsers30d: (countsResult[0]?.newUsers30d as number) ?? 0,
-    };
-  },
+  async () => DashboardService.getOverviewCounts(),
   ["admin-dashboard-counts"],
   { revalidate: 15, tags: ["admin-dashboard-counts"] },
 );
 
 const getHouseMemberCounts = unstable_cache(
-  async () =>
-    db
-      .select({
-        id: houses.id,
-        name: houses.name,
-        color: houses.color,
-        points: houses.points,
-        faculty: houses.faculty,
-        colorGroup: houses.colorGroup,
-        members: count(users.id),
-      })
-      .from(houses)
-      .leftJoin(users, eq(users.houseId, houses.id))
-      .groupBy(houses.id),
+  async () => DashboardService.getHouseMemberCounts(),
   ["admin-dashboard-house-members"],
   { revalidate: 15, tags: ["admin-dashboard-house-members"] },
 );
@@ -107,7 +73,7 @@ export async function GET(req: Request) {
       // Bulk PII export: keep a tamper-evident record of who pulled it (PDPA). Count
       // first (one cheap aggregate) so the audit row has the row count without
       // materializing the whole table.
-      const [{ total }] = await db.select({ total: count() }).from(attendance);
+      const total = await DashboardService.countAttendanceRows();
       await AuditService.logAction({
         actorId: session.user.id!,
         action: `Exported full attendance CSV (${Number(total)} rows)`,
@@ -127,15 +93,7 @@ export async function GET(req: Request) {
         },
         async pull(controller) {
           try {
-            const batch = await db.query.attendance.findMany({
-              with: {
-                user: { columns: { studentId: true, name: true, major: true } },
-                event: { columns: { title: true } },
-              },
-              orderBy: (attendance, { desc }) => [desc(attendance.checkInTime)],
-              limit: BATCH,
-              offset,
-            });
+            const batch = await DashboardService.getAttendanceExportBatch(BATCH, offset);
             if (batch.length === 0) {
               controller.close();
               return;
@@ -194,37 +152,13 @@ export async function GET(req: Request) {
     );
 
     const recentCheckins = await withTimeout(
-      db.query.attendance.findMany({
-        limit: 10,
-        // Only genuine check-ins. Registration rows have checkInTime = null, and
-        // `ORDER BY ... DESC` is NULLS FIRST in Postgres, so without this filter
-        // those un-checked-in rows sort to the top and fall back to new Date()
-        // below — making every Recent Activity entry show the current time.
-        where: (attendance, { isNotNull }) => isNotNull(attendance.checkInTime),
-        orderBy: (attendance, { desc }) => [desc(attendance.checkInTime)],
-        with: {
-          user: { columns: { name: true, nickname: true } },
-          event: { columns: { title: true } },
-        },
-      }),
+      DashboardService.getRecentCheckins(),
       READ_TIMEOUT_MS,
       "checkins"
     );
 
     const recentScores = await withTimeout(
-      db.query.scoreHistory.findMany({
-        limit: 10,
-        orderBy: (scoreHistory, { desc }) => [desc(scoreHistory.timestamp)],
-        columns: {
-          id: true,
-          delta: true,
-          reason: true,
-          timestamp: true,
-        },
-        with: {
-          house: { columns: { id: true, name: true, color: true } },
-        },
-      }),
+      DashboardService.getRecentScores(),
       READ_TIMEOUT_MS,
       "scores"
     );

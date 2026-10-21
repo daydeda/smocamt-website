@@ -63,7 +63,7 @@ export interface AdminEvent {
 
 // A check-in day / session within an event. Returned by GET /api/admin/events
 // and reconciled by id on PUT (existing updated, new inserted, missing deleted
-// unless they have attendance). See backend contract in CLAUDE.md.
+// unless they have attendance). See the PUT handler in src/app/api/admin/events/[id]/route.ts for the backend contract.
 export interface EventSession {
   id: string;
   title: string | null;

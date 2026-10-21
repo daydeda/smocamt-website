@@ -1,7 +1,5 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { scoreHistory } from "@/db/schema";
-import { desc } from "drizzle-orm";
+import { HousesService } from "@/modules/houses/houses.service";
 import { NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
 import { captureException } from "@/lib/util/logger";
@@ -10,25 +8,7 @@ import { captureException } from "@/lib/util/logger";
 // share it across all polling clients — one query per window instead of one per
 // student. The auth() gate stays OUTSIDE the cache so access control is unchanged.
 const getHouseActivity = unstable_cache(
-  () =>
-    db.query.scoreHistory.findMany({
-      limit: 20,
-      orderBy: [desc(scoreHistory.timestamp)],
-      with: {
-        house: {
-          columns: {
-            id: true,
-            name: true,
-            color: true,
-          },
-        },
-        event: {
-          columns: {
-            title: true,
-          },
-        },
-      },
-    }),
+  () => HousesService.listRecentActivity(),
   ["house-activity"],
   { revalidate: 15 },
 );

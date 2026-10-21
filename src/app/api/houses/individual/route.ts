@@ -1,7 +1,5 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { users } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { HousesService } from "@/modules/houses/houses.service";
 import { NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
 import { captureException } from "@/lib/util/logger";
@@ -11,30 +9,7 @@ import { captureException } from "@/lib/util/logger";
 // from how many students are watching at once. Keyed on page/limit (unstable_cache
 // includes the function args in its key). The auth() gate stays OUTSIDE the cache.
 const getIndividualStandings = unstable_cache(
-  (page: number, limit: number) =>
-    db.query.users.findMany({
-      where: eq(users.profileCompleted, true),
-      columns: {
-        id: true,
-        name: true,
-        nickname: true,
-        points: true,
-        houseId: true,
-      },
-      with: {
-        house: {
-          columns: {
-            name: true,
-            color: true,
-          },
-        },
-      },
-      // Deterministic tie-break: equal points sort by id so rows don't shuffle
-      // between refreshes (matches the RANK() ordering used by the /me endpoint).
-      orderBy: (users, { desc, asc }) => [desc(users.points), asc(users.id)],
-      limit,
-      offset: (page - 1) * limit,
-    }),
+  (page: number, limit: number) => HousesService.listIndividualStandings(page, limit),
   ["individual-standings"],
   { revalidate: 15, tags: ["individual-standings"] },
 );

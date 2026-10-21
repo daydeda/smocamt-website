@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { houses, scoreHistory, users } from "@/db/schema";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { AuditService } from "../audit/audit.service";
 import { COLORS, DEFAULT_FACULTY, normalizeFaculty } from "@/lib/profile/faculties";
 
@@ -265,6 +265,115 @@ export class HousesService {
         action: `Adjusted house ${houseId} points by ${parsedDelta}. Reason: ${reason}`,
         ipAddress,
       });
+    });
+  }
+
+  /** The 20 most recent house score changes (with house + event) for the public activity feed. */
+  static async listRecentActivity() {
+    return db.query.scoreHistory.findMany({
+      limit: 20,
+      orderBy: [desc(scoreHistory.timestamp)],
+      with: {
+        house: {
+          columns: {
+            id: true,
+            name: true,
+            color: true,
+          },
+        },
+        event: {
+          columns: {
+            title: true,
+          },
+        },
+      },
+    });
+  }
+
+  /** The viewer's own points + whether their profile is completed (individual standing). */
+  static async getUserStandingProfile(userId: string) {
+    return db.query.users.findFirst({
+      where: eq(users.id, userId),
+      columns: { points: true, profileCompleted: true },
+    });
+  }
+
+  /**
+   * Total profile-completed student count AND how many outrank `myPoints`, in
+   * ONE scan of the table.
+   */
+  static async getStandingCounts(myPoints: number) {
+    // Total student count AND how many outrank me in ONE scan of the table, via a
+    // FILTER aggregate — instead of two separate count(*) queries. This endpoint is
+    // polled every 60s by every signed-in student, so halving its query count matters.
+    const [{ total, ahead }] = await db
+      .select({
+        total: sql<number>`count(*)`,
+        ahead: sql<number>`count(*) filter (where ${users.points} > ${myPoints})`,
+      })
+      .from(users)
+      .where(eq(users.profileCompleted, true));
+    return { total, ahead };
+  }
+
+  /** One page of the individual leaderboard (profile-completed students by points). */
+  static async listIndividualStandings(page: number, limit: number) {
+    return db.query.users.findMany({
+      where: eq(users.profileCompleted, true),
+      columns: {
+        id: true,
+        name: true,
+        nickname: true,
+        points: true,
+        houseId: true,
+      },
+      with: {
+        house: {
+          columns: {
+            name: true,
+            color: true,
+          },
+        },
+      },
+      // Deterministic tie-break: equal points sort by id so rows don't shuffle
+      // between refreshes (matches the RANK() ordering used by the /me endpoint).
+      orderBy: (users, { desc, asc }) => [desc(users.points), asc(users.id)],
+      limit,
+      offset: (page - 1) * limit,
+    });
+  }
+
+  /** A user's CURRENT houseId straight from the DB (the session token can be stale). */
+  static async getUserHouseId(userId: string) {
+    return db.query.users.findFirst({
+      where: eq(users.id, userId),
+      columns: { houseId: true },
+    });
+  }
+
+  /** All faculty houses that make up one colour group (id + points). */
+  static async listHousesByColorGroup(colorGroup: string) {
+    return db.query.houses.findMany({
+      where: eq(houses.colorGroup, colorGroup),
+      columns: { id: true, points: true },
+    });
+  }
+
+  /** The combined roster of the given houses (profile-completed students only). */
+  static async listHouseMembers(houseIds: string[]) {
+    return db.query.users.findMany({
+      where: and(inArray(users.houseId, houseIds), eq(users.profileCompleted, true)),
+      columns: {
+        id: true,
+        name: true,
+        nickname: true,
+        points: true,
+        // Faculty lets the client group/badge the combined roster.
+        faculty: true,
+      },
+      // Deterministic tie-break: equal points sort by id so rows don't shuffle
+      // between refreshes (matches the leaderboard ordering).
+      orderBy: (users, { desc, asc }) => [desc(users.points), asc(users.id)],
     });
   }
 }

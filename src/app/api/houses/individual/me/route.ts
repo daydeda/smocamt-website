@@ -1,7 +1,5 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { users } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { HousesService } from "@/modules/houses/houses.service";
 import { NextResponse } from "next/server";
 
 // Returns the current user's individual standing: their points, their exact
@@ -15,10 +13,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const me = await db.query.users.findFirst({
-      where: eq(users.id, session.user.id),
-      columns: { points: true, profileCompleted: true },
-    });
+    const me = await HousesService.getUserStandingProfile(session.user.id);
 
     if (!me || !me.profileCompleted) {
       return NextResponse.json({ points: 0, rank: null, total: 0 });
@@ -26,16 +21,7 @@ export async function GET() {
 
     const myPoints = me.points ?? 0;
 
-    // Total student count AND how many outrank me in ONE scan of the table, via a
-    // FILTER aggregate — instead of two separate count(*) queries. This endpoint is
-    // polled every 60s by every signed-in student, so halving its query count matters.
-    const [{ total, ahead }] = await db
-      .select({
-        total: sql<number>`count(*)`,
-        ahead: sql<number>`count(*) filter (where ${users.points} > ${myPoints})`,
-      })
-      .from(users)
-      .where(eq(users.profileCompleted, true));
+    const { total, ahead } = await HousesService.getStandingCounts(myPoints);
 
     // With 0 points you haven't earned a position yet — and when everyone is at 0
     // a numeric rank would just tie everybody at #1, which is misleading. Report

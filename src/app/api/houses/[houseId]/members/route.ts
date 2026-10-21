@@ -1,9 +1,7 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { houses, users } from "@/db/schema";
+import { HousesService } from "@/modules/houses/houses.service";
 import { houseIdFromParam } from "@/lib/points/houses";
 import { COLORS, colorGroupOfHouseId } from "@/lib/profile/faculties";
-import { and, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 
@@ -30,10 +28,7 @@ export async function GET(
     // viewer's CURRENT house from the DB rather than the session token — houses are
     // assigned at first check-in now, so a freshly-assigned student's token can be
     // stale. The URL is guessable, so this guard is what enforces "own house only".
-    const viewer = await db.query.users.findFirst({
-      where: eq(users.id, session.user.id),
-      columns: { houseId: true },
-    });
+    const viewer = await HousesService.getUserHouseId(session.user.id);
     const isAdmin = ["super_admin", "admin", "registration", "organizer"].includes(session.user.role || "")
       || isGlobalRegistrationPosition(effectiveRoles(session.user.role, session.user.roles), session.user.smoPosition, session.user.anusmoPosition);
     if (!isAdmin && colorGroupOfHouseId(viewer?.houseId) !== colorGroup) {
@@ -44,10 +39,7 @@ export async function GET(
     }
 
     // All faculty houses that make up this colour, then their combined roster.
-    const colorHouses = await db.query.houses.findMany({
-      where: eq(houses.colorGroup, colorGroup),
-      columns: { id: true, points: true },
-    });
+    const colorHouses = await HousesService.listHousesByColorGroup(colorGroup);
     const houseIds = colorHouses.map((h) => h.id);
     if (houseIds.length === 0) {
       return NextResponse.json({ error: "House not found" }, { status: 404 });
@@ -61,20 +53,7 @@ export async function GET(
       points: colorHouses.reduce((sum, h) => sum + h.points, 0),
     };
 
-    const members = await db.query.users.findMany({
-      where: and(inArray(users.houseId, houseIds), eq(users.profileCompleted, true)),
-      columns: {
-        id: true,
-        name: true,
-        nickname: true,
-        points: true,
-        // Faculty lets the client group/badge the combined roster.
-        faculty: true,
-      },
-      // Deterministic tie-break: equal points sort by id so rows don't shuffle
-      // between refreshes (matches the leaderboard ordering).
-      orderBy: (users, { desc, asc }) => [desc(users.points), asc(users.id)],
-    });
+    const members = await HousesService.listHouseMembers(houseIds);
 
     return NextResponse.json(
       { house, members },

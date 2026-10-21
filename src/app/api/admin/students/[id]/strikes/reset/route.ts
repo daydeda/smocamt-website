@@ -1,9 +1,7 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { users } from "@/db/schema";
-import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { AuditService, getClientIp } from "@/modules/audit/audit.service";
+import { getClientIp } from "@/modules/audit/audit.service";
+import { UsersService } from "@/modules/users/users.service";
 import { effectiveRoles } from "@/lib/access/admin-access";
 import { RESET_STRIKES_ROLES } from "@/lib/points/strikes";
 
@@ -26,27 +24,12 @@ export async function POST(
 
     const { id: targetStudentId } = await params;
 
-    const target = await db.query.users.findFirst({
-      where: eq(users.id, targetStudentId),
-      columns: { id: true, noShowCount: true, registrationBlocked: true },
-    });
+    const target = await UsersService.getStrikeState(targetStudentId);
     if (!target) {
       return NextResponse.json({ error: "Student not found" }, { status: 404 });
     }
 
-    await db.transaction(async (tx) => {
-      await tx
-        .update(users)
-        .set({ noShowCount: 0, registrationBlocked: false })
-        .where(eq(users.id, targetStudentId));
-
-      await AuditService.logActionInternal(tx, {
-        actorId: session.user!.id!,
-        targetId: targetStudentId,
-        action: `Reset no-show strikes (was ${target.noShowCount}/3${target.registrationBlocked ? ", blocked" : ""})`,
-        ipAddress: getClientIp(req),
-      });
-    });
+    await UsersService.resetStrikes(targetStudentId, target, session.user!.id!, getClientIp(req));
 
     return NextResponse.json({ success: true });
   } catch (error) {

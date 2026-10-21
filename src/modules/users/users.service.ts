@@ -1,11 +1,13 @@
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { attendance, users } from "@/db/schema";
+import { ClubsService } from "@/modules/clubs/clubs.service";
 import { and, count, eq, or, sql } from "drizzle-orm";
 import { verifyQrToken, verifyCrossAppQrToken, splitCombinedQrToken } from "@/lib/qr/qr-token";
 import { fetchSongsueProfileByEmail } from "@/lib/integrations/songsue-sync";
 import { SongsueSyncService } from "@/modules/integrations/songsue-sync.service";
 import { getStaffBypassNickname } from "@/lib/access/staff-bypass";
 import { HousesService, HOUSE_BALANCE_LOCK_KEY } from "@/modules/houses/houses.service";
+import { AuditService } from "@/modules/audit/audit.service";
 
 export class UsersService {
   /**
@@ -145,6 +147,167 @@ export class UsersService {
     return db.query.users.findFirst({
       where: eq(users.id, userId),
       columns: { major: true },
+    });
+  }
+
+  /**
+   * Bulk student directory with PDPA-minimal columns. Contact info
+   * (email/phone/contactChannels) is only included when `includeContact` is set
+   * (super_admin only, decided by the caller).
+   */
+  static async listStudentDirectory(includeContact: boolean) {
+    // Only fetch non-sensitive data for the general directory
+    return db.query.users.findMany({
+      columns: {
+        id: true,
+        studentId: true,
+        name: true,
+        prefix: true,
+        nickname: true,
+        major: true,
+        smoPosition: true,
+        anusmoPosition: true,
+        houseId: true,
+        profileCompleted: true,
+        role: true,
+        roles: true,
+        noShowCount: true,
+        registrationBlocked: true,
+        ...(includeContact ? { email: true, phone: true, contactChannels: true } : {}),
+      },
+      with: { house: true },
+    });
+  }
+
+  /**
+   * One student's full record (sensitive medical/emergency fields included).
+   * The PDPA access audit log is written BEFORE the read, as part of the same
+   * operation — FE-12: Log the sensitive data access (Immutable Audit Trail).
+   */
+  static async getStudentSensitiveDetail(targetStudentId: string, actorId: string, ipAddress: string) {
+    await AuditService.logAction({
+      actorId,
+      targetId: targetStudentId,
+      action: "Viewed Sensitive Medical/Emergency Info",
+      ipAddress,
+    });
+
+    return db.query.users.findFirst({
+      where: eq(users.id, targetStudentId),
+      // qrToken is a permanent check-in credential replayable at /api/admin/scan,
+      // so it must never leave the server — every other route strips it too.
+      columns: { qrToken: false },
+      with: { house: true },
+    });
+  }
+
+  /** A student's current strike state (for the strike-reset pre-check). */
+  static async getStrikeState(targetStudentId: string) {
+    return db.query.users.findFirst({
+      where: eq(users.id, targetStudentId),
+      columns: { id: true, noShowCount: true, registrationBlocked: true },
+    });
+  }
+
+  /** Clears a student's no-show strikes and unblocks pre-registration, with its audit log, in one transaction. */
+  static async resetStrikes(
+    targetStudentId: string,
+    target: { noShowCount: number; registrationBlocked: boolean },
+    actorId: string,
+    ipAddress: string,
+  ) {
+    await db.transaction(async (tx) => {
+      await tx
+        .update(users)
+        .set({ noShowCount: 0, registrationBlocked: false })
+        .where(eq(users.id, targetStudentId));
+
+      await AuditService.logActionInternal(tx, {
+        actorId,
+        targetId: targetStudentId,
+        action: `Reset no-show strikes (was ${target.noShowCount}/3${target.registrationBlocked ? ", blocked" : ""})`,
+        ipAddress,
+      });
+    });
+  }
+
+  /** Full user row by id (admin user edit/delete pre-checks). */
+  static async findUserById(userId: string) {
+    return db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+  }
+
+  /**
+   * Admin user update: the users row, the club presidency sync (when clubIds is
+   * given) and the audit entry (when something changed) in ONE transaction, so
+   * a failure can't leave a committed audit entry describing a presidency
+   * change that never actually landed.
+   */
+  static async updateUserByAdmin(params: {
+    userId: string;
+    targetUserName: string | null;
+    fields: Partial<typeof users.$inferInsert>;
+    clubIds: string[] | undefined;
+    changes: string[];
+    actorId: string;
+    ipAddress: string;
+  }) {
+    const { userId, targetUserName, fields, clubIds, changes, actorId, ipAddress } = params;
+    await db.transaction(async (tx) => {
+      await tx.update(users)
+        .set({
+          ...fields,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, userId));
+
+      if (clubIds !== undefined) {
+        await ClubsService.setUserClubPresidencies(userId, clubIds, tx);
+      }
+
+      if (changes.length > 0) {
+        await AuditService.logActionInternal(tx, {
+          actorId,
+          targetId: userId,
+          action: `Updated user ${targetUserName}: ${changes.join(", ")}`,
+          ipAddress,
+        });
+      }
+    });
+  }
+
+  /**
+   * Admin account deletion. Some foreign keys referencing users.id lack ON
+   * DELETE CASCADE in the production schema (attendance.student_id / scanned_by).
+   * Clean those up in a transaction first, otherwise Postgres rejects the delete
+   * with a FK violation. accounts / sessions / authenticators / form_submissions
+   * already cascade. audit_logs rows are NEVER rewritten — their actor_id /
+   * target_id values are baked into the tamper-evident row hashes, so the
+   * FK constraints on audit_logs were dropped instead (migration step 27).
+   */
+  static async deleteUserByAdmin(
+    userId: string,
+    targetUser: { name: string | null; studentId: string | null },
+    actorId: string,
+    ipAddress: string,
+  ) {
+    await db.transaction(async (tx) => {
+      // Remove this user's own event registrations/attendance.
+      await tx.delete(attendance).where(eq(attendance.studentId, userId));
+      // Preserve other students' attendance that this user scanned in.
+      await tx.update(attendance).set({ scannedBy: null }).where(eq(attendance.scannedBy, userId));
+
+      await tx.delete(users).where(eq(users.id, userId));
+
+      // PDPA erasure record. The name/studentId live in the action text since
+      // the target user row no longer exists to join against.
+      await AuditService.logActionInternal(tx, {
+        actorId,
+        targetId: userId,
+        action: `Deleted user account: ${targetUser.name}${targetUser.studentId ? ` (${targetUser.studentId})` : ""}`,
+        ipAddress,
+      });
     });
   }
 }

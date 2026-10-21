@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
+import { UsersService } from "@/modules/users/users.service";
 import { NextResponse } from "next/server";
 import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 
@@ -34,27 +34,7 @@ export async function GET() {
     // PDPA-minimal columns, same as before.
     const isSuperAdmin = myRoles.includes("super_admin");
 
-    // Only fetch non-sensitive data for the general directory
-    const allStudents = await db.query.users.findMany({
-      columns: {
-        id: true,
-        studentId: true,
-        name: true,
-        prefix: true,
-        nickname: true,
-        major: true,
-        smoPosition: true,
-        anusmoPosition: true,
-        houseId: true,
-        profileCompleted: true,
-        role: true,
-        roles: true,
-        noShowCount: true,
-        registrationBlocked: true,
-        ...(isSuperAdmin ? { email: true, phone: true, contactChannels: true } : {}),
-      },
-      with: { house: true },
-    });
+    const allStudents = await UsersService.listStudentDirectory(isSuperAdmin);
 
     return NextResponse.json(allStudents);
   } catch (error) {

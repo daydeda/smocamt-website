@@ -1,9 +1,7 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { announcements } from "@/db/schema";
-import { AuditService, getClientIp } from "@/modules/audit/audit.service";
+import { getClientIp } from "@/modules/audit/audit.service";
+import { AnnouncementService } from "@/modules/announcement/announcement.service";
 import { PushService } from "@/modules/notifications/push.service";
-import { desc, eq } from "drizzle-orm";
 import { after, NextResponse } from "next/server";
 import type { Session } from "next-auth";
 import { z } from "zod";
@@ -32,11 +30,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const [row] = await db
-      .select({ body: announcements.body, enabled: announcements.enabled })
-      .from(announcements)
-      .orderBy(desc(announcements.updatedAt))
-      .limit(1);
+    const row = await AnnouncementService.getCurrent();
 
     return NextResponse.json(row ?? { body: "", enabled: true });
   } catch (error) {
@@ -55,40 +49,7 @@ export async function PUT(req: Request) {
 
     const data = announcementSchema.parse(await req.json());
 
-    const wasChanged = await db.transaction(async (tx) => {
-      // Singleton: update the most-recently-updated row, or insert the first one.
-      const [existing] = await tx
-        .select({ id: announcements.id, body: announcements.body })
-        .from(announcements)
-        .orderBy(desc(announcements.updatedAt))
-        .limit(1);
-
-      if (existing) {
-        await tx
-          .update(announcements)
-          .set({
-            body: data.body,
-            enabled: data.enabled,
-            updatedBy: session!.user!.id!,
-            updatedAt: new Date(),
-          })
-          .where(eq(announcements.id, existing.id));
-      } else {
-        await tx.insert(announcements).values({
-          body: data.body,
-          enabled: data.enabled,
-          updatedBy: session!.user!.id!,
-        });
-      }
-
-      await AuditService.logActionInternal(tx, {
-        actorId: session!.user!.id!,
-        action: `Updated dashboard announcement (enabled: ${data.enabled})`,
-        ipAddress: getClientIp(req),
-      });
-
-      return !existing || existing.body !== data.body;
-    });
+    const wasChanged = await AnnouncementService.upsertSingleton(data, session!.user!.id!, getClientIp(req));
 
     // Broadcast only on a real content change while enabled — skip a toggle-off
     // (nothing new to say) and a save that only fixed a typo without changing

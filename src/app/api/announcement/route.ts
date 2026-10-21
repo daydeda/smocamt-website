@@ -1,6 +1,4 @@
-import { db } from "@/db";
-import { announcements } from "@/db/schema";
-import { desc } from "drizzle-orm";
+import { AnnouncementService } from "@/modules/announcement/announcement.service";
 import { NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
 import { captureException } from "@/lib/util/logger";
@@ -11,12 +9,7 @@ import { captureException } from "@/lib/util/logger";
 // "dashboard-announcement" tag after an edit to refresh sooner than 30s.
 const getAnnouncement = unstable_cache(
   async () => {
-    const [row] = await db
-      .select({ body: announcements.body, enabled: announcements.enabled })
-      .from(announcements)
-      .orderBy(desc(announcements.updatedAt))
-      .limit(1);
-    return row ?? null;
+    return AnnouncementService.getCurrent();
   },
   ["dashboard-announcement"],
   { revalidate: 30, tags: ["dashboard-announcement"] },

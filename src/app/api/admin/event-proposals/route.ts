@@ -1,9 +1,7 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { eventProposals } from "@/db/schema";
 import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 import { REVIEW_PROPOSAL_ROLES, SUBMIT_PROPOSAL_ROLES } from "@/lib/events/event-proposals";
-import { AuditService, getClientIp } from "@/modules/audit/audit.service";
+import { getClientIp } from "@/modules/audit/audit.service";
 import { ClubsService } from "@/modules/clubs/clubs.service";
 import { EventProposalsService } from "@/modules/events/event-proposals.service";
 import { MajorsService } from "@/modules/majors/majors.service";
@@ -192,52 +190,7 @@ export async function POST(req: Request) {
     }
 
     const ip = getClientIp(req);
-    const created = await db.transaction(async (tx) => {
-      const [proposal] = await tx
-        .insert(eventProposals)
-        .values({
-          clubId: data.clubId ?? null,
-          majorCode: data.majorCode ?? null,
-          proposedBy: session.user!.id!,
-          title: data.title,
-          description: data.description,
-          startTime: new Date(data.startTime),
-          endTime: new Date(data.endTime),
-          registrationOpenTime: data.registrationOpenTime ? new Date(data.registrationOpenTime) : null,
-          registrationCloseTime: data.registrationCloseTime ? new Date(data.registrationCloseTime) : null,
-          location: data.location,
-          quota: data.quota,
-          imageUrl: data.imageUrls?.[0] ?? data.imageUrl ?? null,
-          imageUrls: data.imageUrls ?? (data.imageUrl ? [data.imageUrl] : null),
-          walkInsEnabled: data.walkInsOnly ? true : (data.walkInsEnabled ?? false),
-          walkInsOnly: data.walkInsOnly ?? false,
-          quotaWalkIn: data.quotaWalkIn,
-          registrationMode: data.registrationMode ?? "once",
-          sessions: data.sessions && data.sessions.length > 0
-            ? data.sessions.map((s) => ({ title: s.title?.trim() || null, startTime: s.startTime, endTime: s.endTime }))
-            : null,
-          targetThai: data.targetThai ?? true,
-          targetInternational: data.targetInternational ?? true,
-          quotaThai: data.quotaThai,
-          quotaInternational: data.quotaInternational,
-          firstYearOnly: data.firstYearOnly ?? false,
-          staffUserIds,
-          allowedRoles: data.allowedRoles && data.allowedRoles.length > 0 ? data.allowedRoles : null,
-          allowedMajors: data.allowedMajors && data.allowedMajors.length > 0 ? data.allowedMajors : null,
-          allowedClubs: data.allowedClubs && data.allowedClubs.length > 0 ? data.allowedClubs : null,
-        })
-        .returning();
-
-      await AuditService.logActionInternal(tx, {
-        actorId: session.user!.id!,
-        action: data.clubId
-          ? `Submitted event proposal "${proposal.title}" for club ${data.clubId}`
-          : `Submitted event proposal "${proposal.title}" for major ${data.majorCode}`,
-        ipAddress: ip,
-      });
-
-      return proposal;
-    });
+    const created = await EventProposalsService.createProposal(data, staffUserIds, session.user.id!, ip);
 
     // Runs after the response is sent — a push send must never add latency to
     // (or fail) the proposal submission itself.

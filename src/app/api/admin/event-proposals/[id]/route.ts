@@ -1,14 +1,11 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { eventProposals } from "@/db/schema";
 import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 import { REVIEW_PROPOSAL_ROLES } from "@/lib/events/event-proposals";
 import { sessionsHaveInvalidSpan } from "@/lib/events/event-schema";
-import { AuditService, getClientIp } from "@/modules/audit/audit.service";
+import { getClientIp } from "@/modules/audit/audit.service";
 import { ClubsService } from "@/modules/clubs/clubs.service";
-import { EventProposalsService } from "@/modules/events/event-proposals.service";
+import { AlreadyResolvedError, EventProposalsService } from "@/modules/events/event-proposals.service";
 import { MajorsService } from "@/modules/majors/majors.service";
-import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -72,12 +69,6 @@ const resubmitActionSchema = z
     path: ["endTime"],
   });
 
-// Thrown inside the transaction when the proposal was already resolved by a
-// concurrent request between the pre-check and the update (double-click, or
-// staff creating the linked event at the same moment — see the proposalId
-// linkage in POST /api/admin/events).
-class AlreadyResolvedError extends Error {}
-
 // GET /api/admin/event-proposals/[id] — staff-only single-record fetch, used
 // by the admin/events "Create Event from Proposal" prefill flow.
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -91,14 +82,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     }
 
     const { id } = await params;
-    const proposal = await db.query.eventProposals.findFirst({
-      where: eq(eventProposals.id, id),
-      with: {
-        club: { columns: { id: true, name: true, isArchived: true } },
-        proposer: { columns: { id: true, name: true, studentId: true } },
-        reviewer: { columns: { id: true, name: true } },
-      },
-    });
+    const proposal = await EventProposalsService.getProposalDetail(id);
     if (!proposal) {
       return NextResponse.json({ error: "Proposal not found" }, { status: 404 });
     }
@@ -132,10 +116,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const body = await req.json();
     const { action } = actionEnvelopeSchema.parse(body);
 
-    const proposal = await db.query.eventProposals.findFirst({
-      where: eq(eventProposals.id, id),
-      columns: { id: true, proposedBy: true, status: true, title: true, clubId: true, majorCode: true },
-    });
+    const proposal = await EventProposalsService.getProposalForAction(id);
     if (!proposal) {
       return NextResponse.json({ error: "Proposal not found" }, { status: 404 });
     }
@@ -198,58 +179,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }
 
       const ip = getClientIp(req);
-      await db.transaction(async (tx) => {
-        const [updated] = await tx
-          .update(eventProposals)
-          .set({
-            title: data.title,
-            description: data.description ?? null,
-            startTime: new Date(data.startTime),
-            endTime: new Date(data.endTime),
-            registrationOpenTime: data.registrationOpenTime ? new Date(data.registrationOpenTime) : null,
-            registrationCloseTime: data.registrationCloseTime ? new Date(data.registrationCloseTime) : null,
-            location: data.location ?? null,
-            quota: data.quota ?? null,
-            imageUrl: data.imageUrls?.[0] ?? data.imageUrl ?? null,
-            imageUrls: data.imageUrls ?? (data.imageUrl ? [data.imageUrl] : null),
-            walkInsEnabled: data.walkInsOnly ? true : (data.walkInsEnabled ?? false),
-            walkInsOnly: data.walkInsOnly ?? false,
-            quotaWalkIn: data.quotaWalkIn ?? null,
-            registrationMode: data.registrationMode ?? "once",
-            sessions: data.sessions && data.sessions.length > 0
-              ? data.sessions.map((s) => ({ title: s.title?.trim() || null, startTime: s.startTime, endTime: s.endTime }))
-              : null,
-            targetThai: data.targetThai ?? true,
-            targetInternational: data.targetInternational ?? true,
-            quotaThai: data.quotaThai ?? null,
-            quotaInternational: data.quotaInternational ?? null,
-            firstYearOnly: data.firstYearOnly ?? false,
-            staffUserIds,
-            allowedRoles: data.allowedRoles && data.allowedRoles.length > 0 ? data.allowedRoles : null,
-            allowedMajors: data.allowedMajors && data.allowedMajors.length > 0 ? data.allowedMajors : null,
-            allowedClubs: data.allowedClubs && data.allowedClubs.length > 0 ? data.allowedClubs : null,
-            // Back to pending for staff to re-review; the prior rejection's
-            // reviewer/note is cleared (the audit log below is the permanent
-            // record of it, not this row).
-            status: "pending",
-            reviewedBy: null,
-            reviewedAt: null,
-            reviewNote: null,
-            updatedAt: new Date(),
-          })
-          .where(and(eq(eventProposals.id, id), eq(eventProposals.status, "rejected")))
-          .returning({ id: eventProposals.id });
-
-        if (!updated) {
-          throw new AlreadyResolvedError();
-        }
-
-        await AuditService.logActionInternal(tx, {
-          actorId: session.user!.id!,
-          action: `Resubmitted event proposal "${data.title}" (${id}) after rejection`,
-          ipAddress: ip,
-        });
-      });
+      await EventProposalsService.resubmitProposal(id, data, staffUserIds, session.user.id!, ip);
 
       return NextResponse.json({ success: true, status: "pending" });
     }
@@ -263,28 +193,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const newStatus = action === "reject" ? "rejected" : "withdrawn";
     const ip = getClientIp(req);
 
-    await db.transaction(async (tx) => {
-      const [updated] = await tx
-        .update(eventProposals)
-        .set({
-          status: newStatus,
-          reviewedBy: session.user!.id!,
-          reviewedAt: new Date(),
-          reviewNote: reviewNote ?? null,
-          updatedAt: new Date(),
-        })
-        .where(and(eq(eventProposals.id, id), eq(eventProposals.status, "pending")))
-        .returning({ id: eventProposals.id });
-
-      if (!updated) {
-        throw new AlreadyResolvedError();
-      }
-
-      await AuditService.logActionInternal(tx, {
-        actorId: session.user!.id!,
-        action: `${action === "reject" ? "Rejected" : "Withdrew"} event proposal "${proposal.title}" (${id})`,
-        ipAddress: ip,
-      });
+    await EventProposalsService.resolveProposal({
+      id,
+      action,
+      newStatus,
+      reviewNote,
+      title: proposal.title,
+      reviewerId: session.user!.id!,
+      ipAddress: ip,
     });
 
     return NextResponse.json({ success: true, status: newStatus });

@@ -23,7 +23,9 @@ Printed QR stickers that staff stick on a student's belongings (bag, phone, …)
 - **The series is stock-keeping only.** Giving an `SMO-`/`ANU-` tag to someone without that role shows a soft warning at assign time. Nothing re-checks it later, so a tag stays valid after its owner leaves SMO. Owning another tag in the same group also only warns.
 - **Concurrency:** assign/unassign send the owner the staff member saw (`expectedOwnerId`). If someone else changed the tag in between, nothing is written and the panel says to rescan.
 - **Audit:** group create/update, generate, assign, reassign and unassign all write `audit_logs` in the same transaction.
-- **No delete.** Groups are archived instead, and archived groups' tags keep resolving.
+- **Delete only when no tag has an owner.** `DELETE /api/admin/property-tags/[id]` removes a group and its tags, and answers 409 while any tag is still assigned, since that sticker is on someone's bag. Staff remove the owners first, or archive the group, whose tags keep resolving. Deleting is audit-logged. The printed stickers of a deleted group stop resolving.
+- **Printing:** the print page offers **Download PDF** (exact A4 geometry, vector QR, built in the browser by `src/lib/property-tag-pdf.ts`). There is no browser Print button on purpose: Safari and Chrome rescale the page and add their own header and footer, so the PDF is the one way to print.
+- **Group page:** the tag table is paginated (25/50/100/200 per page) so groups with thousands of tags stay fast.
 
 ## Data
 

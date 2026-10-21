@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, Loader2, PackageOpen, Plus, QrCode, Tag } from "lucide-react";
+import { ChevronRight, Loader2, PackageOpen, Plus, QrCode, Tag, Trash2 } from "lucide-react";
 import { useLanguage } from "@/lib/LanguageContext";
 import PropertyTagPanel from "./PropertyTagPanel";
 
@@ -31,6 +31,9 @@ export default function PropertyTagsClient() {
   const [saving, setSaving] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -68,6 +71,26 @@ export default function PropertyTagsClient() {
     } catch {
       setSaving(false);
       setError(true);
+    }
+  }
+
+  async function deleteGroup(g: GroupRow) {
+    setDeleting(true);
+    setDeleteNotice(null);
+    try {
+      const res = await fetch(`/api/admin/property-tags/${g.id}`, { method: "DELETE" });
+      if (res.status === 409) {
+        const data = await res.json().catch(() => ({}));
+        setDeleteNotice(t.adminPtDeleteBlocked.replace("{n}", String(data.assigned ?? g.assigned)));
+        return;
+      }
+      if (!res.ok && res.status !== 404) throw new Error();
+      setConfirmDelete(null);
+      await load();
+    } catch {
+      setDeleteNotice(t.adminPtError);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -139,10 +162,11 @@ export default function PropertyTagsClient() {
         <ul style={{ display: "flex", flexDirection: "column", gap: 12, listStyle: "none" }}>
           {visible.map((g) => (
             <li key={g.id}>
+              <div style={{ display: "flex", alignItems: "stretch", gap: 8 }}>
               <Link
                 href={`/admin/property-tags/${g.id}`}
                 className="stat-card"
-                style={{ padding: "16px 18px", display: "flex", alignItems: "center", gap: 12, textDecoration: "none" }}
+                style={{ padding: "16px 18px", display: "flex", alignItems: "center", gap: 12, textDecoration: "none", flex: 1, minWidth: 0 }}
               >
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
@@ -158,6 +182,30 @@ export default function PropertyTagsClient() {
                 </div>
                 <ChevronRight size={18} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
               </Link>
+              <button
+                className="btn btn-ghost"
+                onClick={() => { setDeleteNotice(null); setConfirmDelete(confirmDelete === g.id ? null : g.id); }}
+                aria-label={`${t.adminPtDelete}: ${g.name}`}
+                title={t.adminPtDelete}
+                style={{ color: "var(--red-600)", flexShrink: 0 }}
+              >
+                <Trash2 size={18} />
+              </button>
+              </div>
+              {confirmDelete === g.id && (
+                <div style={{ marginTop: 8, borderRadius: 16, padding: 16, background: "rgb(var(--red-500-rgb) / 0.08)", border: "1px solid rgb(var(--red-500-rgb) / 0.3)", display: "flex", flexDirection: "column", gap: 12 }}>
+                  <p style={{ fontSize: 14.5, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.5 }}>
+                    {t.adminPtDeleteConfirm.replace("{name}", g.name).replace("{total}", String(g.total))}
+                  </p>
+                  {deleteNotice && <p role="alert" style={{ fontSize: 13.5, fontWeight: 700, color: "var(--red-600)" }}>{deleteNotice}</p>}
+                  <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                    <button className="btn btn-ghost" onClick={() => setConfirmDelete(null)} disabled={deleting}>{t.adminPtCancel}</button>
+                    <button className="btn btn-danger" onClick={() => void deleteGroup(g)} disabled={deleting}>
+                      {deleting ? <Loader2 size={16} className="animate-spin" /> : t.adminPtDeleteBtn}
+                    </button>
+                  </div>
+                </div>
+              )}
             </li>
           ))}
         </ul>

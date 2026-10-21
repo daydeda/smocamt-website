@@ -110,6 +110,40 @@ export class PropertyTagsService {
     });
   }
 
+  /**
+   * Deletes a group and its (all empty) tags. Refused while any tag still has an
+   * owner: that sticker is on a student's bag and must keep resolving, so staff
+   * remove the owners first, or archive the group instead.
+   */
+  static async deleteGroup(id: string, actorId: string, ip: string): Promise<
+    { status: "deleted"; tags: number } | { status: "has_assigned"; assigned: number } | { status: "not_found" }
+  > {
+    return db.transaction(async (tx) => {
+      const [group] = await tx
+        .select({ name: propertyTagGroups.name })
+        .from(propertyTagGroups)
+        .where(eq(propertyTagGroups.id, id))
+        .for("update")
+        .limit(1);
+      if (!group) return { status: "not_found" as const };
+      const [counts] = await tx
+        .select({
+          total: sql<number>`count(*)::int`,
+          assigned: sql<number>`count(${propertyTags.ownerUserId})::int`,
+        })
+        .from(propertyTags)
+        .where(eq(propertyTags.groupId, id));
+      if (counts.assigned > 0) return { status: "has_assigned" as const, assigned: counts.assigned };
+      await tx.delete(propertyTagGroups).where(eq(propertyTagGroups.id, id));
+      await AuditService.logActionInternal(tx, {
+        actorId,
+        action: `Deleted property tag group "${group.name}" (${id}) with ${counts.total} empty tags`,
+        ipAddress: ip,
+      });
+      return { status: "deleted" as const, tags: counts.total };
+    });
+  }
+
   static async getGroup(id: string) {
     const [group] = await db.select().from(propertyTagGroups).where(eq(propertyTagGroups.id, id)).limit(1);
     if (!group) return null;

@@ -3,8 +3,9 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
-import { AlertTriangle, ArrowLeft, Printer } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Download, Loader2 } from "lucide-react";
 import { useLanguage } from "@/lib/LanguageContext";
+import { buildTagSheetPdf } from "@/lib/property-tag-pdf";
 import {
   formatTagLabel,
   labelGridForPerPage,
@@ -45,6 +46,8 @@ export default function PrintSheet({ groupId, groupName, tags }: { groupId: stri
   const [series, setSeries] = useState<string>("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [building, setBuilding] = useState(false);
+  const [pdfError, setPdfError] = useState(false);
 
   const seriesList = useMemo(() => [...new Set(tags.map((tg) => tg.series))], [tags]);
   const grid = labelGridForPerPage(perPage);
@@ -66,6 +69,28 @@ export default function PrintSheet({ groupId, groupName, tags }: { groupId: stri
     for (let i = 0; i < selected.length; i += slots) out.push(selected.slice(i, i + slots));
     return out;
   }, [selected, slots]);
+
+  // Exact-size PDF: the browser's own print layout rescales and re-margins the
+  // page (and adds a header/footer), so cut-out stickers could drift.
+  async function downloadPdf() {
+    setBuilding(true);
+    setPdfError(false);
+    try {
+      const blob = await buildTagSheetPdf({ tags: selected, origin, grid, logoUrl: "/smocamt-logo-icon.png" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${groupName.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "") || "property-tags"}-tags.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    } catch {
+      setPdfError(true);
+    } finally {
+      setBuilding(false);
+    }
+  }
 
   const qr = grid.qrMm;
   const tooSmall = qr < MIN_RECOMMENDED_QR_MM;
@@ -134,9 +159,12 @@ export default function PrintSheet({ groupId, groupName, tags }: { groupId: stri
         {origin && looksLocal(origin) && <Warning text={t.adminPtPrintOriginWarning.replace("{origin}", origin)} />}
         <p style={{ fontSize: 12.5, color: "var(--text-muted)" }}>{t.adminPtPrintHint}</p>
 
-        <button className="btn btn-primary" onClick={() => window.print()} disabled={selected.length === 0 || !origin} style={{ alignSelf: "flex-start" }}>
-          <Printer size={18} /> {t.adminPtPrintBtn}
-        </button>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+          <button className="btn btn-primary" onClick={() => void downloadPdf()} disabled={selected.length === 0 || !origin || building}>
+            {building ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />} {building ? t.adminPtPdfBuilding : t.adminPtDownloadPdf}
+          </button>
+        </div>
+        {pdfError && <Warning text={t.adminPtPdfError} />}
         {selected.length === 0 && <p style={{ fontSize: 14, color: "var(--text-muted)" }}>{t.adminPtNoMatch}</p>}
       </div>
 
@@ -179,8 +207,7 @@ function Warning({ text }: { text: string }) {
   );
 }
 
-// Sizes are real millimetres so the printed sheet matches the on-screen
-// preview at 100% scale. Colours are literal black/white on purpose: the sheet
+// Sizes are real millimetres so the on-screen preview matches the PDF. Colours are literal black/white on purpose: the sheet
 // is paper, and must not follow the app's dark theme.
 const PRINT_CSS = `
 .pt-toolbar { display: flex; flex-direction: column; gap: 14px; max-width: 720px; margin-bottom: 24px; }
@@ -199,24 +226,4 @@ const PRINT_CSS = `
 .pt-label svg { display: block; }
 .pt-serial { font-weight: 800; letter-spacing: 0.02em; line-height: 1.1; }
 .pt-code { font-family: ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.08em; line-height: 1.1; color: #333; }
-
-@page { size: A4 portrait; margin: 10mm; }
-@media print {
-  /* Same flattening as the prize report: the admin shell is a fixed-height
-     scroll box, so drop its chrome and let every page reach the printer. */
-  html, body { background: #fff !important; height: auto !important; overflow: visible !important; }
-  body:has(.pt-print) header,
-  body:has(.pt-print) aside,
-  body:has(.pt-print) nav,
-  .no-print { display: none !important; }
-  body:has(.pt-print) div:has(> main),
-  body:has(.pt-print) main {
-    display: block !important; height: auto !important; overflow: visible !important;
-    padding: 0 !important; background: #fff !important;
-  }
-  .pt-pages { display: block; gap: 0; overflow: visible; padding: 0; }
-  .pt-page { box-shadow: none; break-after: page; page-break-after: always; }
-  .pt-page:last-child { break-after: auto; page-break-after: auto; }
-  .pt-print { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-}
 `;

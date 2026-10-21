@@ -9,8 +9,9 @@ import { formatTagLabel } from "@/lib/property-tag";
 export const dynamic = "force-dynamic";
 
 // GET   /api/admin/property-tags/[id] — the group and every tag in it, with owner.
-// PATCH /api/admin/property-tags/[id] — rename / re-describe / archive. There is
-//       no DELETE: stickers already on bags must keep resolving.
+// PATCH /api/admin/property-tags/[id] — rename / re-describe / archive.
+// DELETE /api/admin/property-tags/[id] — only while no tag has an owner, because
+//       stickers already on bags must keep resolving.
 
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
@@ -62,5 +63,23 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
     captureException(e, { route: "PATCH /api/admin/property-tags/[id]" });
     return NextResponse.json({ error: "Failed to update group" }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const staff = await resolvePropertyTagStaff();
+    if (!staff) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { id } = await params;
+    if (!UUID_PATTERN.test(id)) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const result = await PropertyTagsService.deleteGroup(id, staff.userId, getClientIp(req));
+    if (result.status === "not_found") return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (result.status === "has_assigned") {
+      return NextResponse.json({ error: "Group has assigned tags", assigned: result.assigned }, { status: 409 });
+    }
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    captureException(e, { route: "DELETE /api/admin/property-tags/[id]" });
+    return NextResponse.json({ error: "Failed to delete group" }, { status: 500 });
   }
 }

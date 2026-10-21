@@ -47,6 +47,8 @@ export default function PropertyTagGroupClient({ groupId }: { groupId: string })
   const [genMessage, setGenMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(50);
   const [managing, setManaging] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -135,6 +137,14 @@ export default function PropertyTagGroupClient({ groupId }: { groupId: string })
       return [tg.label, tg.code, tg.ownerName, tg.ownerStudentId].some((v) => v?.toLowerCase().includes(q));
     });
   }, [tags, filter, query]);
+
+  // Pagination: a group can hold a thousand+ tags, so only one page is in the DOM.
+  // `page` is clamped on read, so a shrinking filter can never strand the view
+  // past the last page.
+  const lastPage = Math.max(0, Math.ceil(visible.length / pageSize) - 1);
+  const safePage = Math.min(page, lastPage);
+  const pageStart = safePage * pageSize;
+  const pageRows = visible.slice(pageStart, pageStart + pageSize);
 
   const assignedCount = tags.filter((tg) => tg.ownerId).length;
   const fmtDate = (d: string) =>
@@ -274,7 +284,7 @@ export default function PropertyTagGroupClient({ groupId }: { groupId: string })
               {(["all", "assigned", "empty"] as const).map((f) => (
                 <button
                   key={f}
-                  onClick={() => setFilter(f)}
+                  onClick={() => { setFilter(f); setPage(0); }}
                   aria-pressed={filter === f}
                   style={{
                     padding: "6px 12px",
@@ -293,7 +303,7 @@ export default function PropertyTagGroupClient({ groupId }: { groupId: string })
             </div>
             <div style={{ position: "relative", flex: "1 1 220px", maxWidth: 360 }}>
               <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
-              <input className="input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t.adminPtSearchTags} aria-label={t.adminPtSearchTags} style={{ paddingLeft: 36 }} />
+              <input className="input" value={query} onChange={(e) => { setQuery(e.target.value); setPage(0); }} placeholder={t.adminPtSearchTags} aria-label={t.adminPtSearchTags} style={{ paddingLeft: 36 }} />
             </div>
             {seriesInGroup.length > 1 && (
               <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>{seriesInGroup.join(" · ")}</span>
@@ -304,7 +314,7 @@ export default function PropertyTagGroupClient({ groupId }: { groupId: string })
             <p style={{ fontSize: 14, color: "var(--text-muted)", padding: "16px 0" }}>{t.adminPtNoMatch}</p>
           ) : (
             <ul className="stat-card" style={{ listStyle: "none", padding: 0, overflow: "hidden" }}>
-              {visible.map((tg, i) => (
+              {pageRows.map((tg, i) => (
                 <li
                   key={tg.id}
                   style={{
@@ -337,6 +347,32 @@ export default function PropertyTagGroupClient({ groupId }: { groupId: string })
                 </li>
               ))}
             </ul>
+          )}
+
+          {visible.length > 0 && (
+            <nav aria-label={t.adminPtPageSize} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>
+                {t.adminPtShowing
+                  .replace("{from}", String(pageStart + 1))
+                  .replace("{to}", String(Math.min(pageStart + pageSize, visible.length)))
+                  .replace("{total}", String(visible.length))}
+              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <label htmlFor="pt-page-size" style={{ fontSize: 12.5, color: "var(--text-muted)" }}>{t.adminPtPageSize}</label>
+                <select
+                  id="pt-page-size"
+                  className="input"
+                  value={pageSize}
+                  onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }}
+                  style={{ width: "auto", padding: "6px 10px" }}
+                >
+                  {[25, 50, 100, 200].map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+                <button className="btn btn-ghost btn-sm" onClick={() => setPage(safePage - 1)} disabled={safePage === 0}>{t.adminPtPrev}</button>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{safePage + 1} / {lastPage + 1}</span>
+                <button className="btn btn-ghost btn-sm" onClick={() => setPage(safePage + 1)} disabled={safePage >= lastPage}>{t.adminPtNext}</button>
+              </div>
+            </nav>
           )}
         </section>
       )}

@@ -1657,6 +1657,17 @@ async function migrate() {
   await sql`CREATE INDEX IF NOT EXISTS idx_property_tags_owner ON property_tags (owner_user_id)`;
   console.log("  ✅ property_tag_groups + property_tags (unique code, unique series+serial, group/owner indexes)");
 
+  // 101. Welfare pricing (สวัสดิการ): shop_products.welfare_price is a nullable
+  // at-cost base price, welfare_roles a nullable jsonb of role keys that get it
+  // (NULL = no welfare, so every existing product is unchanged);
+  // shop_orders.welfare_applied marks orders priced that way, defaulting to false.
+  // See src/lib/shop/shop-welfare.ts. Mirrors drizzle/0049_tan_maverick.sql.
+  // Additive, idempotent, non-destructive.
+  await sql`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS welfare_price integer`;
+  await sql`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS welfare_roles jsonb`;
+  await sql`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS welfare_applied boolean NOT NULL DEFAULT false`;
+  console.log("  ✅ shop_products.welfare_price / welfare_roles, shop_orders.welfare_applied");
+
   console.log("✅ Migration complete!");
   await sql.end();
   process.exit(0);

@@ -82,6 +82,8 @@ export async function GET() {
       deliveryFee: p.deliveryFee ?? null,
       deliveryTiers: p.deliveryTiers ?? [],
       bundleDeals: p.bundleDeals ?? [],
+      welfarePrice: p.welfarePrice ?? null,
+      welfareRoles: p.welfareRoles ?? [],
       sortOrder: p.sortOrder,
       ownerClubIds: p.ownerClubIds ?? [],
       ownerMajors: p.ownerMajors ?? [],

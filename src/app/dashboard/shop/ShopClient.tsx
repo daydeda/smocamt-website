@@ -20,6 +20,9 @@ import {
 interface Variant { id: string; label: string; remaining: number | null; allowCustom?: boolean; priceDelta?: number }
 interface Product {
   id: string; name: string; description: string; price: number;
+  // Set only when the buyer's roles qualify for a welfare price (สวัสดิการ):
+  // `price` is then the welfare price and `normalPrice` the usual one.
+  welfare?: boolean; normalPrice?: number;
   imageUrls: string[]; maxPerOrder: number | null; variants: Variant[];
   opensAt?: string | null; closesAt?: string | null; saleStatus?: "open" | "upcoming" | "closed";
   customFields?: ShopCustomField[];
@@ -62,6 +65,17 @@ const priceLabel = (p: Product) => {
   const max = Math.max(...prices);
   return min === max ? baht(min) : `${baht(min)} – ${baht(max)}`;
 };
+// Welfare-priced products show the usual price struck through beside the welfare one.
+const WelfarePrice = ({ p, th }: { p: Product; th: boolean }) => (
+  <>
+    {priceLabel(p)}
+    {p.welfare && p.normalPrice != null && (
+      <span style={{ fontSize: "0.7em", fontWeight: 600, color: "var(--text-muted)", textDecoration: "line-through", marginLeft: 8 }} title={th ? "ราคาปกติ" : "Regular price"}>
+        {baht(p.normalPrice)}
+      </span>
+    )}
+  </>
+);
 
 export default function ShopClient() {
   const { lang } = useLanguage();
@@ -324,7 +338,7 @@ function ProductCard({ product, th, onOpen }: { product: Product; th: boolean; o
             </span>
           </>
         )}
-        <p style={{ fontWeight: 800, fontSize: 16, color: "var(--accent-primary)", marginTop: "auto" }}>{priceLabel(product)}</p>
+        <p style={{ fontWeight: 800, fontSize: 16, color: "var(--accent-primary)", marginTop: "auto" }}><WelfarePrice p={product} th={th} /></p>
         {(product.bundleDeals?.length ?? 0) > 0 && <BundleDealBadges deals={product.bundleDeals!} variants={product.variants} th={th} />}
       </div>
     </div>
@@ -525,7 +539,7 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
               </div>
 
               <p style={{ fontWeight: 800, fontSize: 22, color: "var(--accent-primary)", marginBottom: 12 }}>
-                {priceLabel(product)}
+                <WelfarePrice p={product} th={th} />
               </p>
               {(product.bundleDeals?.length ?? 0) > 0 && (
                 <div style={{ marginTop: -4, marginBottom: 12 }}>

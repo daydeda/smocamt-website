@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { buildViewer, isEligibleFor } from "@/lib/access/event-access";
+import { hasWelfarePrice, qualifiesForWelfare } from "@/lib/shop/shop-welfare";
 import { ShopService } from "@/modules/shop/shop.service";
 import { UsersService } from "@/modules/users/users.service";
 import { NextResponse } from "next/server";
@@ -25,12 +26,14 @@ export async function GET() {
 
     // Major lives on the users row (not on the session token); needed for the
     // major-based visibility check. Roles + studentId come from the session.
-    const me = await UsersService.getMajorById(session.user.id!);
+    const me = await UsersService.getShopBuyerProfile(session.user.id!);
     const viewer = buildViewer({
       roles: session.user.roles || [session.user.role || "student"],
       studentId: session.user.studentId,
       major: me?.major,
     });
+    // Welfare is decided off the DB roles (fresh), not the session token.
+    const buyerRoles = me?.roles ?? [];
 
     const activeProducts = await ShopService.listActiveApprovedProducts();
 
@@ -60,11 +63,17 @@ export async function GET() {
     const soldByVariant = new Map(soldRows.map((r) => [r.variantId, Number(r.sold)]));
 
     const now = new Date();
-    const result = products.map((p) => ({
+    const result = products.map((p) => {
+      // The price THIS buyer pays: the welfare price when their roles qualify, so
+      // every client-side estimate (and the bundle math) uses the real figure.
+      const welfare = hasWelfarePrice(p) && qualifiesForWelfare(p, buyerRoles);
+      return {
       id: p.id,
       name: p.name,
       description: p.description,
-      price: p.price,
+      price: welfare ? p.welfarePrice! : p.price,
+      // Shown struck-through beside the welfare price. Only present when it applies.
+      ...(welfare ? { normalPrice: p.price, welfare: true } : {}),
       imageUrls: p.imageUrls ?? (p.imageUrl ? [p.imageUrl] : []),
       maxPerOrder: p.maxPerOrder,
       opensAt: p.opensAt,
@@ -90,7 +99,8 @@ export async function GET() {
           // null stock = unlimited; otherwise remaining after committed units.
           remaining: v.stock == null ? null : Math.max(0, v.stock - (soldByVariant.get(v.id) ?? 0)),
         })),
-    }));
+      };
+    });
 
     return NextResponse.json({
       enabled: true,

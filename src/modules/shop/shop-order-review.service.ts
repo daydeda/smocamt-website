@@ -5,6 +5,13 @@ import { validateCustomAnswers } from "@/lib/shop/shop-custom-fields";
 import { computeProductDeliveryFee } from "@/lib/shop/shop-delivery";
 import { computeBundleDiscount } from "@/lib/shop/shop-promotions";
 import { blocksPaymentReview } from "@/lib/shop/shop-fulfillment";
+import { applyWelfare } from "@/lib/shop/shop-welfare";
+
+// An order that was welfare-priced at checkout keeps its welfare price on later
+// edits, even if the buyer's roles changed since. Assume the buyer qualifies
+// for each product's own welfare roles (the snapshot decision was made then).
+const welfareKept = <T extends { price: number; welfarePrice: number | null; welfareRoles: string[] | null }>(p: T) =>
+  applyWelfare(p, p.welfareRoles ?? []);
 import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 
 const LABEL_BY_ACTION = { approve: "Approved", reject: "Rejected", revert: "Reverted to pending" } as const;
@@ -178,7 +185,7 @@ export class ShopOrderReviewService {
       // transaction), so a suspension — or a second concurrent edit — can't
       // race an in-flight correction.
       const [lockedOrder] = await tx
-        .select({ sellerId: shopOrders.sellerId, status: shopOrders.status, fulfillment: shopOrders.fulfillment, shippingFee: shopOrders.shippingFee, discountAmount: shopOrders.discountAmount })
+        .select({ sellerId: shopOrders.sellerId, status: shopOrders.status, fulfillment: shopOrders.fulfillment, shippingFee: shopOrders.shippingFee, discountAmount: shopOrders.discountAmount, welfareApplied: shopOrders.welfareApplied })
         .from(shopOrders)
         .where(eq(shopOrders.id, id))
         .limit(1)
@@ -240,7 +247,10 @@ export class ShopOrderReviewService {
       const products = productIds.length
         ? await tx.select().from(shopProducts).where(inArray(shopProducts.id, productIds))
         : [];
-      const productById = new Map(products.map((p) => [p.id, p]));
+      // A welfare order keeps its welfare base price when a line is re-priced or
+      // the bundle discount is recomputed (both read product.price). The order
+      // was priced at checkout, so the welfare is kept as-applied on that order.
+      const productById = new Map(products.map((p) => [p.id, lockedOrder.welfareApplied ? welfareKept(p) : p]));
 
       // A swap must stay within the same product as the item being edited.
       for (const edit of data.items) {
@@ -328,7 +338,7 @@ export class ShopOrderReviewService {
         const missingProductIds = [...qtyByProduct.keys()].filter((pid) => !productById.has(pid));
         if (missingProductIds.length) {
           const extraProducts = await tx.select().from(shopProducts).where(inArray(shopProducts.id, missingProductIds));
-          for (const p of extraProducts) productById.set(p.id, p);
+          for (const p of extraProducts) productById.set(p.id, lockedOrder.welfareApplied ? welfareKept(p) : p);
         }
 
         // A deal's reference price is its cheapest eligible option, so pass ALL of

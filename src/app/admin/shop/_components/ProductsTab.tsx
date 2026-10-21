@@ -6,7 +6,7 @@ import { RichTextEditor } from "@/components/RichTextEditor";
 import type { ShopCustomFieldType } from "@/lib/shop/shop-custom-fields";
 import { normalizeTiers } from "@/lib/shop/shop-delivery";
 import { findBundleScopeConflict } from "@/lib/shop/shop-promotions";
-import { Package, ReceiptText, Plus, Trash2, Pencil, Upload, Loader2, X, CheckCircle2, XCircle, Clock, GripVertical, Save, Download, Truck, Users, Tag } from "lucide-react";
+import { Package, ReceiptText, Plus, Trash2, Pencil, Upload, Loader2, X, CheckCircle2, XCircle, Clock, GripVertical, Save, Download, Truck, Users, Tag, HeartHandshake } from "lucide-react";
 import { baht, adminPriceLabel, ownerLabel, PAGE_SIZE, isAudienceLimited, type AdminVariant, type AdminProduct, type OwnerOptions, type ShopContext, type FieldDraft, type TierDraft, type DealDraft, type VariantDraft, newVariantKey, ALL_ROLES, ROLE_LABELS, ALL_MAJORS, toLocalInput, uploadImage, exportProductXlsx } from "./shop-model";
 import { Field, SectionDivider, Spinner, Pagination, Chip, inputStyle, ownerChip } from "./ui";
 
@@ -137,7 +137,7 @@ export function ProductsTab({ th, ctx }: { th: boolean; ctx: ShopContext | null 
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontWeight: 700, fontSize: 15, overflowWrap: "anywhere", wordBreak: "break-word" }}>{p.name} {!p.isActive && <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>({th ? "ซ่อน" : "hidden"})</span>}{isAudienceLimited(p) && <span title={th ? "จำกัดผู้เห็น (บทบาท/สาขา/นักศึกษา)" : "Limited audience (roles/majors/students)"} style={{ fontSize: 11, color: "var(--accent-primary)", fontWeight: 700 }}> · {th ? "จำกัดผู้เห็น" : "limited"}</span>}<span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700 }}> · {p.sellerName || ownerLabel(p, ownerOptions, th)}</span></p>
                 <p style={{ fontSize: 13, color: "var(--text-muted)", overflowWrap: "anywhere", wordBreak: "break-word" }}>
-                  {adminPriceLabel(p)}{(p.bundleDeals ?? []).map((d) => ` · ${th ? `${d.qty} ชิ้น ${baht(d.price)}` : `${d.qty} for ${baht(d.price)}`}${d.variantIds ? ` (${p.variants.filter((v) => v.id && d.variantIds!.includes(v.id)).map((v) => v.label).join(", ")})` : ""}`).join("")} · {p.variants.map((v) => `${v.label}${v.stock != null ? ` ${Math.max(0, v.stock - (v.sold ?? 0))}/${v.stock}` : ""}`).join(", ")}
+                  {adminPriceLabel(p)}{p.welfarePrice != null && (p.welfareRoles?.length ?? 0) > 0 ? ` · ${th ? "สวัสดิการ" : "welfare"} ${baht(p.welfarePrice)} (${p.welfareRoles.map((r) => ROLE_LABELS[r] ?? r).join(", ")})` : ""}{(p.bundleDeals ?? []).map((d) => ` · ${th ? `${d.qty} ชิ้น ${baht(d.price)}` : `${d.qty} for ${baht(d.price)}`}${d.variantIds ? ` (${p.variants.filter((v) => v.id && d.variantIds!.includes(v.id)).map((v) => v.label).join(", ")})` : ""}`).join("")} · {p.variants.map((v) => `${v.label}${v.stock != null ? ` ${Math.max(0, v.stock - (v.sold ?? 0))}/${v.stock}` : ""}`).join(", ")}
                   {p.maxPerOrder != null ? ` · ${th ? "จำกัด" : "max"} ${p.maxPerOrder}/${th ? "คน" : "person"}` : ""}
                 </p>
                 {(p.sellerId || p.approvalStatus !== "approved") && (
@@ -216,6 +216,8 @@ export function ProductForm({ th, product, ownerOptions, scoped, requiresOwner, 
   const [bundleDeals, setBundleDeals] = useState<DealDraft[]>(
     (product?.bundleDeals ?? []).map((d) => ({ qty: String(d.qty), price: String(d.price), keys: d.variantIds ?? null }))
   );
+  const [welfarePrice, setWelfarePrice] = useState<string>(product?.welfarePrice != null ? String(product.welfarePrice) : "");
+  const [welfareRoles, setWelfareRoles] = useState<string[]>(product?.welfareRoles ?? []);
   const [variants, setVariants] = useState<VariantDraft[]>(
     product?.variants?.length
       ? product.variants.map((v) => ({ ...v, key: v.id ?? newVariantKey() }))
@@ -271,6 +273,9 @@ export function ProductForm({ th, product, ownerOptions, scoped, requiresOwner, 
       setError(th ? "โปรโมชันแต่ละอันต้องใช้กับตัวเลือกชุดเดียวกันทั้งหมด หรือแยกกันคนละตัวเลือกเลย (เช่น \"ทุกตัวเลือก\" คู่กับ \"เฉพาะสกรีน\" ไม่ได้)" : "Promotions must cover exactly the same options or completely different ones (e.g. not \"all options\" plus \"only Screen print\").");
       return;
     }
+    const welfareNum = welfarePrice.trim() === "" ? null : Math.max(0, Math.round(Number(welfarePrice) || 0));
+    if (welfareNum != null && welfareRoles.length === 0) { setError(th ? "เลือกบทบาทที่ได้รับสวัสดิการ หรือเว้นราคาสวัสดิการว่าง" : "Pick the roles that get the welfare price, or leave its price blank"); return; }
+    if (welfareNum != null && welfareNum >= (Math.round(price) || 0)) { setError(th ? "ราคาสวัสดิการต้องต่ำกว่าราคาปกติ" : "The welfare price must be lower than the normal price"); return; }
     if (requiresOwner && ownerClubIds.length === 0 && ownerMajors.length === 0) { setError(th ? "เลือกชมรมหรือสาขาที่เป็นเจ้าของสินค้านี้" : "Pick the club or major that owns this product"); return; }
     setSaving(true);
     try {
@@ -314,6 +319,9 @@ export function ProductForm({ th, product, ownerOptions, scoped, requiresOwner, 
           price: Math.max(0, Math.round(Number(d.price) || 0)),
           ...(d.keys ? { variantIndexes: liveKeys(d.keys).map((k) => variants.findIndex((v) => v.key === k)) } : {}),
         })),
+        // Welfare: blank price or no roles = off. Only the chosen roles get it.
+        welfarePrice: welfareNum,
+        welfareRoles: welfareNum != null ? welfareRoles : [],
         sortOrder: product?.sortOrder ?? 0,
         ownerClubIds,
         ownerMajors,
@@ -346,6 +354,9 @@ export function ProductForm({ th, product, ownerOptions, scoped, requiresOwner, 
     : filledDeals.map((d) => (th ? `${d.qty} ชิ้น ${baht(Number(d.price) || 0)}` : `${d.qty} for ${baht(Number(d.price) || 0)}`) + (d.keys && liveKeys(d.keys).length ? ` (${liveKeys(d.keys).map(labelOf).join(", ")})` : "")).join(" · ");
   const filledFields = customFields.filter((f) => f.label.trim()).length;
   const fieldsSummary = filledFields === 0 ? (th ? "ไม่มี" : "None") : `${filledFields} ${th ? "ช่อง" : filledFields === 1 ? "field" : "fields"}`;
+  const welfareSummary = welfarePrice.trim() === "" || welfareRoles.length === 0
+    ? (th ? "ไม่มี" : "None")
+    : `${baht(Math.max(0, Math.round(Number(welfarePrice) || 0)))} · ${welfareRoles.map((r) => ROLE_LABELS[r] ?? r).join(", ")}`;
   const audienceLimited = allowedRoles.length > 0 || allowedMajors.length > 0 || !targetThai || !targetInternational;
   const audienceSummary = audienceLimited ? (th ? "จำกัดผู้เห็น" : "Limited") : (th ? "ทุกคน" : "Everyone");
 
@@ -651,6 +662,25 @@ export function ProductForm({ th, product, ownerOptions, scoped, requiresOwner, 
             <button onClick={() => setCustomFields((fs) => [...fs, { label: "", type: "text", required: false, maxLength: null, min: null, max: null, options: [] }])} className="btn btn-ghost" style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13 }}>
               <Plus size={15} />{th ? "เพิ่มช่องกรอกเอง" : "Add custom field"}
             </button>
+          </div>
+
+          {/* Welfare pricing (สวัสดิการ) — an at-cost price for chosen roles only. The
+              storefront sends the welfare price to those buyers alone. */}
+          <SectionDivider icon={<HeartHandshake size={15} />} title={th ? "สวัสดิการ (ราคาพิเศษเฉพาะบทบาท)" : "Welfare price (for chosen roles)"} summary={welfareSummary} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Field label={th ? "ราคาสวัสดิการ (฿)" : "Welfare price (฿)"} hint={th ? "เว้นว่าง = ไม่มีสวัสดิการ · ต้องต่ำกว่าราคาปกติ" : "Blank = no welfare · must be lower than the normal price"}>
+              <input type="number" min={0} value={welfarePrice} onChange={(e) => setWelfarePrice(e.target.value)} placeholder={th ? "เช่น ราคาต้นทุน" : "e.g. at-cost price"} style={{ ...inputStyle, width: 220 }} />
+            </Field>
+            <div>
+              <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>{th ? "บทบาทที่ได้รับสวัสดิการ" : "Roles that get the welfare price"}</p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {ALL_ROLES.map((r) => (
+                  <Chip key={r} selected={welfareRoles.includes(r)} onClick={() => setWelfareRoles((cur) => cur.includes(r) ? cur.filter((x) => x !== r) : [...cur, r])}>
+                    {ROLE_LABELS[r] ?? r}
+                  </Chip>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* Audience targeting — who may see (and order) this product. Empty role

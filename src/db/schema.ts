@@ -762,6 +762,13 @@ export const shopProducts = pgTable("shop_products", {
   // per product across its variants within one order; the buyer gets the cheapest
   // mix of deals + singles. NULL/[] = no promotion. See src/lib/shop-promotions.ts.
   bundleDeals: jsonb("bundle_deals").$type<ShopBundleDeal[]>(),
+  // Welfare pricing (สวัสดิการ) — an at-cost base price (฿) charged in place of
+  // `price` to buyers holding ANY role in welfareRoles. Variant surcharges still
+  // apply on top; bundle deals are computed off the welfare base. NULL price or
+  // empty roles = no welfare. Only qualifying buyers' storefronts receive it.
+  // See src/lib/shop/shop-welfare.ts.
+  welfarePrice: integer("welfare_price"),
+  welfareRoles: jsonb("welfare_roles").$type<string[]>(),
   sortOrder: integer("sort_order").notNull().default(0),
   // President ownership scope (mirrors events.ownerClubIds/ownerMajors). Answers
   // "which club/major owns this product" for admin-side scoping only — it does
@@ -887,6 +894,10 @@ export const shopOrders = pgTable("shop_orders", {
   // Snapshot of the bundle-promotion saving (฿) at checkout. Order lines keep their
   // full unitPrice; totalAmount = SUM(lines) − discountAmount + shippingFee.
   discountAmount: integer("discount_amount").notNull().default(0),
+  // True when at least one line was priced at a welfare price (the buyer held a
+  // welfare role at checkout). An admin edit keeps the welfare price for this
+  // order. See src/lib/shop/shop-welfare.ts.
+  welfareApplied: boolean("welfare_applied").notNull().default(false),
   reviewedBy: text("reviewed_by"),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
   rejectionReason: text("rejection_reason"),

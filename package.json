@@ -1,6 +1,6 @@
 {
   "name": "activecamt",
-  "version": "2.26.4",
+  "version": "2.27.0",
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",

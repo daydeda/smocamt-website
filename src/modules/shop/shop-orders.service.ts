@@ -8,6 +8,7 @@ import { nextFulfillmentStatus } from "@/lib/shop/shop-fulfillment";
 import { autoConfirmDueShipments } from "@/lib/shop/shop-fulfillment-server";
 import { classifySlipAmount } from "@/lib/shop/shop-slip-amount";
 import { classifySlip } from "@/lib/shop/shop-slip-verify";
+import { applyWelfare } from "@/lib/shop/shop-welfare";
 import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 
 // Advisory-lock namespace (int4) for serializing a single buyer's concurrent shop
@@ -112,6 +113,8 @@ export class ShopOrdersService {
   static async createOrder(params: {
     buyerId: string;
     viewer: Viewer;
+    /** The buyer's roles (from the DB): a product's welfare price applies when one matches. */
+    buyerRoles: string[];
     data: {
       slipPath: string;
       note?: string;
@@ -130,7 +133,7 @@ export class ShopOrdersService {
     slipFlag: ReturnType<typeof classifySlip>;
   }) {
     const {
-      buyerId, viewer, data, variantIds, qtyByVariant, customByVariant, customFieldsByVariant,
+      buyerId, viewer, buyerRoles, data, variantIds, qtyByVariant, customByVariant, customFieldsByVariant,
       slipHash, slipQrPayload, slipAmounts, slipFlag,
     } = params;
     return db.transaction(async (tx) => {
@@ -167,7 +170,11 @@ export class ShopOrdersService {
         .select()
         .from(shopProducts)
         .where(inArray(shopProducts.id, productIds));
-      const productById = new Map(products.map((p) => [p.id, p]));
+      // Price every product as THIS buyer is charged for it: a buyer with a welfare
+      // role gets the welfare base price, which the unit price and the bundle
+      // discount below both read through product.price.
+      const productById = new Map(products.map((p) => [p.id, applyWelfare(p, buyerRoles)]));
+      const welfareApplied = products.some((p) => productById.get(p.id)!.price !== p.price);
 
       const sellerKeys = new Set(products.map((product) => product.sellerId ?? "central"));
       if (sellerKeys.size !== 1) {
@@ -370,6 +377,7 @@ export class ShopOrdersService {
           shippingAddress,
           shippingFee,
           discountAmount,
+          welfareApplied,
         })
         .returning({ id: shopOrders.id });
 

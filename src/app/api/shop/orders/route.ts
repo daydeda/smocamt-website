@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { buildViewer } from "@/lib/access/event-access";
 import { readSlipAmounts } from "@/lib/shop/shop-slip-amount";
+
 import { classifySlip, decodeSlipQr, hashSlip, verifySlipMeta } from "@/lib/shop/shop-slip-verify";
 import { downloadSlip } from "@/lib/shop/shop-storage";
 import { getShopOrderAudienceUserIds } from "@/modules/notifications/push-audience";
@@ -81,6 +82,7 @@ export async function GET() {
       fulfillment: o.fulfillment,
       shippingFee: o.shippingFee,
       discountAmount: o.discountAmount,
+      welfareApplied: o.welfareApplied,
       recipientName: o.recipientName,
       recipientPhone: o.recipientPhone,
       shippingAddress: o.shippingAddress,
@@ -177,7 +179,7 @@ export async function POST(req: Request) {
 
     // Buyer's audience profile, for the per-product visibility re-check below
     // (defence-in-depth: the storefront already hides ineligible products).
-    const me = await UsersService.getMajorById(buyerId);
+    const me = await UsersService.getShopBuyerProfile(buyerId);
     const viewer = buildViewer({
       roles: session.user.roles || [session.user.role || "student"],
       studentId: session.user.studentId,
@@ -187,6 +189,8 @@ export async function POST(req: Request) {
     const created = await ShopOrdersService.createOrder({
       buyerId,
       viewer,
+      // Off the DB roles, never the client: this decides what the buyer pays.
+      buyerRoles: me?.roles ?? [],
       data,
       variantIds,
       qtyByVariant,

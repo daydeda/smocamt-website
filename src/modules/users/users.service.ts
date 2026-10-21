@@ -172,6 +172,21 @@ export class UsersService {
   }
 
   /**
+   * A shop buyer's major plus their CURRENT roles from the DB (not the session
+   * token, which can lag a role change). The roles decide SMO welfare pricing,
+   * which changes what the buyer is charged.
+   */
+  static async getShopBuyerProfile(userId: string) {
+    const row = await db.query.users.findFirst({
+      where: eq(users.id, userId),
+      columns: { major: true, role: true, roles: true },
+    });
+    if (!row) return undefined;
+    const roles = row.roles?.length ? row.roles : row.role ? [row.role] : [];
+    return { major: row.major, roles };
+  }
+
+  /**
    * Bulk student directory with PDPA-minimal columns. Contact info
    * (email/phone/contactChannels) is only included when `includeContact` is set
    * (super_admin only, decided by the caller).

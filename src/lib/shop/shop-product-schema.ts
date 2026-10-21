@@ -32,6 +32,10 @@ export const productSchema = z.object({
   deliveryTiers: z.array(deliveryTierSchema).max(8).default([]),
   // Bundle promotions ("buy N for ฿X"). Empty = no promotion. See shop-promotions.ts.
   bundleDeals: z.array(bundleDealSchema).max(5).default([]),
+  // Welfare price (สวัสดิการ): at-cost base ฿ for buyers holding one of
+  // welfareRoles. null price or empty roles = no welfare. See shop-welfare.ts.
+  welfarePrice: z.number().int().min(0).max(1_000_000).nullable().default(null),
+  welfareRoles: z.array(z.string().max(40)).max(10).default([]),
   sortOrder: z.number().int().default(0),
   // President ownership scope (admin-side only — does NOT gate storefront
   // visibility). Empty both = "central" product (super_admin/admin only). The

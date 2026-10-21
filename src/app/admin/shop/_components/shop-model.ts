@@ -110,6 +110,9 @@ export interface AdminProduct {
   deliveryFee: number | null; deliveryTiers: ShopDeliveryTier[];
   // Bundle promotions — "buy N for ฿X" (e.g. 3 for ฿100). Empty = none.
   bundleDeals: ShopBundleDeal[];
+  // Welfare price (สวัสดิการ): at-cost ฿ charged to buyers holding any of
+  // welfareRoles. null / empty roles = no welfare.
+  welfarePrice: number | null; welfareRoles: string[];
   // President ownership scope (admin-side only). Empty both = "central" (SMO)
   // product. Drives which club_president/major_president may manage it + its orders.
   ownerClubIds: string[]; ownerMajors: string[];

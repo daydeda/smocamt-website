@@ -281,6 +281,13 @@
       "when": 1792577645536,
       "tag": "0048_steady_red_wolf",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1792623038864,
+      "tag": "0049_tan_maverick",
+      "breakpoints": true
     }
   ]
 }

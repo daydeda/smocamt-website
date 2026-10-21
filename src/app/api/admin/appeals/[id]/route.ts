@@ -1,12 +1,10 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { attendance, noShowAppeals, users } from "@/db/schema";
 import { effectiveRoles } from "@/lib/access/admin-access";
-import { NO_SHOW_STRIKE_THRESHOLD, RESOLVE_APPEALS_ROLES } from "@/lib/points/strikes";
-import { AuditService, getClientIp } from "@/modules/audit/audit.service";
+import { RESOLVE_APPEALS_ROLES } from "@/lib/points/strikes";
+import { getClientIp } from "@/modules/audit/audit.service";
+import { AlreadyResolvedError, AppealsService } from "@/modules/appeals/appeals.service";
 import { EventScopeService } from "@/modules/events/event-scope.service";
 import { PushService } from "@/modules/notifications/push.service";
-import { and, eq } from "drizzle-orm";
 import { after, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -14,10 +12,6 @@ const resolveSchema = z.object({
   action: z.enum(["approve", "reject"]),
   note: z.string().max(500).optional(),
 });
-
-// Thrown inside the transaction when the appeal was resolved by a concurrent
-// request between the pre-check and the update (double-click, two admins).
-class AlreadyResolvedError extends Error {}
 
 // PATCH /api/admin/appeals/[id] — approve or reject a student's no-show appeal
 // for ONE event. Approving resolves the appeal, decrements the student's
@@ -52,11 +46,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const { id } = await params;
     const data = resolveSchema.parse(await req.json());
 
-    const appeal = await db.query.noShowAppeals.findFirst({
-      where: eq(noShowAppeals.id, id),
-      columns: { id: true, userId: true, eventId: true, status: true, noShowCountAtAppeal: true },
-      with: { event: { columns: { title: true, ownerClubIds: true, ownerMajors: true } } },
-    });
+    const appeal = await AppealsService.getAppealForResolve(id);
     if (!appeal) {
       return NextResponse.json({ error: "Appeal not found" }, { status: 404 });
     }
@@ -83,62 +73,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     const newStatus = data.action === "approve" ? "approved" : "rejected";
 
-    await db.transaction(async (tx) => {
-      // Re-assert 'pending' inside the transaction (not just the pre-check above) so
-      // a concurrent PATCH on the same appeal — double-click, or two admins — can't
-      // silently overwrite an already-resolved outcome (e.g. a reject clobbering an
-      // approve that already decremented the student's strikes).
-      const [updated] = await tx
-        .update(noShowAppeals)
-        .set({
-          status: newStatus,
-          reviewedBy: session!.user!.id!,
-          reviewedAt: new Date(),
-          reviewNote: data.note ?? null,
-        })
-        .where(and(eq(noShowAppeals.id, id), eq(noShowAppeals.status, "pending")))
-        .returning({ id: noShowAppeals.id });
-
-      if (!updated) {
-        throw new AlreadyResolvedError();
-      }
-
-      let action = `${data.action === "approve" ? "Approved" : "Rejected"} no-show appeal ${id}`;
-
-      if (data.action === "approve") {
-        const [student] = await tx
-          .select({ noShowCount: users.noShowCount })
-          .from(users)
-          .where(eq(users.id, appeal.userId));
-        const newCount = Math.max(0, (student?.noShowCount ?? 0) - 1);
-        const newBlocked = newCount >= NO_SHOW_STRIKE_THRESHOLD;
-
-        await tx
-          .update(users)
-          .set({ noShowCount: newCount, registrationBlocked: newBlocked })
-          .where(eq(users.id, appeal.userId));
-
-        // Clears the event of its no-show mark so it stops counting toward
-        // future strike displays; a multi-session event may have flipped more
-        // than one attendance row when the strike was originally applied.
-        await tx
-          .update(attendance)
-          .set({ status: "excused" })
-          .where(and(
-            eq(attendance.studentId, appeal.userId),
-            eq(attendance.eventId, appeal.eventId!),
-            eq(attendance.status, "no_show"),
-          ));
-
-        action += `, removed 1 strike for event ${appeal.eventId} (was ${student?.noShowCount ?? 0}/${NO_SHOW_STRIKE_THRESHOLD}, now ${newCount}/${NO_SHOW_STRIKE_THRESHOLD})`;
-      }
-
-      await AuditService.logActionInternal(tx, {
-        actorId: session!.user!.id!,
-        targetId: appeal.userId,
-        action,
-        ipAddress: getClientIp(req),
-      });
+    await AppealsService.resolveAppeal({
+      id,
+      appeal,
+      action: data.action,
+      note: data.note,
+      newStatus,
+      reviewerId: session!.user!.id!,
+      ipAddress: getClientIp(req),
     });
 
     after(async () => {

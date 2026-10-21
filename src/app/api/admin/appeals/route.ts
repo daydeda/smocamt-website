@@ -1,10 +1,8 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { noShowAppeals } from "@/db/schema";
 import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 import { VIEW_APPEALS_ROLES } from "@/lib/points/strikes";
+import { AppealsService } from "@/modules/appeals/appeals.service";
 import { EventScopeService } from "@/modules/events/event-scope.service";
-import { desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -39,20 +37,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
 
-    const appeals = await db.query.noShowAppeals.findMany({
-      where: status ? eq(noShowAppeals.status, status) : undefined,
-      orderBy: [desc(noShowAppeals.createdAt)],
-      with: {
-        user: {
-          columns: { id: true, name: true, studentId: true, noShowCount: true, registrationBlocked: true },
-          with: { house: { columns: { id: true, name: true, color: true } } },
-        },
-        event: { columns: { id: true, title: true, endTime: true, ownerClubIds: true, ownerMajors: true } },
-        reviewer: {
-          columns: { id: true, name: true },
-        },
-      },
-    });
+    const appeals = await AppealsService.listForReview(status);
 
     const isUnscoped = myRoles.some((r) => ["super_admin", "admin", "registration", "smo"].includes(r))
       || isGlobalRegistrationPosition(myRoles, session.user.smoPosition, session.user.anusmoPosition);

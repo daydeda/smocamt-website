@@ -1,9 +1,7 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { attendance, events, noShowAppeals, users } from "@/db/schema";
+import { AppealsService } from "@/modules/appeals/appeals.service";
 import { getAppealAudienceUserIds } from "@/modules/notifications/push-audience";
 import { PushService } from "@/modules/notifications/push.service";
-import { and, desc, eq } from "drizzle-orm";
 import { after, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -27,11 +25,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const noShowRows = await db.query.attendance.findMany({
-      where: and(eq(attendance.studentId, session.user.id), eq(attendance.status, "no_show")),
-      columns: { id: true },
-      with: { event: { columns: { id: true, title: true, endTime: true } } },
-    });
+    const noShowRows = await AppealsService.listNoShowRowsForStudent(session.user.id);
 
     const eventById = new Map<string, { id: string; title: string; endTime: Date }>();
     for (const row of noShowRows) {
@@ -39,19 +33,7 @@ export async function GET() {
     }
 
     const appeals = eventById.size
-      ? await db.query.noShowAppeals.findMany({
-          where: and(eq(noShowAppeals.userId, session.user.id)),
-          orderBy: [desc(noShowAppeals.createdAt)],
-          columns: {
-            id: true,
-            eventId: true,
-            status: true,
-            message: true,
-            reviewNote: true,
-            createdAt: true,
-            reviewedAt: true,
-          },
-        })
+      ? await AppealsService.listAppealsForStudent(session.user.id)
       : [];
     // Most recent appeal per event (a rejected appeal can be re-submitted, so
     // there may be several for the same event over time).
@@ -86,20 +68,7 @@ export async function POST(req: Request) {
 
     const data = appealSchema.parse(await req.json());
 
-    const [student, noShowRow] = await Promise.all([
-      db.query.users.findFirst({
-        where: eq(users.id, session.user.id),
-        columns: { noShowCount: true },
-      }),
-      db.query.attendance.findFirst({
-        where: and(
-          eq(attendance.studentId, session.user.id),
-          eq(attendance.eventId, data.eventId),
-          eq(attendance.status, "no_show"),
-        ),
-        columns: { id: true },
-      }),
-    ]);
+    const { student, noShowRow } = await AppealsService.getStudentStrikeContext(session.user.id, data.eventId);
     if (!student || student.noShowCount <= 0 || !noShowRow) {
       return NextResponse.json(
         { error: "You don't have a no-show strike for this event to appeal." },
@@ -107,14 +76,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const existingPending = await db.query.noShowAppeals.findFirst({
-      where: and(
-        eq(noShowAppeals.userId, session.user.id),
-        eq(noShowAppeals.eventId, data.eventId),
-        eq(noShowAppeals.status, "pending"),
-      ),
-      columns: { id: true },
-    });
+    const existingPending = await AppealsService.findPendingAppeal(session.user.id, data.eventId);
     if (existingPending) {
       return NextResponse.json(
         { error: "You already have an appeal pending review for this event." },
@@ -122,21 +84,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const [appeal] = await db
-      .insert(noShowAppeals)
-      .values({
-        userId: session.user.id,
-        eventId: data.eventId,
-        message: data.message,
-        noShowCountAtAppeal: student.noShowCount,
-      })
-      .returning({ id: noShowAppeals.id, status: noShowAppeals.status, createdAt: noShowAppeals.createdAt });
+    const appeal = await AppealsService.createAppeal({
+      userId: session.user.id,
+      eventId: data.eventId,
+      message: data.message,
+      noShowCountAtAppeal: student.noShowCount,
+    });
 
     after(async () => {
-      const event = await db.query.events.findFirst({
-        where: eq(events.id, data.eventId),
-        columns: { title: true, ownerClubIds: true, ownerMajors: true },
-      });
+      const event = await AppealsService.getEventForNotification(data.eventId);
       const audience = await getAppealAudienceUserIds(event ?? null);
       await PushService.sendToUserIds(audience, {
         title: "New no-show appeal",

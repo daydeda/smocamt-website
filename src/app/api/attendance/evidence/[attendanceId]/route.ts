@@ -1,9 +1,7 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { attendance } from "@/db/schema";
 import { downloadFormFile } from "@/lib/forms/form-file-storage";
-import { eq } from "drizzle-orm";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
+import { EvidenceCheckinService } from "@/modules/events/evidence-checkin.service";
 import { NextResponse } from "next/server";
 import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 
@@ -38,7 +36,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ attendan
       return NextResponse.json({ error: "Invalid attendance id" }, { status: 400 });
     }
 
-    const row = await db.query.attendance.findFirst({ where: eq(attendance.id, attendanceId) });
+    const row = await EvidenceCheckinService.getAttendanceRow(attendanceId);
     if (!row || !row.evidenceFileKey) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }

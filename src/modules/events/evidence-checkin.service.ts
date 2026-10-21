@@ -104,4 +104,9 @@ export class EvidenceCheckinService {
 
     return { status: "success", checkedInAt };
   }
+
+  /** Loads one attendance row by id (evidence file view). */
+  static async getAttendanceRow(attendanceId: string) {
+    return db.query.attendance.findFirst({ where: eq(attendance.id, attendanceId) });
+  }
 }

@@ -210,7 +210,7 @@ Below is a breakdown of the responsibilities of each main file in the system, to
 
 ### 3.5 KAS Multi-Form System
 
-* **Main files:** `src/lib/form-schema.ts` (core logic), `src/lib/form-access.ts` (form access control), `src/app/api/admin/forms/route.ts` (admin-side form management), `src/app/api/events/[id]/form/route.ts` (student-side answer submission).
+* **Main files:** `src/lib/forms/form-schema.ts` (core logic), `src/lib/access/form-access.ts` (form access control), `src/app/api/admin/forms/route.ts` (admin-side form management), `src/app/api/events/[id]/form/route.ts` (student-side answer submission).
 * **Main responsibility:** create and process multiple form sets per event, with a Google Forms-style UI, supporting both pre- and post-activity evaluation.
 * **Internal logic:**
   * **4 form types:** `K_pre` (pre-test), `K_post` (post-test), `A` (attitude), `S` (skill — filled in by an evaluator).
@@ -223,7 +223,7 @@ Below is a breakdown of the responsibilities of each main file in the system, to
 
 ### 3.6 Secure QR & Check-in
 
-* **Main files:** `src/lib/qr-token.ts` (generate/verify token), `src/modules/users/users.service.ts` (find student from token), `src/modules/events/scanner.service.ts` (scan logic and quota enforcement).
+* **Main files:** `src/lib/qr/qr-token.ts` (generate/verify token), `src/modules/users/users.service.ts` (find student from token), `src/modules/events/scanner.service.ts` (scan logic and quota enforcement).
 * **Internal logic:**
   * **[SECURITY] TOTP-style HMAC QR token:** format `{userId}.{exp}.{signature}`, where the signature is the HMAC-SHA256 of the payload using `AUTH_SECRET`, rotating the window every 5 minutes (with a per-user offset spread to prevent simultaneous refreshes from overwhelming the server), a 30-second grace period, and a timing-safe check to prevent side-channel attacks; there is a fallback to a static UUID for manual check-in.
   * **Two-step check-in (Scan → Confirm):** the Scan step shows the student's health-alert info for the officer to review first, then Confirm records the actual check-in time, updating atomically only while the status is still `registered`.

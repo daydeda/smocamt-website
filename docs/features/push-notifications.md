@@ -210,7 +210,7 @@ Per `CLAUDE.md`, domain logic belongs in a module, not a route handler:
 - `src/modules/notifications/push.service.ts` — subscribe/unsubscribe, send,
   fan-out, pruning. (Deliberately *not* `src/lib/`; the shop/battle placement
   is called out in `CLAUDE.md` as an inconsistency not to copy.)
-- `src/lib/push-payload.ts` + `push-errors.ts` — pure helpers: payload builder,
+- `src/lib/push/push-payload.ts` + `push-errors.ts` — pure helpers: payload builder,
   dedupe-key builder, "which HTTP status means delete vs retry", the
   iOS-standalone capability predicate. These are the testable surface.
 - `src/app/api/notifications/push/subscribe|unsubscribe/route.ts`.
@@ -358,7 +358,7 @@ a userId to find their subscription, so it doesn't fully avoid the tradeoff),
 or accepting the reversal as a one-way, log-nothing lookup used only for
 sending push and never surfaced to any admin UI.
 
-**Existing precedent to fold into, not duplicate:** `src/lib/feedback-notify.ts`
+**Existing precedent to fold into, not duplicate:** `src/lib/feedback/feedback-notify.ts`
 already emails a shared staff inbox on exactly the two feedback triggers
 above, and its own header comment says it's "an interim channel until the app
 becomes a PWA with push notifications... swappable... without touching the
@@ -389,7 +389,7 @@ any one device's sign-out would wrongly kill push on their other, still-active
 devices.
 
 Corrected design (**Implemented**): the sign-out **button's click handler**
-(`src/lib/push-client.ts`'s `unsubscribePushBeforeSignOut`, wired into all
+(`src/lib/push/push-client.ts`'s `unsubscribePushBeforeSignOut`, wired into all
 three `signOut()` call sites — `StudentNav.tsx`, `OnboardingClient.tsx` ×2)
 first reads `registration.pushManager.getSubscription()`, and if one exists,
 calls `POST /api/notifications/push/unsubscribe` with that endpoint — while

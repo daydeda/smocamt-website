@@ -112,7 +112,7 @@ an auth gap both get a tier.
 - **Pool stays `max:5`** over the transaction pooler (`:6543`, `prepare:false`).
 - **Student-facing polls stay ≥60 s** with a low, bounded per-tick query count; prefer
   cacheable (`s-maxage`) responses for data shared across users.
-- `src/lib/rate-limit.ts` is **per-instance in-memory** — not a global limit on Vercel.
+- `src/lib/util/rate-limit.ts` is **per-instance in-memory** — not a global limit on Vercel.
 - Vercel Hobby has **no overage — it PAUSES at limits**; recommend Pro for a critical
   one-shot event. The binding Supabase risk is connection-holding by a slow/growing
   query, not raw query volume.

@@ -173,13 +173,13 @@ complaint contents they already see in `/admin/feedback`). Contrast with
 
 ### 5.1 Notification hook (SMTP)
 
-`src/lib/feedback-notify.ts` exposes two calls — `notifyNewComplaint(complaint)`
+`src/lib/feedback/feedback-notify.ts` exposes two calls — `notifyNewComplaint(complaint)`
 and `notifyComplaintResolved(complaint)` — each building a plain-text/HTML
 summary (category, severity, message, a row-id-derived short ref for
 cross-reference, **never** `submitter_ref` or anything else identity-bearing)
 and sending it via `nodemailer` SMTP to `smocamt.official@camt.info`. Both are
 called from the service layer (§6), not the route handler, and are
-**fail-open**: an SMTP error is logged (`src/lib/logger.ts`) but never blocks
+**fail-open**: an SMTP error is logged (`src/lib/util/logger.ts`) but never blocks
 or fails the submission/resolve request — same fail-open principle the
 project already applies to `rate-limit.ts`, since a notification channel must
 never become a reason a complaint fails to save. Kept as two narrow functions

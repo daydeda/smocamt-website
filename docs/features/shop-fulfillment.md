@@ -6,7 +6,7 @@
 `shop_orders.status` is only the **payment** review (`pending` → `approved`/`rejected`).
 Fulfilment is a separate column, `fulfillment_status`, that only moves once an order is
 `approved`. The transition table lives in one place, `nextFulfillmentStatus()` in
-`src/lib/shop-fulfillment.ts`, and both the UI buttons and every route use it.
+`src/lib/shop/shop-fulfillment.ts`, and both the UI buttons and every route use it.
 
 ## The three ways an order completes
 
@@ -44,7 +44,7 @@ every line of a finished order as handed, so orders that completed by buyer conf
 
 ## Carriers
 
-`SHOP_CARRIERS` in `src/lib/shop-fulfillment.ts`: Thailand Post (EMS / registered), Flash,
+`SHOP_CARRIERS` in `src/lib/shop/shop-fulfillment.ts`: Thailand Post (EMS / registered), Flash,
 KEX (formerly Kerry), J&T, SPX (Shopee Express), Ninja Van, a **same-day courier**
 option (Lalamove / Grab / LINE MAN, which give a tracking **link** instead of a number),
 and **Other** (the seller types the name).
@@ -87,7 +87,7 @@ Seller-supplied links must be `https://`.
   re-reads its lines under the lock: every line must belong to the scanned buyer, be the
   chosen product, be paid, and not be handed over yet. Unpaid and mailed lines are listed
   as "don't hand over" and can't be confirmed. The shared logic is `handOverItems()` /
-  `undoItemHandover()` in `src/lib/shop-fulfillment-server.ts`.
+  `undoItemHandover()` in `src/lib/shop/shop-fulfillment-server.ts`.
 - **Human-error guards at the counter:** the chosen product stays pinned at the top; size /
   option and quantity are the largest text; "already received", "not paid" and "sent by
   mail" show before the list; the confirm button states the item count; the same QR is

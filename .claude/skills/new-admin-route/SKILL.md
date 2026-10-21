@@ -71,7 +71,7 @@ export async function POST(req: Request) {
 If the route **reads medical detail** (`chronicDiseases`, `medicalHistory`, `drugAllergies`, `foodAllergies`, `dietaryRestrictions`, `faintingHistory`, `emergencyContacts`, `emergencyMedication`, `attendance.medsCheckOption`): it MUST be admin-only AND MUST write an audit log on the read. No exceptions (CLAUDE.md, PDPA). The `action` text logs field names only — never the medical values themselves.
 
 ## Notes & follow-up
-- If this is also a new admin **page/section** (not just an API), the 4 gating layers must move together — `src/proxy.ts`, the admin layout, the "Admin Panel" entry points, and `src/lib/admin-access.ts`. This skill scaffolds the API only; remind the user to update the others.
+- If this is also a new admin **page/section** (not just an API), the 4 gating layers must move together — `src/proxy.ts`, the admin layout, the "Admin Panel" entry points, and `src/lib/access/admin-access.ts`. This skill scaffolds the API only; remind the user to update the others.
 - Before shipping, run the `pdpa-access-guard` agent (its route + audit checklist covers this) and/or `/recheck`. Feature branch only.
 
 ## Output

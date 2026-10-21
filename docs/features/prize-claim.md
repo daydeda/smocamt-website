@@ -49,7 +49,7 @@ event"), once after the report turned out to need both an `.xlsx` and a PDF,
 once after `/verify`.
 
 **Known gaps:** the admin UI strings are hardcoded Thai rather than routed
-through `src/lib/i18n.ts` in all four languages (EN/TH/MM/CN) — deliberate for
+through `src/lib/i18n/i18n.ts` in all four languages (EN/TH/MM/CN) — deliberate for
 the booth screens, which are staffed in Thai, but it is a deviation from the
 repo's i18n rule and should get a proper pass. Only the nav label
 (`managePrizes`) is translated. The claim-list/รอรูป follow-up view and prize
@@ -116,12 +116,12 @@ prize now genuinely outlives the event.
 
 | Need | Reuse |
 |---|---|
-| Identify the student without typing | the rotating-HMAC QR (`src/lib/qr-token.ts`) + `ScannerService` |
-| Store the proof photo privately | private `form-uploads` bucket + `src/lib/form-file-storage.ts`, as `attendance.evidenceFileKey` does |
+| Identify the student without typing | the rotating-HMAC QR (`src/lib/qr/qr-token.ts`) + `ScannerService` |
+| Store the proof photo privately | private `form-uploads` bucket + `src/lib/forms/form-file-storage.ts`, as `attendance.evidenceFileKey` does |
 | Serve the photo safely | auth-guarded stream modelled on `api/attendance/evidence/[attendanceId]` |
 | Log who viewed it | `AuditService.logAction` |
-| Scope who may award | `EventScopeService`, `src/lib/event-access.ts`, `src/lib/admin-access.ts` |
-| Shrink the photo | `src/lib/compress-image.ts`, 5MB cap client + server |
+| Scope who may award | `EventScopeService`, `src/lib/access/event-access.ts`, `src/lib/access/admin-access.ts` |
+| Shrink the photo | `src/lib/media/compress-image.ts`, 5MB cap client + server |
 | Spreadsheet export | `exceljs` (photos must embed — see the report section); other exports keep `xlsx` |
 | PDF | none — a print-styled page, ⌘P from the browser |
 
@@ -367,14 +367,14 @@ Four layers move together (`proxy.ts` → admin layout → `admin-access.ts` →
 server-side route gates). Route gates remain the real source of truth.
 
 **`smo` is unscoped for prizes; a president tag never subtracts from a role the
-user also holds.** `src/lib/prize-scope.ts`'s `resolvePrizeAccess` treats `smo`
+user also holds.** `src/lib/prizes/prize-scope.ts`'s `resolvePrizeAccess` treats `smo`
 as unscoped regardless of what other roles the same account holds — an
 `smo` who is ALSO a `club_president`/`major_president` must still see and award
 at every prize table, not only the ones their club owns (this was a real bug:
 every prize/event-scoped route used to omit `smo` from its own inlined
 "unscoped" role list, so the moment the same account also held a president
 role, the narrower president scope won and hid everything else — see
-`isEventUnscopedStaff` in `src/lib/admin-access.ts` for the events-side fix).
+`isEventUnscopedStaff` in `src/lib/access/admin-access.ts` for the events-side fix).
 
 | Action | Who |
 |---|---|
@@ -389,7 +389,7 @@ role, the narrower president scope won and hid everything else — see
 confinement — `smo` may now reach `/admin/prizes` in addition to
 `/admin/scanner`, exactly the pattern `/admin/shop` already uses for
 `shop_seller`/`club_president`. AdminNav must show only those two entries for
-`smo`, and `src/lib/admin-access.ts` needs a new predicate (`canAwardPrizes`)
+`smo`, and `src/lib/access/admin-access.ts` needs a new predicate (`canAwardPrizes`)
 rather than an inline role-array copy — the predicate is what proxy, layout,
 and nav all import.
 
@@ -439,7 +439,7 @@ run on prod via `npm run db:migrate:container` from the Portainer console
 
 ## i18n
 
-All strings through `src/lib/i18n.ts` in EN/TH/MM/CN. TH is the operational
+All strings through `src/lib/i18n/i18n.ts` in EN/TH/MM/CN. TH is the operational
 language here (booth staff + the dean report), so write TH first and derive EN.
 
 ## Build order

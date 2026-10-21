@@ -17,14 +17,14 @@ Printed QR stickers that staff stick on a student's belongings (bag, phone, …)
 
 ## Rules
 
-- **Who can manage:** `super_admin`, `admin`, `registration`, `organizer`, `smo`, all with full rights (`PROPERTY_TAG_ROLES` in `src/lib/admin-access.ts`). Presidents and sellers are excluded. The server gate is `resolvePropertyTagStaff` (`src/lib/property-tag-access.ts`).
+- **Who can manage:** `super_admin`, `admin`, `registration`, `organizer`, `smo`, all with full rights (`PROPERTY_TAG_ROLES` in `src/lib/access/admin-access.ts`). Presidents and sellers are excluded. The server gate is `resolvePropertyTagStaff` (`src/lib/property-tags/property-tag-access.ts`).
 - **Viewing an owner** requires a signed-in, onboarded account. `/t/*` is a public route in `src/proxy.ts` only so it can render its own sign-in prompt that returns to the same sticker. Lookups are rate-limited to 30/min per viewer. The page is `noindex`.
 - **The owner is read live** from `users`, so a name change shows immediately. The owner's role is never returned.
 - **The series is stock-keeping only.** Giving an `SMO-`/`ANU-` tag to someone without that role shows a soft warning at assign time. Nothing re-checks it later, so a tag stays valid after its owner leaves SMO. Owning another tag in the same group also only warns.
 - **Concurrency:** assign/unassign send the owner the staff member saw (`expectedOwnerId`). If someone else changed the tag in between, nothing is written and the panel says to rescan.
 - **Audit:** group create/update, generate, assign, reassign and unassign all write `audit_logs` in the same transaction.
 - **Delete only when no tag has an owner.** `DELETE /api/admin/property-tags/[id]` removes a group and its tags, and answers 409 while any tag is still assigned, since that sticker is on someone's bag. Staff remove the owners first, or archive the group, whose tags keep resolving. Deleting is audit-logged. The printed stickers of a deleted group stop resolving.
-- **Printing:** the print page offers **Download PDF** (exact A4 geometry, vector QR, built in the browser by `src/lib/property-tag-pdf.ts`). There is no browser Print button on purpose: Safari and Chrome rescale the page and add their own header and footer, so the PDF is the one way to print.
+- **Printing:** the print page offers **Download PDF** (exact A4 geometry, vector QR, built in the browser by `src/lib/property-tags/property-tag-pdf.ts`). There is no browser Print button on purpose: Safari and Chrome rescale the page and add their own header and footer, so the PDF is the one way to print.
 - **Group page:** the tag table is paginated (25/50/100/200 per page) so groups with thousands of tags stay fast.
 
 ## Data

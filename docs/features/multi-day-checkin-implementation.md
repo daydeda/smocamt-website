@@ -195,7 +195,7 @@ session and validate it belongs to the event.
 - Include `sessionId: sessionIdRef.current` in all four fetch bodies (camera `scan`/`lookup`,
   `confirmAttendance`, `confirmScore`, `manualCheckIn`).
 - Event with exactly one session → auto-select and collapse the selector so single-day operation is
-  visually unchanged. Labels go through `src/lib/i18n` / `LanguageContext` (EN/TH/MM/CN).
+  visually unchanged. Labels go through `src/lib/i18n/i18n` / `LanguageContext` (EN/TH/MM/CN).
 
 ---
 
@@ -216,7 +216,7 @@ session and validate it belongs to the event.
   label per row; keep the medical-access audit log, append session context.
 - **`src/app/api/admin/events/[id]/report/route.ts`** + **`/export/route.ts`** — add a **Session**
   column, tally per session; keep the audit-log line.
-- **`src/lib/award-points.ts`** (`checkAndAwardPastEventPoints`) — **parked points hook.** Today counts
+- **`src/lib/points/award-points.ts`** (`checkAndAwardPastEventPoints`) — **parked points hook.** Today counts
   `attendance WHERE eventId AND status='attended'` grouped by house, gated on `events.endTime` +
   `winnerAwardedAt`. The per-session-winner-vs-aggregate decision lives here. **Do not change the math
   now** — add a TODO pointing at `multi-day-points-policy.md`. ⚠️ Note: in `'once'` mode a student
@@ -265,7 +265,7 @@ or writing `session_id` deploys — a code deploy ahead of the migration would 5
 `src/app/api/admin/scan/route.ts`, `src/app/admin/scanner/page.tsx`.
 
 **Secondary (session-aware roll-up):** `src/app/api/admin/events/route.ts`,
-`src/app/api/admin/events/[id]/route.ts`, `src/app/admin/events/page.tsx`, `src/lib/award-points.ts`,
+`src/app/api/admin/events/[id]/route.ts`, `src/app/admin/events/page.tsx`, `src/lib/points/award-points.ts`,
 and the attendance/report/export routes under `src/app/api/admin/events/[id]/`.
 
 ---

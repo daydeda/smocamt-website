@@ -17,8 +17,8 @@ Check, in priority order:
    - Tap targets too small; horizontal scroll; content cut off; sticky headers that cover content.
 
 2. INTERNATIONALIZATION (EN + TH everywhere; MM + CN for student-facing pages only. Admin pages are EN/TH-only by design, see CLAUDE.md → i18n).
-   - Any user-facing string hardcoded in JSX instead of going through the translation dictionary (look for the `t.` / translation lookups used elsewhere; strings live in `src/lib/i18n.ts`, context in `src/lib/LanguageContext.tsx`).
-   - New translation keys must exist in EN and TH, and student-facing keys also in MM and CN. Grep `src/lib/i18n.ts` to check. **Don't flag** an admin-only key (every call site is under `src/app/admin/` or `src/components/admin/`) for missing MM/CN.
+   - Any user-facing string hardcoded in JSX instead of going through the translation dictionary (look for the `t.` / translation lookups used elsewhere; strings live in `src/lib/i18n/locales/*.ts`, context in `src/lib/i18n/LanguageContext.tsx`).
+   - New translation keys must exist in EN and TH, and student-facing keys also in MM and CN. Grep `src/lib/i18n/locales/` to check. **Don't flag** an admin-only key (every call site is under `src/app/admin/` or `src/components/admin/`) for missing MM/CN.
    - Layouts that assume English string length (Thai/Burmese/Chinese can be longer or taller) — fixed-width labels, truncation, no-wrap.
 
 3. ACCESSIBILITY.

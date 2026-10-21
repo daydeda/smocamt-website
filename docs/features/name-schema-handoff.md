@@ -27,10 +27,10 @@ confirm it independently rather than taking this document's word.
 |---|---|---|
 | Directory downloads all users and filters in the browser | **Confirmed** | `src/app/api/admin/students/route.ts:38` — `findMany` with no `limit`, `offset`, or `where`. Filtering at `src/app/admin/students/page.tsx:425` |
 | Name validation is inconsistent across write paths | **Confirmed** | `src/app/api/profile/route.ts:25` uses `z.string().min(1)`, so `" "` passes and there is no max length. `src/app/api/admin/users/[id]/route.ts:79` destructures `name` from the body with no Zod validation at all |
-| Existing names cannot be split reliably by code | **Confirmed, and stronger than stated** | The app ships EN/TH/**MM**/CN translations (`src/lib/i18n.ts`), so Myanmar and Chinese students are a supported group. Burmese names frequently have no surname; Chinese names do not split on "first space" |
+| Existing names cannot be split reliably by code | **Confirmed, and stronger than stated** | The app ships EN/TH/**MM**/CN translations (`src/lib/i18n/i18n.ts`), so Myanmar and Chinese students are a supported group. Burmese names frequently have no surname; Chinese names do not split on "first space" |
 | `src/db/migrate.ts` is part of the change | **Confirmed** | It carries hand-rolled `ADD COLUMN IF NOT EXISTS` patches (`src/db/migrate.ts:38` onward), not just generated Drizzle output |
 | `admin/dashboard/route.ts` is an export surface | **Confirmed** | Emits an attendance CSV at `:102`–`:161` |
-| Songsue should keep exchanging the combined name | **Confirmed** | `src/lib/songsue-sync.ts:33,65,75` types `name: string` on the wire |
+| Songsue should keep exchanging the combined name | **Confirmed** | `src/lib/integrations/songsue-sync.ts:33,65,75` types `name: string` on the wire |
 | There are 7 export surfaces, not 12 | **Confirmed (correction to rev 1)** | See §7 |
 
 ---
@@ -179,7 +179,7 @@ return to edit their profiles.
 5. `src/app/api/profile/route.ts` + `src/app/dashboard/profile/page.tsx` — edit both fields
 6. `src/app/api/admin/users/[id]/route.ts` — accept both fields, **and add the Zod validation it currently lacks**
 7. `src/app/admin/students/page.tsx` — a "needs review" filter plus an inline confirm-or-correct control pre-filled from `suggestSplit`. Target: a few seconds per student, so staff can clear a cohort in one sitting
-8. `src/lib/i18n.ts` — new labels in **all four** languages (EN/TH/MM/CN), not just EN/TH
+8. `src/lib/i18n/i18n.ts` — new labels in **all four** languages (EN/TH/MM/CN), not just EN/TH
 
 Validation shared by every write path: trim, reject whitespace-only, sane max
 length, preserve Unicode, reject control characters.
@@ -305,7 +305,7 @@ work) must keep `name` in the predicate as a fallback.
   DrizzleAdapter, before onboarding runs; that is existing behaviour and is not
   changed here. The rule applies to the two new fields only.
 - CSV values continue through the existing formula-injection-safe `csvCell()`
-  helper (`src/lib/csv.ts`).
+  helper (`src/lib/util/csv.ts`).
 
 ---
 

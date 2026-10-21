@@ -208,7 +208,7 @@ src/
 
 ### 3.5 ระบบฟอร์ม KAS (KAS Multi-Form System)
 
-* **ไฟล์หลัก:** `src/lib/form-schema.ts` (core logic), `src/lib/form-access.ts` (ควบคุมสิทธิ์เข้าฟอร์ม), `src/app/api/admin/forms/route.ts` (จัดการฟอร์มฝั่ง admin), `src/app/api/events/[id]/form/route.ts` (ส่งคำตอบฝั่งนักศึกษา)
+* **ไฟล์หลัก:** `src/lib/forms/form-schema.ts` (core logic), `src/lib/access/form-access.ts` (ควบคุมสิทธิ์เข้าฟอร์ม), `src/app/api/admin/forms/route.ts` (จัดการฟอร์มฝั่ง admin), `src/app/api/events/[id]/form/route.ts` (ส่งคำตอบฝั่งนักศึกษา)
 * **หน้าที่หลัก:** สร้างและประมวลผลฟอร์มหลายชุดต่อหนึ่งกิจกรรม หน้าตาแบบ Google Forms รองรับประเมินทั้งก่อนและหลังกิจกรรม
 * **logic ภายใน:**
   * **ประเภทฟอร์ม 4 แบบ:** `K_pre` (ทดสอบก่อน), `K_post` (ทดสอบหลัง), `A` (ทัศนคติ), `S` (ทักษะ — กรอกโดยผู้ประเมิน)
@@ -221,7 +221,7 @@ src/
 
 ### 3.6 ระบบ QR แบบลงนามและการเช็คอิน (Secure QR & Check-in)
 
-* **ไฟล์หลัก:** `src/lib/qr-token.ts` (สร้าง/ตรวจ token), `src/modules/users/users.service.ts` (หานักศึกษาจาก token), `src/modules/events/scanner.service.ts` (logic สแกนและบังคับโควต้า)
+* **ไฟล์หลัก:** `src/lib/qr/qr-token.ts` (สร้าง/ตรวจ token), `src/modules/users/users.service.ts` (หานักศึกษาจาก token), `src/modules/events/scanner.service.ts` (logic สแกนและบังคับโควต้า)
 * **logic ภายใน:**
   * **[SECURITY] QR token แบบ HMAC สไตล์ TOTP:** รูปแบบ `{userId}.{exp}.{signature}` โดย signature คือ HMAC-SHA256 ของ payload ด้วย `AUTH_SECRET` หมุน window ทุก 5 นาที (กระจาย offset รายคนกันรีเฟรชพร้อมกันถล่ม server) มี grace 30 วินาที และเช็คแบบ timing-safe กัน side-channel; มี fallback เป็น UUID แบบ static สำหรับเช็คอินด้วยมือ
   * **เช็คอินสองขั้น (Scan → Confirm):** ขั้น Scan โชว์ข้อมูลแจ้งเตือนสุขภาพให้เจ้าหน้าที่ดูก่อน แล้วค่อย Confirm บันทึกเวลาเช็คอินจริง อัปเดตแบบ atomic เฉพาะตอนสถานะยังเป็น `registered`

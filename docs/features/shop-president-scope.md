@@ -11,7 +11,7 @@ listed for.
 ## Problem
 
 The shop was global and gated to `super_admin`/`admin` only (`isShopAdmin`,
-`src/lib/shop-auth.ts`). `shop_products` had no owner column, so any president
+`src/lib/shop/shop-auth.ts`). `shop_products` had no owner column, so any president
 who could reach `/admin/shop` (because their account also held `admin`) saw
 every product and every order — buyer PII and payment slips included.
 
@@ -30,12 +30,12 @@ all central until an admin assigns an owner.
   `major_president`, or the additive `shop_seller` capability. The page gate and
   every `/api/admin/shop` route then resolve a DB-backed seller/organization scope.
 - Scope resolution reuses `EventScopeService.getPresidentScope(userId, roles)` →
-  `{ clubIds, majors }`. `resolveShopAccess(session)` (`src/lib/shop-scope.ts`)
+  `{ clubIds, majors }`. `resolveShopAccess(session)` (`src/lib/shop/shop-scope.ts`)
   returns `{ unscoped: true }` or `{ unscoped: false, scope }`.
 - Pure predicates in `shop-auth.ts`: `isProductOwnedByScope`,
   `filterProductsByScope`, `isOwnerAssignmentWithinScope` (a president can never
   create/keep a central product, nor assign one outside their scope). Unit
-  tests: `src/lib/shop-auth.test.ts`.
+  tests: `src/lib/shop/shop-auth.test.ts`.
 
 ## Behaviour for a scoped president
 
@@ -61,9 +61,9 @@ in; the page's `isShopManager` gate bounces `smo` back out.
 
 - Schema/migration: `src/db/schema.ts`, `drizzle/0036_groovy_eddie_brock.sql`,
   `src/db/migrate.ts` (idempotent `ADD COLUMN IF NOT EXISTS`).
-- Access: `src/lib/shop-auth.ts`, `src/lib/shop-scope.ts`,
-  `src/lib/shop-product-schema.ts`, `src/lib/admin-access.ts`,
-  `src/lib/admin-nav-config.ts`.
+- Access: `src/lib/shop/shop-auth.ts`, `src/lib/shop/shop-scope.ts`,
+  `src/lib/shop/shop-product-schema.ts`, `src/lib/access/admin-access.ts`,
+  `src/lib/access/admin-nav-config.ts`.
 - Routes: `src/app/api/admin/shop/{products,products/[id],products/[id]/orders,orders,orders/[id],context}/route.ts`,
   `src/app/api/shop/orders/[id]/slip/route.ts`.
 - UI: `src/app/admin/shop/{page.tsx,AdminShopClient.tsx}`.

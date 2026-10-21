@@ -58,7 +58,7 @@ The nonce is a lightweight deterrent, not a credential: a short word posted
 publicly once a day. Its job is to make "submit all 6 days at once on day 6"
 impossible (a student can't know a future day's word), not to resist a
 determined attacker. Combined with the window check
-(`src/lib/evidence-checkin.ts`: `getEvidenceWindowStatus`, open from a
+(`src/lib/qr/evidence-checkin.ts`: `getEvidenceWindowStatus`, open from a
 session's `startTime` through `endTime` + a 12h grace period), a submission is
 tied to roughly the right day without needing image forensics or a review
 queue.
@@ -78,7 +78,7 @@ every other check-in method, not something this feature introduces).
 ### PDPA
 
 Evidence photos land in the same private `form-uploads` bucket as form file
-answers (`src/lib/form-file-storage.ts`, reused as-is) and are served only
+answers (`src/lib/forms/form-file-storage.ts`, reused as-is) and are served only
 through the auth-guarded `/api/attendance/evidence/[attendanceId]` route
 (owner or staff, never a public URL) — same shape as
 `/api/forms/file/[submissionId]`. A staff view of someone else's evidence
@@ -176,7 +176,7 @@ second scan then confirms check-out on its own, no upload needed.
 - Schema: `src/db/schema.ts` (`events.checkInMode`,
   `eventSessions.evidenceNonce`/`evidencePrompt`) — migration
   `drizzle/0039_brief_paibok.sql`.
-- Pure logic + tests: `src/lib/evidence-checkin.ts` /
+- Pure logic + tests: `src/lib/qr/evidence-checkin.ts` /
   `evidence-checkin.test.ts` (nonce matching, window status).
 - Orchestration: `src/modules/events/evidence-checkin.service.ts` — mirrors
   the walk-in path in `scanner.service.ts` (same attendance-row shape, same

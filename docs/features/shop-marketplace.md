@@ -22,7 +22,7 @@
 Today's shop (`src/app/api/shop/**`, `src/app/admin/shop/**`, `src/lib/shop-*.ts`)
 is single-seller by design: one `shopSettings` singleton row holds one PromptPay/
 bank QR (`qrImageUrl`) and one payment-instructions blob (`paymentInfo`), shown to
-every buyer for every product. `isShopAdmin` (`src/lib/shop-auth.ts`) gates *all*
+every buyer for every product. `isShopAdmin` (`src/lib/shop/shop-auth.ts`) gates *all*
 shop management — product create/edit, settings, order review — to
 `super_admin`/`admin` only, with a comment explicitly stating why: "registration/
 organizer can enter `/admin` but must not touch money/merch." The shop was built
@@ -44,7 +44,7 @@ all — anyone can already get an ActiveCAMT account. The actual gap is
 payment QR, or review orders for money it's the only one that should see.
 
 This spec also assumes the just-shipped free slip pre-filter
-(`src/lib/shop-slip-verify.ts` — duplicate-image/duplicate-QR/no-QR detection,
+(`src/lib/shop/shop-slip-verify.ts` — duplicate-image/duplicate-QR/no-QR detection,
 see git history on `feat/shop-slip-auto-verify`) stays in place and is
 seller-agnostic: duplicate detection stays **global** across all sellers (a slip
 reused between two different sellers' orders is still fraud), only the *review
@@ -149,7 +149,7 @@ independently approved/rejected by their own seller. This directly answers your
 
 ## 5. Order review & access control
 
-New role: **`shop_seller`**. Added to `src/lib/admin-access.ts`'s
+New role: **`shop_seller`**. Added to `src/lib/access/admin-access.ts`'s
 `ADMIN_ENTRY_ROLES` and to a new `SHOP_SELLER_ONLY_ROLES`-style confinement
 (mirrors the existing `SCANNER_ONLY_ROLES` pattern exactly) that restricts entry
 to `/admin/shop` only — everything else in `/admin` stays closed to them, same
@@ -158,13 +158,13 @@ posture as `smo`/`club_president` today.
 **SMO Position Finance also gets full `/admin/shop` access**, on the same
 footing as `admin`/`super_admin` (not scoped to one seller) — i.e. a user with
 `roles.includes("smo") && smoPosition === "finance"`. `finance` is already a
-canonical position id (`src/lib/positions.ts`), so this needs no new position,
+canonical position id (`src/lib/access/positions.ts`), so this needs no new position,
 just a new predicate in `admin-access.ts` mirroring the existing
 `isGlobalRegistrationPosition(roles, smoPosition, anusmoPosition)` shape (call
 it `isShopFinancePosition`) — checked everywhere `isShopAdmin` is checked today,
 proxy included.
 
-`isShopAdmin` (`src/lib/shop-auth.ts`) becomes a scope resolver, mirroring
+`isShopAdmin` (`src/lib/shop/shop-auth.ts`) becomes a scope resolver, mirroring
 `EventScopeService`'s shape rather than its club/major-membership mechanics
 (this is simpler — direct FK ownership, not derived from `club_members`):
 

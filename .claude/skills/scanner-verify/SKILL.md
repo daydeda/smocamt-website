@@ -6,12 +6,12 @@ description: Structured end-to-end verification of ActiveCAMT's QR attendance sc
 # Scanner Verify (ActiveCAMT)
 
 A checklist to confirm the QR check-in flow still works AND that medical data isn't
-leaked by role. Gating here spans 4 layers (`src/proxy.ts`, `src/lib/admin-access.ts`,
+leaked by role. Gating here spans 4 layers (`src/proxy.ts`, `src/lib/access/admin-access.ts`,
 the scan API, the scanner UI) — a change to one can silently break another. Verify
 behavior, don't assume.
 
 ## The flow (what you're verifying)
-`signQrToken(userId)` (`src/lib/qr-token.ts`, ~5-min window + ~30s grace) → student shows QR → scanner `POST /api/admin/scan` (rate-limited ~300/min) → `ScannerService.processScan` (`src/modules/events/scanner.service.ts`) → **pre-registered** path (atomic `UPDATE … WHERE status='registered'`) or **walk-in** path (row-lock + quota recount, `totalCap = quota + quotaWalkIn`, `ON CONFLICT DO NOTHING`) → attendance write + `AuditService.logAction`.
+`signQrToken(userId)` (`src/lib/qr/qr-token.ts`, ~5-min window + ~30s grace) → student shows QR → scanner `POST /api/admin/scan` (rate-limited ~300/min) → `ScannerService.processScan` (`src/modules/events/scanner.service.ts`) → **pre-registered** path (atomic `UPDATE … WHERE status='registered'`) or **walk-in** path (row-lock + quota recount, `totalCap = quota + quotaWalkIn`, `ON CONFLICT DO NOTHING`) → attendance write + `AuditService.logAction`.
 
 ## Setup
 Use `/db-local` to bring up `activecamt-db` and `seed-author` for fake students/events, then `npm run dev` (or `/run`). Exercise with seeded data only — **never real attendees**.

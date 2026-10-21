@@ -1,8 +1,6 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { forms, formSubmissions, attendance, users } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
-import { awardIndividualPoints } from "@/lib/points/award-individual-points";
+import { AttendanceService } from "@/modules/events/attendance.service";
+import { FormsService } from "@/modules/forms/forms.service";
 import { NextResponse } from "next/server";
 import {
   normalizeForm,
@@ -40,19 +38,10 @@ export async function GET(
     // "registered" day 1) and would wrongly report hasAttended=false for someone
     // who checked in on day 2. Mirrors the POST submit gate below. Checking in on
     // any single day is enough to open and submit the form.
-    const attRecord = await db.query.attendance.findFirst({
-      where: and(
-        eq(attendance.eventId, eventId),
-        eq(attendance.studentId, userId),
-        eq(attendance.status, "attended"),
-      ),
-    });
+    const attRecord = await AttendanceService.findAttendedRecord(eventId, userId);
     const hasAttended = !!attRecord;
 
-    const allForms = await db.query.forms.findMany({
-      where: eq(forms.eventId, eventId),
-      orderBy: (f, { asc }) => [asc(f.sortOrder), asc(f.createdAt)],
-    });
+    const allForms = await FormsService.listFormsForEvent(eventId);
 
     // S forms are gated by assignment (role/person + managers); other forms are
     // visible to everyone.
@@ -61,12 +50,7 @@ export async function GET(
 
     const formResponses = await Promise.all(
       visibleForms.map(async (formObj) => {
-        const existingSubmission = await db.query.formSubmissions.findFirst({
-          where: and(
-            eq(formSubmissions.formId, formObj.id),
-            eq(formSubmissions.studentId, userId)
-          ),
-        });
+        const existingSubmission = await FormsService.findSubmission(formObj.id, userId);
 
         let result: { score: number; maxScore: number; hasGraded: boolean } | null = null;
         if (existingSubmission) {
@@ -130,9 +114,7 @@ export async function POST(
       return NextResponse.json({ error: "Missing or invalid answers" }, { status: 400 });
     }
 
-    const formObj = await db.query.forms.findFirst({
-      where: and(eq(forms.id, formId), eq(forms.eventId, eventId)),
-    });
+    const formObj = await FormsService.findFormInEvent(formId, eventId);
 
     if (!formObj) {
       return NextResponse.json({ error: "Form not found" }, { status: 404 });
@@ -164,13 +146,7 @@ export async function POST(
     // (e.g. a still-"registered" day 2) and would wrongly reject someone who
     // checked in on day 1. Checking in on any single day is enough to submit.
     if (formObj.formType !== "K_pre" && formObj.formType !== "S") {
-      const attRecord = await db.query.attendance.findFirst({
-        where: and(
-          eq(attendance.eventId, eventId),
-          eq(attendance.studentId, userId),
-          eq(attendance.status, "attended"),
-        ),
-      });
+      const attRecord = await AttendanceService.findAttendedRecord(eventId, userId);
       if (!attRecord) {
         return NextResponse.json({
           error: "You must have checked in and physically attended this event to submit this form.",
@@ -178,9 +154,7 @@ export async function POST(
       }
     }
 
-    const existingSubmission = await db.query.formSubmissions.findFirst({
-      where: and(eq(formSubmissions.formId, formObj.id), eq(formSubmissions.studentId, userId)),
-    });
+    const existingSubmission = await FormsService.findSubmission(formObj.id, userId);
     if (existingSubmission) {
       return NextResponse.json({ error: "You have already completed this form." }, { status: 400 });
     }
@@ -219,34 +193,15 @@ export async function POST(
       }
     }
 
-    // 4. Record the submission, and (if the form grants any) award the submitter
-    // their individual points — atomically in one transaction. The (form_id,
-    // student_id) unique index is the authoritative guard against a double-submit
-    // race: the second insert throws 23505, the whole transaction rolls back, and
-    // no points are awarded, so a duplicate submit can never double-award.
     const individualPoints = formObj.individualPointsAwarded ?? 0;
     try {
-      await db.transaction(async (tx) => {
-        await tx.insert(formSubmissions).values({ formId: formObj.id, studentId: userId, answers });
-
-        if (individualPoints > 0) {
-          const submitter = await tx.query.users.findFirst({
-            where: eq(users.id, userId),
-            columns: { name: true, houseId: true },
-          });
-          const submitterName = submitter?.name ?? "Student";
-          await awardIndividualPoints(tx, {
-            studentId: userId,
-            studentName: submitterName,
-            houseId: submitter?.houseId ?? null,
-            // Tagged with eventId only (never formId) so a form re-open's award
-            // clawback leaves these permanent individual points untouched.
-            eventId,
-            points: individualPoints,
-            reason: `Awarded ${individualPoints} individual points to ${submitterName} for completing form "${formObj.title}"`,
-            activityLabel: formObj.title,
-          });
-        }
+      await FormsService.recordSubmission({
+        formId: formObj.id,
+        formTitle: formObj.title,
+        eventId,
+        studentId: userId,
+        answers,
+        individualPoints,
       });
     } catch (e) {
       const dbError = (e as { cause?: { code?: string }; code?: string })?.cause ?? (e as { code?: string });

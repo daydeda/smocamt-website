@@ -60,4 +60,33 @@ export class AttendanceService {
       .from(ranked)
       .where(eq(ranked.studentId, studentId));
   }
+
+  /** The student's attendance summary rows (dashboard eligibility + status map). */
+  static async listSummaryForStudent(studentId: string) {
+    return db.query.attendance.findMany({
+      where: eq(attendance.studentId, studentId),
+      columns: { eventId: true, checkInTime: true, checkOutTime: true, status: true },
+    });
+  }
+
+  /** The student's attendance rows for one event (evidence check-in list). */
+  static async listForStudentInEvent(eventId: string, studentId: string) {
+    return db.query.attendance.findMany({
+      where: and(eq(attendance.eventId, eventId), eq(attendance.studentId, studentId)),
+    });
+  }
+
+  /**
+   * Any ATTENDED row for this student in the event, if one exists. Attendance is
+   * one row PER SESSION, so existence of any attended session is what matters.
+   */
+  static async findAttendedRecord(eventId: string, studentId: string) {
+    return db.query.attendance.findFirst({
+      where: and(
+        eq(attendance.eventId, eventId),
+        eq(attendance.studentId, studentId),
+        eq(attendance.status, "attended"),
+      ),
+    });
+  }
 }

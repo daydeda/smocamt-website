@@ -1,10 +1,9 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { events, eventSessions, attendance } from "@/db/schema";
+import { EventsService } from "@/modules/events/events.service";
+import { AttendanceService } from "@/modules/events/attendance.service";
 import { EvidenceCheckinService } from "@/modules/events/evidence-checkin.service";
 import { getEvidenceWindowStatus } from "@/lib/qr/evidence-checkin";
 import { rateLimit, getClientIp } from "@/lib/util/rate-limit";
-import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 // A stored file key is always "<uuid>.<ext>" (see uploadFormFile in
@@ -34,7 +33,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     const { id: eventId } = await params;
-    const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+    const event = await EventsService.getEventById(eventId);
     if (!event) {
       return NextResponse.json({ error: "Event not found" }, { status: 404 });
     }
@@ -42,14 +41,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ error: "This event does not use evidence check-in." }, { status: 400 });
     }
 
-    const sessions = await db.query.eventSessions.findMany({
-      where: eq(eventSessions.eventId, eventId),
-      orderBy: (s, { asc }) => [asc(s.sortOrder), asc(s.startTime)],
-    });
+    const sessions = await EventsService.getSessions(eventId);
 
-    const mySubmissions = await db.query.attendance.findMany({
-      where: and(eq(attendance.eventId, eventId), eq(attendance.studentId, session.user.id)),
-    });
+    const mySubmissions = await AttendanceService.listForStudentInEvent(eventId, session.user.id);
+
     const bySession = new Map(mySubmissions.map((a) => [a.sessionId, a]));
 
     return NextResponse.json({

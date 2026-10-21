@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { events, eventSessions, forms } from "@/db/schema";
-import { and, eq, isNotNull } from "drizzle-orm";
+import { attendance, events, eventSessions, forms } from "@/db/schema";
+import { and, eq, isNotNull, sql } from "drizzle-orm";
 
 export class EventsService {
   /**
@@ -93,6 +93,35 @@ export class EventsService {
     return db.query.events.findFirst({
       where: eq(events.id, eventId),
       columns: { ownerClubIds: true, ownerMajors: true },
+    });
+  }
+
+  /**
+   * Registered seat counts per event — DISTINCT students holding a seat, which is
+   * exactly the headcount the register route enforces quota against. Staff rows
+   * don't count toward the displayed "X / quota" headcount.
+   */
+  static async getSeatCounts() {
+    return db
+      .select({
+        eventId: attendance.eventId,
+        value: sql<number>`count(distinct ${attendance.studentId})`,
+      })
+      .from(attendance)
+      // Staff rows don't count toward the displayed "X / quota" headcount —
+      // mirrors the quota exemption in register/route.ts, scanner.service.ts,
+      // and the admin list's getAttendeeCounts. Without this filter, staff
+      // registering for their own event inflated the numerator past quota
+      // (e.g. showing "17/16") even though the quota check itself already
+      // excludes them.
+      .where(eq(attendance.isStaff, false))
+      .groupBy(attendance.eventId);
+  }
+
+  /** Every event, soonest start first (student-facing feed). */
+  static async listAllByStartTime() {
+    return db.query.events.findMany({
+      orderBy: (events, { asc }) => [asc(events.startTime)],
     });
   }
 }

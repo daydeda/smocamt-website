@@ -1,12 +1,13 @@
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { attendance, events, users, forms, formSubmissions } from "@/db/schema";
-import { and, eq, inArray, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
 import { getFormAvailability } from "@/lib/access/form-access";
 import { buildViewer, isEligibleFor, isEligibleForGuest } from "@/lib/access/event-access";
 import { ClubsService } from "@/modules/clubs/clubs.service";
+import { EventsService } from "@/modules/events/events.service";
+import { AttendanceService } from "@/modules/events/attendance.service";
+import { FormsService } from "@/modules/forms/forms.service";
+import { UsersService } from "@/modules/users/users.service";
 
 // Fail fast instead of hanging to the 300s platform default if the DB pooler stalls.
 export const maxDuration = 20;
@@ -19,21 +20,7 @@ export const maxDuration = 20;
 // getAttendeeCounts in /api/admin/events). The per-user attendance/preForm reads
 // below stay live — only this global aggregate is cached.
 const getSeatCounts = unstable_cache(
-  async () =>
-    db
-      .select({
-        eventId: attendance.eventId,
-        value: sql<number>`count(distinct ${attendance.studentId})`,
-      })
-      .from(attendance)
-      // Staff rows don't count toward the displayed "X / quota" headcount —
-      // mirrors the quota exemption in register/route.ts, scanner.service.ts,
-      // and the admin list's getAttendeeCounts. Without this filter, staff
-      // registering for their own event inflated the numerator past quota
-      // (e.g. showing "17/16") even though the quota check itself already
-      // excludes them.
-      .where(eq(attendance.isStaff, false))
-      .groupBy(attendance.eventId),
+  async () => EventsService.getSeatCounts(),
   ["events-seat-counts"],
   { revalidate: 15, tags: ["events-seat-counts"] },
 );
@@ -44,9 +31,7 @@ export async function GET() {
     const session = await auth();
 
 
-    const rawEvents = await db.query.events.findMany({
-      orderBy: (events, { asc }) => [asc(events.startTime)],
-    });
+    const rawEvents = await EventsService.listAllByStartTime();
     // Strip internal president-ownership/review-state metadata before it
     // ever reaches a student/guest response — ownerClubIds/ownerMajors
     // identify which club_president/major_president manages an event (see
@@ -88,10 +73,7 @@ export async function GET() {
     const userRoles = session.user.roles || [session.user.role || "student"];
 
     // Major used for major-based access control (not on the session token).
-    const me = await db.query.users.findFirst({
-      where: eq(users.id, session.user.id!),
-      columns: { major: true },
-    });
+    const me = await UsersService.getMajorById(session.user.id!);
 
     // Club memberships (any role) — powers the allowedClubs eligibility check below.
     const clubIds = await ClubsService.getMemberClubIds(session.user.id!);
@@ -111,10 +93,7 @@ export async function GET() {
     // scanner — which bypasses every eligibility rule below — so the dashboard
     // has to honour that same bypass or the check-in silently vanishes here.
     const userId = session.user.id!;
-    const userAttendances = await db.query.attendance.findMany({
-      where: eq(attendance.studentId, userId),
-      columns: { eventId: true, checkInTime: true, checkOutTime: true, status: true },
-    });
+    const userAttendances = await AttendanceService.listSummaryForStudent(userId);
 
     const attendanceMap = new Map(userAttendances.map((a) => [a.eventId, a]));
 
@@ -131,10 +110,7 @@ export async function GET() {
     // "upcoming"/"closed" (can't submit yet/anymore, so not forced).
     const eligibleIds = eligibleEvents.map((e) => e.id);
     const preForms = eligibleIds.length
-      ? await db.query.forms.findMany({
-          where: and(eq(forms.formType, "K_pre"), inArray(forms.eventId, eligibleIds)),
-          orderBy: (f, { asc }) => [asc(f.sortOrder), asc(f.createdAt)],
-        })
+      ? await FormsService.listPreTestFormsForEvents(eligibleIds)
       : [];
 
     // First K_pre form per event (an event normally has at most one).
@@ -145,13 +121,7 @@ export async function GET() {
 
     const preFormIds = preForms.map((f) => f.id);
     const preSubs = preFormIds.length
-      ? await db.query.formSubmissions.findMany({
-          where: and(
-            eq(formSubmissions.studentId, userId),
-            inArray(formSubmissions.formId, preFormIds)
-          ),
-          columns: { formId: true },
-        })
+      ? await FormsService.listSubmissionsForStudent(userId, preFormIds)
       : [];
     const submittedFormIds = new Set(preSubs.map((s) => s.formId));
 

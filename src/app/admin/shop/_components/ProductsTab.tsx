@@ -20,6 +20,8 @@ export function ProductsTab({ th, ctx }: { th: boolean; ctx: ShopContext | null 
   // Set when the product list fails to load — shown instead of swallowing the
   // failure as an empty "No products yet" list.
   const [loadError, setLoadError] = useState(false);
+  // Products whose full option list is expanded (long lists are collapsed).
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
   const [editing, setEditing] = useState<AdminProduct | "new" | null>(null);
   const [exportingId, setExportingId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -130,16 +132,17 @@ export function ProductsTab({ th, ctx }: { th: boolean; ctx: ShopContext | null 
       ) : (
         <div style={{ display: "grid", gap: 12 }}>
           {pageProducts.map((p) => (
-            <div key={p.id} style={{ display: "flex", gap: 14, alignItems: "center", background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-lg)", padding: 14 }}>
+            <div key={p.id} style={{ display: "flex", flexWrap: "wrap", gap: 14, alignItems: "center", background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-lg)", padding: 14 }}>
               <div style={{ width: 60, height: 60, borderRadius: "var(--radius-md)", background: "var(--bg-elevated)", overflow: "hidden", flexShrink: 0 }}>
                 {p.imageUrls[0] ? <img src={p.imageUrls[0]} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--text-muted)" }}><Package size={20} /></div>}
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ flex: "1 1 260px", minWidth: 0 }}>
                 <p style={{ fontWeight: 700, fontSize: 15, overflowWrap: "anywhere", wordBreak: "break-word" }}>{p.name} {!p.isActive && <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>({th ? "ซ่อน" : "hidden"})</span>}{isAudienceLimited(p) && <span title={th ? "จำกัดผู้เห็น (บทบาท/สาขา/นักศึกษา)" : "Limited audience (roles/majors/students)"} style={{ fontSize: 11, color: "var(--accent-primary)", fontWeight: 700 }}> · {th ? "จำกัดผู้เห็น" : "limited"}</span>}<span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700 }}> · {p.sellerName || ownerLabel(p, ownerOptions, th)}</span></p>
                 <p style={{ fontSize: 13, color: "var(--text-muted)", overflowWrap: "anywhere", wordBreak: "break-word" }}>
-                  {adminPriceLabel(p)}{adminWelfareLabel(p) ? ` · ${th ? "สวัสดิการ" : "welfare"} ${adminWelfareLabel(p)} (${p.welfareRoles.map((r) => ROLE_LABELS[r] ?? r).join(", ")})` : ""}{(p.bundleDeals ?? []).map((d) => ` · ${th ? `${d.qty} ชิ้น ${baht(d.price)}` : `${d.qty} for ${baht(d.price)}`}${d.variantIds ? ` (${p.variants.filter((v) => v.id && d.variantIds!.includes(v.id)).map((v) => v.label).join(", ")})` : ""}`).join("")} · {p.variants.map((v) => `${v.label}${v.stock != null ? ` ${Math.max(0, v.stock - (v.sold ?? 0))}/${v.stock}` : ""}`).join(", ")}
+                  {adminPriceLabel(p)}{adminWelfareLabel(p) ? ` · ${th ? "สวัสดิการ" : "welfare"} ${adminWelfareLabel(p)} (${p.welfareRoles.map((r) => ROLE_LABELS[r] ?? r).join(", ")})` : ""}{(p.bundleDeals ?? []).map((d) => ` · ${th ? `${d.qty} ชิ้น ${baht(d.price)}` : `${d.qty} for ${baht(d.price)}`}${d.variantIds ? ` (${p.variants.filter((v) => v.id && d.variantIds!.includes(v.id)).map((v) => v.label).join(", ")})` : ""}`).join("")}
                   {p.maxPerOrder != null ? ` · ${th ? "จำกัด" : "max"} ${p.maxPerOrder}/${th ? "คน" : "person"}` : ""}
                 </p>
+                <VariantChips th={th} variants={p.variants} expanded={expandedIds.has(p.id)} onToggle={() => setExpandedIds((s) => { const n = new Set(s); if (n.has(p.id)) n.delete(p.id); else n.add(p.id); return n; })} />
                 {(p.sellerId || p.approvalStatus !== "approved") && (
                   <p style={{ fontSize: 12, marginTop: 3, color: p.approvalStatus === "approved" ? "var(--green-700)" : p.approvalStatus === "rejected" ? "var(--red-600)" : "var(--amber-700)", fontWeight: 700 }}>
                     {p.approvalStatus === "approved" ? (th ? "อนุมัติแล้ว" : "Approved") : p.approvalStatus === "rejected" ? (th ? "ถูกปฏิเสธ" : "Rejected") : (th ? "รออนุมัติ" : "Pending approval")}
@@ -152,6 +155,7 @@ export function ProductsTab({ th, ctx }: { th: boolean; ctx: ShopContext | null 
                   </p>
                 )}
               </div>
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4, marginLeft: "auto", flexShrink: 0 }}>
               {ctx?.canReviewMarketplace && p.approvalStatus !== "approved" && (p.sellerId || ctx.canApproveCentral) && (
                 <div style={{ display: "flex", gap: 4 }}>
                   <button onClick={() => reviewProduct(p, "reject")} disabled={reviewingId === p.id} className="btn btn-ghost" style={{ padding: 8, color: "var(--red-600)" }} title={th ? "ปฏิเสธ" : "Reject"} aria-label={th ? `ปฏิเสธ ${p.name}` : `Reject ${p.name}`}><XCircle size={16} /></button>
@@ -168,6 +172,7 @@ export function ProductsTab({ th, ctx }: { th: boolean; ctx: ShopContext | null 
               {ctx?.canDeleteProducts && (
                 <button onClick={() => remove(p)} className="btn btn-ghost" style={{ padding: 8, color: "var(--red-500)" }} title={th ? "ลบ" : "Delete"} aria-label={th ? `ลบ ${p.name}` : `Delete ${p.name}`}><Trash2 size={16} /></button>
               )}
+              </div>
             </div>
           ))}
         </div>
@@ -767,3 +772,26 @@ export function ProductForm({ th, product, ownerOptions, scoped, requiresOwner, 
 }
 
 /* -------------------------------- Orders -------------------------------- */
+
+// Option chips for a product card. Long lists collapse to the first few so a
+// product with many/long options doesn't blow up the card.
+const VARIANT_PREVIEW = 6;
+function VariantChips({ th, variants, expanded, onToggle }: { th: boolean; variants: AdminVariant[]; expanded: boolean; onToggle: () => void }) {
+  if (variants.length === 0) return null;
+  const shown = expanded ? variants : variants.slice(0, VARIANT_PREVIEW);
+  const hidden = variants.length - shown.length;
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+      {shown.map((v, i) => (
+        <span key={v.id ?? i} title={v.label} style={{ fontSize: 12, padding: "2px 8px", borderRadius: 999, background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)", color: "var(--text-secondary)", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {v.label}{v.stock != null ? <span style={{ color: "var(--text-muted)" }}> {Math.max(0, v.stock - (v.sold ?? 0))}/{v.stock}</span> : null}
+        </span>
+      ))}
+      {(hidden > 0 || (expanded && variants.length > VARIANT_PREVIEW)) && (
+        <button type="button" onClick={onToggle} className="btn btn-ghost" style={{ fontSize: 12, padding: "2px 8px", fontWeight: 700, color: "var(--accent-primary)" }}>
+          {hidden > 0 ? (th ? `+${hidden} ตัวเลือก` : `+${hidden} more`) : (th ? "ย่อ" : "Show less")}
+        </button>
+      )}
+    </div>
+  );
+}

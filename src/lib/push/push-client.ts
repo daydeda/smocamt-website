@@ -70,6 +70,29 @@ export async function enablePushNotifications(): Promise<EnablePushResult> {
   return { ok: true };
 }
 
+/**
+ * Re-sends this device's EXISTING subscription to the server (an upsert on the
+ * endpoint, which also resets its failure count). Repairs a server-side row that was
+ * pruned while the phone still holds a valid subscription: iOS never fires
+ * pushsubscriptionchange, so nothing else would ever restore it. Never creates a
+ * subscription, so someone who switched notifications off (or a different person on a
+ * shared device) is not re-enrolled. No-op when signed out (the API returns 401).
+ */
+export async function resyncPushSubscription(): Promise<void> {
+  try {
+    if (!isPushSupported() || Notification.permission !== "granted") return;
+    const subscription = await getExistingPushSubscription();
+    if (!subscription) return;
+    await fetch("/api/notifications/push/subscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(subscription.toJSON()),
+    });
+  } catch {
+    // best-effort only
+  }
+}
+
 async function unsubscribeCurrentDevice(): Promise<void> {
   const subscription = await getExistingPushSubscription();
   if (!subscription) return;

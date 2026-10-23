@@ -142,7 +142,7 @@ export class PushService {
         `Push send failed for subscription ${sub.id} (status ${statusCode ?? "n/a"}, failure #${newFailureCount}):`,
         webPushError?.body || webPushError?.message || error,
       );
-      if (shouldPruneAfterFailure(statusCode, newFailureCount)) {
+      if (shouldPruneAfterFailure(statusCode, newFailureCount, sub.lastSuccessAt ?? sub.createdAt)) {
         await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, sub.id));
       } else {
         await db

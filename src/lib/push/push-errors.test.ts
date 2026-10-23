@@ -3,6 +3,7 @@ import {
   isDeadSubscriptionStatus,
   shouldPruneAfterFailure,
   FAILURE_PRUNE_THRESHOLD,
+  STALE_AFTER_MS,
 } from "./push-errors";
 
 describe("isDeadSubscriptionStatus", () => {
@@ -47,71 +48,42 @@ describe("FAILURE_PRUNE_THRESHOLD", () => {
   });
 });
 
+describe("STALE_AFTER_MS", () => {
+  it("is 14 days", () => {
+    expect(STALE_AFTER_MS).toBe(14 * 24 * 60 * 60 * 1000);
+  });
+});
+
 describe("shouldPruneAfterFailure", () => {
-  it("returns true when statusCode is 404 (dead subscription)", () => {
-    expect(shouldPruneAfterFailure(404, 1)).toBe(true);
-    expect(shouldPruneAfterFailure(404, 5)).toBe(true);
+  const now = new Date("2026-10-23T00:00:00Z");
+  const daysAgo = (d: number) => new Date(now.getTime() - d * 24 * 60 * 60 * 1000);
+
+  it("always prunes a dead subscription (404/410), even right after a success", () => {
+    expect(shouldPruneAfterFailure(404, 1, daysAgo(0), now)).toBe(true);
+    expect(shouldPruneAfterFailure(410, 1, daysAgo(0), now)).toBe(true);
+    expect(shouldPruneAfterFailure(410, 0, null, now)).toBe(true);
   });
 
-  it("returns true when statusCode is 410 (dead subscription)", () => {
-    expect(shouldPruneAfterFailure(410, 1)).toBe(true);
-    expect(shouldPruneAfterFailure(410, 5)).toBe(true);
+  it("keeps a subscription below the failure threshold", () => {
+    expect(shouldPruneAfterFailure(500, 4, daysAgo(60), now)).toBe(false);
+    expect(shouldPruneAfterFailure(undefined, 1, daysAgo(60), now)).toBe(false);
   });
 
-  it("returns true when failureCountAfterThisFailure >= FAILURE_PRUNE_THRESHOLD", () => {
-    expect(shouldPruneAfterFailure(500, 5)).toBe(true);
-    expect(shouldPruneAfterFailure(500, 6)).toBe(true);
-    expect(shouldPruneAfterFailure(500, 10)).toBe(true);
+  it("keeps a recently working subscription even after many transient failures", () => {
+    expect(shouldPruneAfterFailure(500, 5, daysAgo(1), now)).toBe(false);
+    expect(shouldPruneAfterFailure(403, 50, daysAgo(13), now)).toBe(false);
   });
 
-  it("returns true when failureCountAfterThisFailure >= 5 regardless of status", () => {
-    expect(shouldPruneAfterFailure(undefined, 5)).toBe(true);
-    expect(shouldPruneAfterFailure(200, 5)).toBe(true);
+  it("prunes a subscription that has failed repeatedly and been stale for 14 days", () => {
+    expect(shouldPruneAfterFailure(500, 5, daysAgo(14), now)).toBe(true);
+    expect(shouldPruneAfterFailure(429, 9, daysAgo(30), now)).toBe(true);
   });
 
-  it("returns false when failureCountAfterThisFailure < FAILURE_PRUNE_THRESHOLD and status is not dead", () => {
-    expect(shouldPruneAfterFailure(500, 4)).toBe(false);
-    expect(shouldPruneAfterFailure(500, 1)).toBe(false);
-    expect(shouldPruneAfterFailure(500, 0)).toBe(false);
+  it("prunes a repeatedly failing subscription with no known good time", () => {
+    expect(shouldPruneAfterFailure(500, 5, null, now)).toBe(true);
   });
 
-  it("returns false when failureCountAfterThisFailure < FAILURE_PRUNE_THRESHOLD and status is undefined", () => {
-    expect(shouldPruneAfterFailure(undefined, 4)).toBe(false);
-    expect(shouldPruneAfterFailure(undefined, 1)).toBe(false);
-    expect(shouldPruneAfterFailure(undefined, 0)).toBe(false);
-  });
-
-  it("handles boundary condition at threshold - 1 (4)", () => {
-    expect(shouldPruneAfterFailure(500, 4)).toBe(false);
-  });
-
-  it("handles boundary condition at threshold (5)", () => {
-    expect(shouldPruneAfterFailure(500, 5)).toBe(true);
-  });
-
-  it("handles boundary condition at threshold + 1 (6)", () => {
-    expect(shouldPruneAfterFailure(500, 6)).toBe(true);
-  });
-
-  it("returns true for dead status regardless of failure count", () => {
-    expect(shouldPruneAfterFailure(404, 0)).toBe(true);
-    expect(shouldPruneAfterFailure(410, 0)).toBe(true);
-  });
-
-  it("combines conditions correctly: dead subscription takes precedence", () => {
-    expect(shouldPruneAfterFailure(404, 1)).toBe(true);
-    expect(shouldPruneAfterFailure(410, 3)).toBe(true);
-  });
-
-  it("handles various transient error codes below threshold", () => {
-    expect(shouldPruneAfterFailure(429, 4)).toBe(false);
-    expect(shouldPruneAfterFailure(500, 4)).toBe(false);
-    expect(shouldPruneAfterFailure(502, 4)).toBe(false);
-    expect(shouldPruneAfterFailure(503, 4)).toBe(false);
-  });
-
-  it("prunes transient errors at or above threshold", () => {
-    expect(shouldPruneAfterFailure(500, 5)).toBe(true);
-    expect(shouldPruneAfterFailure(429, 5)).toBe(true);
+  it("does not prune a stale subscription until the failure threshold is reached", () => {
+    expect(shouldPruneAfterFailure(500, 4, daysAgo(30), now)).toBe(false);
   });
 });

@@ -14,15 +14,31 @@ export function isDeadSubscriptionStatus(statusCode: number | undefined): boolea
   return statusCode === 404 || statusCode === 410;
 }
 
-// After this many consecutive non-dead failures, prune anyway — a
-// subscription that never succeeds is as useless as a confirmed-dead one,
-// and without a ceiling a permanently misbehaving endpoint accumulates
-// failed-send attempts forever.
+// After this many consecutive non-dead failures a subscription becomes a prune
+// CANDIDATE. It is only actually removed once it has also gone STALE_AFTER_MS with
+// no successful send (or, if it never succeeded, since it was created). Counting
+// failures alone deleted working subscriptions after a short outage: Apple/Google
+// push errors or a misconfigured VAPID key (e.g. a 403) all look like "failures",
+// and iOS cannot renew a dropped subscription by itself, so one bad stretch
+// silently switched a phone's notifications off for good.
 export const FAILURE_PRUNE_THRESHOLD = 5;
+export const STALE_AFTER_MS = 14 * 24 * 60 * 60 * 1000;
 
+/**
+ * Whether to delete a subscription after a failed send.
+ * - 404/410: gone on the browser's end, always delete.
+ * - anything else: delete only after FAILURE_PRUNE_THRESHOLD consecutive failures
+ *   AND no successful send (`lastGoodAt`, falling back to creation time) within
+ *   STALE_AFTER_MS.
+ */
 export function shouldPruneAfterFailure(
   statusCode: number | undefined,
   failureCountAfterThisFailure: number,
+  lastGoodAt: Date | null,
+  now: Date = new Date(),
 ): boolean {
-  return isDeadSubscriptionStatus(statusCode) || failureCountAfterThisFailure >= FAILURE_PRUNE_THRESHOLD;
+  if (isDeadSubscriptionStatus(statusCode)) return true;
+  if (failureCountAfterThisFailure < FAILURE_PRUNE_THRESHOLD) return false;
+  if (!lastGoodAt) return true;
+  return now.getTime() - lastGoodAt.getTime() >= STALE_AFTER_MS;
 }

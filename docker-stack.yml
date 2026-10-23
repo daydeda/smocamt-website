@@ -31,6 +31,9 @@
 #       key pair with `npx web-push generate-vapid-keys` — the matching PUBLIC
 #       key is NOT set here, see the NEXT_PUBLIC_* note below. VAPID_SUBJECT is
 #       a `mailto:` contact address, e.g. mailto:smocamt.official@camt.info.)
+#       CRON_SECRET (Bearer secret for /api/cron/*, shared by `web` and the `scheduler`
+#       service; generate with `openssl rand -hex 32`. Unset = the cron jobs are
+#       rejected and the scheduler exits.)
 #
 # NOT settable here: NEXT_PUBLIC_SONGSUE_DASHBOARD_URL. Next.js inlines
 # NEXT_PUBLIC_* vars into the client bundle at BUILD time — a Portainer stack
@@ -104,6 +107,10 @@ services:
       # note and .github/workflows/docker-publish.yml).
       VAPID_PRIVATE_KEY: "${VAPID_PRIVATE_KEY:-}"
       VAPID_SUBJECT: "${VAPID_SUBJECT:-}"
+      # Bearer secret for /api/cron/* (src/app/api/cron). The routes fail CLOSED when it
+      # is unset. The `scheduler` service below sends the same value. Generate with
+      # `openssl rand -hex 32`; set it in the stack's Environment variables.
+      CRON_SECRET: "${CRON_SECRET:-}"
     volumes:
       - uploads:/app/public/uploads          # public posters/avatars/QR
       - uploads-private:/app/.uploads-private # PDPA: form docs + payment slips
@@ -133,6 +140,20 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+  # Calls the /api/cron/* endpoints on a timer (award-points hourly, gc-form-files
+  # daily). vercel.json's crons do nothing on this deploy, so without this service
+  # event-winner bonuses and closed-form awards never run. Reuses the app image purely
+  # as a scheduler, like `backup`: no ports, no volumes. See scripts/cron-runner.mjs.
+  scheduler:
+    image: ghcr.io/daydeda/smocamt-website:latest
+    restart: unless-stopped
+    environment:
+      CRON_SECRET: "${CRON_SECRET:-}"
+      CRON_BASE_URL: "http://web:3000"
+    command: ["node", "scripts/cron-runner.mjs"]
+    depends_on:
+      - web
 
   db:
     image: postgres:16-alpine

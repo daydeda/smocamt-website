@@ -9,9 +9,7 @@ import { after, NextResponse } from "next/server";
 import { z } from "zod";
 import { allowedEventYearsSchema, sessionInputSchema, sessionsHaveInvalidSpan } from "@/lib/events/event-schema";
 import { syncEventToSongsue } from "@/lib/integrations/songsue-sync";
-import { PushService } from "@/modules/notifications/push.service";
-import { getNewEventAudienceUserIds } from "@/modules/notifications/push-audience";
-import { newEventPayload } from "@/lib/push/reminders";
+import { announceNewEventIfOpen } from "@/modules/notifications/new-event.service";
 
 const eventSchema = z.object({
   title: z.string().min(1),
@@ -251,19 +249,9 @@ export async function POST(req: Request) {
       });
     }
 
-    // Tell eligible students a new event is open. Skipped for walk-in-only events (no
-    // registration to open) and events that already started. Best-effort, after the response.
-    if (!event.walkInsOnly && event.startTime.getTime() > Date.now()) {
-      const creatorId = session.user.id!;
-      after(async () => {
-        try {
-          const audience = await getNewEventAudienceUserIds(event, [creatorId]);
-          await PushService.sendToUserIds(audience, newEventPayload({ eventId: event.id, title: event.title, startTime: event.startTime }));
-        } catch (err) {
-          console.error("New-event push failed:", err);
-        }
-      });
-    }
+    // Tell eligible students once the event is open to them (best-effort, after the response).
+    const creatorId = session.user.id!;
+    after(() => announceNewEventIfOpen(event.id, creatorId));
 
     return NextResponse.json({ success: true, event: event }, { status: 201 });
   } catch (error) {

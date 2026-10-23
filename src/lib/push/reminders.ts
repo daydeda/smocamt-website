@@ -50,6 +50,11 @@ export function formReminderPayload(input: {
   };
 }
 
+/** Whether students can see an event on the role axis (none set, or "student" listed). */
+export function isOpenToStudents(allowedRoles: string[] | null | undefined): boolean {
+  return !allowedRoles || allowedRoles.length === 0 || allowedRoles.includes("student");
+}
+
 export function newEventPayload(input: { eventId: string; title: string; startTime: Date | string }): PushNotificationPayload {
   const when = new Date(input.startTime);
   const th = when.toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Bangkok" });

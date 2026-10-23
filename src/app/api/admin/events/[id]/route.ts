@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { z } from "zod";
 import { getClientIp } from "@/modules/audit/audit.service";
 import { allowedEventYearsSchema, sessionInputSchema, sessionsHaveInvalidSpan } from "@/lib/events/event-schema";
@@ -8,6 +8,7 @@ import { syncEventToSongsue } from "@/lib/integrations/songsue-sync";
 import { eventYearFields } from "@/lib/access/event-access";
 import { AdminEventsService } from "@/modules/events/admin-events.service";
 import { EventsService } from "@/modules/events/events.service";
+import { announceNewEventIfOpen } from "@/modules/notifications/new-event.service";
 
 const eventUpdateSchema = z.object({
   title: z.string().min(1).optional(),
@@ -191,6 +192,13 @@ export async function PUT(
         imageUrls: updated.imageUrls,
         staff,
       });
+    }
+
+    // An event hidden from students (e.g. SMO-only) that this edit opened up gets its
+    // one-time "new event" push. No-op when already announced or still hidden.
+    if (liveColumnsChanged) {
+      const actorId = session.user!.id!;
+      after(() => announceNewEventIfOpen(updated.id, actorId));
     }
 
     return NextResponse.json({ success: true, event: updated });

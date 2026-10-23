@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formReminderPayload, isReminderFormType, newEventPayload, reminderStage } from "./reminders";
+import { formReminderPayload, isOpenToStudents, isReminderFormType, newEventPayload, reminderStage } from "./reminders";
 
 const now = new Date("2026-10-23T10:00:00Z");
 const at = (mins: number) => new Date(now.getTime() + mins * 60_000);
@@ -35,5 +35,16 @@ describe("payloads", () => {
     const p = newEventPayload({ eventId: "e1", title: "Camp", startTime: "2026-11-01T03:00:00Z" });
     expect(p.tag).toBe("new-event:e1");
     expect(p.body).toContain("Camp");
+  });
+});
+
+describe("isOpenToStudents", () => {
+  it("is open with no role restriction or when student is listed", () => {
+    expect(isOpenToStudents(null)).toBe(true);
+    expect(isOpenToStudents([])).toBe(true);
+    expect(isOpenToStudents(["smo", "student"])).toBe(true);
+  });
+  it("is hidden when only staff roles are listed", () => {
+    expect(isOpenToStudents(["smo"])).toBe(false);
   });
 });

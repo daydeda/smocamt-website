@@ -189,6 +189,10 @@ export const verificationTokens = pgTable(
 
 export const events = pgTable("events", {
   id: uuid("id").defaultRandom().primaryKey(),
+  // Set once the "new event" push has gone out (or the event was already open to
+  // students before that push existed). NULL while the event is hidden from students,
+  // e.g. SMO-only, so opening it later still notifies them exactly once.
+  newEventPushedAt: timestamp("new_event_pushed_at", { withTimezone: true }),
   title: text("title").notNull(),
   description: text("description"),
   startTime: timestamp("start_time", { withTimezone: true }).notNull(),

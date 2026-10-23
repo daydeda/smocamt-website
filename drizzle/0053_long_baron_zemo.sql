@@ -1,0 +1,1 @@
+ALTER TABLE "events" ADD COLUMN "new_event_pushed_at" timestamp with time zone;

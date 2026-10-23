@@ -1706,6 +1706,26 @@ async function migrate() {
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_form_reminders_form_stage ON form_reminders (form_id, stage)`;
   console.log("  ✅ form_reminders table + index");
 
+  // 105. events.new_event_pushed_at: marks that the "new event" push went out, so an
+  // event hidden from students (e.g. SMO-only) is announced once when later opened.
+  // Existing events that students could already see (no role restriction, or one
+  // that includes student) and events already over are marked as done, so editing
+  // an old event never sends a stale "new event" push. Additive, idempotent
+  // (only touches rows where the column is still NULL), non-destructive.
+  await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS new_event_pushed_at timestamptz`;
+  await sql`
+    UPDATE events SET new_event_pushed_at = now()
+    WHERE new_event_pushed_at IS NULL
+      AND (
+        end_time < now()
+        OR allowed_roles IS NULL
+        OR jsonb_typeof(allowed_roles) <> 'array'
+        OR jsonb_array_length(allowed_roles) = 0
+        OR allowed_roles ? 'student'
+      )
+  `;
+  console.log("  ✅ events.new_event_pushed_at (+ backfill of already-visible events)");
+
   console.log("✅ Migration complete!");
   await sql.end();
   process.exit(0);

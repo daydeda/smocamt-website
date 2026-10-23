@@ -974,4 +974,31 @@ export const mm = {
   scanPageTitle: "စကင်ဖတ်ရန်",
   scanPageSubtitle: "သင့်ကင်မရာဖြင့် QR ကို စကင်ဖတ်ပါ။",
   scanModeTag: "တံဆိပ်",
+
+  // Public logged-out event page (/e/[id]).
+  publicEventSignIn: "စာရင်းသွင်းရန် ဝင်ရောက်ပါ",
+  publicEventWhen: "အချိန်",
+  publicEventWhere: "နေရာ",
+  publicEventSeats: "ထိုင်ခုံ ယူထားမှု",
+  publicEventAbout: "အကြောင်း",
+  publicEventNotFound: "ဤလှုပ်ရှားမှုကို မရနိုင်ပါ",
+  publicEventNotFoundSub: "ပြီးဆုံးသွားပြီ ဖြစ်နိုင်သည်၊ သို့မဟုတ် တစ်ချို့ကျောင်းသားများအတွက်သာ ဖွင့်ထားသည်။",
+  publicEventBrowse: "လှုပ်ရှားမှုအားလုံးကြည့်ရန်",
+  publicEventWalkIn: "Walk-in သာ: နေရာတွင် တက်ရောက်ပါ",
+  publicEventRegOpen: "စာရင်းသွင်းခွင့် ဖွင့်မည်",
+  // Public standings page (/dashboard/houses) guest note.
+  publicHousesSignInNote: "တစ်ဦးချင်းအမှတ်စဉ်နှင့် လတ်တလော လှုပ်ရှားမှုကို ကြည့်ရန် ဝင်ရောက်ပါ။",
+  publicHousesSignInCta: "ဝင်ရောက်ရန်",
+  // Public home page (/) for logged-out visitors.
+  publicHomeSignIn: "ဝင်ရောက်ရန်",
+  publicHomeBrowse: "လှုပ်ရှားမှုများကြည့်ရန်",
+  publicHomeHowTitle: "အလုပ်လုပ်ပုံ",
+  publicHomeStep1: "လှုပ်ရှားမှုများကြည့်ပြီး စာရင်းသွင်းပါ",
+  publicHomeStep2: "အခန်းဝတွင် သင်၏ QR Code ပြပါ",
+  publicHomeStep3: "သင့်အိမ်အတွက် အမှတ်စုဆောင်းပါ",
+  publicHomeEventsTitle: "လာမည့် လှုပ်ရှားမှုများ",
+  publicHomeNoEvents: "ယခုအချိန်တွင် လူတိုင်းအတွက် ဖွင့်ထားသော လှုပ်ရှားမှု မရှိပါ။",
+  publicHomeHousesTitle: "အိမ်အမှတ်ဇယား",
+  publicHomeSeeAll: "အားလုံးကြည့်ရန်",
+  publicHomeInstall: "အကြံပြုချက်: မြန်မြန်ဝင်ရောက်ရန် ဘရောက်ဇာမီနူးမှ ActiveCAMT ကို ပင်မစခရင်သို့ ထည့်ပါ။",
 };

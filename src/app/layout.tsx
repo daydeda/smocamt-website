@@ -44,6 +44,8 @@ const notoSansSC = Noto_Sans_SC({
 });
 
 export const metadata: Metadata = {
+  // Absolute origin for og:image URLs (public event pages). Uses AUTH_URL's origin when set.
+  metadataBase: new URL(process.env.AUTH_URL ? new URL(process.env.AUTH_URL).origin : "https://activecamt.camt.cmu.ac.th"),
   title: "ActiveCAMT — CAMT Student Activity Hub",
   description:
     "The official student activity management platform for CAMT, Chiang Mai University. Register for events, track your house points, and manage attendance.",

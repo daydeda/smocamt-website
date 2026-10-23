@@ -32,7 +32,7 @@ export function EventDetailsModal({ ctx }: { ctx: DashboardCtx }) {
         // to a hidden-textarea copy for in-app webviews where navigator.clipboard
         // is unavailable (insecure context / restricted permissions).
         const copyShareLink = async () => {
-          const url = `${window.location.origin}${window.location.pathname}?event=${encodeURIComponent(liveEvent.id)}`;
+          const url = `${window.location.origin}/e/${encodeURIComponent(liveEvent.id)}`;
           try {
             if (navigator.clipboard?.writeText) {
               await navigator.clipboard.writeText(url);

@@ -2,7 +2,9 @@ import { db } from "@/db";
 import { attendance, events, eventSessions, forms, users } from "@/db/schema";
 import { AuditService } from "@/modules/audit/audit.service";
 import { bangkokDateKey } from "@/lib/events/event-schema";
-import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { isEligibleForGuest } from "@/lib/access/event-access";
+import { toPublicEvent, type PublicEvent } from "@/lib/events/public-event";
+import { and, asc, eq, gt, inArray, isNotNull, sql } from "drizzle-orm";
 
 export class EventsService {
   /**
@@ -118,6 +120,35 @@ export class EventsService {
       // excludes them.
       .where(eq(attendance.isStaff, false))
       .groupBy(attendance.eventId);
+  }
+
+  /**
+   * One event for the logged-out public page (/e/[id]). Returns null when the
+   * event is missing OR not open to guests, so restricted events never leak.
+   */
+  static async getPublicEvent(id: string): Promise<PublicEvent | null> {
+    const event = await db.query.events.findFirst({ where: eq(events.id, id) });
+    if (!event || !isEligibleForGuest(event)) return null;
+    const [seat] = await db
+      .select({ value: sql<number>`count(distinct ${attendance.studentId})` })
+      .from(attendance)
+      .where(and(eq(attendance.eventId, id), eq(attendance.isStaff, false)));
+    return toPublicEvent(event, Number(seat?.value ?? 0));
+  }
+
+  /**
+   * Upcoming events open to logged-out visitors, soonest first, for the public home
+   * page. Filters by the same guest predicate as /api/events, then takes `limit`.
+   */
+  static async listUpcomingPublic(limit: number, now: Date = new Date()): Promise<PublicEvent[]> {
+    const rows = await db.query.events.findMany({
+      where: gt(events.endTime, now),
+      orderBy: (events, { asc }) => [asc(events.startTime)],
+    });
+    const eligible = rows.filter((e) => isEligibleForGuest(e)).slice(0, limit);
+    const seats = await this.getSeatCounts();
+    const seatById = new Map(seats.map((c) => [c.eventId, Number(c.value)]));
+    return eligible.map((e) => toPublicEvent(e, seatById.get(e.id) ?? 0));
   }
 
   /** Every event, soonest start first (student-facing feed). */

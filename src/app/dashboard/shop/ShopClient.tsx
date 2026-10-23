@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { StudentNav } from "@/components/layout/StudentNav";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { compressImageFile } from "@/lib/media/compress-image";
@@ -90,18 +92,23 @@ export default function ShopClient() {
   const [active, setActive] = useState<Product | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [sellerApplication, setSellerApplication] = useState<SellerApplication | null>(null);
+  const router = useRouter();
+  const { status: sessionStatus } = useSession();
+  // Logged-out visitors browse only: no orders, seller tools or ordering modal.
+  const isGuest = sessionStatus === "unauthenticated";
 
   const load = useCallback(async () => {
+    // Guests have no orders or seller application, so skip those requests entirely.
     const [s, o, seller] = await Promise.all([
       fetch("/api/shop").then((r) => r.json()).catch(() => null),
-      fetch("/api/shop/orders").then((r) => r.json()).catch(() => []),
-      fetch("/api/shop/seller").then((r) => r.json()).catch(() => null),
+      isGuest ? null : fetch("/api/shop/orders").then((r) => r.json()).catch(() => []),
+      isGuest ? null : fetch("/api/shop/seller").then((r) => r.json()).catch(() => null),
     ]);
     if (s && Array.isArray(s.products)) setData(s);
     if (Array.isArray(o)) setOrders(o);
     setSellerApplication(seller?.seller ?? null);
     setLoading(false);
-  }, []);
+  }, [isGuest]);
 
   useEffect(() => {
     const t = setTimeout(() => { load(); }, 0);
@@ -129,7 +136,7 @@ export default function ShopClient() {
 
         {/* Tabs */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 24 }}>
-          {(["shop", "orders"] as const).map((tk) => (
+          {(["shop", "orders"] as const).filter((tk) => !isGuest || tk === "shop").map((tk) => (
             <button
               key={tk}
               onClick={() => setTab(tk)}
@@ -142,7 +149,16 @@ export default function ShopClient() {
           ))}
         </div>
 
-        {!loading && tab === "shop" && (
+        {isGuest && (
+          <div className="glass" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12, padding: 16, marginBottom: 24 }}>
+            <span style={{ color: "var(--text-secondary)", fontSize: 14 }}>
+              {th ? "เข้าสู่ระบบเพื่อสั่งซื้อสินค้า" : "Sign in to place an order."}
+            </span>
+            <Link href="/login" className="btn btn-primary">{th ? "เข้าสู่ระบบ" : "Sign in"}</Link>
+          </div>
+        )}
+
+        {!loading && tab === "shop" && !isGuest && (
           <SellerApplicationCard
             application={sellerApplication}
             th={th}
@@ -161,7 +177,7 @@ export default function ShopClient() {
             <EmptyState icon={<Package size={40} />} text={th ? "ยังไม่มีสินค้า" : "No products yet."} />
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(min(220px,100%),1fr))", gap: 20 }}>
-              {data.products.map((p) => <ProductCard key={p.id} product={p} th={th} onOpen={() => setActive(p)} />)}
+              {data.products.map((p) => <ProductCard key={p.id} product={p} th={th} onOpen={() => (isGuest ? router.push("/login") : setActive(p))} />)}
             </div>
           )
         ) : (
@@ -169,7 +185,7 @@ export default function ShopClient() {
         )}
       </main>
 
-      {active && data && (
+      {active && data && !isGuest && (
         <ProductModal
           product={active}
           settings={data}

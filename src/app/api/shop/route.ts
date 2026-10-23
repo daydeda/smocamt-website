@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { buildViewer, isEligibleFor } from "@/lib/access/event-access";
+import { buildViewer, isEligibleFor, isEligibleForGuest } from "@/lib/access/event-access";
 import { effectiveUnitPrice, normalUnitPrice, qualifiesForWelfare } from "@/lib/shop/shop-welfare";
 import { ShopService } from "@/modules/shop/shop.service";
 import { UsersService } from "@/modules/users/users.service";
@@ -7,32 +7,35 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/shop — the storefront for logged-in buyers: active products (with their
-// variants + remaining stock) and the payment settings (QR + instructions).
-// Returns { enabled, paymentInfo, qrImageUrl, products: [...] }.
+// GET /api/shop — the storefront. Logged-in buyers get active products (variants +
+// remaining stock) and the payment settings (QR + instructions). A logged-out visitor
+// gets a BROWSE-ONLY view: guest-eligible products at normal prices, stock, and the
+// seller's display name, with NO payment details, delivery/pickup info, or welfare
+// prices. Ordering stays behind sign-in (POST /api/shop/orders).
 export async function GET() {
   try {
     const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const isGuest = !session?.user;
 
     const settings = await ShopService.getCurrentSettings();
 
     // Shop turned off — hide everything but report the flag so the UI can explain.
     if (!settings || !settings.enabled) {
-      return NextResponse.json({ enabled: false, paymentInfo: "", qrImageUrl: null, deliveryEnabled: false, deliveryFee: 0, pickupInfo: "", products: [] });
+      return NextResponse.json({ enabled: false, guest: isGuest, paymentInfo: "", qrImageUrl: null, deliveryEnabled: false, deliveryFee: 0, pickupInfo: "", products: [] });
     }
 
     // Major lives on the users row (not on the session token); needed for the
     // major-based visibility check. Roles + studentId come from the session.
-    const me = await UsersService.getShopBuyerProfile(session.user.id!);
-    const viewer = buildViewer({
-      roles: session.user.roles || [session.user.role || "student"],
-      studentId: session.user.studentId,
-      major: me?.major,
-    });
-    // Welfare is decided off the DB roles (fresh), not the session token.
+    const me = isGuest ? null : await UsersService.getShopBuyerProfile(session!.user!.id!);
+    const viewer = isGuest
+      ? null
+      : buildViewer({
+          roles: session!.user!.roles || [session!.user!.role || "student"],
+          studentId: session!.user!.studentId,
+          major: me?.major,
+        });
+    // Welfare is decided off the DB roles (fresh), not the session token. A guest
+    // has no roles, so never gets welfare prices.
     const buyerRoles = me?.roles ?? [];
 
     const activeProducts = await ShopService.listActiveApprovedProducts();
@@ -41,12 +44,19 @@ export async function GET() {
     const approvedSellers = sellerIds.length
       ? await ShopService.listApprovedSellersByIds(sellerIds)
       : [];
-    const sellerById = new Map(approvedSellers.map((seller) => [seller.id, seller]));
+    // A guest only ever sees the seller's name; payment/delivery/pickup stay private.
+    const sellerById = new Map(
+      approvedSellers.map((seller) => [
+        seller.id,
+        isGuest ? { id: seller.id, displayName: seller.displayName } : seller,
+      ]),
+    );
 
     // Hide products this buyer isn't in the audience for (role / major / Thai-intl).
     // Admin-role viewers get the predicate's built-in bypass (they see everything).
+    // A guest is limited to what isEligibleForGuest allows (no restricted audience).
     const products = activeProducts.filter((p) =>
-      isEligibleFor(p, viewer) && (!p.sellerId || sellerById.has(p.sellerId))
+      (isGuest ? isEligibleForGuest(p) : isEligibleFor(p, viewer!)) && (!p.sellerId || sellerById.has(p.sellerId))
     );
 
     const productIds = products.map((p) => p.id);
@@ -110,8 +120,22 @@ export async function GET() {
       };
     });
 
+    if (isGuest) {
+      return NextResponse.json({
+        enabled: true,
+        guest: true,
+        paymentInfo: "",
+        qrImageUrl: null,
+        deliveryEnabled: false,
+        deliveryFee: 0,
+        pickupInfo: "",
+        products: result,
+      });
+    }
+
     return NextResponse.json({
       enabled: true,
+      guest: false,
       paymentInfo: settings.paymentInfo,
       qrImageUrl: settings.qrImageUrl,
       deliveryEnabled: settings.deliveryEnabled,

@@ -1095,4 +1095,31 @@ export const th = {
   scanPageTitle: "สแกน",
   scanPageSubtitle: "สแกน QR ด้วยกล้องของคุณ",
   scanModeTag: "ป้าย",
+
+  // Public logged-out event page (/e/[id]).
+  publicEventSignIn: "เข้าสู่ระบบเพื่อลงทะเบียน",
+  publicEventWhen: "วันเวลา",
+  publicEventWhere: "สถานที่",
+  publicEventSeats: "ที่นั่งที่จองแล้ว",
+  publicEventAbout: "รายละเอียด",
+  publicEventNotFound: "ไม่พบกิจกรรมนี้",
+  publicEventNotFoundSub: "กิจกรรมอาจสิ้นสุดแล้ว หรือเปิดเฉพาะนักศึกษาบางกลุ่ม",
+  publicEventBrowse: "ดูกิจกรรมทั้งหมด",
+  publicEventWalkIn: "เฉพาะ Walk-in: เข้าร่วมที่หน้างาน",
+  publicEventRegOpen: "เปิดลงทะเบียน",
+  // Public standings page (/dashboard/houses) guest note.
+  publicHousesSignInNote: "เข้าสู่ระบบเพื่อดูอันดับรายบุคคลและกิจกรรมล่าสุด",
+  publicHousesSignInCta: "เข้าสู่ระบบ",
+  // Public home page (/) for logged-out visitors.
+  publicHomeSignIn: "เข้าสู่ระบบ",
+  publicHomeBrowse: "ดูกิจกรรม",
+  publicHomeHowTitle: "วิธีใช้งาน",
+  publicHomeStep1: "ค้นหาและลงทะเบียนกิจกรรม",
+  publicHomeStep2: "แสดง QR Code ที่หน้างาน",
+  publicHomeStep3: "สะสมคะแนนให้บ้านของคุณ",
+  publicHomeEventsTitle: "กิจกรรมที่กำลังจะมาถึง",
+  publicHomeNoEvents: "ขณะนี้ยังไม่มีกิจกรรมที่เปิดให้ทุกคน",
+  publicHomeHousesTitle: "อันดับบ้าน",
+  publicHomeSeeAll: "ดูทั้งหมด",
+  publicHomeInstall: "เคล็ดลับ: เพิ่ม ActiveCAMT ไปยังหน้าจอหลักจากเมนูเบราว์เซอร์เพื่อเข้าใช้งานได้เร็วขึ้น",
 };

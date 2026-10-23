@@ -161,8 +161,10 @@ export default function CalendarClient({
 }: {
   initialSession: Session | null;
 }) {
-  const { data: sessionData } = useSession();
+  const { data: sessionData, status: sessionStatus } = useSession();
   const session = sessionData || initialSession;
+  // Logged-out visitors get the public feed link, never the personal token feed.
+  const isGuest = sessionStatus === "unauthenticated";
   const { t, lang } = useLanguage();
   const locale = LOCALE[lang] ?? "en-US";
 
@@ -834,7 +836,7 @@ export default function CalendarClient({
       )}
 
       {subscribeOpen && (
-        <SubscribePanel onClose={() => setSubscribeOpen(false)} />
+        <SubscribePanel publicFeed={isGuest} onClose={() => setSubscribeOpen(false)} />
       )}
 
       <style jsx>{`
@@ -1195,7 +1197,7 @@ export default function CalendarClient({
 }
 
 // ── Subscribe panel ─────────────────────────────────────────────────────────
-function SubscribePanel({ onClose }: { onClose: () => void }) {
+function SubscribePanel({ publicFeed = false, onClose }: { publicFeed?: boolean; onClose: () => void }) {
   const { t, lang } = useLanguage();
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1221,12 +1223,14 @@ function SubscribePanel({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     // Deferred so load's loading flag flips outside the synchronous effect body.
+    // The public feed needs no token, so there is nothing to load for it.
+    if (publicFeed) return;
     const timer = setTimeout(() => load(), 0);
     return () => clearTimeout(timer);
-  }, [load]);
+  }, [load, publicFeed]);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const feedUrl = token ? `${origin}/api/calendar/feed/${token}` : "";
+  const feedUrl = publicFeed ? `${origin}/api/calendar/public` : token ? `${origin}/api/calendar/feed/${token}` : "";
   const webcalUrl = feedUrl.replace(/^https?:/, "webcal:");
   const googleAddUrl = feedUrl
     ? `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcalUrl)}`
@@ -1277,9 +1281,9 @@ function SubscribePanel({ onClose }: { onClose: () => void }) {
         </div>
         <p className="sub-desc">{t.calendarSubscribeDesc}</p>
 
-        {loading ? (
+        {loading && !publicFeed ? (
           <div className="cal-state">…</div>
-        ) : loadError ? (
+        ) : loadError && !publicFeed ? (
           <div className="sub-foot" style={{ justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 13, color: "var(--amber-700)" }}>
               {lang === "th" ? "โหลดลิงก์ไม่สำเร็จ" : lang === "cn" ? "加载失败" : lang === "mm" ? "လင့်ခ် ဖွင့်၍မရပါ" : "Couldn't load the feed link."}
@@ -1288,7 +1292,7 @@ function SubscribePanel({ onClose }: { onClose: () => void }) {
               <RefreshCw size={14} /> {lang === "th" ? "ลองใหม่" : lang === "cn" ? "重试" : lang === "mm" ? "ထပ်စမ်းပါ" : "Retry"}
             </button>
           </div>
-        ) : token ? (
+        ) : publicFeed || token ? (
           <>
             <div className="sub-url">
               <input readOnly value={feedUrl} />
@@ -1312,11 +1316,14 @@ function SubscribePanel({ onClose }: { onClose: () => void }) {
               </a>
             </div>
 
+            {!publicFeed && (
             <div className="sub-warn">
               <AlertTriangle size={14} />
               <span>{t.calendarSubscribeWarning}</span>
             </div>
+            )}
 
+            {!publicFeed && (
             <div className="sub-foot">
               <button className="btn-ghost" onClick={regenerate}>
                 <RefreshCw size={14} /> {t.calendarRegenerate}
@@ -1325,6 +1332,7 @@ function SubscribePanel({ onClose }: { onClose: () => void }) {
                 {t.calendarRevoke}
               </button>
             </div>
+            )}
           </>
         ) : (
           <div className="sub-foot">

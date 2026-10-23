@@ -175,3 +175,51 @@ export function outlookCalendarUrl(item: CalItem): string {
   if (details) params.set("body", details);
   return `https://outlook.office.com/calendar/0/deeplink/compose?${params.toString()}`;
 }
+
+/** The fields of a calendar item that the .ics feeds need (a subset of CalendarItem). */
+export interface CalendarFeedRow {
+  id: string;
+  kind: "event" | "entry";
+  title: string;
+  description: string | null;
+  location: string | null;
+  startTime: string;
+  endTime: string;
+  allDay: boolean;
+  updatedAt: string | null;
+  recurrence: "none" | "daily" | "weekly" | "monthly";
+  recurrenceUntil: string | null;
+}
+
+/**
+ * Maps calendar rows to .ics items, bounded to a window of 90 days back and 365
+ * days ahead of `now` so subscribed clients' polls stay small. A recurring series is
+ * kept when it starts before the window closes and has not ended before it opens.
+ * Events link to their public page (/e/<id>); entries link to the calendar.
+ */
+export function toCalItems(rows: CalendarFeedRow[], origin: string, now: number): CalItem[] {
+  const lower = now - 90 * DAY_MS;
+  const upper = now + 365 * DAY_MS;
+  return rows
+    .filter((it) => {
+      const baseStart = new Date(it.startTime).getTime();
+      const until = it.recurrenceUntil ? new Date(it.recurrenceUntil).getTime() : null;
+      if (it.recurrence !== "none") {
+        return baseStart <= upper && (until === null || until >= lower);
+      }
+      return baseStart >= lower && baseStart <= upper;
+    })
+    .map((it) => ({
+      uid: `${it.kind}-${it.id}`,
+      title: it.title,
+      description: it.description,
+      location: it.location,
+      start: new Date(it.startTime),
+      end: new Date(it.endTime),
+      allDay: it.allDay,
+      url: it.kind === "event" ? `${origin}/e/${it.id}` : `${origin}/dashboard/calendar`,
+      updatedAt: it.updatedAt ? new Date(it.updatedAt) : null,
+      recurrence: it.recurrence,
+      recurrenceUntil: it.recurrenceUntil ? new Date(it.recurrenceUntil) : null,
+    }));
+}

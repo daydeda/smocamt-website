@@ -33,12 +33,21 @@ export async function proxy(req: NextRequest) {
     // default (redirect-to-login below) already enforces that correctly.
     pathname === "/feedback/track" ||
     pathname === "/privacy" ||
+    // House standings (team totals only) are public; the individual ranking and
+    // activity feed on this page are gated client-side and by their own APIs.
+    pathname === "/dashboard/houses" ||
+    // Calendar: guests see the public month view and the public .ics subscribe link.
+    pathname === "/dashboard/calendar" ||
+    // Shop: browse-only for guests (no payment details); ordering needs sign-in.
+    pathname === "/dashboard/shop" ||
     // Property-tag sticker landing (/t/<code>). Public ROUTE, not public data:
     // like /feedback/track it renders its own sign-in prompt (so the person
     // comes back to the same sticker after login, which a bare proxy redirect
     // to /login would lose) and shows the owner only to a signed-in,
     // onboarded viewer — see src/app/property-tag/[code]/page.tsx.
     pathname.startsWith("/t/") ||
+    // Public event page (/e/<id>): shows only guest-eligible event fields; see src/app/e/[id]/page.tsx.
+    pathname.startsWith("/e/") ||
     pathname === "/api/events" ||
     pathname === "/api/houses" ||
     pathname.startsWith("/api/auth") ||

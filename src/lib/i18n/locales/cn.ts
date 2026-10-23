@@ -974,4 +974,31 @@ export const cn = {
   scanPageTitle: "扫描",
   scanPageSubtitle: "用相机扫描二维码。",
   scanModeTag: "标签",
+
+  // Public logged-out event page (/e/[id]).
+  publicEventSignIn: "登录以报名",
+  publicEventWhen: "时间",
+  publicEventWhere: "地点",
+  publicEventSeats: "已占座位",
+  publicEventAbout: "活动详情",
+  publicEventNotFound: "该活动不可用",
+  publicEventNotFoundSub: "活动可能已结束，或仅对特定学生开放。",
+  publicEventBrowse: "查看所有活动",
+  publicEventWalkIn: "仅限现场报名：到场参加",
+  publicEventRegOpen: "报名开始",
+  // Public standings page (/dashboard/houses) guest note.
+  publicHousesSignInNote: "登录后可查看个人排名和最新动态。",
+  publicHousesSignInCta: "登录",
+  // Public home page (/) for logged-out visitors.
+  publicHomeSignIn: "登录",
+  publicHomeBrowse: "浏览活动",
+  publicHomeHowTitle: "使用方法",
+  publicHomeStep1: "浏览并报名活动",
+  publicHomeStep2: "到场出示您的二维码",
+  publicHomeStep3: "为您的学院赚取积分",
+  publicHomeEventsTitle: "即将举行的活动",
+  publicHomeNoEvents: "目前没有对所有人开放的活动。",
+  publicHomeHousesTitle: "学院排名",
+  publicHomeSeeAll: "查看全部",
+  publicHomeInstall: "提示：可通过浏览器菜单将 ActiveCAMT 添加到主屏幕，方便快速访问。",
 };

@@ -1,11 +1,9 @@
 import { buildViewer } from "@/lib/access/event-access";
 import { ClubsService } from "@/modules/clubs/clubs.service";
 import { CalendarService, getCalendarItemsForViewer } from "@/modules/calendar/calendar.service";
-import { buildVCalendar, type CalItem } from "@/lib/calendar/ical";
+import { buildVCalendar, toCalItems } from "@/lib/calendar/ical";
 
 export const maxDuration = 20;
-
-const DAY_MS = 86_400_000;
 
 // PUBLIC, token-authenticated .ics subscribe feed.
 //
@@ -45,38 +43,8 @@ export async function GET(
     const items = await getCalendarItemsForViewer(viewer, user.id);
 
     // Bound the window (−90d … +365d) to keep subscribed clients' polls small.
-    const now = Date.now();
-    const lower = now - 90 * DAY_MS;
-    const upper = now + 365 * DAY_MS;
     const origin = new URL(req.url).origin;
-
-    const calItems: CalItem[] = items
-      .filter((it) => {
-        const baseStart = new Date(it.startTime).getTime();
-        const until = it.recurrenceUntil ? new Date(it.recurrenceUntil).getTime() : null;
-        // A recurring series is in-window if it starts before the window closes AND
-        // its until-date (if set) hasn't already passed before the window opened.
-        if (it.recurrence !== "none") {
-          return baseStart <= upper && (until === null || until >= lower);
-        }
-        return baseStart >= lower && baseStart <= upper;
-      })
-      .map((it) => ({
-        uid: `${it.kind}-${it.id}`,
-        title: it.title,
-        description: it.description,
-        location: it.location,
-        start: new Date(it.startTime),
-        end: new Date(it.endTime),
-        allDay: it.allDay,
-        url:
-          it.kind === "event"
-            ? `${origin}/dashboard`
-            : `${origin}/dashboard/calendar`,
-        updatedAt: it.updatedAt ? new Date(it.updatedAt) : null,
-        recurrence: it.recurrence,
-        recurrenceUntil: it.recurrenceUntil ? new Date(it.recurrenceUntil) : null,
-      }));
+    const calItems = toCalItems(items, origin, Date.now());
 
     const ics = buildVCalendar(calItems);
 

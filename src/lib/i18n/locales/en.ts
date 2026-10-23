@@ -1115,4 +1115,31 @@ export const en = {
   scanPageTitle: "Scan",
   scanPageSubtitle: "Scan a QR code with your camera.",
   scanModeTag: "Tag",
+
+  // Public logged-out event page (/e/[id]).
+  publicEventSignIn: "Sign in to register",
+  publicEventWhen: "When",
+  publicEventWhere: "Where",
+  publicEventSeats: "Seats taken",
+  publicEventAbout: "About",
+  publicEventNotFound: "This event isn't available",
+  publicEventNotFoundSub: "It may have ended, or it's only open to specific students.",
+  publicEventBrowse: "See all events",
+  publicEventWalkIn: "Walk-in only: attend at the door",
+  publicEventRegOpen: "Registration opens",
+  // Public standings page (/dashboard/houses) guest note.
+  publicHousesSignInNote: "Sign in to see individual rankings and recent activity.",
+  publicHousesSignInCta: "Sign in",
+  // Public home page (/) for logged-out visitors.
+  publicHomeSignIn: "Sign in",
+  publicHomeBrowse: "Browse activities",
+  publicHomeHowTitle: "How it works",
+  publicHomeStep1: "Browse and register for activities",
+  publicHomeStep2: "Show your QR code at the door",
+  publicHomeStep3: "Earn points for your house",
+  publicHomeEventsTitle: "Upcoming activities",
+  publicHomeNoEvents: "No upcoming activities are open to everyone right now.",
+  publicHomeHousesTitle: "House standings",
+  publicHomeSeeAll: "See all",
+  publicHomeInstall: "Tip: add ActiveCAMT to your home screen from your browser menu for quick access.",
 };

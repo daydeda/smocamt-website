@@ -83,8 +83,11 @@ function JoinLineButton() {
 
 export default function HousesPage() {
   const { t, lang } = useLanguage();
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const myId = session?.user?.id;
+  // Logged-out visitors see the house standings only. The individual ranking and
+  // activity feed carry student names, so they are never requested for a guest.
+  const isGuest = sessionStatus === "unauthenticated";
   // The student's own house — its standings row is highlighted as "Your House" and
   // links to its member roster.
   const myHouseId = session?.user?.houseId;
@@ -237,13 +240,13 @@ export default function HousesPage() {
     try {
       const [hData, aData, iData] = await Promise.all([
         fetch("/api/houses", { signal }).then((r) => r.json()),
-        fetch("/api/houses/activity", { signal }).then((r) => r.json()),
-        fetch("/api/houses/individual", { signal }).then((r) => r.json()),
+        isGuest ? null : fetch("/api/houses/activity", { signal }).then((r) => r.json()),
+        isGuest ? null : fetch("/api/houses/individual", { signal }).then((r) => r.json()),
       ]);
       if (Array.isArray(hData)) setHouses(hData);
       if (Array.isArray(aData)) setActivities(aData);
       if (Array.isArray(iData)) setIndividuals(iData);
-      if (myId) {
+      if (myId && !isGuest) {
         const meRes = await fetch("/api/houses/individual/me", { signal });
         if (meRes.ok) {
           const d = await meRes.json();
@@ -376,6 +379,7 @@ export default function HousesPage() {
           >
             {t.houseRankingsTab}
           </button>
+          {!isGuest && (
           <button
             onClick={() => setActiveTab("individual")}
             style={{
@@ -394,6 +398,7 @@ export default function HousesPage() {
           >
             {t.individualRankingsTab}
           </button>
+          )}
         </div>
  
         {/* Podium for Top 3 Houses */}
@@ -758,7 +763,16 @@ export default function HousesPage() {
           </section>
         )}
 
+        {isGuest && (
+          <section className="glass animate-fade-in-up" style={{ marginBottom: 56, padding: 24, textAlign: "center" }}>
+            <p style={{ color: "var(--text-secondary)", marginBottom: 16 }}>{t.publicHousesSignInNote}</p>
+            <Link href="/login" style={{ display: "inline-flex", height: 44, padding: "0 20px", alignItems: "center", borderRadius: 14, fontWeight: 800, background: "var(--accent-primary)", color: "#fff", textDecoration: "none" }}>
+              {t.publicHousesSignInCta}
+            </Link>
+          </section>
+        )}
         {/* Recent Activity */}
+        {!isGuest && (
         <section className="glass recent-activity-section animate-fade-in-up">
           <h2 className="recent-activity-title">
             <History size={24} className="text-accent" />
@@ -801,6 +815,7 @@ export default function HousesPage() {
             })}
           </div>
         </section>
+        )}
  
       </main>
  

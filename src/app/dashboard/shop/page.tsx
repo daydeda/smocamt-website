@@ -1,13 +1,9 @@
-import { auth } from "@/auth";
-import { redirect } from "next/navigation";
 import ShopClient from "./ShopClient";
 
 export const dynamic = "force-dynamic";
 
-export default async function ShopPage() {
-  const session = await auth();
-  if (!session?.user) {
-    redirect("/login");
-  }
+// Public: a logged-out visitor gets the browse-only storefront (see GET /api/shop).
+// Orders, slips and seller tools are gated inside ShopClient and by their own APIs.
+export default function ShopPage() {
   return <ShopClient />;
 }

@@ -89,14 +89,14 @@ export const NAV_ITEMS: NavItem[] = [
   // action (student holds up the QR at a live check-in queue), so it must
   // stay reachable in a single tap rather than a tap-then-scan-a-grid.
   { id: "dashboard", href: "/dashboard", i18nKey: "upcomingEvents", fallback: "Dashboard", icon: LayoutDashboard, tier: "pinned", group: "activities", guestVisible: true },
-  { id: "calendar", href: "/dashboard/calendar", i18nKey: "calendar", fallback: "Calendar", icon: CalendarDays, tier: "pinned", group: "activities" },
+  { id: "calendar", href: "/dashboard/calendar", i18nKey: "calendar", fallback: "Calendar", icon: CalendarDays, tier: "pinned", group: "activities", guestVisible: true },
   { id: "digitalId", href: "/dashboard/id", i18nKey: "digitalId", fallback: "Digital ID", icon: QrCode, tier: "pinned", group: "activities", guestVisible: true },
   { id: "scan", href: "/dashboard/scan", i18nKey: "navScan", fallback: "Scan", icon: ScanLine, tier: "pinned", group: "activities" },
 
   // Launcher — Activities group.
   { id: "houses", href: "/dashboard/houses", i18nKey: "leaderboard", fallback: "Houses", icon: Trophy, tier: "launcher", group: "activities", guestVisible: true },
   { id: "history", href: "/dashboard/history", i18nKey: "eventHistory", fallback: "History", icon: History, tier: "launcher", group: "activities" },
-  { id: "shop", href: "/dashboard/shop", i18nKey: "shop", fallback: "Shop", icon: ShoppingBag, tier: "launcher", group: "activities" },
+  { id: "shop", href: "/dashboard/shop", i18nKey: "shop", fallback: "Shop", icon: ShoppingBag, tier: "launcher", group: "activities", guestVisible: true },
   { id: "myItems", href: "/dashboard/items", i18nKey: "navMyItems", fallback: "My Items", icon: Tag, tier: "launcher", group: "activities" },
 
   // Launcher — Account group.

@@ -17,7 +17,10 @@ export type PushTestType =
   | "appeal-new"
   | "appeal-decision"
   | "proposal-new"
-  | "feedback";
+  | "feedback"
+  | "form-due-1d"
+  | "form-due-1h"
+  | "new-event";
 
 type Sample = { label: { en: string; th: string }; payload: PushNotificationPayload };
 
@@ -74,6 +77,33 @@ const SAMPLES: Record<PushTestType, Sample> = {
   feedback: {
     label: { en: "Feedback / complaint (staff)", th: "ข้อเสนอแนะ/ร้องเรียน (ทีมงาน)" },
     payload: { title: "[Test] New feedback", body: "A new feedback message was submitted.", url: "/admin/feedback", tag: "test:feedback" },
+  },
+  "form-due-1d": {
+    label: { en: "Form closes in 24h (student)", th: "แบบฟอร์มใกล้ปิด 24 ชม. (นักศึกษา)" },
+    payload: {
+      title: "[Test] ปิดภายใน 24 ชั่วโมง / closes within 24 hours",
+      body: "แบบประเมินความคิดเห็น ของกิจกรรม \"Sample event\" ยังไม่ได้ทำ / Your feedback form for \"Sample event\" is still waiting.",
+      url: "/dashboard",
+      tag: "test:form-due-1d",
+    },
+  },
+  "form-due-1h": {
+    label: { en: "Form closes in 1h (student)", th: "แบบฟอร์มใกล้ปิด 1 ชม. (นักศึกษา)" },
+    payload: {
+      title: "[Test] เหลือเวลาอีก 1 ชั่วโมง / 1 hour left",
+      body: "แบบทดสอบหลังกิจกรรม ของกิจกรรม \"Sample event\" ยังไม่ได้ทำ / Your post-test for \"Sample event\" is still waiting.",
+      url: "/dashboard",
+      tag: "test:form-due-1h",
+    },
+  },
+  "new-event": {
+    label: { en: "New event to join (student)", th: "กิจกรรมใหม่ให้ลงทะเบียน (นักศึกษา)" },
+    payload: {
+      title: "[Test] กิจกรรมใหม่ / New event",
+      body: "\"Sample event\" เปิดให้ลงทะเบียนแล้ว / Registration is open for \"Sample event\".",
+      url: "/dashboard",
+      tag: "test:new-event",
+    },
   },
 };
 

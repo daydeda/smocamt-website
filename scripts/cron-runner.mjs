@@ -20,6 +20,9 @@ const JOBS = [
   // Event-winner house bonuses and closed-form awards: hourly so points land soon
   // after an event or form ends, instead of waiting for a once-a-day run.
   { path: "/api/cron/award-points", everyMs: 60 * MINUTE },
+  // "Form closes soon" pushes (24h and 1h before closes_at). The 1h reminder needs a
+  // short tick; sends are deduped per (form, stage) in the database.
+  { path: "/api/cron/reminders", everyMs: 5 * MINUTE },
   // Orphaned form-upload sweep: daily housekeeping.
   { path: "/api/cron/gc-form-files", everyMs: 24 * 60 * MINUTE },
 ];

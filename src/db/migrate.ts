@@ -1693,6 +1693,19 @@ async function migrate() {
   await sql`CREATE INDEX IF NOT EXISTS idx_event_waitlist_student ON event_waitlist (student_id)`;
   console.log("  ✅ event_waitlist table + indexes");
 
+  // 104. Scheduler dedupe for "form closes soon" pushes: one row per (form, stage)
+  // already sent, so a restart never double-sends. Mirrors the generated drizzle
+  // migration. New table + IF NOT EXISTS index => additive, idempotent, non-destructive.
+  await sql`
+    CREATE TABLE IF NOT EXISTS form_reminders (
+      form_id uuid NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
+      stage text NOT NULL,
+      sent_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_form_reminders_form_stage ON form_reminders (form_id, stage)`;
+  console.log("  ✅ form_reminders table + index");
+
   console.log("✅ Migration complete!");
   await sql.end();
   process.exit(0);

@@ -436,6 +436,18 @@ export const eventWaitlist = pgTable("event_waitlist", {
   index("idx_event_waitlist_student").on(table.studentId),
 ]));
 
+// One row per (form, reminder stage) already pushed by the scheduler, so a restart or
+// an overlapping tick never sends the same "form closes soon" reminder twice. The row
+// is claimed (INSERT ... ON CONFLICT DO NOTHING) before sending. See
+// src/modules/notifications/reminders.service.ts.
+export const formReminders = pgTable("form_reminders", {
+  formId: uuid("form_id").references(() => forms.id, { onDelete: "cascade" }).notNull(),
+  stage: text("stage").notNull(), // '1d' | '1h'
+  sentAt: timestamp("sent_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ([
+  uniqueIndex("idx_form_reminders_form_stage").on(table.formId, table.stage),
+]));
+
 // Score history log per house per activity (FE-08)
 export const scoreHistory = pgTable("score_history", {
   id: uuid("id").defaultRandom().primaryKey(),

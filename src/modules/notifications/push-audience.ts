@@ -12,8 +12,9 @@
 // beats a marginal query optimization here.
 
 import { db } from "@/db";
-import { clubMembers, shopProducts, shopSellers, users } from "@/db/schema";
+import { clubMembers, pushSubscriptions, shopProducts, shopSellers, users } from "@/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
+import { buildViewer, isEligibleFor, type EligibilityItem } from "@/lib/access/event-access";
 import { effectiveRoles, isGlobalRegistrationPosition, isShopFinancePosition } from "@/lib/access/admin-access";
 import { REVIEW_PROPOSAL_ROLES } from "@/lib/events/event-proposals";
 import { VIEW_APPEALS_ROLES } from "@/lib/points/strikes";
@@ -170,4 +171,38 @@ export async function getShopOrderAudienceUserIds(productIds: string[], directSe
       ...directSellerRow.map((s) => s.userId),
     ]),
   ];
+}
+
+/**
+ * Audience for "a new event you can join": users with a push subscription who pass
+ * the same isEligibleFor() check as the dashboard event list. The admin bypass is
+ * switched off on purpose, so staff are only told about events a plain student
+ * with their profile could join (not every event on the platform).
+ */
+export async function getNewEventAudienceUserIds(event: EligibilityItem, excludeUserIds: string[] = []): Promise<string[]> {
+  const subscribed = await db.selectDistinct({ userId: pushSubscriptions.userId }).from(pushSubscriptions);
+  const ids = subscribed.map((r) => r.userId).filter((id): id is string => !!id && !excludeUserIds.includes(id));
+  if (ids.length === 0) return [];
+
+  const [people, memberships] = await Promise.all([
+    db
+      .select({ id: users.id, role: users.role, roles: users.roles, studentId: users.studentId, major: users.major })
+      .from(users)
+      .where(inArray(users.id, ids)),
+    db.select({ userId: clubMembers.userId, clubId: clubMembers.clubId }).from(clubMembers).where(inArray(clubMembers.userId, ids)),
+  ]);
+  const clubsByUser = new Map<string, string[]>();
+  for (const m of memberships) clubsByUser.set(m.userId, [...(clubsByUser.get(m.userId) ?? []), m.clubId]);
+
+  return people
+    .filter((p) => {
+      const viewer = buildViewer({
+        roles: effectiveRoles(p.role, p.roles),
+        studentId: p.studentId,
+        major: p.major,
+        clubIds: clubsByUser.get(p.id) ?? [],
+      });
+      return isEligibleFor(event, { ...viewer, isAdminRole: false });
+    })
+    .map((p) => p.id);
 }

@@ -5,10 +5,13 @@ import { EventScopeService } from "@/modules/events/event-scope.service";
 import { AdminEventsService } from "@/modules/events/admin-events.service";
 import { EventsService } from "@/modules/events/events.service";
 import { unstable_cache } from "next/cache";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { z } from "zod";
 import { allowedEventYearsSchema, sessionInputSchema, sessionsHaveInvalidSpan } from "@/lib/events/event-schema";
 import { syncEventToSongsue } from "@/lib/integrations/songsue-sync";
+import { PushService } from "@/modules/notifications/push.service";
+import { getNewEventAudienceUserIds } from "@/modules/notifications/push-audience";
+import { newEventPayload } from "@/lib/push/reminders";
 
 const eventSchema = z.object({
   title: z.string().min(1),
@@ -245,6 +248,20 @@ export async function POST(req: Request) {
         imageUrl: event.imageUrl,
         imageUrls: event.imageUrls,
         staff,
+      });
+    }
+
+    // Tell eligible students a new event is open. Skipped for walk-in-only events (no
+    // registration to open) and events that already started. Best-effort, after the response.
+    if (!event.walkInsOnly && event.startTime.getTime() > Date.now()) {
+      const creatorId = session.user.id!;
+      after(async () => {
+        try {
+          const audience = await getNewEventAudienceUserIds(event, [creatorId]);
+          await PushService.sendToUserIds(audience, newEventPayload({ eventId: event.id, title: event.title, startTime: event.startTime }));
+        } catch (err) {
+          console.error("New-event push failed:", err);
+        }
       });
     }
 

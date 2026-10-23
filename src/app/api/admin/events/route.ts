@@ -250,8 +250,7 @@ export async function POST(req: Request) {
     }
 
     // Tell eligible students once the event is open to them (best-effort, after the response).
-    const creatorId = session.user.id!;
-    after(() => announceNewEventIfOpen(event.id, creatorId));
+    after(() => announceNewEventIfOpen(event.id));
 
     return NextResponse.json({ success: true, event: event }, { status: 201 });
   } catch (error) {

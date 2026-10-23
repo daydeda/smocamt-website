@@ -60,7 +60,11 @@ export function PushNotificationToggle({ showTest = false }: { showTest?: boolea
   async function handleEnable() {
     setBusy(true);
     setError(false);
-    const result = await enablePushNotifications();
+    // A network or service-worker error must not leave the button stuck on busy.
+    const result = await enablePushNotifications().catch((err) => {
+      console.warn("[push] enable failed:", err);
+      return { ok: false as const, reason: "save-failed" as const };
+    });
     setBusy(false);
     if (result.ok) {
       setStatus("on");

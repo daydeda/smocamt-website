@@ -8,7 +8,7 @@ import { isPushPermissionRequestable } from "@/lib/ui/pwa-standalone";
 
 export type EnablePushResult =
   | { ok: true }
-  | { ok: false; reason: "unsupported" | "ios-not-installed" | "denied" | "dismissed" | "not-configured" | "save-failed" | "no-service-worker" };
+  | { ok: false; reason: "unsupported" | "ios-not-installed" | "denied" | "dismissed" | "not-configured" | "save-failed" | "subscribe-failed" | "no-service-worker" };
 
 export function isStandalone(): boolean {
   if (typeof window === "undefined") return false;
@@ -70,10 +70,17 @@ export async function enablePushNotifications(): Promise<EnablePushResult> {
   const { publicKey } = await keyRes.json();
 
   const reg = await navigator.serviceWorker.ready;
-  const subscription = await reg.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
-  });
+  let subscription: PushSubscription;
+  try {
+    subscription = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
+    });
+  } catch (err) {
+    // The browser's push service refused (blocked network, Brave, a policy). Keep the real error visible.
+    console.warn("[push] subscribe failed:", err);
+    return { ok: false, reason: "subscribe-failed" };
+  }
 
   const saveRes = await fetch("/api/notifications/push/subscribe", {
     method: "POST",

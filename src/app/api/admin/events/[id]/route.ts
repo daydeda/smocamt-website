@@ -197,8 +197,7 @@ export async function PUT(
     // An event hidden from students (e.g. SMO-only) that this edit opened up gets its
     // one-time "new event" push. No-op when already announced or still hidden.
     if (liveColumnsChanged) {
-      const actorId = session.user!.id!;
-      after(() => announceNewEventIfOpen(updated.id, actorId));
+      after(() => announceNewEventIfOpen(updated.id));
     }
 
     return NextResponse.json({ success: true, event: updated });

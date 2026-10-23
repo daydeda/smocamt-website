@@ -166,7 +166,10 @@ export function InstallPushPrompt() {
       }, 600);
       return;
     }
-    const result = await enablePushNotifications().catch(() => ({ ok: false as const, reason: "save-failed" as const }));
+    const result = await enablePushNotifications().catch((err) => {
+      console.warn("[push] enable failed:", err);
+      return { ok: false as const, reason: "save-failed" as const };
+    });
     setBusy(false);
     if (result.ok) {
       setDone(true);
@@ -179,6 +182,7 @@ export function InstallPushPrompt() {
       console.warn("[pwa] No service worker on this page. On the dev server set NEXT_PUBLIC_ENABLE_SW_IN_DEV=true in .env.local and restart it.");
       setError(true);
     } else if (result.reason !== "dismissed") {
+      console.warn("[push] enable failed:", result.reason);
       setError(true);
     }
   }

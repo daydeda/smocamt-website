@@ -1,6 +1,6 @@
 {
   "name": "activecamt",
-  "version": "2.32.3",
+  "version": "2.32.4",
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
@@ -23,6 +23,7 @@
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.3",
     "@electric-sql/pglite": "^0.5.3",
+    "@googleapis/drive": "^27.0.0",
     "@hookform/resolvers": "^5.2.2",
     "@supabase/supabase-js": "^2.107.0",
     "@tesseract.js-data/eng": "^1.0.0",
@@ -33,14 +34,14 @@
     "drizzle-orm": "^0.45.2",
     "exceljs": "^4.4.0",
     "framer-motion": "^12.42.2",
-    "googleapis": "^173.0.0",
+    "google-auth-library": "^11.3.1",
     "html5-qrcode": "^2.3.8",
     "jspdf": "^4.2.1",
     "jsqr": "^1.4.0",
     "lucide-react": "^1.14.0",
     "next": "^16.3.4",
     "next-auth": "^5.0.0-beta.32",
-    "nodemailer": "^8.0.11",
+    "nodemailer": "^10.2.1",
     "postgres": "^3.4.9",
     "qrcode": "^1.5.4",
     "qrcode.react": "^4.2.0",
@@ -70,5 +71,11 @@
     "tsx": "^4.21.0",
     "typescript": "^5",
     "vitest": "^4.1.9"
+  },
+  "overrides": {
+    "nodemailer": "$nodemailer",
+    "exceljs": {
+      "uuid": "^11.1.1"
+    }
   }
 }

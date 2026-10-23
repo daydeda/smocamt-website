@@ -35,7 +35,8 @@ import { createGzip } from "node:zlib";
 import { createWriteStream, createReadStream } from "node:fs";
 import { unlink } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
-import { google } from "googleapis";
+import { drive as driveApi } from "@googleapis/drive";
+import { OAuth2Client } from "google-auth-library";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) throw new Error("DATABASE_URL not set");
@@ -74,9 +75,9 @@ async function dumpToFile() {
 }
 
 function driveClient() {
-  const auth = new google.auth.OAuth2(GDRIVE_OAUTH_CLIENT_ID, GDRIVE_OAUTH_CLIENT_SECRET);
+  const auth = new OAuth2Client(GDRIVE_OAUTH_CLIENT_ID, GDRIVE_OAUTH_CLIENT_SECRET);
   auth.setCredentials({ refresh_token: GDRIVE_OAUTH_REFRESH_TOKEN });
-  return google.drive({ version: "v3", auth });
+  return driveApi({ version: "v3", auth });
 }
 
 async function uploadAndPrune(drive) {

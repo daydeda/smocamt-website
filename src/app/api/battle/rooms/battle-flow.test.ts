@@ -3,9 +3,10 @@ import { vi } from "vitest";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { eq } from "drizzle-orm";
+import type { PGlite } from "@electric-sql/pglite";
 
 // Retrieve the active PGlite instance created by @/db
-const testClient = (globalThis as any).pglite;
+const testClient = (globalThis as unknown as { pglite: PGlite }).pglite;
 
 // Mock auth() dynamically based on our test variables
 let currentUserId = "user-host";

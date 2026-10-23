@@ -9,20 +9,34 @@
 node_modules
 .next
 .next.nosync
+*.tsbuildinfo
 
 # Local upload data — provided via bind mounts, must not be copied into the image
 public/uploads
 .uploads-private
+uploads-private
 
 # VCS, tooling, and editor cruft
 .git
 .gitignore
 .vercel
 .agents
+.archify
 .claude
+.github
+.DS_Store
 scratch
 *.log
 
-# Docs and one-off artifacts not needed at runtime
-*.md
+# Docs and changelogs are not read at runtime. Excluding whole folders matters:
+# a `*.md` pattern only matches the repo root, so docs/ and updates/ edits used
+# to bust the `npm run build` layer on every commit.
+docs
+updates
+drizzle
+**/*.md
 !README.md
+
+# Local launcher scripts (Windows / dev), not used in the image
+run.ps1
+run-local.ps1

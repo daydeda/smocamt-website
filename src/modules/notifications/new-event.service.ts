@@ -10,9 +10,10 @@ import { getNewEventAudienceUserIds } from "./push-audience";
  * Called after an event is created or edited. An event hidden from students (for
  * example SMO-only) stays unannounced until it is opened; the claim on
  * events.new_event_pushed_at makes that happen exactly once, even across racing edits.
+ * The creator is not excluded: they get it like anyone else who passes the eligibility check.
  * Never throws: a push problem must not fail the save that triggered it.
  */
-export async function announceNewEventIfOpen(eventId: string, actorId: string): Promise<void> {
+export async function announceNewEventIfOpen(eventId: string): Promise<void> {
   try {
     const [event] = await db.select().from(events).where(eq(events.id, eventId));
     if (!event || event.newEventPushedAt) return;
@@ -26,7 +27,7 @@ export async function announceNewEventIfOpen(eventId: string, actorId: string): 
       .returning({ id: events.id });
     if (claimed.length === 0) return;
 
-    const audience = await getNewEventAudienceUserIds(event, [actorId]);
+    const audience = await getNewEventAudienceUserIds(event);
     await PushService.sendToUserIds(audience, newEventPayload({ eventId, title: event.title, startTime: event.startTime }));
   } catch (err) {
     console.error("New-event push failed:", err);

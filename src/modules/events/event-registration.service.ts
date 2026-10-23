@@ -1,10 +1,41 @@
 import { db } from "@/db";
-import { attendance, events, users, forms, formSubmissions, eventSessions } from "@/db/schema";
+import { attendance, events, eventWaitlist, users, forms, formSubmissions, eventSessions } from "@/db/schema";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { cohortOf, pickPromotions, seatsLeft, waitlistPositions } from "@/lib/events/waitlist";
 
 // Error-message prefix thrown inside the registration transaction when a quota is
 // hit; the route maps "<prefix>:<message>" to a 422.
 export const QUOTA_FULL = "QUOTA_FULL";
+// The one QUOTA_FULL message that is NOT about seats (no session to anchor the
+// registration to), so it must never put the student on the waitlist.
+export const NO_SESSIONS_MESSAGE = "This event has no sessions yet";
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Seats held on an event: DISTINCT non-staff students (a multi-day 'once' event has
+ * one attended row per day for the same person). "thai"/"intl" restrict to that
+ * cohort by the third-from-last student-id digit, the same split the quotas use.
+ */
+async function seatCount(tx: Tx, eventId: string, cohort: "all" | "thai" | "intl"): Promise<number> {
+  const base = and(eq(attendance.eventId, eventId), eq(attendance.isStaff, false));
+  if (cohort === "all") {
+    const [{ value }] = await tx
+      .select({ value: sql<number>`count(distinct ${attendance.studentId})` })
+      .from(attendance)
+      .where(base);
+    return Number(value);
+  }
+  const digit = cohort === "intl"
+    ? sql`substr(${users.studentId}, length(${users.studentId}) - 2, 1) = '5'`
+    : sql`substr(${users.studentId}, length(${users.studentId}) - 2, 1) IN ('0', '1', '2', '3', '4')`;
+  const [{ value }] = await tx
+    .select({ value: sql<number>`count(distinct ${attendance.studentId})` })
+    .from(attendance)
+    .innerJoin(users, eq(attendance.studentId, users.id))
+    .where(and(base, digit));
+  return Number(value);
+}
 
 export class EventRegistrationService {
   /**
@@ -67,7 +98,7 @@ export class EventRegistrationService {
         .where(eq(eventSessions.eventId, eventId))
         .orderBy(asc(eventSessions.sortOrder), asc(eventSessions.startTime))
         .limit(1);
-      if (!firstSession) throw new Error(`${QUOTA_FULL}:This event has no sessions yet`);
+      if (!firstSession) throw new Error(`${QUOTA_FULL}:${NO_SESSIONS_MESSAGE}`);
 
       if (!isEventStaff) {
         // Overall quota. Count DISTINCT students, not attendance rows: a multi-day
@@ -75,43 +106,17 @@ export class EventRegistrationService {
         // count(*) would inflate the seat count. Quota = number of people holding a seat.
         // Staff rows (isStaff=true) never count toward anyone's quota either.
         if (event.quota !== null && event.quota > 0) {
-          const [{ value: currentCount }] = await tx
-            .select({ value: sql<number>`count(distinct ${attendance.studentId})` })
-            .from(attendance)
-            .where(and(eq(attendance.eventId, eventId), eq(attendance.isStaff, false)));
-          if (Number(currentCount) >= event.quota) throw new Error(`${QUOTA_FULL}:Event is full`);
+          if ((await seatCount(tx, eventId, "all")) >= event.quota) throw new Error(`${QUOTA_FULL}:Event is full`);
         }
 
         // Cohort quota: Thai students
         if (isThai && event.quotaThai !== null && event.quotaThai > 0) {
-          const [{ value: currentThaiCount }] = await tx
-            .select({ value: sql<number>`count(distinct ${attendance.studentId})` })
-            .from(attendance)
-            .innerJoin(users, eq(attendance.studentId, users.id))
-            .where(
-              and(
-                eq(attendance.eventId, eventId),
-                eq(attendance.isStaff, false),
-                sql`substr(${users.studentId}, length(${users.studentId}) - 2, 1) IN ('0', '1', '2', '3', '4')`
-              )
-            );
-          if (Number(currentThaiCount) >= event.quotaThai) throw new Error(`${QUOTA_FULL}:Thai student quota is full`);
+          if ((await seatCount(tx, eventId, "thai")) >= event.quotaThai) throw new Error(`${QUOTA_FULL}:Thai student quota is full`);
         }
 
         // Cohort quota: International students
         if (isIntl && event.quotaInternational !== null && event.quotaInternational > 0) {
-          const [{ value: currentIntlCount }] = await tx
-            .select({ value: sql<number>`count(distinct ${attendance.studentId})` })
-            .from(attendance)
-            .innerJoin(users, eq(attendance.studentId, users.id))
-            .where(
-              and(
-                eq(attendance.eventId, eventId),
-                eq(attendance.isStaff, false),
-                sql`substr(${users.studentId}, length(${users.studentId}) - 2, 1) = '5'`
-              )
-            );
-          if (Number(currentIntlCount) >= event.quotaInternational) throw new Error(`${QUOTA_FULL}:International student quota is full`);
+          if ((await seatCount(tx, eventId, "intl")) >= event.quotaInternational) throw new Error(`${QUOTA_FULL}:International student quota is full`);
         }
       }
 
@@ -134,6 +139,144 @@ export class EventRegistrationService {
         .returning({ id: attendance.id });
 
       if (inserted.length === 0) throw new Error("ALREADY_REGISTERED");
+
+      // A student who got a seat no longer needs their place in the queue.
+      await tx
+        .delete(eventWaitlist)
+        .where(and(eq(eventWaitlist.eventId, eventId), eq(eventWaitlist.studentId, userId)));
+    });
+  }
+
+  /**
+   * Queues the student for a full event (idempotent) and returns their 1-based
+   * place in line.
+   */
+  static async joinWaitlist(eventId: string, userId: string): Promise<number> {
+    await db
+      .insert(eventWaitlist)
+      .values({ eventId, studentId: userId })
+      .onConflictDoNothing();
+    const positions = await this.listWaitlistPositions(userId, [eventId]);
+    return positions.get(eventId) ?? 1;
+  }
+
+  /** Removes the student from an event's queue. Returns whether they were on it. */
+  static async leaveWaitlist(eventId: string, userId: string): Promise<boolean> {
+    const removed = await db
+      .delete(eventWaitlist)
+      .where(and(eq(eventWaitlist.eventId, eventId), eq(eventWaitlist.studentId, userId)))
+      .returning({ id: eventWaitlist.id });
+    return removed.length > 0;
+  }
+
+  /**
+   * The student's place in line for each event they are waiting on (eventId to
+   * 1-based position). Optionally limited to `eventIds`.
+   */
+  static async listWaitlistPositions(userId: string, eventIds?: string[]): Promise<Map<string, number>> {
+    const mine = await db
+      .select({ eventId: eventWaitlist.eventId })
+      .from(eventWaitlist)
+      .where(
+        eventIds
+          ? and(eq(eventWaitlist.studentId, userId), inArray(eventWaitlist.eventId, eventIds))
+          : eq(eventWaitlist.studentId, userId),
+      );
+    if (mine.length === 0) return new Map();
+    const entries = await db
+      .select({ eventId: eventWaitlist.eventId, studentId: eventWaitlist.studentId })
+      .from(eventWaitlist)
+      .where(inArray(eventWaitlist.eventId, mine.map((m) => m.eventId)))
+      .orderBy(asc(eventWaitlist.createdAt), asc(eventWaitlist.id));
+    return waitlistPositions(entries, userId);
+  }
+
+  /**
+   * Fills seats freed by a cancellation from the event's waitlist, in join order,
+   * respecting the overall and Thai/international quotas. Runs under the same
+   * event-row lock as registerWithQuota so it can never oversell. Students who
+   * already hold a seat (e.g. walked in) are dropped from the queue; students whose
+   * registration is blocked for no-shows keep their place but are skipped. Returns
+   * the user ids that were given a seat. Does nothing once the event has ended or
+   * its registration window has closed.
+   */
+  static async promoteFromWaitlist(eventId: string): Promise<string[]> {
+    return db.transaction(async (tx) => {
+      const [ev] = await tx
+        .select({
+          quota: events.quota,
+          quotaThai: events.quotaThai,
+          quotaInternational: events.quotaInternational,
+          endTime: events.endTime,
+          registrationCloseTime: events.registrationCloseTime,
+        })
+        .from(events)
+        .where(eq(events.id, eventId))
+        .for("update");
+      if (!ev) return [];
+      const now = new Date();
+      if (now > ev.endTime || (ev.registrationCloseTime && now > ev.registrationCloseTime)) return [];
+
+      const queue = await tx
+        .select({
+          userId: eventWaitlist.studentId,
+          studentId: users.studentId,
+          blocked: users.registrationBlocked,
+        })
+        .from(eventWaitlist)
+        .innerJoin(users, eq(eventWaitlist.studentId, users.id))
+        .where(eq(eventWaitlist.eventId, eventId))
+        .orderBy(asc(eventWaitlist.createdAt), asc(eventWaitlist.id));
+      if (queue.length === 0) return [];
+
+      const [firstSession] = await tx
+        .select({ id: eventSessions.id })
+        .from(eventSessions)
+        .where(eq(eventSessions.eventId, eventId))
+        .orderBy(asc(eventSessions.sortOrder), asc(eventSessions.startTime))
+        .limit(1);
+      if (!firstSession) return [];
+
+      const holders = new Set(
+        (await tx
+          .select({ studentId: attendance.studentId })
+          .from(attendance)
+          .where(and(eq(attendance.eventId, eventId), inArray(attendance.studentId, queue.map((q) => q.userId)))))
+          .map((r) => r.studentId),
+      );
+
+      const picked = pickPromotions(
+        queue
+          .filter((q) => !holders.has(q.userId) && !q.blocked)
+          .map((q) => ({ userId: q.userId, cohort: cohortOf(q.studentId) })),
+        {
+          overall: seatsLeft(ev.quota, await seatCount(tx, eventId, "all")),
+          thai: seatsLeft(ev.quotaThai, await seatCount(tx, eventId, "thai")),
+          intl: seatsLeft(ev.quotaInternational, await seatCount(tx, eventId, "intl")),
+        },
+      );
+
+      if (picked.length > 0) {
+        await tx.insert(attendance).values(
+          picked.map((userId) => ({
+            eventId,
+            sessionId: firstSession.id,
+            studentId: userId,
+            method: "pre-registered",
+            status: "registered",
+            checkInTime: null,
+            isStaff: false,
+          })),
+        ).onConflictDoNothing();
+      }
+
+      const toRemove = [...picked, ...holders];
+      if (toRemove.length > 0) {
+        await tx
+          .delete(eventWaitlist)
+          .where(and(eq(eventWaitlist.eventId, eventId), inArray(eventWaitlist.studentId, toRemove)));
+      }
+      return picked;
     });
   }
 

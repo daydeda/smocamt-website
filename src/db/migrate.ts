@@ -1675,6 +1675,24 @@ async function migrate() {
   await sql`ALTER TABLE shop_variants ADD COLUMN IF NOT EXISTS welfare_price integer`;
   console.log("  ✅ shop_variants.welfare_price");
 
+  // 103. Event waitlist (US-WAIT-16): students who click Register on a full event
+  // queue here, separate from `attendance` so seat counts/scanner/exports are
+  // unaffected. One row per (event, student); queue order is created_at. Mirrors
+  // drizzle/0051_previous_major_mapleleaf.sql. New table +
+  // IF NOT EXISTS indexes => additive, idempotent, non-destructive.
+  await sql`
+    CREATE TABLE IF NOT EXISTS event_waitlist (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      event_id uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      student_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_event_waitlist_event_student ON event_waitlist (event_id, student_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_event_waitlist_event_created ON event_waitlist (event_id, created_at)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_event_waitlist_student ON event_waitlist (student_id)`;
+  console.log("  ✅ event_waitlist table + indexes");
+
   console.log("✅ Migration complete!");
   await sql.end();
   process.exit(0);

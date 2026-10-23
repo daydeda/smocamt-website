@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { loginHref } from "@/lib/util/safe-callback-url";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { StudentNav } from "@/components/layout/StudentNav";
@@ -154,7 +155,7 @@ export default function ShopClient() {
             <span style={{ color: "var(--text-secondary)", fontSize: 14 }}>
               {th ? "เข้าสู่ระบบเพื่อสั่งซื้อสินค้า" : "Sign in to place an order."}
             </span>
-            <Link href="/login" className="btn btn-primary">{th ? "เข้าสู่ระบบ" : "Sign in"}</Link>
+            <Link href={loginHref("/dashboard/shop")} className="btn btn-primary">{th ? "เข้าสู่ระบบ" : "Sign in"}</Link>
           </div>
         )}
 
@@ -177,7 +178,7 @@ export default function ShopClient() {
             <EmptyState icon={<Package size={40} />} text={th ? "ยังไม่มีสินค้า" : "No products yet."} />
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(min(220px,100%),1fr))", gap: 20 }}>
-              {data.products.map((p) => <ProductCard key={p.id} product={p} th={th} onOpen={() => (isGuest ? router.push("/login") : setActive(p))} />)}
+              {data.products.map((p) => <ProductCard key={p.id} product={p} th={th} onOpen={() => (isGuest ? router.push(loginHref("/dashboard/shop")) : setActive(p))} />)}
             </div>
           )
         ) : (

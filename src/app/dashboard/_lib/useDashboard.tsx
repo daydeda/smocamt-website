@@ -1,5 +1,6 @@
 "use client";
 
+import { loginHref } from "@/lib/util/safe-callback-url";
 import type { Session } from "next-auth";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
@@ -269,7 +270,7 @@ export function useDashboard({ initialSession }: { initialSession: Session | nul
 
   const handleRegister = async (eventId: string, registered: boolean) => {
     if (!session?.user) {
-      router.push("/login");
+      router.push(loginHref(window.location.pathname + window.location.search));
       return;
     }
     setRegisteringId(eventId);
@@ -281,6 +282,30 @@ export function useDashboard({ initialSession }: { initialSession: Session | nul
         // server value avoids the stale cached status on an un-register → re-register,
         // where the events list would still read "submitted" until the next poll.
         const data = await res.json().catch(() => ({}));
+        // Full event: the student was queued instead of registered.
+        if (!registered && data?.waitlisted) {
+          const title = events.find((e) => e.id === eventId)?.title ?? "";
+          setEvents((evts) => evts.map((e) => (e.id === eventId ? { ...e, waitlistPosition: data.position ?? null } : e)));
+          setSuccessModal({
+            show: true,
+            title: t.waitlistJoinedTitle,
+            message: t.waitlistJoinedMessage.replace("{n}", String(data.position ?? "")).replace("{title}", title),
+            type: "info",
+          });
+          return;
+        }
+        // Cancelling while only queued: they left the waitlist.
+        if (registered && data?.leftWaitlist) {
+          const title = events.find((e) => e.id === eventId)?.title ?? "";
+          setEvents((evts) => evts.map((e) => (e.id === eventId ? { ...e, waitlistPosition: null } : e)));
+          setSuccessModal({
+            show: true,
+            title: t.waitlistLeftTitle,
+            message: t.waitlistLeftMessage.replace("{title}", title),
+            type: "info",
+          });
+          return;
+        }
         const freshPreTest = data?.preTest as { formId: string; title: string; status: string } | null | undefined;
         const targetEvent = events.find(e => e.id === eventId);
         setEvents((evts) =>
@@ -359,7 +384,13 @@ export function useDashboard({ initialSession }: { initialSession: Session | nul
   // is routed through a confirmation modal first; a new sign-up fires immediately.
   const promptRegister = (eventId: string, registered: boolean, eventTitle: string) => {
     if (!session?.user) {
-      router.push("/login");
+      router.push(loginHref(window.location.pathname + window.location.search));
+      return;
+    }
+    // Leaving the waitlist holds no seat or pre-test, so it skips the cancel-registration confirmation.
+    const target = events.find((e) => e.id === eventId);
+    if (registered && !target?.isRegistered && target?.waitlistPosition != null) {
+      handleRegister(eventId, true);
       return;
     }
     if (registered) {

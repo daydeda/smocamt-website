@@ -419,6 +419,23 @@ export const attendance = pgTable("attendance", {
   index("idx_attendance_event_status").on(table.eventId, table.status),
 ]));
 
+// Event waitlist (US-WAIT-16). A student who clicks Register on a full event is
+// queued here instead of getting an attendance row, so seat counts, the scanner and
+// exports (which all read `attendance`) never see waiting students. Queue order is
+// created_at. When a registered student cancels, EventRegistrationService
+// .promoteFromWaitlist moves the first student who fits the quotas into
+// `attendance` and deletes their row here. See src/lib/events/waitlist.ts.
+export const eventWaitlist = pgTable("event_waitlist", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  eventId: uuid("event_id").references(() => events.id, { onDelete: "cascade" }).notNull(),
+  studentId: text("student_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ([
+  uniqueIndex("idx_event_waitlist_event_student").on(table.eventId, table.studentId),
+  index("idx_event_waitlist_event_created").on(table.eventId, table.createdAt),
+  index("idx_event_waitlist_student").on(table.studentId),
+]));
+
 // Score history log per house per activity (FE-08)
 export const scoreHistory = pgTable("score_history", {
   id: uuid("id").defaultRandom().primaryKey(),

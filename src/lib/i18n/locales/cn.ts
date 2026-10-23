@@ -1001,4 +1001,11 @@ export const cn = {
   publicHomeHousesTitle: "学院排名",
   publicHomeSeeAll: "查看全部",
   publicHomeInstall: "提示：可通过浏览器菜单将 ActiveCAMT 添加到主屏幕，方便快速访问。",
+  // Event waitlist (dashboard register button + modals).
+  waitlistJoin: "加入候补",
+  waitlistOn: "候补第 {n} 位 · 退出",
+  waitlistJoinedTitle: "已加入候补名单",
+  waitlistJoinedMessage: "您在 \"{title}\" 的候补名单中排第 {n} 位。如有空位，系统将自动为您报名并通知您。",
+  waitlistLeftTitle: "已退出候补",
+  waitlistLeftMessage: "您已退出 \"{title}\" 的候补名单。",
 };

@@ -45,6 +45,8 @@ export type Event = {
   // Live headcount: distinct students currently holding a seat for this event.
   // Shown as "registeredCount / quota" so students see how full an event is.
   registeredCount?: number;
+  // 1-based place in the waitlist when the student is queued for this full event.
+  waitlistPosition?: number | null;
   // Whether the event accepts walk-ins (unregistered students scanned in at the
   // door), and the optional extra walk-in seat sub-cap on top of `quota`.
   walkInsEnabled?: boolean;

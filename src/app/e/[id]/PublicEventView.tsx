@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import type { PublicEvent } from "@/lib/events/public-event";
+import { googleCalendarUrl, outlookCalendarUrl, type CalItem } from "@/lib/calendar/ical";
+import { loginHref } from "@/lib/util/safe-callback-url";
 
 const LOCALE_TAG = { en: "en-GB", th: "th-TH", mm: "my-MM", cn: "zh-CN" } as const;
 
@@ -13,6 +15,14 @@ export function PublicEventView({ event }: { event: PublicEvent }) {
   const fmt = (iso: string) =>
     new Date(iso).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
   const cover = event.imageUrls[0];
+  const calItem: CalItem = {
+    uid: `event-${event.id}`,
+    title: event.title,
+    description: event.description,
+    location: event.location,
+    start: new Date(event.startTime),
+    end: new Date(event.endTime),
+  };
   const seatsLabel = event.quota
     ? `${event.registeredCount} / ${event.quota}`
     : `${event.registeredCount}`;
@@ -58,7 +68,7 @@ export function PublicEventView({ event }: { event: PublicEvent }) {
         )}
 
         <Link
-          href={`/dashboard?event=${encodeURIComponent(event.id)}`}
+          href={loginHref(`/dashboard?event=${encodeURIComponent(event.id)}`)}
           style={{
             display: "inline-flex", alignItems: "center", justifyContent: "center",
             height: 48, padding: "0 24px", borderRadius: 16, fontWeight: 800,
@@ -67,6 +77,12 @@ export function PublicEventView({ event }: { event: PublicEvent }) {
         >
           {t.publicEventSignIn}
         </Link>
+
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 20, fontSize: 14 }}>
+          <span style={{ color: "var(--text-muted)", fontWeight: 700 }}>{t.calendarAddToCalendar}</span>
+          <a href={googleCalendarUrl(calItem)} target="_blank" rel="noopener noreferrer" className="btn btn-ghost">Google</a>
+          <a href={outlookCalendarUrl(calItem)} target="_blank" rel="noopener noreferrer" className="btn btn-ghost">Outlook</a>
+        </div>
 
         {event.description && (
           <section style={{ marginTop: 32 }}>

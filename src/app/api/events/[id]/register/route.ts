@@ -1,11 +1,74 @@
 import { auth } from "@/auth";
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { getFormAvailability } from "@/lib/access/form-access";
 import { isEligibleForEventYear, yearOfStudy } from "@/lib/access/event-access";
 import { ClubsService } from "@/modules/clubs/clubs.service";
 import { EventsService } from "@/modules/events/events.service";
-import { EventRegistrationService, QUOTA_FULL } from "@/modules/events/event-registration.service";
+import { EventRegistrationService, NO_SESSIONS_MESSAGE, QUOTA_FULL } from "@/modules/events/event-registration.service";
+import { PushService } from "@/modules/notifications/push.service";
+import { captureException } from "@/lib/util/logger";
 import { syncRegistrationToSongsue, type SongsueEmergencyContact } from "@/lib/integrations/songsue-sync";
+
+type RegistrationProfile = NonNullable<Awaited<ReturnType<typeof EventRegistrationService.getRegistrationProfile>>>;
+
+// Songsue "registered" payload user from a registration profile row.
+function songsueUser(profile: RegistrationProfile) {
+  return {
+    email: profile.email,
+    studentId: profile.studentId,
+    name: profile.name,
+    prefix: profile.prefix,
+    faculty: profile.faculty,
+    major: profile.major,
+    phone: profile.phone,
+    nickname: profile.nickname,
+    image: profile.image,
+    religion: profile.religion,
+    contactChannels: profile.contactChannels,
+    chronicDiseases: profile.chronicDiseases,
+    medicalHistory: profile.medicalHistory,
+    drugAllergies: profile.drugAllergies,
+    foodAllergies: profile.foodAllergies,
+    dietaryRestrictions: profile.dietaryRestrictions,
+    faintingHistory: profile.faintingHistory,
+    emergencyMedication: profile.emergencyMedication,
+    emergencyContacts: profile.emergencyContacts as SongsueEmergencyContact[] | null,
+  };
+}
+
+/**
+ * After the response: push "you got a seat" to students promoted off the waitlist
+ * and mirror their registrations into Songsue, same as a normal sign-up.
+ */
+function notifyPromoted(event: { id: string; title: string; songsueLinked: boolean | null }, userIds: string[]) {
+  if (userIds.length === 0) return;
+  after(async () => {
+    await PushService.sendToUserIds(userIds, {
+      title: "ได้ที่นั่งแล้ว! / You got a seat!",
+      body: `คุณได้รับการลงทะเบียนกิจกรรม "${event.title}" แล้ว / You're now registered for "${event.title}".`,
+      url: `/dashboard?event=${encodeURIComponent(event.id)}`,
+      tag: `waitlist:${event.id}`,
+    });
+    if (event.songsueLinked) {
+      for (const promotedId of userIds) {
+        const p = await EventRegistrationService.getRegistrationProfile(promotedId);
+        if (p) {
+          await syncRegistrationToSongsue({ externalEventId: event.id, user: songsueUser(p), status: "registered" });
+        }
+      }
+    }
+  });
+}
+
+/** Fills freed seats from the waitlist; best-effort, never fails the request. */
+async function promoteSafely(eventId: string, step: string): Promise<string[]> {
+  try {
+    return await EventRegistrationService.promoteFromWaitlist(eventId);
+  } catch (err) {
+    captureException(err, { route: "/api/events/[id]/register", step });
+    return [];
+  }
+}
 
 // POST /api/events/[id]/register — One-click registration (FE-05)
 export async function POST(
@@ -165,7 +228,22 @@ export async function POST(
       await EventRegistrationService.registerWithQuota({ eventId, userId, event, isEventStaff, isThai, isIntl });
     } catch (e) {
       if (e instanceof Error && e.message.startsWith(QUOTA_FULL)) {
-        return NextResponse.json({ error: e.message.split(":")[1] }, { status: 422 });
+        const reason = e.message.split(":")[1];
+        if (reason === NO_SESSIONS_MESSAGE) {
+          return NextResponse.json({ error: reason }, { status: 422 });
+        }
+        // Full (overall or this student's cohort): queue them instead. They get the
+        // first seat that a cancellation frees and fits their cohort (see DELETE).
+        await EventRegistrationService.joinWaitlist(eventId, userId);
+        // A seat may have been freed between the quota check and the queue insert;
+        // a promotion pass closes that gap (and may seat students ahead of them).
+        const promotedNow = await promoteSafely(eventId, "promote-after-join");
+        notifyPromoted(event, promotedNow.filter((id) => id !== userId));
+        if (!promotedNow.includes(userId)) {
+          const position = (await EventRegistrationService.listWaitlistPositions(userId, [eventId])).get(eventId) ?? 1;
+          return NextResponse.json({ success: true, waitlisted: true, position, reason }, { status: 202 });
+        }
+        // Promoted straight away: carry on as a normal successful registration.
       }
       if (e instanceof Error && e.message === "ALREADY_REGISTERED") {
         return NextResponse.json({ error: "Already registered for this event" }, { status: 409 });
@@ -177,27 +255,7 @@ export async function POST(
     if (event.songsueLinked) {
       await syncRegistrationToSongsue({
         externalEventId: event.id,
-        user: {
-          email: profile.email,
-          studentId: profile.studentId,
-          name: profile.name,
-          prefix: profile.prefix,
-          faculty: profile.faculty,
-          major: profile.major,
-          phone: profile.phone,
-          nickname: profile.nickname,
-          image: profile.image,
-          religion: profile.religion,
-          contactChannels: profile.contactChannels,
-          chronicDiseases: profile.chronicDiseases,
-          medicalHistory: profile.medicalHistory,
-          drugAllergies: profile.drugAllergies,
-          foodAllergies: profile.foodAllergies,
-          dietaryRestrictions: profile.dietaryRestrictions,
-          faintingHistory: profile.faintingHistory,
-          emergencyMedication: profile.emergencyMedication,
-          emergencyContacts: profile.emergencyContacts as SongsueEmergencyContact[] | null,
-        },
+        user: songsueUser(profile),
         status: "registered",
       });
     }
@@ -247,6 +305,11 @@ export async function DELETE(
     const records = await EventRegistrationService.listRegistrationRowsWithEvent(eventId, userId);
 
     if (records.length === 0) {
+      // Not registered, but maybe waiting in the queue: cancelling means leaving it.
+      // Allowed at any time, since a queue place holds no seat.
+      if (await EventRegistrationService.leaveWaitlist(eventId, userId)) {
+        return NextResponse.json({ success: true, leftWaitlist: true });
+      }
       return NextResponse.json({ error: "Registration not found" }, { status: 404 });
     }
 
@@ -270,6 +333,12 @@ export async function DELETE(
     }
 
     await EventRegistrationService.cancelRegistration(eventId, userId);
+
+    // The freed seat goes to the first student in the waitlist who fits the quotas.
+    // Best-effort: the cancellation itself has already succeeded.
+    if (event) {
+      notifyPromoted(event, await promoteSafely(eventId, "promote-after-cancel"));
+    }
 
     // Best-effort mirror into Songsue — never blocks unregistration (see songsue-sync.ts).
     if (event?.songsueLinked) {

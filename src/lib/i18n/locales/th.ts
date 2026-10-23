@@ -1122,4 +1122,11 @@ export const th = {
   publicHomeHousesTitle: "อันดับบ้าน",
   publicHomeSeeAll: "ดูทั้งหมด",
   publicHomeInstall: "เคล็ดลับ: เพิ่ม ActiveCAMT ไปยังหน้าจอหลักจากเมนูเบราว์เซอร์เพื่อเข้าใช้งานได้เร็วขึ้น",
+  // Event waitlist (dashboard register button + modals).
+  waitlistJoin: "เข้าคิวรอ",
+  waitlistOn: "คิวที่ {n} · ออกจากคิว",
+  waitlistJoinedTitle: "เข้าคิวรอแล้ว",
+  waitlistJoinedMessage: "คุณอยู่คิวที่ {n} ของกิจกรรม \"{title}\" หากมีที่ว่าง ระบบจะลงทะเบียนให้อัตโนมัติและแจ้งเตือนคุณ",
+  waitlistLeftTitle: "ออกจากคิวแล้ว",
+  waitlistLeftMessage: "คุณออกจากคิวรอของกิจกรรม \"{title}\" แล้ว",
 };

@@ -14,10 +14,13 @@ export function LandingUI({
   userCount: initialUserCount = 31,
   authError = null,
   enableDevLogin = false,
+  callbackUrl = null,
 }: {
   userCount?: number;
   authError?: string | null;
   enableDevLogin?: boolean;
+  /** Same-site path to return to after Google sign-in; null keeps the default. */
+  callbackUrl?: string | null;
 }) {
   const { t, lang } = useLanguage();
   const [userCount, setUserCount] = useState(initialUserCount);
@@ -192,7 +195,7 @@ export function LandingUI({
 
             <div className="flex flex-col gap-5 lg:gap-6">
               <button
-                onClick={() => signIn("google")}
+                onClick={() => signIn("google", callbackUrl ? { callbackUrl } : undefined)}
                 className="btn btn-primary btn-full touch-target"
                 aria-label={t.signInBtn}
                 style={{ 

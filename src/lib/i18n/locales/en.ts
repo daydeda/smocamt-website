@@ -1142,4 +1142,11 @@ export const en = {
   publicHomeHousesTitle: "House standings",
   publicHomeSeeAll: "See all",
   publicHomeInstall: "Tip: add ActiveCAMT to your home screen from your browser menu for quick access.",
+  // Event waitlist (dashboard register button + modals).
+  waitlistJoin: "Join waitlist",
+  waitlistOn: "Waitlist #{n} · Leave",
+  waitlistJoinedTitle: "You're on the waitlist",
+  waitlistJoinedMessage: "You are #{n} in line for \"{title}\". If a seat opens, you will be registered automatically and notified.",
+  waitlistLeftTitle: "Left the waitlist",
+  waitlistLeftMessage: "You are no longer waiting for \"{title}\".",
 };

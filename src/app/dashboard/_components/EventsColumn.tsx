@@ -384,13 +384,15 @@ export function EventsColumn({ ctx }: { ctx: DashboardCtx }) {
                             const windowBlocked = notYetOpen || regClosed || walkInsOnlyMode;
                             const isDisabled = (e.isRegistered && !canCancel) || windowBlocked || registeringId === e.id;
                             const greyed = regClosed || walkInsOnlyMode || (e.isRegistered && !canCancel);
+                            const waitlisted = !e.isRegistered && e.waitlistPosition != null;
+                            const isFull = e.quota != null && e.quota > 0 && (e.registeredCount ?? 0) >= e.quota;
 
                             return (
                               <button
                                 disabled={isDisabled}
                                 onClick={(event) => {
                                   event.stopPropagation();
-                                  promptRegister(e.id, !!e.isRegistered, e.title);
+                                  promptRegister(e.id, !!e.isRegistered || waitlisted, e.title);
                                 }}
                                 className={`btn btn-full ${e.isRegistered ? "btn-success-solid" : "btn-primary"}`}
                                 style={{
@@ -415,12 +417,16 @@ export function EventsColumn({ ctx }: { ctx: DashboardCtx }) {
                                   ) : (
                                     <><CheckCircle2 size={18} /> {t.registered || "Registered"}</>
                                   )
+                                ) : waitlisted ? (
+                                  <><Clock size={18} /> {t.waitlistOn.replace("{n}", String(e.waitlistPosition))}</>
                                 ) : notYetOpen ? (
                                   <><Clock size={18} /> {t.registrationNotOpen}</>
                                 ) : regClosed ? (
                                   <><AlertCircle size={18} /> {t.registrationClosed}</>
                                 ) : walkInsOnlyMode ? (
                                   <><DoorOpen size={18} /> {t.walkInsOnlyBadge}</>
+                                ) : isFull ? (
+                                  t.waitlistJoin
                                 ) : (
                                   t.registerNow || "Register Now"
                                 )}

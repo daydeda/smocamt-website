@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { EventRegistrationService } from "@/modules/events/event-registration.service";
 import { NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
 import { getFormAvailability } from "@/lib/access/form-access";
@@ -97,6 +98,9 @@ export async function GET() {
 
     const attendanceMap = new Map(userAttendances.map((a) => [a.eventId, a]));
 
+    // The student's place in line for any full event they are waiting on.
+    const waitlistMap = await EventRegistrationService.listWaitlistPositions(userId);
+
     const eligibleEvents = allEvents.filter((event) => {
       // Always surface an event the student is registered for / checked into,
       // regardless of the eligibility rules below.
@@ -140,6 +144,7 @@ export async function GET() {
         isRegistered: attendanceMap.has(event.id),
         attendanceStatus: att?.status || null,
         registeredCount: seatCountMap.get(event.id) ?? 0,
+        waitlistPosition: waitlistMap.get(event.id) ?? null,
         preTest,
         // requireCheckOut events defer the individual-points award to the check-out
         // step (ScannerService.confirmCheckout) — an 'attended' row with no

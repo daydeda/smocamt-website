@@ -66,7 +66,14 @@ export async function proxy(req: NextRequest) {
     // their own sign-in prompt), but a signed-in student who hasn't finished
     // onboarding must not use them to skip the profile + PDPA consent step.
     const isSignedInEntryPath =
-      pathname === "/" || pathname === "/dashboard" || pathname === "/dashboard/id";
+      pathname === "/" ||
+      pathname === "/dashboard" ||
+      pathname === "/dashboard/id" ||
+      // Public browse pages: a signed-in user must still finish onboarding first
+      // (shop ordering in particular must not skip the profile + PDPA consent step).
+      pathname === "/dashboard/houses" ||
+      pathname === "/dashboard/calendar" ||
+      pathname === "/dashboard/shop";
     if (isSignedInEntryPath) {
       const entrySession = await auth();
       if (entrySession?.user && !entrySession.user.profileCompleted) {

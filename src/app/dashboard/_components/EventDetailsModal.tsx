@@ -26,6 +26,8 @@ export function EventDetailsModal({ ctx }: { ctx: DashboardCtx }) {
         const windowBlocked = notYetOpen || regClosed || walkInsOnlyMode;
         const greyed = regClosed || walkInsOnlyMode || (liveEvent.isRegistered && !canCancel);
         const isDisabled = (liveEvent.isRegistered && !canCancel) || windowBlocked || registeringId === liveEvent.id;
+        const waitlisted = !liveEvent.isRegistered && liveEvent.waitlistPosition != null;
+        const isFull = liveEvent.quota != null && liveEvent.quota > 0 && (liveEvent.registeredCount ?? 0) >= liveEvent.quota;
         const previewPosters = getPosters(liveEvent);
 
         // Copy a direct, shareable link to this event to the clipboard. Falls back
@@ -369,7 +371,7 @@ export function EventDetailsModal({ ctx }: { ctx: DashboardCtx }) {
                 ) : (
                 <button
                   disabled={isDisabled}
-                  onClick={() => promptRegister(liveEvent.id, !!liveEvent.isRegistered, liveEvent.title)}
+                  onClick={() => promptRegister(liveEvent.id, !!liveEvent.isRegistered || waitlisted, liveEvent.title)}
                   className={`btn ${liveEvent.isRegistered ? "btn-success-solid" : "btn-primary"}`}
                   style={{
                     borderRadius: 16,
@@ -397,12 +399,16 @@ export function EventDetailsModal({ ctx }: { ctx: DashboardCtx }) {
                     ) : (
                       <><CheckCircle2 size={18} /> {t.registered || "Registered"}</>
                     )
+                  ) : waitlisted ? (
+                    <><Clock size={18} /> {t.waitlistOn.replace("{n}", String(liveEvent.waitlistPosition))}</>
                   ) : notYetOpen ? (
                     <><Clock size={18} /> {t.registrationNotOpen}</>
                   ) : regClosed ? (
                     <><AlertCircle size={18} /> {t.registrationClosed}</>
                   ) : walkInsOnlyMode ? (
                     <><DoorOpen size={18} /> {t.walkInsOnlyBadge}</>
+                  ) : isFull ? (
+                    t.waitlistJoin
                   ) : (
                     t.registerNow || "Register Now"
                   )}

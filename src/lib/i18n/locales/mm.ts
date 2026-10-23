@@ -1001,4 +1001,11 @@ export const mm = {
   publicHomeHousesTitle: "အိမ်အမှတ်ဇယား",
   publicHomeSeeAll: "အားလုံးကြည့်ရန်",
   publicHomeInstall: "အကြံပြုချက်: မြန်မြန်ဝင်ရောက်ရန် ဘရောက်ဇာမီနူးမှ ActiveCAMT ကို ပင်မစခရင်သို့ ထည့်ပါ။",
+  // Event waitlist (dashboard register button + modals).
+  waitlistJoin: "စောင့်ဆိုင်းစာရင်းဝင်ရန်",
+  waitlistOn: "စောင့်ဆိုင်း #{n} · ထွက်ရန်",
+  waitlistJoinedTitle: "စောင့်ဆိုင်းစာရင်းတွင် ပါဝင်ပြီ",
+  waitlistJoinedMessage: "\"{title}\" အတွက် သင်သည် #{n} နေရာတွင် ရှိသည်။ နေရာလွတ်ပါက အလိုအလျောက် မှတ်ပုံတင်ပေးပြီး အကြောင်းကြားပါမည်။",
+  waitlistLeftTitle: "စောင့်ဆိုင်းစာရင်းမှ ထွက်ပြီး",
+  waitlistLeftMessage: "\"{title}\" အတွက် စောင့်ဆိုင်းခြင်း မရှိတော့ပါ။",
 };

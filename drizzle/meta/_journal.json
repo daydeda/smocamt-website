@@ -295,6 +295,13 @@
       "when": 1792624270891,
       "tag": "0050_certain_luke_cage",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1792739393802,
+      "tag": "0051_previous_major_mapleleaf",
+      "breakpoints": true
     }
   ]
 }

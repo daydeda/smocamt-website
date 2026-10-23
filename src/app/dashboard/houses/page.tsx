@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
+import { loginHref } from "@/lib/util/safe-callback-url";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { usePolling } from "@/lib/hooks/usePolling";
 import {
@@ -766,7 +767,7 @@ export default function HousesPage() {
         {isGuest && (
           <section className="glass animate-fade-in-up" style={{ marginBottom: 56, padding: 24, textAlign: "center" }}>
             <p style={{ color: "var(--text-secondary)", marginBottom: 16 }}>{t.publicHousesSignInNote}</p>
-            <Link href="/login" style={{ display: "inline-flex", height: 44, padding: "0 20px", alignItems: "center", borderRadius: 14, fontWeight: 800, background: "var(--accent-primary)", color: "#fff", textDecoration: "none" }}>
+            <Link href={loginHref("/dashboard/houses")} style={{ display: "inline-flex", height: 44, padding: "0 20px", alignItems: "center", borderRadius: 14, fontWeight: 800, background: "var(--accent-primary)", color: "#fff", textDecoration: "none" }}>
               {t.publicHousesSignInCta}
             </Link>
           </section>

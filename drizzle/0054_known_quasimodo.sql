@@ -1,0 +1,1 @@
+ALTER TABLE "feedback_complaints" ADD COLUMN "push_notify_user_id" uuid;

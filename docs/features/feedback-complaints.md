@@ -195,6 +195,30 @@ read-access side, since there is no read-access to gate here.
 
 ---
 
+### 5.2 Opt-in push to the submitter (added 2026-10-23)
+
+A submitter can tick "Send me a notification when staff reply (optional)" on the feedback
+form. It is **off by default**, and nothing about anyone who leaves it off changes.
+
+- **What is stored:** `feedback_complaints.push_notify_user_id`, a plain uuid with no foreign
+  key and no Drizzle relation, set only for opted-in rows and NULL for everyone else (and for
+  every row that existed before this feature). It is never listed in `ADMIN_LIST_COLUMNS` or
+  any admin response, so staff still never see who submitted anything.
+- **When it is used:** when staff post a reply, and when staff set the status to `resolved`.
+  The push is sent from the server by `notifySubmitterPush` in `feedback.service.ts` and the
+  id is never returned to a caller.
+- **What the push says:** only that there is a reply or that it was resolved
+  (`src/lib/push/feedback-push.ts`). It never includes the category, the message or the reply
+  text, since a push shows on a lock screen. The detail stays behind sign-in on `/feedback/track`.
+- **When the link is removed:** when the complaint is closed, by the submitter
+  (`closeMine`) or by staff (`updateComplaint` with status `closed`).
+- **Why not match by recomputing the keyed hash:** the server could find a submitter by hashing
+  each push subscriber's user id and comparing it to `submitter_ref`, with no new column. That
+  would add exactly the app-side reverse path §5 rules out, for everyone. The opt-in column
+  limits the link to people who asked for it, the same idea as `contact_opt_in`.
+- **Trade-off to sign off:** for an opted-in report, anyone with database access can now see
+  which account it belongs to. This is a deliberate exception to §5 for opted-in rows only.
+
 ## 6. Access control (mapped to the 4-layer gate)
 
 - **`src/proxy.ts`** — the landmine layer (CLAUDE.md calls out a 5-PR loop from

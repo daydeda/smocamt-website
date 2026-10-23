@@ -9,7 +9,11 @@ const RESYNC_MIN_INTERVAL_MS = 30 * 60 * 1000;
 
 // Registers the installability-only service worker (public/sw.js). Skipped
 // in dev so a stale worker never masks live-reloaded changes behind a cached
-// tab; production is the only place installability matters anyway.
+// tab; production is the only place installability matters anyway. Set
+// NEXT_PUBLIC_ENABLE_SW_IN_DEV=true in .env.local to test install and push on a
+// phone against the dev server (see docs/features/plan-home-screen.md).
+const SW_ENABLED =
+  process.env.NODE_ENV === "production" || process.env.NEXT_PUBLIC_ENABLE_SW_IN_DEV === "true";
 //
 // Also keeps a signed-in user's push subscription alive on the server: it is
 // re-sent when the app opens and each time it returns to the foreground (see
@@ -18,7 +22,7 @@ export function PWARegister() {
   const { status } = useSession();
 
   useEffect(() => {
-    if (process.env.NODE_ENV !== "production") return;
+    if (!SW_ENABLED) return;
     if (!("serviceWorker" in navigator)) return;
 
     navigator.serviceWorker.register("/sw.js").catch((error) => {
@@ -27,7 +31,7 @@ export function PWARegister() {
   }, []);
 
   useEffect(() => {
-    if (process.env.NODE_ENV !== "production") return;
+    if (!SW_ENABLED) return;
     if (status !== "authenticated") return;
 
     let lastRun = 0;

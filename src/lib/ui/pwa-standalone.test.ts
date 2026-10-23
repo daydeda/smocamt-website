@@ -122,3 +122,33 @@ describe("isPushPermissionRequestable", () => {
     expect(isPushPermissionRequestable(lowerCaseiPhone, false)).toBe(true);
   });
 });
+
+describe("iPad that sends a desktop (Macintosh) user agent", () => {
+  const macUA =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15";
+
+  it("is iOS when the device has a touch screen", () => {
+    expect(isIOSUserAgent(macUA, 5)).toBe(true);
+  });
+
+  it("is a Mac when there are no touch points", () => {
+    expect(isIOSUserAgent(macUA, 0)).toBe(false);
+    expect(isIOSUserAgent(macUA)).toBe(false);
+  });
+
+  it("only allows push once the iPad app is installed", () => {
+    expect(isPushPermissionRequestable(macUA, false, 5)).toBe(false);
+    expect(isPushPermissionRequestable(macUA, true, 5)).toBe(true);
+    expect(isPushPermissionRequestable(macUA, false, 0)).toBe(true);
+  });
+
+  it("leaves touch-screen Windows, Chromebook and Android tablets alone", () => {
+    const winTouch = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36";
+    const chromebook = "Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36";
+    const androidTablet = "Mozilla/5.0 (Linux; Android 14; SM-X710) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36";
+    for (const ua of [winTouch, chromebook, androidTablet]) {
+      expect(isIOSUserAgent(ua, 10)).toBe(false);
+      expect(isPushPermissionRequestable(ua, false, 10)).toBe(true);
+    }
+  });
+});

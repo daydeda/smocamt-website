@@ -41,6 +41,8 @@ export default function FeedbackNewPage() {
   const [category, setCategory] = useState<FeedbackCategory | null>(null);
   const [message, setMessage] = useState("");
   const [contactOptIn, setContactOptIn] = useState(false);
+  // Opt-in push when staff reply. Off by default so the report stays fully anonymous.
+  const [notifyByPush, setNotifyByPush] = useState(false);
   // "account" pre-selected when the session has an email — it's the
   // zero-typing default; "custom" covers a different email, a Line ID, etc.
   const [contactMethod, setContactMethod] = useState<"account" | "custom">("account");
@@ -70,6 +72,7 @@ export default function FeedbackNewPage() {
           category,
           message: message.trim(),
           contactOptIn,
+          notifyByPush,
           useAccountEmail,
           // The server derives the actual address from the session when
           // useAccountEmail is true — this is never sent, so there's no
@@ -228,6 +231,23 @@ export default function FeedbackNewPage() {
               <span style={{ display: "block", fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
                 {tt("feedbackMessageMinHint", `At least ${MESSAGE_MIN} characters`)}
               </span>
+            </div>
+
+            <div style={{ padding: 14, borderRadius: 12, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)" }}>
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={notifyByPush}
+                  onChange={(e) => setNotifyByPush(e.target.checked)}
+                  style={{ width: 18, height: 18, marginTop: 2, accentColor: "var(--accent-primary)", cursor: "pointer" }}
+                />
+                <span style={{ fontSize: 13, color: "var(--text-primary)", lineHeight: 1.5 }}>
+                  {tt("feedbackPushOptInLabel", "Send me a notification when staff reply (optional).")}
+                  <span style={{ display: "block", fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+                    {tt("feedbackPushOptInHint", "This links your account to this report only so we can notify you. Staff still never see who you are. Leave it off to stay fully anonymous.")}
+                  </span>
+                </span>
+              </label>
             </div>
 
             <div style={{ padding: 14, borderRadius: 12, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)" }}>

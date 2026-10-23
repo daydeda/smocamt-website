@@ -8,9 +8,9 @@ import { isPushPermissionRequestable } from "@/lib/ui/pwa-standalone";
 
 export type EnablePushResult =
   | { ok: true }
-  | { ok: false; reason: "unsupported" | "ios-not-installed" | "denied" | "dismissed" | "not-configured" | "save-failed" };
+  | { ok: false; reason: "unsupported" | "ios-not-installed" | "denied" | "dismissed" | "not-configured" | "save-failed" | "no-service-worker" };
 
-function isStandalone(): boolean {
+export function isStandalone(): boolean {
   if (typeof window === "undefined") return false;
   const nav = navigator as Navigator & { standalone?: boolean };
   return window.matchMedia?.("(display-mode: standalone)").matches === true || nav.standalone === true;
@@ -32,7 +32,17 @@ export function isPushSupported(): boolean {
 /** Whether requestPermission() can even be called right now — false only for iOS not-yet-installed (see pwa-standalone.ts). */
 export function canRequestPushPermission(): boolean {
   if (!isPushSupported()) return false;
-  return isPushPermissionRequestable(navigator.userAgent, isStandalone());
+  return isPushPermissionRequestable(navigator.userAgent, isStandalone(), navigator.maxTouchPoints);
+}
+
+/**
+ * True on an iPhone/iPad that is not running the installed home-screen app. Checked on its
+ * own because such a Safari tab has no PushManager at all, so isPushSupported() is false
+ * there and would hide the "add to home screen first" hint.
+ */
+export function needsIosInstall(): boolean {
+  if (typeof window === "undefined") return false;
+  return !isPushPermissionRequestable(navigator.userAgent, isStandalone(), navigator.maxTouchPoints);
 }
 
 export async function getExistingPushSubscription(): Promise<PushSubscription | null> {
@@ -45,6 +55,10 @@ export async function getExistingPushSubscription(): Promise<PushSubscription | 
 export async function enablePushNotifications(): Promise<EnablePushResult> {
   if (!isPushSupported()) return { ok: false, reason: "unsupported" };
   if (!canRequestPushPermission()) return { ok: false, reason: "ios-not-installed" };
+  // Without a registered service worker, serviceWorker.ready never resolves below and the
+  // button spins forever (dev server, unless NEXT_PUBLIC_ENABLE_SW_IN_DEV=true). Fail fast.
+  const existing = await navigator.serviceWorker.getRegistration();
+  if (!existing) return { ok: false, reason: "no-service-worker" };
 
   const permission = await Notification.requestPermission();
   if (permission !== "granted") {

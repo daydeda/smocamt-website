@@ -80,6 +80,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { MovedNotice } from "@/components/MovedNotice";
 import { isSiteMoved } from "@/lib/ui/site-moved";
 import { PWARegister } from "@/components/PWARegister";
+import { InstallPushPrompt } from "@/components/pwa/InstallPushPrompt";
 
 // The app is now self-hosted at activecamt.camt.cmu.ac.th. The retired Vercel
 // deployment points at a separate, now-stale Supabase DB — so on Vercel we replace
@@ -113,6 +114,7 @@ export default function RootLayout({
               <SessionProvider>
                 {children}
                 <PWARegister />
+                <InstallPushPrompt />
                 <Analytics />
                 <SpeedInsights />
               </SessionProvider>

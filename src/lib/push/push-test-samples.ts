@@ -4,6 +4,7 @@
 // requesting admin's OWN devices (see POST /api/notifications/push/test), so the
 // "[Test]" prefix is just a reminder that nothing real happened.
 import type { PushNotificationPayload } from "./push-payload";
+import { feedbackSubmitterPayload } from "./feedback-push";
 
 export type PushTestType =
   | "basic"
@@ -18,6 +19,8 @@ export type PushTestType =
   | "appeal-decision"
   | "proposal-new"
   | "feedback"
+  | "feedback-reply"
+  | "feedback-resolved"
   | "form-due-1d"
   | "form-due-1h"
   | "new-event";
@@ -77,6 +80,14 @@ const SAMPLES: Record<PushTestType, Sample> = {
   feedback: {
     label: { en: "Feedback / complaint (staff)", th: "ข้อเสนอแนะ/ร้องเรียน (ทีมงาน)" },
     payload: { title: "[Test] New feedback", body: "A new feedback message was submitted.", url: "/admin/feedback", tag: "test:feedback" },
+  },
+  "feedback-reply": {
+    label: { en: "Feedback: staff replied (submitter)", th: "ข้อเสนอแนะ: เจ้าหน้าที่ตอบกลับ (ผู้ส่ง)" },
+    payload: { ...feedbackSubmitterPayload("reply", "sample"), title: `[Test] ${feedbackSubmitterPayload("reply", "sample").title}`, tag: "test:feedback-reply" },
+  },
+  "feedback-resolved": {
+    label: { en: "Feedback: resolved (submitter)", th: "ข้อเสนอแนะ: ดำเนินการแล้ว (ผู้ส่ง)" },
+    payload: { ...feedbackSubmitterPayload("resolved", "sample"), title: `[Test] ${feedbackSubmitterPayload("resolved", "sample").title}`, tag: "test:feedback-resolved" },
   },
   "form-due-1d": {
     label: { en: "Form closes in 24h (student)", th: "แบบฟอร์มใกล้ปิด 24 ชม. (นักศึกษา)" },

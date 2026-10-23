@@ -1361,6 +1361,12 @@ export const feedbackComplaints = pgTable("feedback_complaints", {
   // admin-facing responses. See the table-level comment above and
   // docs/features/feedback-complaints.md §5.
   submitterRef: text("submitter_ref").notNull(),
+  // OPT-IN ONLY (feedback form checkbox, default off): the account to send a push to when
+  // staff reply or resolve. Null for everyone who did not opt in, which keeps them fully
+  // anonymous. Cleared when the complaint is closed. A plain uuid with no FK and no
+  // relation on purpose, and NEVER selected in admin-facing queries (ADMIN_LIST_COLUMNS
+  // does not list it). See docs/features/feedback-complaints.md §5.2.
+  pushNotifyUserId: uuid("push_notify_user_id"),
   status: text("status").notNull().default("new"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -1374,7 +1380,9 @@ export const feedbackComplaintsRelations = relations(feedbackComplaints, ({ many
   messages: many(feedbackComplaintMessages),
 }));
 // Still no relation to `users` — that absence is the anonymity guarantee
-// itself, not an oversight (see the table-level comment above).
+// itself, not an oversight (see the table-level comment above). The one exception is
+// the opt-in pushNotifyUserId column, a plain uuid that is only set when the submitter
+// asks for a push.
 
 // Two-way conversation on a complaint, replacing the old single adminReply
 // field (see above). senderType: 'submitter' | 'staff'. staffUserId is set

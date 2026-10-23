@@ -10,6 +10,7 @@ import {
   enablePushNotifications,
   getExistingPushSubscription,
   isPushSupported,
+  needsIosInstall,
 } from "@/lib/push/push-client";
 
 type Status = "loading" | "unsupported" | "ios-not-installed" | "denied" | "off" | "on";
@@ -30,6 +31,12 @@ export function PushNotificationToggle({ showTest = false }: { showTest?: boolea
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // Before the support check: an iPhone Safari tab reports no push support at all, but
+      // the right message there is "add to home screen first", not nothing.
+      if (needsIosInstall()) {
+        if (!cancelled) setStatus("ios-not-installed");
+        return;
+      }
       if (!isPushSupported()) {
         if (!cancelled) setStatus("unsupported");
         return;
@@ -78,12 +85,35 @@ export function PushNotificationToggle({ showTest = false }: { showTest?: boolea
   if (status === "loading" || status === "unsupported") return null;
 
   return (
-    <div className="form-card">
-      <h2 className="section-title">
-        <Bell size={18} />
+    // Inline on purpose: the profile page's .form-card styles are scoped to that page file
+    // and never reached this component, so the card rendered bare and touched the next section.
+    <div
+      style={{
+        background: "var(--bg-surface)",
+        border: "1px solid var(--border-medium)",
+        borderRadius: 24,
+        padding: "24px 20px",
+        marginBottom: 32,
+        boxShadow: "0 10px 30px rgb(var(--shadow-rgb) / 0.04)",
+      }}
+    >
+      <h2
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          fontSize: 18,
+          fontWeight: 800,
+          margin: "0 0 8px",
+          textTransform: "none",
+          letterSpacing: "normal",
+          color: "var(--text-primary)",
+        }}
+      >
+        <Bell size={20} style={{ color: "var(--accent-primary)", flexShrink: 0 }} />
         {t.pushNotifTitle}
       </h2>
-      <p style={{ color: "var(--text-muted)", fontSize: 14, margin: "0 0 16px" }}>{t.pushNotifDesc}</p>
+      <p style={{ color: "var(--text-muted)", fontSize: 14, lineHeight: 1.6, margin: "0 0 16px" }}>{t.pushNotifDesc}</p>
 
       {status === "ios-not-installed" && (
         <p style={{ fontSize: 13, color: "var(--text-secondary)", background: "var(--bg-elevated)", padding: 12, borderRadius: "var(--radius-md)" }}>

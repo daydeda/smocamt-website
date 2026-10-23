@@ -18,6 +18,7 @@ import {
 import { notifyComplaintResolved, notifyNewComplaint, notifyStaffMessage, notifySubmitterMessage } from "@/lib/feedback/feedback-notify";
 import { getFeedbackManagerUserIds } from "@/modules/notifications/push-audience";
 import { PushService } from "@/modules/notifications/push.service";
+import { feedbackSubmitterPayload, type FeedbackPushKind } from "@/lib/push/feedback-push";
 
 // Push to feedback managers (super_admin/admin) alongside the existing staff-inbox
 // email in feedback-notify.ts — ADDED, not a replacement (see
@@ -38,6 +39,8 @@ export interface CreateComplaintInput {
   message: string;
   contactOptIn: boolean;
   contactInfo?: string | null;
+  /** Set only when the submitter ticked "notify me by push". Null keeps them anonymous. */
+  pushNotifyUserId?: string | null;
   attachmentKeys?: string[];
 }
 
@@ -75,6 +78,21 @@ const ADMIN_LIST_COLUMNS = {
   // schema.ts's feedbackComplaints.submitterRef doc comment.
 } as const;
 
+// Push to the SUBMITTER, only if they opted in on the form. The target id is read here and
+// used for the send, never returned to a caller, so it can't reach an admin response.
+async function notifySubmitterPush(complaintId: string, kind: FeedbackPushKind) {
+  try {
+    const row = await db.query.feedbackComplaints.findFirst({
+      where: eq(feedbackComplaints.id, complaintId),
+      columns: { pushNotifyUserId: true },
+    });
+    if (!row?.pushNotifyUserId) return;
+    await PushService.sendToUserIds([row.pushNotifyUserId], feedbackSubmitterPayload(kind, complaintId));
+  } catch {
+    // a notification must never fail the reply or status change it is attached to
+  }
+}
+
 export class FeedbackService {
   /** How many submissions has this account made in the last 24h — via the
    * keyed-hash reference, never a raw userId join. */
@@ -102,6 +120,7 @@ export class FeedbackService {
         message: input.message,
         contactOptIn: input.contactOptIn,
         contactInfo: input.contactOptIn ? input.contactInfo || null : null,
+        pushNotifyUserId: input.pushNotifyUserId ?? null,
         attachmentKeys: input.attachmentKeys ?? [],
         submitterRef,
       })
@@ -177,7 +196,8 @@ export class FeedbackService {
     const submitterRef = computeSubmitterRef(userId);
     const [row] = await db
       .update(feedbackComplaints)
-      .set({ status: "closed", updatedAt: new Date() })
+      // Closed means done: drop the opt-in push link too (data minimisation).
+      .set({ status: "closed", pushNotifyUserId: null, updatedAt: new Date() })
       .where(and(
         eq(feedbackComplaints.id, complaintId),
         eq(feedbackComplaints.submitterRef, submitterRef),
@@ -257,6 +277,7 @@ export class FeedbackService {
       ? result.complaint.contactInfo
       : null;
     void notifyStaffMessage(result.complaint, body, contactEmail).catch(() => {});
+    void notifySubmitterPush(complaintId, "reply");
 
     return result.msg;
   }
@@ -297,6 +318,8 @@ export class FeedbackService {
     const values: Partial<typeof feedbackComplaints.$inferInsert> = { updatedAt: new Date() };
     if (changes.status) values.status = changes.status;
     if (changes.severity) values.severity = changes.severity;
+    // Closed means done: drop the opt-in push link too (data minimisation).
+    if (changes.status === "closed") values.pushNotifyUserId = null;
 
     const row = await db.transaction(async (tx) => {
       const [updated] = await tx
@@ -330,6 +353,7 @@ export class FeedbackService {
 
     if (changes.status === "resolved") {
       void notifyComplaintResolved(row).catch(() => {});
+      void notifySubmitterPush(row.id, "resolved");
     }
 
     return row;

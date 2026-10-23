@@ -1726,6 +1726,13 @@ async function migrate() {
   `;
   console.log("  ✅ events.new_event_pushed_at (+ backfill of already-visible events)");
 
+  // 106. feedback_complaints.push_notify_user_id: OPT-IN account link so a submitter who
+  // ticks "notify me" gets a push when staff reply or resolve. NULL for every existing row
+  // and for anyone who does not opt in, so existing submissions stay anonymous. Additive,
+  // idempotent, non-destructive.
+  await sql`ALTER TABLE feedback_complaints ADD COLUMN IF NOT EXISTS push_notify_user_id uuid`;
+  console.log("  ✅ feedback_complaints.push_notify_user_id (opt-in push target)");
+
   console.log("✅ Migration complete!");
   await sql.end();
   process.exit(0);

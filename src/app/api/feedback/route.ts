@@ -29,6 +29,9 @@ const submitSchema = z.object({
   contactOptIn: z.boolean().default(false),
   contactInfo: z.string().trim().max(200).optional(),
   useAccountEmail: z.boolean().default(false),
+  // Opt-in push when staff reply or resolve. The account is the CALLER's own session user,
+  // never a client-supplied id. Default false keeps the report fully anonymous.
+  notifyByPush: z.boolean().default(false),
 });
 
 // POST /api/feedback — submit a new anonymous feedback/complaint. Requires a
@@ -74,6 +77,7 @@ export async function POST(req: Request) {
       message: body.message,
       contactOptIn: body.contactOptIn,
       contactInfo,
+      pushNotifyUserId: body.notifyByPush ? session.user.id : null,
     });
 
     // Status/reply are checked via GET /api/feedback/mine (self-service,

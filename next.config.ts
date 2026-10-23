@@ -76,7 +76,9 @@ const nextConfig: NextConfig = {
   distDir: (typeof __dirname !== "undefined" && (__dirname.includes("CloudDocs") || __dirname.includes("Mobile Documents")))
     ? ".next.nosync"
     : undefined,
-  allowedDevOrigins: getLocalIPs(),
+  // Dev server only. The tunnel host lets a phone load the dev server over HTTPS
+  // (needed for install + push testing; see docs/features/plan-home-screen.md).
+  allowedDevOrigins: [...getLocalIPs(), "*.trycloudflare.com"],
   serverExternalPackages: ["@electric-sql/pglite", "tesseract.js"],
   turbopack: {},
   // Tree-shake large barrel-export packages so each route only ships the icons

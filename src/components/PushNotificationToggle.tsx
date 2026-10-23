@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, BellOff, Loader2 } from "lucide-react";
+import { Bell, BellOff, Loader2, Send } from "lucide-react";
+import { PUSH_TEST_TYPES, pushTestLabel, type PushTestType } from "@/lib/push/push-test-samples";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import {
   canRequestPushPermission,
@@ -20,7 +21,7 @@ type Status = "loading" | "unsupported" | "ios-not-installed" | "denied" | "off"
  * penalise (and iOS Safari silently no-ops) a permission prompt not tied to
  * a user gesture.
  */
-export function PushNotificationToggle() {
+export function PushNotificationToggle({ showTest = false }: { showTest?: boolean }) {
   const { t } = useLanguage();
   const [status, setStatus] = useState<Status>("loading");
   const [busy, setBusy] = useState(false);
@@ -112,6 +113,98 @@ export function PushNotificationToggle() {
       )}
 
       {error && <p style={{ fontSize: 13, color: "var(--red-500)", marginTop: 8 }}>{t.pushNotifError}</p>}
+
+      {showTest && status === "on" && <PushTestPanel />}
+    </div>
+  );
+}
+
+type TestOutcome =
+  | { kind: "ok"; devices: number; results: { deviceId: string; ok: boolean; statusCode?: number; message?: string }[] }
+  | { kind: "error"; message: string };
+
+/**
+ * Admin-only diagnostic: sends a sample of any notification type to THIS user's own
+ * devices and shows what each device returned. See POST /api/notifications/push/test.
+ */
+function PushTestPanel() {
+  const { lang } = useLanguage();
+  const th = lang === "th";
+  const uiLang = th ? "th" : "en";
+  const [type, setType] = useState<PushTestType>("basic");
+  const [busy, setBusy] = useState(false);
+  const [outcome, setOutcome] = useState<TestOutcome | null>(null);
+
+  async function send() {
+    setBusy(true);
+    setOutcome(null);
+    try {
+      const res = await fetch("/api/notifications/push/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const missing = Array.isArray(data.missing) && data.missing.length ? ` (${data.missing.join(", ")})` : "";
+        setOutcome({ kind: "error", message: `${data.error ?? `HTTP ${res.status}`}${missing}` });
+      } else {
+        setOutcome({ kind: "ok", devices: data.devices ?? 0, results: data.results ?? [] });
+      }
+    } catch {
+      setOutcome({ kind: "error", message: th ? "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้" : "Could not reach the server" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--border-subtle)" }}>
+      <h3 style={{ fontSize: 14, fontWeight: 800, margin: "0 0 4px" }}>
+        {th ? "ทดสอบการแจ้งเตือน (แอดมิน)" : "Test notifications (admin)"}
+      </h3>
+      <p style={{ color: "var(--text-muted)", fontSize: 13, margin: "0 0 12px" }}>
+        {th
+          ? "ส่งตัวอย่างการแจ้งเตือนไปยังอุปกรณ์ของคุณเองเท่านั้น ไม่ส่งถึงผู้อื่น"
+          : "Sends a sample to your own devices only. Nobody else is notified."}
+      </p>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value as PushTestType)}
+          style={{ padding: "8px 10px", borderRadius: 10, border: "1px solid var(--border-subtle)", background: "var(--bg-surface)", color: "var(--text-primary)", fontSize: 14, maxWidth: "100%" }}
+        >
+          {PUSH_TEST_TYPES.map((tp) => (
+            <option key={tp} value={tp}>{pushTestLabel(tp, uiLang)}</option>
+          ))}
+        </select>
+        <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={send}>
+          {busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+          {th ? "ส่งทดสอบ" : "Send test"}
+        </button>
+      </div>
+
+      {outcome?.kind === "error" && (
+        <p style={{ fontSize: 13, color: "var(--red-500)", marginTop: 10 }}>{outcome.message}</p>
+      )}
+      {outcome?.kind === "ok" && (
+        <div style={{ fontSize: 13, marginTop: 10, color: "var(--text-secondary)" }}>
+          {outcome.devices === 0 ? (
+            <p style={{ color: "var(--red-500)", margin: 0 }}>
+              {th ? "ไม่พบอุปกรณ์ที่สมัครรับการแจ้งเตือนของบัญชีนี้ในเซิร์ฟเวอร์ ลองปิดแล้วเปิดการแจ้งเตือนใหม่" : "The server has no subscribed device for this account. Switch notifications off and on again."}
+            </p>
+          ) : (
+            outcome.results.map((r, i) => (
+              <p key={r.deviceId} style={{ margin: "0 0 4px", color: r.ok ? "var(--emerald-500)" : "var(--red-500)" }}>
+                {th ? "อุปกรณ์" : "Device"} {i + 1}:{" "}
+                {r.ok
+                  ? th ? "ส่งแล้ว ควรเห็นการแจ้งเตือนภายในไม่กี่วินาที" : "sent, the notification should appear within seconds"
+                  : `${th ? "ล้มเหลว" : "failed"}${r.statusCode ? ` (${r.statusCode})` : ""}${r.message ? `: ${r.message}` : ""}`}
+              </p>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 }

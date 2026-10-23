@@ -1,5 +1,6 @@
 "use client";
  
+import { effectiveRoles } from "@/lib/access/admin-access";
 import { useSession } from "next-auth/react";
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
@@ -30,6 +31,9 @@ type EmergencyContact = { name: string; relationship: string; phone: string };
  
 export default function ProfilePage() {
   const { data: session, update } = useSession();
+  // The push test panel (and its API) is limited to admin / super_admin.
+  const myRoles = effectiveRoles(session?.user?.role, session?.user?.roles);
+  const isPushTestAdmin = myRoles.includes("admin") || myRoles.includes("super_admin");
   const { t } = useLanguage();
   const router = useRouter();
  
@@ -420,7 +424,7 @@ export default function ProfilePage() {
           <LanguageSwitcher variant="segmented" />
         </div>
 
-        <PushNotificationToggle />
+        <PushNotificationToggle showTest={isPushTestAdmin} />
 
         <form onSubmit={handleSubmit} className="animate-fade-in-up">
           <div className="form-container">

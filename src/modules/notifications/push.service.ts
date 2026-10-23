@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { pushSubscriptions } from "@/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
 import { serializePushPayload, type PushNotificationPayload } from "@/lib/push/push-payload";
-import { shouldPruneAfterFailure } from "@/lib/push/push-errors";
+import { isDeadSubscriptionStatus, shouldPruneAfterFailure } from "@/lib/push/push-errors";
 
 // How many sends run concurrently per fan-out. Uncapped Promise.all over
 // hundreds of subscriptions would open that many simultaneous HTTPS
@@ -88,6 +88,54 @@ export class PushService {
       .from(pushSubscriptions)
       .where(inArray(pushSubscriptions.userId, uniqueIds));
     await PushService.sendToSubscriptionRows(subs, payload);
+  }
+
+  /**
+   * Diagnostic send for the admin test panel: pushes `payload` to ONE user's own
+   * devices and reports each device's outcome instead of swallowing it. A success
+   * stamps last_success_at (so the DB shows the delivery); a dead subscription
+   * (404/410) is removed like a normal send, but other failures are reported only
+   * and do NOT count against the prune budget, since a test is not real traffic.
+   */
+  static async sendTestToUser(userId: string, payload: PushNotificationPayload): Promise<{
+    configured: boolean;
+    missing: string[];
+    results: { deviceId: string; ok: boolean; statusCode?: number; message?: string }[];
+  }> {
+    const missing = [
+      ["NEXT_PUBLIC_VAPID_PUBLIC_KEY", process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY],
+      ["VAPID_PRIVATE_KEY", process.env.VAPID_PRIVATE_KEY],
+      ["VAPID_SUBJECT", process.env.VAPID_SUBJECT],
+    ].filter(([, v]) => !v).map(([k]) => k as string);
+    if (missing.length > 0) return { configured: false, missing, results: [] };
+
+    ensureVapidConfigured();
+    const subs = await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.userId, userId));
+    const body = serializePushPayload(payload);
+    const results = await Promise.all(
+      subs.map(async (sub) => {
+        try {
+          await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, body);
+          await db
+            .update(pushSubscriptions)
+            .set({ lastSuccessAt: new Date(), failureCount: 0 })
+            .where(eq(pushSubscriptions.id, sub.id));
+          return { deviceId: sub.id, ok: true as const };
+        } catch (error) {
+          const e = error as { statusCode?: number; body?: string; message?: string } | null;
+          if (isDeadSubscriptionStatus(e?.statusCode)) {
+            await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, sub.id));
+          }
+          return {
+            deviceId: sub.id,
+            ok: false as const,
+            statusCode: e?.statusCode,
+            message: (e?.body || e?.message || "send failed").toString().slice(0, 200),
+          };
+        }
+      }),
+    );
+    return { configured: true, missing: [], results };
   }
 
   /** Broadcast to every stored subscription (announcements). */

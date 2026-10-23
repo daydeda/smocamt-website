@@ -15,6 +15,12 @@ export function isIOSUserAgent(userAgent: string, maxTouchPoints = 0): boolean {
   return /Macintosh/.test(userAgent) && maxTouchPoints > 1;
 }
 
+/** iPad, including the desktop-style "Macintosh" user agent. Its Share button sits at the top right, not in the page menu. */
+export function isIPadUserAgent(userAgent: string, maxTouchPoints = 0): boolean {
+  if (/iPad/.test(userAgent)) return true;
+  return /Macintosh/.test(userAgent) && maxTouchPoints > 1;
+}
+
 /**
  * @param standalone Whether the page is currently running installed/standalone —
  *   the caller derives this from

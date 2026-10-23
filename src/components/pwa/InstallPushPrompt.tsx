@@ -11,7 +11,7 @@ import {
   isPushSupported,
   isStandalone,
 } from "@/lib/push/push-client";
-import { isIOSUserAgent } from "@/lib/ui/pwa-standalone";
+import { isIOSUserAgent, isIPadUserAgent } from "@/lib/ui/pwa-standalone";
 import {
   INSTALL_PREVIEWS,
   INSTALL_PROMPT_STORAGE_KEY,
@@ -217,6 +217,10 @@ export function InstallPushPrompt() {
     previewInput ? previewInput.userAgent : navigator.userAgent,
     previewInput ? previewInput.maxTouchPoints : navigator.maxTouchPoints,
   );
+  const isIPad = isIPadUserAgent(
+    previewInput ? previewInput.userAgent : navigator.userAgent,
+    previewInput ? previewInput.maxTouchPoints : navigator.maxTouchPoints,
+  );
   const title =
     screen === "ios-install"
       ? t.installPromptIosTitle
@@ -283,7 +287,19 @@ export function InstallPushPrompt() {
           </p>
         )}
 
-        {screen === "ios-install" && <IosSteps shareLabel={t.installPromptIosShareLabel} addLabel={t.installPromptIosAddLabel} steps={[t.installPromptIosStep1, t.installPromptIosStep2, t.installPromptIosStep3, t.installPromptIosStep4]} note={t.installPromptIosNote} />}
+        {screen === "ios-install" && (
+          <IosSteps
+            ipad={isIPad}
+            shareLabel={t.installPromptIosShareLabel}
+            addLabel={t.installPromptIosAddLabel}
+            steps={
+              isIPad
+                ? [t.installPromptIpadStep1, t.installPromptIpadStep2, t.installPromptIpadStep3, t.installPromptIosStep4]
+                : [t.installPromptIosStep1, t.installPromptIosStep2, t.installPromptIosStep3, t.installPromptIosStep4]
+            }
+            note={isIPad ? t.installPromptIpadNote : t.installPromptIosNote}
+          />
+        )}
 
         {screen === "in-app-browser" && (
           <p style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6, margin: "0 0 16px", textAlign: "center" }}>
@@ -369,8 +385,10 @@ const bar = { fill: "var(--text-muted)", opacity: 0.3 } as const;
 const label = { fill: "var(--text-primary)", fontSize: 7.5, fontWeight: 700 } as const;
 const artSvg = { width: "100%", height: "auto", display: "block" } as const;
 
-function IosSteps({ steps, note, addLabel, shareLabel }: { steps: string[]; note: string; addLabel: string; shareLabel: string }) {
-  const art = [<PageMenuArt key="1" />, <MenuShareArt key="2" label={shareLabel} />, <ShareSheetArt key="3" label={addLabel} />, <HomeScreenArt key="4" />];
+function IosSteps({ steps, note, addLabel, shareLabel, ipad }: { steps: string[]; note: string; addLabel: string; shareLabel: string; ipad: boolean }) {
+  const art = ipad
+    ? [<IpadShareArt key="1" />, <ViewMoreArt key="2" />, <ShareSheetArt key="3" label={addLabel} />, <HomeScreenArt key="4" />]
+    : [<PageMenuArt key="1" />, <MenuShareArt key="2" label={shareLabel} />, <ShareSheetArt key="3" label={addLabel} />, <HomeScreenArt key="4" />];
   return (
     <div style={{ marginBottom: 16 }}>
       <ol style={{ listStyle: "none", padding: 0, margin: "0 0 12px", display: "flex", flexDirection: "column", gap: 10 }}>
@@ -408,6 +426,40 @@ function PageMenuArt() {
       <path d="M80 30.5a4.5 4.5 0 1 0 1.2 3.4M81 28.5v3h-3" style={{ ...stroke, strokeWidth: 1.4 }} />
       <circle cx="100" cy="32" r="9" style={panel} />
       <rect x="95.5" y="28" width="7" height="7" rx="1.6" style={{ ...stroke, strokeWidth: 1.4 }} />
+    </svg>
+  );
+}
+
+/** iPad step 1: Safari toolbar with the Share button highlighted at the top right. */
+function IpadShareArt() {
+  return (
+    <svg viewBox="0 0 112 64" style={artSvg}>
+      <rect x="2" y="12" width="108" height="40" rx="10" style={panel} />
+      <circle cx="14" cy="32" r="6" style={{ ...panel, opacity: 0.7 }} />
+      <rect x="26" y="26" width="38" height="12" rx="6" style={bar} />
+      <circle cx="80" cy="32" r="6" style={{ ...panel, opacity: 0.7 }} />
+      <circle cx="98" cy="32" r="11" style={highlight} />
+      <g style={{ ...accentStroke, strokeWidth: 1.5 }}>
+        <path d="M98 36v-9M95 29.5l3-3 3 3" />
+        <path d="M94.5 31H94a1.5 1.5 0 0 0-1.5 1.5v4A1.5 1.5 0 0 0 94 38h8a1.5 1.5 0 0 0 1.5-1.5v-4A1.5 1.5 0 0 0 102 31h-.5" />
+      </g>
+    </svg>
+  );
+}
+
+/** iPad step 2: the share sheet with the "View More" arrow highlighted. */
+function ViewMoreArt() {
+  return (
+    <svg viewBox="0 0 112 64" style={artSvg}>
+      <rect x="2" y="2" width="108" height="60" rx="10" style={panel} />
+      <rect x="8" y="8" width="12" height="12" rx="3" style={{ fill: "var(--text-muted)", opacity: 0.25 }} />
+      <rect x="24" y="10" width="40" height="4" rx="2" style={bar} />
+      {[10, 30, 50].map((x) => (
+        <circle key={x} cx={x + 4} cy="34" r="7" style={{ fill: "var(--text-muted)", opacity: 0.22 }} />
+      ))}
+      <circle cx="94" cy="34" r="11" style={highlight} />
+      <path d="M88.5 36.5l5.5-5 5.5 5" style={{ ...accentStroke, strokeWidth: 2 }} />
+      <rect x="10" y="50" width="92" height="6" rx="3" style={{ ...bar, opacity: 0.16 }} />
     </svg>
   );
 }

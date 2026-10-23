@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isIOSUserAgent, isPushPermissionRequestable } from "./pwa-standalone";
+import { isIOSUserAgent, isIPadUserAgent, isPushPermissionRequestable } from "./pwa-standalone";
 
 describe("isIOSUserAgent", () => {
   it("returns true for iPad user agents", () => {
@@ -150,5 +150,20 @@ describe("iPad that sends a desktop (Macintosh) user agent", () => {
       expect(isIOSUserAgent(ua, 10)).toBe(false);
       expect(isPushPermissionRequestable(ua, false, 10)).toBe(true);
     }
+  });
+});
+
+describe("isIPadUserAgent", () => {
+  const mac = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15";
+  const iPhone = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1";
+
+  it("detects an iPad that sends the desktop user agent", () => {
+    expect(isIPadUserAgent(mac, 5)).toBe(true);
+    expect(isIPadUserAgent("Mozilla/5.0 (iPad; CPU OS 17_1 like Mac OS X)")).toBe(true);
+  });
+
+  it("does not flag a Mac or an iPhone", () => {
+    expect(isIPadUserAgent(mac, 0)).toBe(false);
+    expect(isIPadUserAgent(iPhone, 5)).toBe(false);
   });
 });

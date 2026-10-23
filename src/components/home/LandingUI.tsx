@@ -5,6 +5,7 @@ import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { ArrowRight, ShieldCheck, Zap, UserCheck, Sparkles, AlertTriangle } from "lucide-react";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { StudentFooter } from "@/components/layout/StudentFooter";
 import { signIn } from "next-auth/react";
 
 
@@ -346,14 +347,11 @@ export function LandingUI({
         </div>
       </main>
 
-      {/* Footer - Absolute on desktop, relative on mobile */}
-      <footer className="w-full px-8 py-10 lg:py-6 lg:absolute lg:bottom-0 flex flex-col lg:flex-row items-center justify-center gap-4 lg:gap-8 border-t border-[var(--border-subtle)] bg-transparent lg:bg-[var(--bg-glass)] lg:backdrop-blur-md lg:z-20">
-        <p style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "0.02em", lineHeight: 1.4 }}>© SMO CAMT 2026</p>
-        <div className="hidden lg:block" style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--text-muted)" }} />
-        <p style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 500, textAlign: "center", lineHeight: 1.5 }}>{t.modernizing}</p>
-        <div className="hidden lg:block" style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--text-muted)" }} />
-        <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 600, textDecoration: "underline", textUnderlineOffset: 2 }}>{t.footerPrivacy}</a>
-      </footer>
+      {/* Same credit/copyright footer as the dashboard. Full-width wrapper because
+          the page root is a centred flex column, which would shrink the footer. */}
+      <div className="w-full">
+        <StudentFooter />
+      </div>
     </div>
   );
 }

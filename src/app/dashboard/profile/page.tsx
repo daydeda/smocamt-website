@@ -17,6 +17,12 @@ import { FACULTIES, majorsForFaculty, facultyFromStudentId } from "@/lib/profile
 import { PushNotificationToggle } from "@/components/PushNotificationToggle";
 import { ProfileReviewModal } from "@/components/ProfileReviewModal";
 import { shouldShowProfileReview } from "@/lib/profile/profile-review";
+import { formatPhone, phoneDigits } from "@/lib/profile/phone";
+import { HospitalNumberFields } from "@/components/profile/HospitalNumberFields";
+import { ContactLatinWarning, ContactThaiCallout } from "@/components/profile/ContactThaiNotice";
+import { ContactNameFields } from "@/components/profile/ContactNameFields";
+import { NameFields } from "@/components/profile/NameFields";
+import { sanitizeNameInput, contactHasName, contactNeedsLatinConfirm, partsHaveLatin, prefillContactParts, prefillNameParts } from "@/lib/profile/name";
 
 // Rich CAMT major labels; other faculties show their bare code.
 const MAJOR_LABELS: Record<string, string> = {
@@ -27,7 +33,7 @@ const MAJOR_LABELS: Record<string, string> = {
   SE: "SE - Software Engineering",
 };
 
-type EmergencyContact = { name: string; relationship: string; phone: string };
+type EmergencyContact = { name: string; relationship: string; phone: string; firstName?: string; middleName?: string; lastName?: string; nickname?: string; latinNameConfirmed?: boolean };
  
 export default function ProfilePage() {
   const { data: session, update } = useSession();
@@ -49,6 +55,9 @@ export default function ProfilePage() {
   const [validationTriggered, setValidationTriggered] = useState(false);
   const [isProfileCompleted, setIsProfileCompleted] = useState(false);
   const [reviewDue, setReviewDue] = useState(false);
+  const [nameNeedsReview, setNameNeedsReview] = useState(false);
+  // Second emergency contact card: shown when it already has data or the student adds it.
+  const [showSecondContact, setShowSecondContact] = useState(false);
 
   const [hasFields, setHasFields] = useState<Record<string, boolean>>({
     chronicDiseases: false,
@@ -61,7 +70,10 @@ export default function ProfilePage() {
   const [formData, setFormData] = useState({
     studentId: "",
     prefix: "นาย",
-    name: "",
+    firstName: "",
+    middleName: "",
+    lastName: "",
+    latinNameConfirmed: false,
     nickname: "",
     phone: "",
     faculty: "CAMT",
@@ -77,6 +89,8 @@ export default function ProfilePage() {
     dietaryRestrictions: "",
     faintingHistory: false,
     emergencyMedication: "",
+    hospitalNumber: "",
+    hospitalName: "",
     emergencyContacts: [
       { name: "", relationship: "", phone: "" },
       { name: "", relationship: "", phone: "" },
@@ -94,7 +108,11 @@ export default function ProfilePage() {
           setFormData({
             studentId: user.studentId || "",
             prefix: user.prefix || "นาย",
-            name: user.name || "",
+            // Legacy rows have no parts yet: suggest a split the student confirms.
+            ...(user.firstName || user.lastName
+              ? { firstName: user.firstName || "", middleName: user.middleName || "", lastName: user.lastName || "" }
+              : prefillNameParts(user.name)),
+            latinNameConfirmed: !!user.latinNameConfirmed,
             nickname: user.nickname || "",
             phone: user.phone || "",
             faculty: user.faculty || "CAMT",
@@ -109,11 +127,14 @@ export default function ProfilePage() {
             foodAllergies: user.foodAllergies || "",
             dietaryRestrictions: user.dietaryRestrictions || "",
             faintingHistory: !!user.faintingHistory,
+            hospitalNumber: user.hospitalNumber || "",
+            hospitalName: user.hospitalName || "",
             emergencyMedication: user.emergencyMedication || "",
-            emergencyContacts: user.emergencyContacts || [
+            // Older contacts only have `name`: give them split parts to confirm.
+            emergencyContacts: (user.emergencyContacts || [
               { name: "", relationship: "", phone: "" },
               { name: "", relationship: "", phone: "" },
-            ],
+            ]).map((c: EmergencyContact) => prefillContactParts(c)),
           });
           setHasFields({
             chronicDiseases: !!(user.chronicDiseases && user.chronicDiseases.trim() !== "" && user.chronicDiseases.trim() !== "-" && user.chronicDiseases.trim() !== "None"),
@@ -124,6 +145,9 @@ export default function ProfilePage() {
           });
           if (user.image) setPreviewUrl(user.image);
           setIsProfileCompleted(!!user.profileCompleted);
+          setNameNeedsReview(!!user.nameNeedsReview);
+          const second = Array.isArray(user.emergencyContacts) ? user.emergencyContacts[1] : null;
+          setShowSecondContact(!!(second && (second.name || second.relationship || second.phone)));
           // Arriving from the dashboard modal's "Update" button: they already chose to edit.
           const fromDashboardModal = new URLSearchParams(window.location.search).get("review") === "update";
           setReviewDue(!fromDashboardModal && shouldShowProfileReview(user));
@@ -166,6 +190,11 @@ export default function ProfilePage() {
   const setEC = (idx: number, key: string, value: string) => {
     const contacts = [...formData.emergencyContacts] as EmergencyContact[];
     contacts[idx] = { ...contacts[idx], [key]: value };
+    set("emergencyContacts", contacts);
+  };
+  const keepLatinContact = (idx: number) => {
+    const contacts = [...formData.emergencyContacts] as EmergencyContact[];
+    contacts[idx] = { ...contacts[idx], latinNameConfirmed: true };
     set("emergencyContacts", contacts);
   };
   const renderMedicalField = (
@@ -292,7 +321,13 @@ export default function ProfilePage() {
     setSuccess(false);
  
     const isTh = t.back === "กลับ";
-    if (!formData.name.trim() || !formData.nickname.trim() || !formData.phone.trim() || !formData.contactChannels.trim()) {
+    if (!formData.latinNameConfirmed && partsHaveLatin(formData)) {
+      setError(t.nameThaiOnly);
+      setSaving(false);
+      setValidationTriggered(true);
+      return;
+    }
+    if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.nickname.trim() || !formData.phone.trim() || !formData.contactChannels.trim()) {
       setError(isTh ? "กรุณากรอกข้อมูลส่วนตัวที่จำเป็นให้ครบถ้วน" : "Please fill out all required personal information fields.");
       setSaving(false);
       setValidationTriggered(true);
@@ -306,9 +341,15 @@ export default function ProfilePage() {
       return;
     }
  
+    if (formData.emergencyContacts.some((c) => contactNeedsLatinConfirm(c, formData.latinNameConfirmed))) {
+      setError(t.contactNameThaiOnly);
+      setSaving(false);
+      setValidationTriggered(true);
+      return;
+    }
     const ec1 = formData.emergencyContacts[0];
     const isEc1RelEmpty = !ec1 || !ec1.relationship.trim() || ec1.relationship.trim() === "Other:";
-    if (!ec1 || !ec1.name.trim() || isEc1RelEmpty || !ec1.phone.trim()) {
+    if (!ec1 || !contactHasName(ec1) || isEc1RelEmpty || !ec1.phone.trim()) {
       setError(isTh ? "กรุณากรอกข้อมูลผู้ติดต่อฉุกเฉินคนที่ 1 ให้ครบถ้วน" : "Please fill out all fields for Emergency Contact #1.");
       setSaving(false);
       setValidationTriggered(true);
@@ -324,7 +365,7 @@ export default function ProfilePage() {
     const ec2 = formData.emergencyContacts[1];
     if (ec2 && (ec2.name.trim() || ec2.relationship.trim() || ec2.phone.trim())) {
       const isEc2RelEmpty = !ec2.relationship.trim() || ec2.relationship.trim() === "Other:";
-      if (!ec2.name.trim() || isEc2RelEmpty || !ec2.phone.trim()) {
+      if (!contactHasName(ec2) || isEc2RelEmpty || !ec2.phone.trim()) {
         setError(isTh ? "กรุณากรอกข้อมูลผู้ติดต่อฉุกเฉินคนที่ 2 ให้ครบถ้วน หรือปล่อยว่างไว้ทั้งหมด" : "Please complete all fields for Emergency Contact #2 or leave it empty.");
         setSaving(false);
         setValidationTriggered(true);
@@ -336,6 +377,12 @@ export default function ProfilePage() {
         setValidationTriggered(true);
         return;
       }
+    }
+    if (formData.hospitalNumber.trim() && !formData.hospitalName.trim()) {
+      setError(t.hospitalNameRequired);
+      setSaving(false);
+      setValidationTriggered(true);
+      return;
     }
     const emptyHasFields = Object.keys(hasFields).filter(
       (key) => hasFields[key] && !formData[key as keyof typeof formData]?.toString().trim()
@@ -402,6 +449,7 @@ export default function ProfilePage() {
     <div className="profile-page">
       {reviewDue && (
         <ProfileReviewModal
+          requireUpdate={nameNeedsReview}
           onUpdate={() => {
             setReviewDue(false);
             window.scrollTo({ top: 0, behavior: "smooth" });
@@ -543,8 +591,13 @@ export default function ProfilePage() {
                   <label className="label">{t.studentId} (Locked)</label>
                   <input className="input" disabled value={formData.studentId} style={{ background: "var(--bg-elevated)", cursor: "not-allowed", opacity: 0.7 }} />
                 </div>
-                <div className="col-span-12 flex gap-3 sm:gap-4">
-                  <div className="field flex-shrink-0" style={{ width: 100 }}>
+                <div className="col-span-12">
+                  <NameFields
+                    value={formData}
+                    onChange={(patch) => setFormData((p) => ({ ...p, ...patch }))}
+                    validationTriggered={validationTriggered}
+                    prefix={
+                      <div className="field flex-shrink-0" style={{ width: 100 }}>
                     <label className="label">
                       {t.prefix} {isProfileCompleted && "(Locked)"}
                     </label>
@@ -565,27 +618,8 @@ export default function ProfilePage() {
                       <option value="นาง">{t.back === "กลับ" ? "นาง" : "Mrs."}</option>
                     </select>
                   </div>
-                  <div className="field flex-grow">
-                    <label className="label">
-                      {t.fullName} <span style={{ color: "var(--red-500)" }}>*</span>
-                    </label>
-                    <input
-                      className="input"
-                      name="name"
-                      required
-                      value={formData.name}
-                      onChange={(e) => set("name", e.target.value)}
-                      style={{
-                        borderColor: validationTriggered && !formData.name.trim() ? "var(--red-500)" : undefined,
-                        boxShadow: validationTriggered && !formData.name.trim() ? "0 0 0 1px var(--red-500)" : undefined
-                      }}
-                    />
-                    {validationTriggered && !formData.name.trim() && (
-                      <span style={{ color: "var(--red-500)", fontSize: 11, fontWeight: 500, marginTop: 4, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={12} style={{ flexShrink: 0 }} />
-                        {t.back === "กลับ" ? "กรุณากรอกชื่อ-นามสกุล" : "This field is required"}
-                      </span>
-                    )}
-                  </div>
+                    }
+                  />
                 </div>
                 <div className="field col-span-4">
                   <label className="label">{t.nickname} <span style={{ color: "var(--red-500)" }}>*</span></label>
@@ -593,7 +627,7 @@ export default function ProfilePage() {
                     className="input"
                     name="nickname"
                     value={formData.nickname}
-                    onChange={(e) => set("nickname", e.target.value)}
+                    onChange={(e) => set("nickname", sanitizeNameInput(e.target.value))}
                     style={{
                       borderColor: validationTriggered && !formData.nickname.trim() ? "var(--red-500)" : undefined,
                       boxShadow: validationTriggered && !formData.nickname.trim() ? "0 0 0 1px var(--red-500)" : undefined
@@ -657,8 +691,10 @@ export default function ProfilePage() {
                     name="phone"
                     required
                     disabled={isProfileCompleted}
-                    value={formData.phone}
-                    onChange={(e) => set("phone", e.target.value.replace(/[^0-9]/g, "").slice(0, 10))}
+                    placeholder="081-xxx-xxxx"
+                    inputMode="tel"
+                    value={formatPhone(formData.phone)}
+                    onChange={(e) => set("phone", phoneDigits(e.target.value))}
                     style={{
                       background: isProfileCompleted ? "var(--bg-elevated)" : undefined,
                       cursor: isProfileCompleted ? "not-allowed" : undefined,
@@ -747,31 +783,48 @@ export default function ProfilePage() {
                 {t.emergencyContacts}
               </h2>
               <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                {!formData.latinNameConfirmed && <ContactThaiCallout />}
+                <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.5, margin: 0 }}>{t.emergencyContactOneEnough}</p>
                 {formData.emergencyContacts.map((contact, i) => {
+                  if (i === 1 && !showSecondContact) return null;
                   const isFirst = i === 0;
                   const isSecondPartiallyFilled = i === 1 && !!(contact.name.trim() || contact.relationship.trim() || contact.phone.trim());
                   const isFieldRequired = isFirst || isSecondPartiallyFilled;
 
                   return (
                     <div key={i} className="emergency-contact-box">
-                      <p style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 16 }}>Contact #{i + 1}</p>
+                      <p style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                        <span>{showSecondContact ? `Contact #${i + 1}` : "Contact"}</span>
+                        {i === 1 && (
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            style={{ textTransform: "none" }}
+                            onClick={() => {
+                              const contacts = [...formData.emergencyContacts] as EmergencyContact[];
+                              contacts[1] = { name: "", firstName: "", middleName: "", lastName: "", nickname: "", relationship: "", phone: "" };
+                              set("emergencyContacts", contacts);
+                              setShowSecondContact(false);
+                            }}
+                          >
+                            {t.removeEmergencyContact}
+                          </button>
+                        )}
+                      </p>
                       <div className="form-grid">
                         <div className="field col-span-12">
-                          <label className="label">{t.fullName} {isFieldRequired && <span style={{ color: "var(--red-500)" }}>*</span>}</label>
-                          <input
-                            className="input"
-                            required={isFieldRequired}
-                            value={contact.name}
-                            onChange={(e) => setEC(i, "name", e.target.value)}
-                            style={{
-                              borderColor: validationTriggered && isFieldRequired && !contact.name.trim() ? "var(--red-500)" : undefined,
-                              boxShadow: validationTriggered && isFieldRequired && !contact.name.trim() ? "0 0 0 1px var(--red-500)" : undefined
+                          <ContactNameFields
+                            value={contact}
+                            onChange={(next) => {
+                              const contacts = [...formData.emergencyContacts] as EmergencyContact[];
+                              contacts[i] = { ...contacts[i], ...next };
+                              set("emergencyContacts", contacts);
                             }}
+                            required={isFieldRequired}
+                            validationTriggered={validationTriggered}
                           />
-                          {validationTriggered && isFieldRequired && !contact.name.trim() && (
-                            <span style={{ color: "var(--red-500)", fontSize: 11, fontWeight: 500, marginTop: 4, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={12} style={{ flexShrink: 0 }} />
-                              {t.back === "กลับ" ? "กรุณากรอกชื่อ-นามสกุล" : "This field is required"}
-                            </span>
+                          {contactNeedsLatinConfirm(contact, formData.latinNameConfirmed) && (
+                            <div style={{ marginTop: 8 }}><ContactLatinWarning onKeep={() => keepLatinContact(i)} /></div>
                           )}
                         </div>
                         <div className="field col-span-6">
@@ -821,8 +874,10 @@ export default function ProfilePage() {
                           <input
                             className="input"
                             required={isFieldRequired}
-                            value={contact.phone}
-                            onChange={(e) => setEC(i, "phone", e.target.value.replace(/[^0-9]/g, "").slice(0, 10))}
+                            placeholder="081-xxx-xxxx"
+                            inputMode="tel"
+                            value={formatPhone(contact.phone)}
+                            onChange={(e) => setEC(i, "phone", phoneDigits(e.target.value))}
                             style={{
                               borderColor: validationTriggered && isFieldRequired && (!contact.phone.trim() || !/^[0-9]{10}$/.test(contact.phone.trim())) ? "var(--red-500)" : undefined,
                               boxShadow: validationTriggered && isFieldRequired && (!contact.phone.trim() || !/^[0-9]{10}$/.test(contact.phone.trim())) ? "0 0 0 1px var(--red-500)" : undefined
@@ -840,6 +895,11 @@ export default function ProfilePage() {
                     </div>
                   );
                 })}
+                {!showSecondContact && (
+                  <button type="button" className="btn btn-ghost" style={{ alignSelf: "flex-start" }} onClick={() => setShowSecondContact(true)}>
+                    + {t.addEmergencyContact}
+                  </button>
+                )}
               </div>
             </div>
 
@@ -899,6 +959,13 @@ export default function ProfilePage() {
                     <input type="checkbox" style={{ marginTop: 3, flexShrink: 0, width: 18, height: 18, accentColor: "var(--accent-primary)", cursor: "pointer" }} checked={formData.faintingHistory} onChange={(e) => set("faintingHistory", e.target.checked)} />
                     <span style={{ fontSize: 14, lineHeight: 1.4 }}>{t.faintingHistory}</span>
                   </label>
+                </div>
+                <div className="field col-span-12" style={{ marginTop: 8 }}>
+                  <HospitalNumberFields
+                    value={formData}
+                    onChange={(patch) => setFormData((p) => ({ ...p, ...patch }))}
+                    validationTriggered={validationTriggered}
+                  />
                 </div>
               </div>
             </div>

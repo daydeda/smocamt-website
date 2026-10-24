@@ -100,6 +100,7 @@ export function StudentProfileModal({ ctx }: { ctx: AdminEventsPageCtx }) {
                       {selectedStudent.foodAllergies && selectedStudent.foodAllergies.trim() !== "-" && <p style={{ fontSize: 14 }}><b>{t.foodAllergies}:</b> <span style={{ color: "var(--red-500)", fontWeight: 700 }}>{selectedStudent.foodAllergies}</span></p>}
                       {selectedStudent.dietaryRestrictions && selectedStudent.dietaryRestrictions.trim() !== "-" && <p style={{ fontSize: 14 }}><b>{t.dietaryRestrictions}:</b> {selectedStudent.dietaryRestrictions}</p>}
                       {selectedStudent.emergencyMedication && selectedStudent.emergencyMedication.trim() !== "-" && <p style={{ fontSize: 14 }}><b>{t.emergencyMed}:</b> <span style={{ color: "var(--red-500)", fontWeight: 700 }}>{selectedStudent.emergencyMedication}</span></p>}
+                      {selectedStudent.hospitalNumber && <p style={{ fontSize: 14 }}><b>HN:</b> {selectedStudent.hospitalNumber}{selectedStudent.hospitalName ? ` (${selectedStudent.hospitalName})` : ""}</p>}
                       {selectedStudent.faintingHistory && <p style={{ fontSize: 14, color: "var(--red-500)", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={14} style={{ flexShrink: 0 }} /> {t.faintingHistory}</p>}
 
                       {!hasActualMedicalInfo(selectedStudent) && (
@@ -142,7 +143,7 @@ export function StudentProfileModal({ ctx }: { ctx: AdminEventsPageCtx }) {
                     <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <div>
                         <p style={{ fontWeight: 700, fontSize: 14 }}>
-                          {c.name ? `${c.name} ` : ""}({c.relationship.startsWith("Other:") ? c.relationship.substring(6) : c.relationship})
+                          {c.name ? `${c.name} ` : ""}{c.nickname ? `“${c.nickname}” ` : ""}({c.relationship.startsWith("Other:") ? c.relationship.substring(6) : c.relationship})
                         </p>
                         <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>{c.phone}</p>
                       </div>

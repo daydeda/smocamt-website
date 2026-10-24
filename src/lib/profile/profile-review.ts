@@ -16,10 +16,19 @@ export function isProfileReviewDue(
   return now >= dueAt;
 }
 
-/** The one trigger rule for the check-in modal: only completed profiles are asked. */
+/**
+ * The one trigger rule for the check-in modal: only completed profiles are asked.
+ * A legacy name that could not be split (nameNeedsReview) is asked right away,
+ * not at the next 3-month mark.
+ */
 export function shouldShowProfileReview(
-  user: { profileCompleted?: boolean | null; profileReviewedAt?: Date | string | null } | null | undefined,
+  user: {
+    profileCompleted?: boolean | null;
+    profileReviewedAt?: Date | string | null;
+    nameNeedsReview?: boolean | null;
+  } | null | undefined,
   now: Date = new Date(),
 ): boolean {
-  return !!user?.profileCompleted && isProfileReviewDue(user.profileReviewedAt, now);
+  if (!user?.profileCompleted) return false;
+  return !!user.nameNeedsReview || isProfileReviewDue(user.profileReviewedAt, now);
 }

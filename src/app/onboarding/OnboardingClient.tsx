@@ -9,6 +9,12 @@ import { compressImageFile } from "@/lib/media/compress-image";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { PrivacyPolicyModal } from "@/components/PrivacyPolicyModal";
 import { FACULTIES, majorsForFaculty, facultyFromStudentId } from "@/lib/profile/faculties";
+import { formatPhone, phoneDigits } from "@/lib/profile/phone";
+import { HospitalNumberFields } from "@/components/profile/HospitalNumberFields";
+import { ContactLatinWarning, ContactThaiCallout } from "@/components/profile/ContactThaiNotice";
+import { ContactNameFields } from "@/components/profile/ContactNameFields";
+import { NameFields } from "@/components/profile/NameFields";
+import { composeFullName, sanitizeNameInput, contactHasName, contactNeedsLatinConfirm, partsHaveLatin } from "@/lib/profile/name";
 import { unsubscribePushBeforeSignOut } from "@/lib/push/push-client";
 
 // Rich CAMT major labels; other faculties show their bare code (or no Major
@@ -21,7 +27,7 @@ const MAJOR_LABELS: Record<string, string> = {
   SE: "SE – Software Engineering",
 };
 
-type EmergencyContact = { name: string; relationship: string; phone: string };
+type EmergencyContact = { name: string; relationship: string; phone: string; firstName?: string; middleName?: string; lastName?: string; nickname?: string; latinNameConfirmed?: boolean };
 
 /* ─────────────────────────────────────────────────────────────────────────── */
 /*  Step-icon used in the desktop sidebar                                      */
@@ -99,7 +105,10 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
   const [formData, setFormData] = useState({
     studentId: "",
     prefix: "นาย",
-    name: "",
+    firstName: "",
+    middleName: "",
+    lastName: "",
+    latinNameConfirmed: false,
     nickname: "",
     faculty: "CAMT",
     major: "SE",
@@ -115,12 +124,23 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
     dietaryRestrictions: "",
     faintingHistory: false,
     emergencyMedication: "",
+    hospitalNumber: "",
+    hospitalName: "",
     pdpaConsent: false,
     emergencyContacts: [
-      { name: "", relationship: "", phone: "" },
-      { name: "", relationship: "", phone: "" },
+      { name: "", firstName: "", middleName: "", lastName: "", nickname: "", relationship: "", phone: "" },
+      { name: "", firstName: "", middleName: "", lastName: "", nickname: "", relationship: "", phone: "" },
     ] as EmergencyContact[],
   });
+
+  // Only the first emergency contact is required; the second card appears on request.
+  const [showSecondContact, setShowSecondContact] = useState(false);
+  const removeSecondContact = () => {
+    const contacts = [...formData.emergencyContacts] as EmergencyContact[];
+    contacts[1] = { name: "", firstName: "", middleName: "", lastName: "", nickname: "", relationship: "", phone: "" };
+    set("emergencyContacts", contacts);
+    setShowSecondContact(false);
+  };
 
   const [hasFields, setHasFields] = useState<Record<string, boolean>>(() => ({
     chronicDiseases: !!formData.chronicDiseases,
@@ -136,6 +156,11 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
   const setEC = (idx: number, key: string, value: string) => {
     const contacts = [...formData.emergencyContacts] as EmergencyContact[];
     contacts[idx] = { ...contacts[idx], [key]: value };
+    set("emergencyContacts", contacts);
+  };
+  const keepLatinContact = (idx: number) => {
+    const contacts = [...formData.emergencyContacts] as EmergencyContact[];
+    contacts[idx] = { ...contacts[idx], latinNameConfirmed: true };
     set("emergencyContacts", contacts);
   };
 
@@ -209,8 +234,12 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
   const handleContinue = () => {
     setError(null);
     if (step === 0) {
-      if (!formData.name.trim() || !formData.nickname.trim() || !formData.phone.trim() || !formData.contactChannels.trim() || (isStudent && !formData.studentId.trim())) {
+      if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.nickname.trim() || !formData.phone.trim() || !formData.contactChannels.trim() || (isStudent && !formData.studentId.trim())) {
         setError(isTh ? "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน" : "Please fill out all required fields.");
+        setValidationTriggered(true); return;
+      }
+      if (!formData.latinNameConfirmed && partsHaveLatin(formData)) {
+        setError(t.nameThaiOnly);
         setValidationTriggered(true); return;
       }
       if (isStudent && !/^[0-9]{9}$/.test(formData.studentId.trim())) {
@@ -229,6 +258,11 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
       }
     }
     if (step === 1) {
+      if (formData.hospitalNumber.trim() && !formData.hospitalName.trim()) {
+        setError(t.hospitalNameRequired);
+        setValidationTriggered(true);
+        return;
+      }
       const emptyHasFields = Object.keys(hasFields).filter(
         (key) => hasFields[key] && !formData[key as keyof typeof formData]?.toString().trim()
       );
@@ -239,9 +273,13 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
       }
     }
     if (step === 2) {
+      if (formData.emergencyContacts.some((c) => contactNeedsLatinConfirm(c, formData.latinNameConfirmed))) {
+        setError(t.contactNameThaiOnly);
+        setValidationTriggered(true); return;
+      }
       const ec1 = formData.emergencyContacts[0];
       const isEc1RelEmpty = !ec1.relationship.trim() || ec1.relationship.trim() === "Other:";
-      if (!ec1.name.trim() || isEc1RelEmpty || !ec1.phone.trim()) {
+      if (!contactHasName(ec1) || isEc1RelEmpty || !ec1.phone.trim()) {
         setError(isTh ? "กรุณากรอกข้อมูลผู้ติดต่อฉุกเฉินคนที่ 1 ให้ครบถ้วน" : "Please fill out all fields for Emergency Contact #1.");
         setValidationTriggered(true); return;
       }
@@ -253,7 +291,7 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
       const hasAnyEc2 = ec2.name.trim() || ec2.relationship.trim() || ec2.phone.trim();
       if (hasAnyEc2) {
         const isEc2RelEmpty = !ec2.relationship.trim() || ec2.relationship.trim() === "Other:";
-        if (!ec2.name.trim() || isEc2RelEmpty || !ec2.phone.trim()) {
+        if (!contactHasName(ec2) || isEc2RelEmpty || !ec2.phone.trim()) {
           setError(isTh ? "กรุณากรอกข้อมูลผู้ติดต่อฉุกเฉินคนที่ 2 ให้ครบถ้วน หรือปล่อยว่างไว้ทั้งหมด" : "Complete or clear all fields for Emergency Contact #2.");
           setValidationTriggered(true); return;
         }
@@ -427,38 +465,33 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
             <span style={{ fontSize: 11, color: "var(--text-muted)", textAlign: "center", maxWidth: 260 }}>{t.profilePhotoDisabledNote}</span>
           </div>
 
-          {/* Prefix + Name */}
-          <div className="flex gap-3">
-            <div className="field" style={{ width: 88, flexShrink: 0 }}>
-              <label className={lbl}>{t.prefix}</label>
-              <select className={inp} value={formData.prefix} onChange={(e) => set("prefix", e.target.value)} style={{ minHeight: 48 }}>
-                <option value="นาย">{lang === "th" ? "นาย" : "Mr."}</option>
-                <option value="นางสาว">{lang === "th" ? "น.ส." : "Ms."}</option>
-                <option value="นาง">{lang === "th" ? "นาง" : "Mrs."}</option>
-              </select>
-            </div>
-            <div className="field flex-grow" style={{ minWidth: 0 }}>
-              <label className={lbl}>{t.fullName} <span style={{ color: "var(--red-500)" }}>*</span></label>
-              <input className={inp} placeholder={lang === "th" ? "ชื่อ-นามสกุล" : "Full Name"} value={formData.name} onChange={(e) => set("name", e.target.value)} style={errStyle(validationTriggered && !formData.name.trim())} />
-              <span style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4, lineHeight: 1.45 }}>
-                {isTh
-                  ? "หากคุณเป็นคนไทย กรุณาเขียนชื่อเป็นภาษาไทย"
-                  : "If you are a Thai citizen, please write your name in Thai (ให้เขียนชื่อเป็นภาษาไทย)"}
-              </span>
-              <ErrMsg show={validationTriggered && !formData.name.trim()} msg={isTh ? "กรุณากรอกชื่อ-นามสกุล" : "This field is required"} />
-            </div>
-          </div>
+          {/* Prefix + Name (first / middle / last) */}
+          <NameFields
+            value={formData}
+            onChange={(patch) => setFormData((p) => ({ ...p, ...patch }))}
+            validationTriggered={validationTriggered}
+            prefix={
+              <div className="field" style={{ width: 88, flexShrink: 0 }}>
+                <label className={lbl}>{t.prefix}</label>
+                <select className={inp} value={formData.prefix} onChange={(e) => set("prefix", e.target.value)} style={{ minHeight: 48 }}>
+                  <option value="นาย">{lang === "th" ? "นาย" : "Mr."}</option>
+                  <option value="นางสาว">{lang === "th" ? "น.ส." : "Ms."}</option>
+                  <option value="นาง">{lang === "th" ? "นาง" : "Mrs."}</option>
+                </select>
+              </div>
+            }
+          />
 
           {/* Student ID + Nickname */}
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="field flex-1">
               <label className={lbl}>{t.studentId} <span style={{ color: "var(--red-500)" }}>*</span></label>
-              <input className={inp} maxLength={9} placeholder="640510000" inputMode="numeric" value={formData.studentId} onChange={(e) => set("studentId", e.target.value.replace(/[^0-9]/g, "").slice(0, 9))} style={errStyle(validationTriggered && !!(isStudent && formData.studentId.trim().length !== 9))} />
+              <input className={inp} maxLength={9} placeholder="6921xxxxx" inputMode="numeric" value={formData.studentId} onChange={(e) => set("studentId", e.target.value.replace(/[^0-9]/g, "").slice(0, 9))} style={errStyle(validationTriggered && !!(isStudent && formData.studentId.trim().length !== 9))} />
               <ErrMsg show={validationTriggered && !!(isStudent && formData.studentId.trim().length !== 9)} msg={isTh ? "รหัสนักศึกษาต้องมี 9 หลัก" : "Must be exactly 9 digits"} />
             </div>
             <div className="field flex-1">
               <label className={lbl}>{t.nickname} <span style={{ color: "var(--red-500)" }}>*</span></label>
-              <input className={inp} placeholder={t.nickname} value={formData.nickname} onChange={(e) => set("nickname", e.target.value)} style={errStyle(validationTriggered && !formData.nickname.trim())} />
+              <input className={inp} placeholder={t.nickname} value={formData.nickname} onChange={(e) => set("nickname", sanitizeNameInput(e.target.value))} style={errStyle(validationTriggered && !formData.nickname.trim())} />
               <ErrMsg show={validationTriggered && !formData.nickname.trim()} msg={isTh ? "กรุณากรอกชื่อเล่น" : "This field is required"} />
             </div>
           </div>
@@ -527,7 +560,7 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="field flex-1">
               <label className={lbl}>{t.phone} <span style={{ color: "var(--red-500)" }}>*</span></label>
-              <input className={inp} placeholder="0812345678" inputMode="tel" value={formData.phone} onChange={(e) => set("phone", e.target.value.replace(/[^0-9]/g, "").slice(0, 10))} style={errStyle(validationTriggered && (!formData.phone.trim() || !/^[0-9]{10}$/.test(formData.phone.trim())))} />
+              <input className={inp} placeholder="081-xxx-xxxx" inputMode="tel" value={formatPhone(formData.phone)} onChange={(e) => set("phone", phoneDigits(e.target.value))} style={errStyle(validationTriggered && (!formData.phone.trim() || !/^[0-9]{10}$/.test(formData.phone.trim())))} />
               <ErrMsg show={validationTriggered && (!formData.phone.trim() || !/^[0-9]{10}$/.test(formData.phone.trim()))} msg={!formData.phone.trim() ? (isTh ? "กรุณากรอกเบอร์โทรศัพท์" : "Required") : (isTh ? "ต้องเป็นตัวเลข 10 หลัก" : "Must be exactly 10 digits")} />
             </div>
             <div className="field flex-1">
@@ -574,28 +607,46 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
             <input type="checkbox" style={{ width: 20, height: 20, accentColor: "var(--accent-primary)", flexShrink: 0 }} checked={formData.faintingHistory} onChange={(e) => set("faintingHistory", e.target.checked)} />
             <span style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.4 }}>{t.faintingHistory}</span>
           </label>
+          <HospitalNumberFields
+            value={formData}
+            onChange={(patch) => setFormData((p) => ({ ...p, ...patch }))}
+            validationTriggered={validationTriggered}
+          />
         </>
       )}
 
       {/* ── Step 2: Emergency Contacts ── */}
       {step === 2 && (
         <>
-          {[0, 1].map((i) => {
+          {!formData.latinNameConfirmed && <ContactThaiCallout />}
+          <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.5, margin: 0 }}>{t.emergencyContactOneEnough}</p>
+          {[0, 1].filter((i) => i === 0 || showSecondContact).map((i) => {
             const contact = formData.emergencyContacts[i];
             const partial = i === 1 && !!(contact.name.trim() || contact.relationship.trim() || contact.phone.trim());
             const required = i === 0 || partial;
             return (
               <div key={i} style={{ background: "var(--bg-surface)", border: "1px solid var(--border-medium)", borderRadius: "var(--radius-xl)", padding: "20px 18px", boxShadow: "0 4px 16px rgb(var(--shadow-rgb) / 0.04)" }}>
                 <p style={{ fontSize: 11, fontWeight: 800, color: "var(--accent-primary)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 14 }}>
-                  {t.emergencyContacts} #{i + 1}
+                  {t.emergencyContacts}{showSecondContact ? ` #${i + 1}` : ""}
                   {i === 1 && <span style={{ marginLeft: 8, fontWeight: 500, color: "var(--text-muted)", textTransform: "none", fontSize: 11, letterSpacing: 0 }}>({lang === "th" ? "ไม่บังคับ" : "Optional"})</span>}
+                  {i === 1 && (
+                    <button type="button" className="btn btn-ghost btn-sm" style={{ marginLeft: 8, textTransform: "none", letterSpacing: 0 }} onClick={removeSecondContact}>
+                      {t.removeEmergencyContact}
+                    </button>
+                  )}
                 </p>
                 <div className="flex flex-col gap-4">
-                  <div className="field">
-                    <label className={lbl}>{t.fullName} {required && <span style={{ color: "var(--red-500)" }}>*</span>}</label>
-                    <input className={inp} placeholder={t.fullName} value={contact.name} onChange={(e) => setEC(i, "name", e.target.value)} style={errStyle(validationTriggered && required && !contact.name.trim())} />
-                    <ErrMsg show={validationTriggered && required && !contact.name.trim()} msg={isTh ? "กรุณากรอกชื่อ-นามสกุล" : "Required"} />
-                  </div>
+                  <ContactNameFields
+                    value={contact}
+                    onChange={(next) => {
+                      const contacts = [...formData.emergencyContacts] as EmergencyContact[];
+                      contacts[i] = { ...contacts[i], ...next };
+                      set("emergencyContacts", contacts);
+                    }}
+                    required={required}
+                    validationTriggered={validationTriggered}
+                  />
+                  {contactNeedsLatinConfirm(contact, formData.latinNameConfirmed) && <ContactLatinWarning onKeep={() => keepLatinContact(i)} />}
                   <div className="flex flex-col sm:flex-row gap-4">
                     <div className="field flex-1">
                       <label className={lbl}>{t.relationship} {required && <span style={{ color: "var(--red-500)" }}>*</span>}</label>
@@ -622,7 +673,7 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
                             marginTop: 8,
                             ...errStyle(validationTriggered && required && (!contact.relationship.trim() || contact.relationship === "Other:"))
                           }}
-                          placeholder={isTh ? "กรุณาระบุความสัมพันธ์..." : "Please specify relationship..."}
+                          placeholder={isTh || !formData.latinNameConfirmed ? "กรุณาระบุความสัมพันธ์..." : "Please specify relationship..."}
                           value={contact.relationship.startsWith("Other:") ? contact.relationship.substring(6) : contact.relationship}
                           onChange={(e) => setEC(i, "relationship", "Other:" + e.target.value)}
                         />
@@ -631,7 +682,7 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
                     </div>
                     <div className="field flex-1">
                       <label className={lbl}>{t.phone} {required && <span style={{ color: "var(--red-500)" }}>*</span>}</label>
-                      <input className={inp} placeholder="0812345678" inputMode="tel" value={contact.phone} onChange={(e) => setEC(i, "phone", e.target.value.replace(/[^0-9]/g, "").slice(0, 10))} style={errStyle(validationTriggered && required && (!contact.phone.trim() || !/^[0-9]{10}$/.test(contact.phone.trim())))} />
+                      <input className={inp} placeholder="081-xxx-xxxx" inputMode="tel" value={formatPhone(contact.phone)} onChange={(e) => setEC(i, "phone", phoneDigits(e.target.value))} style={errStyle(validationTriggered && required && (!contact.phone.trim() || !/^[0-9]{10}$/.test(contact.phone.trim())))} />
                       <ErrMsg show={validationTriggered && required && (!contact.phone.trim() || !/^[0-9]{10}$/.test(contact.phone.trim()))} msg={!contact.phone.trim() ? (isTh ? "กรุณากรอกเบอร์" : "Required") : (isTh ? "ต้องเป็นตัวเลข 10 หลัก" : "Must be 10 digits")} />
                     </div>
                   </div>
@@ -639,6 +690,11 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
               </div>
             );
           })}
+          {!showSecondContact && (
+            <button type="button" className="btn btn-ghost" style={{ alignSelf: "flex-start" }} onClick={() => setShowSecondContact(true)}>
+              + {t.addEmergencyContact}
+            </button>
+          )}
         </>
       )}
 
@@ -650,7 +706,7 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
             <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)", marginBottom: 14 }}>{t.profileSummary}</p>
             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
               {[
-                [t.fullName, `${formData.prefix}${formData.name}`],
+                [t.fullName, `${formData.prefix}${composeFullName(formData)}`],
                 [t.nickname, formData.nickname],
                 [t.studentId, formData.studentId || "—"],
                 [t.faculty, derivedFaculty ? (FACULTIES.find((f) => f.id === derivedFaculty)?.name ?? derivedFaculty) : "—"],

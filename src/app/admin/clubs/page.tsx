@@ -51,6 +51,8 @@ type ClubMemberMedical = {
   dietaryRestrictions: string | null;
   faintingHistory: boolean | null;
   emergencyMedication: string | null;
+  hospitalNumber: string | null;
+  hospitalName: string | null;
   emergencyContacts: { relationship: string; phone: string }[];
 };
 
@@ -821,7 +823,7 @@ export default function ClubsPage() {
                     const isLoadingMedical = loadingMedicalUserId === m.userId;
                     const hasMedicalDetail = !!(
                       medical && (medical.chronicDiseases || medical.medicalHistory || medical.drugAllergies || medical.foodAllergies ||
-                      medical.dietaryRestrictions || medical.faintingHistory || medical.emergencyMedication || medical.emergencyContacts.length > 0)
+                      medical.dietaryRestrictions || medical.faintingHistory || medical.emergencyMedication || medical.hospitalNumber || medical.emergencyContacts.length > 0)
                     );
                     // Medical & Emergency expand is gated to exactly the same set the
                     // server allows into GET .../members/[memberId]/medical
@@ -936,6 +938,7 @@ export default function ClubsPage() {
                               {medical.dietaryRestrictions && <p style={{ fontSize: 12 }}><b>Dietary:</b> {medical.dietaryRestrictions}</p>}
                               {medical.faintingHistory && <p style={{ fontSize: 12, color: "var(--red-500)" }}>History of fainting</p>}
                               {medical.emergencyMedication && <p style={{ fontSize: 12, color: "var(--red-500)" }}><b>Emergency medication:</b> {medical.emergencyMedication}</p>}
+                              {medical.hospitalNumber && <p style={{ fontSize: 12 }}><b>HN:</b> {medical.hospitalNumber}{medical.hospitalName ? ` (${medical.hospitalName})` : ""}</p>}
                               {medical.emergencyContacts.length > 0 && (
                                 <p style={{ fontSize: 12 }}>
                                   <b>Emergency contact:</b>{" "}

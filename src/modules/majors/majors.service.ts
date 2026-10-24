@@ -74,6 +74,8 @@ export class MajorsService {
         dietaryRestrictions: users.dietaryRestrictions,
         faintingHistory: users.faintingHistory,
         emergencyMedication: users.emergencyMedication,
+        hospitalNumber: users.hospitalNumber,
+        hospitalName: users.hospitalName,
         emergencyContacts: users.emergencyContacts,
       })
       .from(users)
@@ -112,6 +114,8 @@ export class MajorsService {
         dietaryRestrictions: users.dietaryRestrictions,
         faintingHistory: users.faintingHistory,
         emergencyMedication: users.emergencyMedication,
+        hospitalNumber: users.hospitalNumber,
+        hospitalName: users.hospitalName,
         emergencyContacts: users.emergencyContacts,
       })
       .from(users)

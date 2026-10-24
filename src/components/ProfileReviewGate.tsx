@@ -14,12 +14,16 @@ import { shouldShowProfileReview } from "@/lib/profile/profile-review";
 export function ProfileReviewGate() {
   const router = useRouter();
   const [due, setDue] = useState(false);
+  const [nameNeedsReview, setNameNeedsReview] = useState(false);
 
   useEffect(() => {
     const ctrl = new AbortController();
     fetch("/api/profile", { signal: ctrl.signal })
       .then((r) => (r.ok ? r.json() : null))
-      .then((user) => setDue(shouldShowProfileReview(user)))
+      .then((user) => {
+        setDue(shouldShowProfileReview(user));
+        setNameNeedsReview(!!user?.nameNeedsReview);
+      })
       .catch(() => {});
     return () => ctrl.abort();
   }, []);
@@ -27,6 +31,7 @@ export function ProfileReviewGate() {
   if (!due) return null;
   return (
     <ProfileReviewModal
+      requireUpdate={nameNeedsReview}
       onUpdate={() => router.push("/dashboard/profile?review=update")}
       onKept={() => setDue(false)}
     />

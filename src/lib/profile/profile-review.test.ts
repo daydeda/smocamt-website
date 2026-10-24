@@ -35,3 +35,12 @@ describe("shouldShowProfileReview", () => {
     expect(shouldShowProfileReview({ profileCompleted: true, profileReviewedAt: "2026-10-01T00:00:00Z" }, now)).toBe(false);
   });
 });
+
+describe("shouldShowProfileReview with a flagged legacy name", () => {
+  it("asks immediately even if reviewed recently, but only for completed profiles", () => {
+    const recent = "2026-10-01T00:00:00Z";
+    expect(shouldShowProfileReview({ profileCompleted: true, profileReviewedAt: recent, nameNeedsReview: true }, now)).toBe(true);
+    expect(shouldShowProfileReview({ profileCompleted: true, profileReviewedAt: recent, nameNeedsReview: false }, now)).toBe(false);
+    expect(shouldShowProfileReview({ profileCompleted: false, nameNeedsReview: true }, now)).toBe(false);
+  });
+});

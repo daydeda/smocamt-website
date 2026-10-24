@@ -1,5 +1,6 @@
 "use client";
 
+import { sanitizeNameInput } from "@/lib/profile/name";
 import { useEffect, useState, useRef } from "react";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { useSession } from "next-auth/react";
@@ -49,8 +50,11 @@ type Student = {
   foodAllergies?: string | null;
   dietaryRestrictions?: string | null;
   faintingHistory?: boolean | null;
+  hospitalNumber?: string | null;
+  hospitalName?: string | null;
   emergencyContacts?: Array<{
     name: string;
+    nickname?: string;
     relationship: string;
     phone: string;
   }> | null;
@@ -760,6 +764,20 @@ export default function AdminStudentsDirectory() {
                               style={{ padding: 8, borderRadius: 10, color: "var(--text-secondary)" }}
                               onClick={() => {
                                 setEditingStudent(s);
+                                // HN is medical detail: super_admin only, loaded through the audited
+                                // sensitive-detail endpoint (never in the bulk list). Until it loads the
+                                // fields stay hidden and the PATCH carries no HN, so nothing is blanked.
+                                if (userRole === "super_admin") {
+                                  fetch(`/api/admin/students/${s.id}`)
+                                    .then((r) => (r.ok ? r.json() : null))
+                                    .then((d) => {
+                                      if (!d) return;
+                                      setEditingStudent((prev) => (prev && prev.id === s.id
+                                        ? { ...prev, hospitalNumber: d.hospitalNumber ?? "", hospitalName: d.hospitalName ?? "" }
+                                        : prev));
+                                    })
+                                    .catch(() => {});
+                                }
                                 // Pre-check the club picker with this user's current
                                 // presidencies (not included in the student list fetch).
                                 fetch(`/api/admin/clubs?presidentUserId=${s.id}`)
@@ -1021,6 +1039,7 @@ export default function AdminStudentsDirectory() {
                         ["Food Allergies", sensitiveData.foodAllergies],
                         ["Dietary Restrictions", sensitiveData.dietaryRestrictions],
                         ["History of Fainting", sensitiveData.faintingHistory ? "YES, Report of Fainting History" : "No known history"],
+                        ["Hospital Number (HN)", sensitiveData.hospitalNumber ? `${sensitiveData.hospitalNumber}${sensitiveData.hospitalName ? ` (${sensitiveData.hospitalName})` : ""}` : null],
                       ].map(([label, value]) => (
                         <div key={label as string} style={{ padding: "16px 20px", background: "var(--bg-elevated)", borderRadius: 16, border: "1px solid var(--border-subtle)" }}>
                           <p style={{ fontSize: 10, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{label}</p>
@@ -1043,7 +1062,7 @@ export default function AdminStudentsDirectory() {
                           <div key={i} style={{ padding: "20px", background: "var(--bg-elevated)", borderRadius: 20, border: "1px solid var(--border-subtle)" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                               <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--accent-primary)" }} />
-                              <p style={{ fontWeight: 800, fontSize: 16, color: "var(--text-primary)" }}>{c.name}</p>
+                              <p style={{ fontWeight: 800, fontSize: 16, color: "var(--text-primary)" }}>{c.name}{c.nickname ? ` (${c.nickname})` : ""}</p>
                             </div>
                             <p style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>
                               {c.relationship.startsWith("Other:") ? c.relationship.substring(6) : c.relationship}
@@ -1130,7 +1149,7 @@ export default function AdminStudentsDirectory() {
                   <input
                     className="input"
                     value={editingStudent.name}
-                    onChange={e => setEditingStudent({ ...editingStudent, name: e.target.value })}
+                    onChange={e => setEditingStudent({ ...editingStudent, name: sanitizeNameInput(e.target.value) })}
                   />
                 </div>
               </div>
@@ -1149,7 +1168,7 @@ export default function AdminStudentsDirectory() {
                   <input
                     className="input"
                     value={editingStudent.nickname || ""}
-                    onChange={e => setEditingStudent({ ...editingStudent, nickname: e.target.value })}
+                    onChange={e => setEditingStudent({ ...editingStudent, nickname: sanitizeNameInput(e.target.value) })}
                   />
                 </div>
               </div>
@@ -1382,6 +1401,31 @@ export default function AdminStudentsDirectory() {
                       onChange={e => setEditingStudent({ ...editingStudent, contactChannels: e.target.value })}
                     />
                   </div>
+                  {/* HN: shown only once the audited fetch above has loaded it. */}
+                  {editingStudent.hospitalNumber !== undefined && (
+                    <>
+                      <div>
+                        <label style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8, display: "block" }}>Hospital Number (HN)</label>
+                        <input
+                          className="input"
+                          maxLength={30}
+                          value={editingStudent.hospitalNumber || ""}
+                          onChange={e => setEditingStudent({ ...editingStudent, hospitalNumber: e.target.value })}
+                        />
+                      </div>
+                      {!!(editingStudent.hospitalNumber || "").trim() && (
+                        <div>
+                          <label style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8, display: "block" }}>Hospital that issued the HN *</label>
+                          <input
+                            className="input"
+                            maxLength={100}
+                            value={editingStudent.hospitalName || ""}
+                            onChange={e => setEditingStudent({ ...editingStudent, hospitalName: e.target.value })}
+                          />
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -1389,7 +1433,7 @@ export default function AdminStudentsDirectory() {
               <button className="btn btn-ghost" onClick={() => setEditingStudent(null)}>{t.cancel}</button>
               <button
                 className="btn btn-primary"
-                disabled={updating}
+                disabled={updating || (!!(editingStudent.hospitalNumber || "").trim() && !(editingStudent.hospitalName || "").trim())}
                 onClick={async () => {
                   setUpdating(true);
                   try {

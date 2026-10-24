@@ -13,9 +13,12 @@ import { useLanguage } from "@/lib/i18n/LanguageContext";
 export function ProfileReviewModal({
   onUpdate,
   onKept,
+  requireUpdate = false,
 }: {
   onUpdate: () => void;
   onKept: () => void;
+  /** Hide "Keep": the student's legacy name still needs splitting, so they must edit. */
+  requireUpdate?: boolean;
 }) {
   const { t } = useLanguage();
   const [busy, setBusy] = useState(false);
@@ -78,9 +81,11 @@ export function ProfileReviewModal({
           <button type="button" className="btn btn-primary" onClick={onUpdate} disabled={busy}>
             {t.profileReviewUpdate}
           </button>
-          <button type="button" className="btn btn-ghost" onClick={keep} disabled={busy}>
-            {busy ? <Loader2 className="animate-spin" size={16} /> : t.profileReviewKeep}
-          </button>
+          {!requireUpdate && (
+            <button type="button" className="btn btn-ghost" onClick={keep} disabled={busy}>
+              {busy ? <Loader2 className="animate-spin" size={16} /> : t.profileReviewKeep}
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -60,7 +60,18 @@ export const clubMembers = pgTable("club_members", {
 export const users = pgTable("users", {
   id: text("id").primaryKey(), // Auth.js / OAuth provider ID
   prefix: text("prefix"),
+  // Display name. Rebuilt from firstName/middleName/lastName on every profile save
+  // (src/lib/profile/name.ts), so the many readers of users.name keep working.
   name: text("name").notNull(),
+  firstName: text("first_name"),
+  middleName: text("middle_name"), // optional, Thai or Latin script
+  lastName: text("last_name"),
+  // True once the student confirmed a Latin-script name (international students, or
+  // a Thai citizen with a Latin name). Otherwise the name parts must be Thai script.
+  latinNameConfirmed: boolean("latin_name_confirmed").notNull().default(false),
+  // Set by the backfill for legacy rows whose single `name` could not be split safely
+  // (1 token, 3+ tokens). Cleared when the student saves the split name.
+  nameNeedsReview: boolean("name_needs_review").notNull().default(false),
   email: text("email").notNull().unique(),
   emailVerified: timestamp("emailVerified", { mode: "date", withTimezone: true }),
   image: text("image"),
@@ -108,6 +119,12 @@ export const users = pgTable("users", {
   dietaryRestrictions: text("dietary_restrictions"),
   faintingHistory: boolean("fainting_history"),
   emergencyMedication: text("emergency_medication"),
+  // Optional hospital number (HN). An HN is issued per hospital and has no common
+  // format, so it only identifies a record together with the hospital that issued it.
+  // Medical detail for PDPA purposes (not a condition: never counts toward the
+  // medical signal in src/lib/pdpa/medical-signal.ts).
+  hospitalNumber: text("hospital_number"),
+  hospitalName: text("hospital_name"),
   emergencyContacts: jsonb("emergency_contacts"), // [{name, relationship, phone}]
   pdpaConsent: boolean("pdpa_consent").default(false),
   profileCompleted: boolean("profile_completed").default(false),

@@ -24,6 +24,8 @@ const FULL_USER_COLUMNS = {
   dietaryRestrictions: true,
   faintingHistory: true,
   emergencyMedication: true,
+  hospitalNumber: true,
+  hospitalName: true,
   emergencyContacts: true,
   noShowCount: true,
 } as const;
@@ -246,6 +248,10 @@ export class AttendanceService {
       dietaryRestrictions: fetchMedicalFields,
       faintingHistory: fetchMedicalFields,
       emergencyMedication: fetchMedicalFields,
+      // Identifier into hospital records: full-detail tiers only (not the
+      // registration/organizer category-count fetch that fetchMedicalFields allows).
+      hospitalNumber: includeMedicalColumns,
+      hospitalName: includeMedicalColumns,
       emergencyContacts: includeMedicalColumns,
     } as const;
   }

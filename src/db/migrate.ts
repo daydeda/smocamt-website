@@ -1733,6 +1733,54 @@ async function migrate() {
   await sql`ALTER TABLE feedback_complaints ADD COLUMN IF NOT EXISTS push_notify_user_id uuid`;
   console.log("  ✅ feedback_complaints.push_notify_user_id (opt-in push target)");
 
+  // 107. Split name parts (first/middle/last) + latin_name_confirmed + name_needs_review.
+  // Mirrors the generated drizzle migration. The backfill only touches COMPLETED
+  // profiles that have no parts yet and are not already flagged, so re-running is a
+  // no-op. It never edits users.name: exactly 2 whitespace tokens split into
+  // first/last; anything else (1 token, 3+ tokens) or an unconfirmed Latin-script name is
+  // flagged for the student to fix instead of guessing a middle name. Additive, idempotent, non-destructive.
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name text`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS middle_name text`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name text`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS latin_name_confirmed boolean NOT NULL DEFAULT false`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS name_needs_review boolean NOT NULL DEFAULT false`;
+  await sql`
+    UPDATE users
+    SET first_name = split_part(btrim(name), ' ', 1),
+        last_name = btrim(substr(btrim(name), length(split_part(btrim(name), ' ', 1)) + 1))
+    WHERE profile_completed = true
+      AND first_name IS NULL AND last_name IS NULL
+      AND name_needs_review = false
+      AND btrim(name) ~ '^[^[:space:]]+[[:space:]]+[^[:space:]]+$'
+  `;
+  await sql`
+    UPDATE users
+    SET name_needs_review = true
+    WHERE profile_completed = true
+      AND first_name IS NULL AND last_name IS NULL
+      AND name_needs_review = false
+  `;
+  // Latin-script names that the student has not confirmed are flagged too, so a Thai
+  // student who typed English is asked to correct it (an international student
+  // confirms with one click). Excluded once latin_name_confirmed is true, so re-runs
+  // never re-flag them.
+  await sql`
+    UPDATE users
+    SET name_needs_review = true
+    WHERE profile_completed = true
+      AND name_needs_review = false
+      AND latin_name_confirmed = false
+      AND name ~ '[A-Za-z]'
+  `;
+  console.log("  ✅ users name parts + latin_name_confirmed + name_needs_review (+ safe backfill)");
+
+  // 108. users.hospital_number / hospital_name: optional HN (issued per hospital, no
+  // common format) plus the issuing hospital. Medical detail for PDPA purposes.
+  // Mirrors the generated drizzle migration. Additive, idempotent, non-destructive.
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS hospital_number text`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS hospital_name text`;
+  console.log("  ✅ users.hospital_number + users.hospital_name (optional HN)");
+
   console.log("✅ Migration complete!");
   await sql.end();
   process.exit(0);

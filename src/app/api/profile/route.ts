@@ -6,6 +6,7 @@ import { FACULTY_IDS } from "@/lib/profile/faculties";
 import { getClientIp } from "@/modules/audit/audit.service";
 import { UsersService } from "@/modules/users/users.service";
 import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
+import { composeFullName, hasInvalidNameChars, contactHasName, contactNeedsLatinConfirm, validateNameParts } from "@/lib/profile/name";
 
 // Emergency contacts are stored as a jsonb array of {name, relationship, phone}.
 // Validate the shape instead of accepting z.any() — the onboarding form always
@@ -16,10 +17,35 @@ const emergencyContactSchema = z.object({
   name: z.string(),
   relationship: z.string(),
   phone: z.string(),
+  // Per-contact "keep English" confirmation (non-Thai contact of a Thai student).
+  latinNameConfirmed: z.boolean().optional(),
+  // Split name (first/last required by the form, middle + nickname optional). `name`
+  // is rebuilt from the parts below so readers of `name` (exports, admin views) keep working.
+  firstName: z.string().max(100).optional(),
+  middleName: z.string().max(100).optional(),
+  lastName: z.string().max(100).optional(),
+  nickname: z.string().max(100).optional(),
+}).transform((c) => {
+  const out: Record<string, unknown> = { name: c.name, relationship: c.relationship, phone: c.phone };
+  if (c.firstName !== undefined || c.lastName !== undefined) {
+    out.firstName = (c.firstName ?? "").trim();
+    out.lastName = (c.lastName ?? "").trim();
+    if (c.middleName?.trim()) out.middleName = c.middleName.trim();
+    if (c.nickname?.trim()) out.nickname = c.nickname.trim();
+    out.name = composeFullName({ firstName: out.firstName as string, middleName: c.middleName, lastName: out.lastName as string });
+  }
+  if (c.latinNameConfirmed) out.latinNameConfirmed = true;
+  return out as { name: string; relationship: string; phone: string; firstName?: string; middleName?: string; lastName?: string; nickname?: string; latinNameConfirmed?: boolean };
 });
 
 const profileSchema = z.object({
-  name: z.string().min(1),
+  // Legacy single-field name, still accepted from older clients. New clients send
+  // firstName/middleName/lastName and the server rebuilds `name` from them.
+  name: z.string().optional(),
+  firstName: z.string().max(100).optional(),
+  middleName: z.string().max(100).optional().nullable(),
+  lastName: z.string().max(100).optional(),
+  latinNameConfirmed: z.boolean().optional(),
   nickname: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
   faculty: z.enum(FACULTY_IDS as [string, ...string[]]).optional().nullable(),
@@ -32,6 +58,10 @@ const profileSchema = z.object({
   drugAllergies: z.string().optional().nullable(),
   foodAllergies: z.string().optional().nullable(),
   dietaryRestrictions: z.string().optional().nullable(),
+  // Optional HN + issuing hospital (HN has no common format and differs per hospital,
+  // so no pattern check — just a length cap). Empty strings are stored as null.
+  hospitalNumber: z.string().max(30).optional().nullable(),
+  hospitalName: z.string().max(100).optional().nullable(),
   emergencyContacts: z.array(emergencyContactSchema).optional().nullable(),
   faintingHistory: z.boolean().optional().nullable(),
   emergencyMedication: z.string().optional().nullable(),
@@ -45,6 +75,79 @@ const profileSchema = z.object({
 const onboardingSchema = profileSchema.extend({
   pdpaConsent: z.literal(true),
 });
+
+/**
+ * Resolve the submitted name into the columns to write. With name parts: validate
+ * (first + last required; Thai script unless the student confirmed a Latin name),
+ * rebuild the display `name`, and clear the review flag. Legacy `name`-only bodies
+ * pass through untouched. Returns an error code string when invalid.
+ */
+/**
+ * Normalise the optional HN pair: trim, store empty as null, and require the hospital
+ * name whenever an HN is given (an HN alone identifies nothing). Returns an error code
+ * or the fields to write. Absent keys are left untouched so older clients keep working.
+ */
+function resolveHospitalFields(data: z.infer<typeof profileSchema>): { error: string } | { fields: Record<string, unknown> } {
+  if (data.hospitalNumber === undefined && data.hospitalName === undefined) return { fields: {} };
+  const hospitalNumber = data.hospitalNumber?.trim() || null;
+  const hospitalName = data.hospitalName?.trim() || null;
+  if (hospitalNumber && !hospitalName) return { error: "hospitalNameRequired" };
+  return { fields: { hospitalNumber, hospitalName: hospitalNumber ? hospitalName : null } };
+}
+
+/**
+ * Same Thai-script rule as the student's own name, applied to emergency contacts: when
+ * the student's name is Thai, a contact with Latin letters needs its own confirmation.
+ * Only enforced when the body says whether the student's name is Latin-confirmed (new
+ * clients always send it), so an older cached client is not locked out.
+ */
+function contactsViolateThaiRule(data: z.infer<typeof profileSchema>): boolean {
+  if (data.latinNameConfirmed === undefined || !data.emergencyContacts) return false;
+  return data.emergencyContacts.some((c) => contactNeedsLatinConfirm(c, data.latinNameConfirmed!));
+}
+
+/** A split contact that has any content but lacks a first or last name. */
+function contactsMissingNameParts(data: z.infer<typeof profileSchema>): boolean {
+  return (data.emergencyContacts ?? []).some(
+    (c) => (c.firstName !== undefined || c.lastName !== undefined)
+      && !!(c.name.trim() || c.relationship.trim() || c.phone.trim())
+      && !contactHasName(c),
+  );
+}
+
+/** Digits are not allowed in the student's nickname or any emergency-contact name part. */
+function hasInvalidCharsInNames(data: z.infer<typeof profileSchema>): boolean {
+  if (hasInvalidNameChars(data.nickname)) return true;
+  return (data.emergencyContacts ?? []).some(
+    (c) => hasInvalidNameChars(c.name) || hasInvalidNameChars(c.firstName) || hasInvalidNameChars(c.middleName) || hasInvalidNameChars(c.lastName) || hasInvalidNameChars(c.nickname),
+  );
+}
+
+function resolveNameFields(data: z.infer<typeof profileSchema>): { error: string } | { fields: Record<string, unknown> } {
+  const hasParts = data.firstName !== undefined || data.lastName !== undefined || data.middleName !== undefined;
+  if (!hasParts) {
+    if (!data.name?.trim()) return { error: "nameRequired" };
+    return { fields: { name: data.name } };
+  }
+  const parts = {
+    firstName: data.firstName?.trim(),
+    middleName: data.middleName?.trim() || null,
+    lastName: data.lastName?.trim(),
+  };
+  const confirmed = data.latinNameConfirmed ?? false;
+  const err = validateNameParts(parts, confirmed);
+  if (err) return { error: err };
+  return {
+    fields: {
+      name: composeFullName(parts),
+      firstName: parts.firstName,
+      middleName: parts.middleName,
+      lastName: parts.lastName,
+      latinNameConfirmed: confirmed,
+      nameNeedsReview: false,
+    },
+  };
+}
 
 export async function GET() {
   try {
@@ -88,7 +191,27 @@ export async function POST(req: Request) {
        return NextResponse.json({ error: "Profile already completed" }, { status: 400 });
     }
 
-    const updated = await UsersService.completeOnboarding(session.user.id, data, getClientIp(req));
+    const nameFields = resolveNameFields(data);
+    if ("error" in nameFields) {
+      return NextResponse.json({ error: nameFields.error }, { status: 400 });
+    }
+    const hospitalFields = resolveHospitalFields(data);
+    if ("error" in hospitalFields) {
+      return NextResponse.json({ error: hospitalFields.error }, { status: 400 });
+    }
+    if (contactsMissingNameParts(data)) {
+      return NextResponse.json({ error: "nameRequired" }, { status: 400 });
+    }
+    if (hasInvalidCharsInNames(data)) {
+      return NextResponse.json({ error: "nameInvalidChars" }, { status: 400 });
+    }
+    if (contactsViolateThaiRule(data)) {
+      return NextResponse.json({ error: "contactNameThaiOnly" }, { status: 400 });
+    }
+    const { name: _n, firstName: _f, middleName: _m, lastName: _l, latinNameConfirmed: _c, hospitalNumber: _hn, hospitalName: _hh, ...rest } = data;
+    void [_n, _f, _m, _l, _c, _hn, _hh];
+
+    const updated = await UsersService.completeOnboarding(session.user.id, { ...rest, ...nameFields.fields, ...hospitalFields.fields }, getClientIp(req));
 
     // 0-row update ⇒ a concurrent POST already completed onboarding. Return the same
     // "already completed" response as the pre-transaction check above.
@@ -145,7 +268,27 @@ export async function PATCH(req: Request) {
       delete data.faculty;
     }
 
-    const updated = await UsersService.updateOwnProfile(session.user.id, data, getClientIp(req));
+    const nameFields = resolveNameFields(data);
+    if ("error" in nameFields) {
+      return NextResponse.json({ error: nameFields.error }, { status: 400 });
+    }
+    const hospitalFields = resolveHospitalFields(data);
+    if ("error" in hospitalFields) {
+      return NextResponse.json({ error: hospitalFields.error }, { status: 400 });
+    }
+    if (contactsMissingNameParts(data)) {
+      return NextResponse.json({ error: "nameRequired" }, { status: 400 });
+    }
+    if (hasInvalidCharsInNames(data)) {
+      return NextResponse.json({ error: "nameInvalidChars" }, { status: 400 });
+    }
+    if (contactsViolateThaiRule(data)) {
+      return NextResponse.json({ error: "contactNameThaiOnly" }, { status: 400 });
+    }
+    const { name: _n, firstName: _f, middleName: _m, lastName: _l, latinNameConfirmed: _c, hospitalNumber: _hn, hospitalName: _hh, ...rest } = data;
+    void [_n, _f, _m, _l, _c, _hn, _hh];
+
+    const updated = await UsersService.updateOwnProfile(session.user.id, { ...rest, ...nameFields.fields, ...hospitalFields.fields }, getClientIp(req));
 
     revalidatePath("/");
     revalidatePath("/dashboard");

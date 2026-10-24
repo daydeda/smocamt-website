@@ -6,6 +6,7 @@ import { formatAuditTargetList } from "@/lib/util/audit-target-list";
 import { NextResponse } from "next/server";
 import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { canonicalHouseName } from "@/lib/profile/faculties";
+import { emergencyContactColumns, emergencyContactHeaders } from "@/lib/pdpa/emergency-contacts";
 
 // xlsx is a CommonJS package — keep this route on the Node.js runtime.
 export const runtime = "nodejs";
@@ -51,14 +52,14 @@ export async function GET(
 
     const members = await ClubsService.getClubMembersFull(id);
 
-    const fmtContacts = (contacts: { relationship: string; phone: string }[]) =>
-      contacts.map((c) => `${c.relationship}: ${c.phone}`).join("; ");
 
     const header = [
       "Name", "Nickname", "Student ID", "Major", "Phone", "Contact Channels",
       "House", "Club Role", "Position",
       "Chronic Diseases", "Medical History", "Drug Allergies", "Food Allergies",
-      "Dietary Restrictions", "Fainting History", "Emergency Medication", "Emergency Contacts",
+      "Dietary Restrictions", "Fainting History", "Emergency Medication",
+      "Hospital Number (HN)", "HN Hospital",
+      ...emergencyContactHeaders(false),
     ];
     const rows = members.map((m) => ({
       "Name": m.userName || "",
@@ -77,7 +78,9 @@ export async function GET(
       "Dietary Restrictions": m.dietaryRestrictions || "",
       "Fainting History": m.faintingHistory ? "Yes" : "",
       "Emergency Medication": m.emergencyMedication || "",
-      "Emergency Contacts": fmtContacts(m.emergencyContacts),
+      "Hospital Number (HN)": m.hospitalNumber || "",
+      "HN Hospital": m.hospitalName || "",
+      ...emergencyContactColumns(m.emergencyContacts, false),
     }));
 
     const XLSX = await import("xlsx");

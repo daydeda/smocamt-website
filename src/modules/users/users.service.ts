@@ -14,6 +14,7 @@ import { AuditService } from "@/modules/audit/audit.service";
 const SENSITIVE_FIELDS = [
   "chronicDiseases", "medicalHistory", "drugAllergies", "foodAllergies",
   "dietaryRestrictions", "emergencyMedication", "faintingHistory", "emergencyContacts",
+  "hospitalNumber", "hospitalName",
 ] as const;
 
 // Normalize a sensitive value for presence/change comparison: null/undefined and a
@@ -434,6 +435,7 @@ export class UsersService {
           chronicDiseases: true, medicalHistory: true, drugAllergies: true,
           foodAllergies: true, dietaryRestrictions: true, emergencyMedication: true,
           faintingHistory: true, emergencyContacts: true,
+          hospitalNumber: true, hospitalName: true,
         },
       });
 
@@ -475,7 +477,8 @@ export class UsersService {
       const [row] = await tx
         .update(users)
         .set({ profileReviewedAt: reviewedAt })
-        .where(and(eq(users.id, userId), eq(users.profileCompleted, true)))
+        // A flagged legacy name must be fixed by editing, never confirmed as-is.
+        .where(and(eq(users.id, userId), eq(users.profileCompleted, true), eq(users.nameNeedsReview, false)))
         .returning({ id: users.id });
       if (!row) return false;
       await AuditService.logActionInternal(tx, {

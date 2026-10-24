@@ -199,6 +199,8 @@ export class ClubsService {
         dietaryRestrictions: users.dietaryRestrictions,
         faintingHistory: users.faintingHistory,
         emergencyMedication: users.emergencyMedication,
+        hospitalNumber: users.hospitalNumber,
+        hospitalName: users.hospitalName,
         emergencyContacts: users.emergencyContacts,
         position: clubMembers.position,
       })
@@ -235,6 +237,8 @@ export class ClubsService {
         dietaryRestrictions: users.dietaryRestrictions,
         faintingHistory: users.faintingHistory,
         emergencyMedication: users.emergencyMedication,
+        hospitalNumber: users.hospitalNumber,
+        hospitalName: users.hospitalName,
         emergencyContacts: users.emergencyContacts,
       })
       .from(clubMembers)

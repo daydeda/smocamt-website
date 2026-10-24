@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { hasInvalidNameChars } from "@/lib/profile/name";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getClientIp } from "@/modules/audit/audit.service";
@@ -76,6 +77,7 @@ export async function PATCH(
 
     // Fields that can be updated by admin
     const { name, prefix, major, houseId, studentId, nickname } = body;
+
     let { role, roles } = parsedRoles.data;
     const { clubIds, smoPosition, anusmoPosition } = parsedRoles.data;
 
@@ -88,6 +90,20 @@ export async function PATCH(
     // clearing it for one user can't collide with another user's empty string.
     const phone = isSuperAdminActor && typeof body.phone === "string" ? (body.phone.trim() || null) : undefined;
     const contactChannels = isSuperAdminActor && typeof body.contactChannels === "string" ? body.contactChannels : undefined;
+
+    // HN + issuing hospital: medical detail, so super_admin only (same gate as the read in
+    // GET /api/admin/students/[id]). Only touched when the body carries it; an HN needs its
+    // hospital name, and clearing the HN clears both.
+    let hospitalNumber: string | null | undefined;
+    let hospitalName: string | null | undefined;
+    if (isSuperAdminActor && (typeof body.hospitalNumber === "string" || typeof body.hospitalName === "string")) {
+      hospitalNumber = (typeof body.hospitalNumber === "string" ? body.hospitalNumber.trim().slice(0, 30) : "") || null;
+      hospitalName = (typeof body.hospitalName === "string" ? body.hospitalName.trim().slice(0, 100) : "") || null;
+      if (hospitalNumber && !hospitalName) {
+        return NextResponse.json({ error: "hospitalNameRequired" }, { status: 400 });
+      }
+      if (!hospitalNumber) hospitalName = null;
+    }
 
     if (roles && Array.isArray(roles)) {
       // Find the primary role based on priority
@@ -109,6 +125,15 @@ export async function PATCH(
     const targetUser = await UsersService.findUserById(userId);
     if (!targetUser) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+    // Same letters-only rule as the student's own forms (src/lib/profile/name.ts). The admin
+    // form re-sends the stored name on every save, so only a CHANGED name/nickname is checked:
+    // an account whose old name already has a digit can still have its role etc. edited.
+    if (
+      (typeof name === "string" && name !== targetUser.name && hasInvalidNameChars(name)) ||
+      (typeof nickname === "string" && nickname !== targetUser.nickname && hasInvalidNameChars(nickname))
+    ) {
+      return NextResponse.json({ error: "nameInvalidChars" }, { status: 400 });
     }
     const isTargetSuperAdmin = targetUser.role === "super_admin" || (targetUser.roles as string[] | null)?.includes("super_admin");
     if (isTargetSuperAdmin && session.user.role !== "super_admin") {
@@ -161,6 +186,9 @@ export async function PATCH(
     }
     if (phone !== undefined && phone !== targetUser.phone) changes.push("phone");
     if (contactChannels !== undefined && contactChannels !== targetUser.contactChannels) changes.push("contactChannels");
+    // Field names only, like the self-edit trail (no medical values in the log).
+    if (hospitalNumber !== undefined && hospitalNumber !== targetUser.hospitalNumber) changes.push("hospitalNumber");
+    if (hospitalName !== undefined && hospitalName !== targetUser.hospitalName) changes.push("hospitalName");
 
     // Club presidencies: diff against the CURRENT set so the audit note only
     // fires on a real change. The actual club_members write happens inside the
@@ -193,6 +221,8 @@ export async function PATCH(
         anusmoPosition,
         phone,
         contactChannels,
+        hospitalNumber,
+        hospitalName,
       },
       clubIds,
       changes,

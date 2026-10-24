@@ -137,7 +137,13 @@ export async function syncEventToSongsue(payload: SongsueEventSyncPayload): Prom
 // Called after registration (POST/DELETE api/events/[id]/register) and at
 // each QR check-in confirm (scanner.service.ts) for a `songsueLinked` event.
 export async function syncRegistrationToSongsue(payload: SongsueRegistrationSyncPayload): Promise<void> {
-  await postSync("/api/integrations/activecamt/register", payload);
+  // Send only the three contact fields Songsue knows; the stored jsonb may carry an
+  // ActiveCAMT-only per-contact flag (latinNameConfirmed) that must not cross the wire.
+  const contacts = payload.user.emergencyContacts;
+  const user = contacts
+    ? { ...payload.user, emergencyContacts: contacts.map((c) => ({ name: c.name, relationship: c.relationship, phone: c.phone })) }
+    : payload.user;
+  await postSync("/api/integrations/activecamt/register", { ...payload, user });
 }
 
 // Called by UsersService.resolveStudentByToken when ActiveCAMT's OWN scanner

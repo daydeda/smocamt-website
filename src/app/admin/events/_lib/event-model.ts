@@ -161,6 +161,8 @@ export interface EmergencyContact {
   // (api/admin/events/[id]/attendance, .../export) never sends the contact's
   // own name, only relationship + phone (see src/lib/emergency-contacts.ts).
   name?: string;
+  // Like `name`: absent for the president tier (a nickname is still the contact's own name).
+  nickname?: string;
   relationship: string;
   phone: string;
 }
@@ -184,6 +186,8 @@ export interface AdminStudent {
   dietaryRestrictions: string | null;
   faintingHistory: boolean | null;
   emergencyMedication: string | null;
+  hospitalNumber?: string | null;
+  hospitalName?: string | null;
   emergencyContacts: EmergencyContact[];
   houseId: string | null;
   house: { id: string; name: string; color: string } | null;

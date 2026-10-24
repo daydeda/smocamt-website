@@ -4,18 +4,12 @@ import { AuditService, getClientIp } from "@/modules/audit/audit.service";
 import { EventScopeService } from "@/modules/events/event-scope.service";
 import { EventsService } from "@/modules/events/events.service";
 import { AttendanceService } from "@/modules/events/attendance.service";
-import { redactEmergencyContacts } from "@/lib/pdpa/emergency-contacts";
+import { emergencyContactColumns, emergencyContactHeaders } from "@/lib/pdpa/emergency-contacts";
 import { canonicalHouseName } from "@/lib/profile/faculties";
 import { medicalCategoriesOf, MEDICAL_CATEGORY_LABELS } from "@/lib/pdpa/medical-signal";
 
 // xlsx is a CommonJS package — keep this route on the Node.js runtime.
 export const runtime = "nodejs";
-
-interface EmergencyContact {
-  name: string;
-  relationship: string;
-  phone: string;
-}
 
 // The medical/emergency columns are selected conditionally (admin-tier, or
 // fetched-but-unrendered for registration/organizer's aggregate — see
@@ -39,6 +33,8 @@ type AttendeeUser = {
   dietaryRestrictions?: string | null;
   faintingHistory?: boolean | null;
   emergencyMedication?: string | null;
+  hospitalNumber?: string | null;
+  hospitalName?: string | null;
   emergencyContacts?: unknown;
 };
 
@@ -277,16 +273,6 @@ export async function GET(
         ? "International"
         : "Thai";
     };
-    const fmtContacts = (contacts: unknown) =>
-      Array.isArray(contacts)
-        ? (contacts as EmergencyContact[])
-            .map((c) => `${c.name} (${c.relationship}) ${c.phone}`)
-            .join("; ")
-        : "";
-    // President tier: same emergency-contact data, but the contact's own name
-    // is redacted before it ever reaches a column (relationship + phone only).
-    const fmtContactsRedacted = (contacts: unknown) =>
-      redactEmergencyContacts(contacts).map((c) => `${c.relationship}: ${c.phone}`).join("; ");
     const fmtTime = (d: Date | null) =>
       d ? d.toLocaleString("en-GB", { timeZone: "Asia/Bangkok" }) : "";
 
@@ -349,9 +335,10 @@ export async function GET(
         base["Dietary Restrictions"] = u?.dietaryRestrictions || "";
         base["Fainting History"] = u?.faintingHistory ? "Yes" : "";
         base["Emergency Medication"] = u?.emergencyMedication || "";
-        base["Emergency Contacts"] = canViewMedical
-          ? fmtContacts(u?.emergencyContacts)
-          : fmtContactsRedacted(u?.emergencyContacts);
+        base["Hospital Number (HN)"] = u?.hospitalNumber || "";
+        base["HN Hospital"] = u?.hospitalName || "";
+        // Names only for super_admin/admin; the president tier gets relationship + phone.
+        Object.assign(base, emergencyContactColumns(u?.emergencyContacts, canViewMedical));
       }
       return base;
     };
@@ -369,7 +356,9 @@ export async function GET(
       ...(includeMedicalColumns
         ? [
             "Chronic Diseases", "Medical History", "Drug Allergies", "Food Allergies",
-            "Dietary Restrictions", "Fainting History", "Emergency Medication", "Emergency Contacts",
+            "Dietary Restrictions", "Fainting History", "Emergency Medication",
+            "Hospital Number (HN)", "HN Hospital",
+            ...emergencyContactHeaders(canViewMedical),
           ]
         : []),
     ];

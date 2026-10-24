@@ -34,6 +34,8 @@ type MajorTeamMemberMedical = {
   dietaryRestrictions: string | null;
   faintingHistory: boolean | null;
   emergencyMedication: string | null;
+  hospitalNumber: string | null;
+  hospitalName: string | null;
   emergencyContacts: { relationship: string; phone: string }[];
 };
 
@@ -321,7 +323,7 @@ export function MajorTeamSection({ major }: { major: string }) {
             const isLoadingMedical = loadingMedicalId === m.id;
             const hasMedicalDetail = !!(
               medical && (medical.chronicDiseases || medical.medicalHistory || medical.drugAllergies || medical.foodAllergies ||
-              medical.dietaryRestrictions || medical.faintingHistory || medical.emergencyMedication || medical.emergencyContacts.length > 0)
+              medical.dietaryRestrictions || medical.faintingHistory || medical.emergencyMedication || medical.hospitalNumber || medical.emergencyContacts.length > 0)
             );
             return (
             <div key={m.id} style={{ borderRadius: 12, background: "var(--bg-elevated)", overflow: "hidden" }}>
@@ -408,6 +410,7 @@ export function MajorTeamSection({ major }: { major: string }) {
                       {medical.dietaryRestrictions && <p style={{ fontSize: 12 }}><b>Dietary:</b> {medical.dietaryRestrictions}</p>}
                       {medical.faintingHistory && <p style={{ fontSize: 12, color: "var(--red-500)" }}>History of fainting</p>}
                       {medical.emergencyMedication && <p style={{ fontSize: 12, color: "var(--red-500)" }}><b>Emergency medication:</b> {medical.emergencyMedication}</p>}
+                      {medical.hospitalNumber && <p style={{ fontSize: 12 }}><b>HN:</b> {medical.hospitalNumber}{medical.hospitalName ? ` (${medical.hospitalName})` : ""}</p>}
                       {medical.emergencyContacts.length > 0 && (
                         <p style={{ fontSize: 12 }}>
                           <b>Emergency contact:</b>{" "}

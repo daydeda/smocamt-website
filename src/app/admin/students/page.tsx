@@ -1,6 +1,7 @@
 "use client";
 
-import { sanitizeNameInput } from "@/lib/profile/name";
+import { prefillContactParts, prefillNameParts, sanitizeNameInput } from "@/lib/profile/name";
+import { ContactsEditor, EMPTY_CONTACT, type EditableContact } from "./_components/ContactsEditor";
 import { useEffect, useState, useRef } from "react";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { useSession } from "next-auth/react";
@@ -52,12 +53,12 @@ type Student = {
   faintingHistory?: boolean | null;
   hospitalNumber?: string | null;
   hospitalName?: string | null;
-  emergencyContacts?: Array<{
-    name: string;
-    nickname?: string;
-    relationship: string;
-    phone: string;
-  }> | null;
+  // Split name parts (the display `name` is rebuilt from them on save).
+  firstName?: string | null;
+  middleName?: string | null;
+  lastName?: string | null;
+  latinNameConfirmed?: boolean;
+  emergencyContacts?: EditableContact[] | null;
   // Clubs this user presides over (club_president identity — see
   // EventScopeService). Only fetched/shown when the club_president checkbox is
   // checked in the edit modal.
@@ -258,6 +259,7 @@ export default function AdminStudentsDirectory() {
   const [positionFilter, setPositionFilter] = useState<string>("all");
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [updating, setUpdating] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -763,7 +765,14 @@ export default function AdminStudentsDirectory() {
                               className="btn btn-ghost"
                               style={{ padding: 8, borderRadius: 10, color: "var(--text-secondary)" }}
                               onClick={() => {
-                                setEditingStudent(s);
+                                setEditError(null);
+                                // Legacy rows have no name parts yet: suggest a split the admin can correct.
+                                setEditingStudent({
+                                  ...s,
+                                  ...(s.firstName || s.lastName
+                                    ? { firstName: s.firstName || "", middleName: s.middleName || "", lastName: s.lastName || "" }
+                                    : prefillNameParts(s.name)),
+                                });
                                 // HN is medical detail: super_admin only, loaded through the audited
                                 // sensitive-detail endpoint (never in the bulk list). Until it loads the
                                 // fields stay hidden and the PATCH carries no HN, so nothing is blanked.
@@ -773,7 +782,13 @@ export default function AdminStudentsDirectory() {
                                     .then((d) => {
                                       if (!d) return;
                                       setEditingStudent((prev) => (prev && prev.id === s.id
-                                        ? { ...prev, hospitalNumber: d.hospitalNumber ?? "", hospitalName: d.hospitalName ?? "" }
+                                        ? {
+                                            ...prev,
+                                            hospitalNumber: d.hospitalNumber ?? "",
+                                            hospitalName: d.hospitalName ?? "",
+                                            // Same audited read: contacts load only for super_admin, as split parts.
+                                            emergencyContacts: [0, 1].map((k) => prefillContactParts(d.emergencyContacts?.[k] ?? EMPTY_CONTACT)),
+                                          }
                                         : prev));
                                     })
                                     .catch(() => {});
@@ -1145,11 +1160,29 @@ export default function AdminStudentsDirectory() {
                   </select>
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <label style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8, display: "block" }}>{t.fullName}</label>
+                  <label style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8, display: "block" }}>{t.firstName} *</label>
                   <input
                     className="input"
-                    value={editingStudent.name}
-                    onChange={e => setEditingStudent({ ...editingStudent, name: sanitizeNameInput(e.target.value) })}
+                    value={editingStudent.firstName || ""}
+                    onChange={e => setEditingStudent({ ...editingStudent, firstName: sanitizeNameInput(e.target.value) })}
+                  />
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8, display: "block" }}>{t.middleName}</label>
+                  <input
+                    className="input"
+                    value={editingStudent.middleName || ""}
+                    onChange={e => setEditingStudent({ ...editingStudent, middleName: sanitizeNameInput(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8, display: "block" }}>{t.lastName} *</label>
+                  <input
+                    className="input"
+                    value={editingStudent.lastName || ""}
+                    onChange={e => setEditingStudent({ ...editingStudent, lastName: sanitizeNameInput(e.target.value) })}
                   />
                 </div>
               </div>
@@ -1428,14 +1461,25 @@ export default function AdminStudentsDirectory() {
                   )}
                 </div>
               )}
+
+              {/* Emergency contacts: super_admin only, shown once the audited fetch above has loaded them
+                  (so a failed load never shows empty cards that would blank the real data on save). */}
+              {userRole === "super_admin" && editingStudent.emergencyContacts != null && (
+                <ContactsEditor
+                  contacts={editingStudent.emergencyContacts}
+                  onChange={(next) => setEditingStudent({ ...editingStudent, emergencyContacts: next })}
+                />
+              )}
             </div>
             <div style={{ flexShrink: 0, padding: "16px clamp(20px, 5vw, 32px)", background: "var(--bg-elevated)", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "flex-end", gap: 12 }}>
+              {editError && <span role="alert" style={{ marginRight: "auto", alignSelf: "center", color: "var(--red-500)", fontSize: 13, fontWeight: 600 }}>{editError}</span>}
               <button className="btn btn-ghost" onClick={() => setEditingStudent(null)}>{t.cancel}</button>
               <button
                 className="btn btn-primary"
                 disabled={updating || (!!(editingStudent.hospitalNumber || "").trim() && !(editingStudent.hospitalName || "").trim())}
                 onClick={async () => {
                   setUpdating(true);
+                  setEditError(null);
                   try {
                     const res = await fetch(`/api/admin/users/${editingStudent.id}`, {
                       method: "PATCH",
@@ -1444,6 +1488,16 @@ export default function AdminStudentsDirectory() {
                     if (res.ok) {
                       setEditingStudent(null);
                       refreshData();
+                    } else {
+                      const d = await res.json().catch(() => null);
+                      const code = d?.error as string | undefined;
+                      setEditError(
+                        code === "nameInvalidChars" ? t.nameInvalidChars
+                        : code === "nameRequired" ? t.nameRequired
+                        : code === "contactInvalid" ? (lang === "th" ? "ข้อมูลผู้ติดต่อฉุกเฉินไม่ถูกต้อง (ต้องมีความสัมพันธ์ และเบอร์โทร 10 หลัก)" : "Emergency contact is invalid (needs a relationship and a 10-digit phone).")
+                        : code === "hospitalNameRequired" ? t.hospitalNameRequired
+                        : (lang === "th" ? "บันทึกไม่สำเร็จ" : "Could not save changes.")
+                      );
                     }
                   } catch (err) {
                     console.error(err);

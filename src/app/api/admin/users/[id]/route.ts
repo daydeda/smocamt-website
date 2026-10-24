@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
-import { hasInvalidNameChars } from "@/lib/profile/name";
+import { composeFullName, hasInvalidNameChars, hasLatinLetters } from "@/lib/profile/name";
+import { sanitizeAdminContacts } from "@/lib/pdpa/emergency-contacts";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getClientIp } from "@/modules/audit/audit.service";
@@ -135,6 +136,47 @@ export async function PATCH(
     ) {
       return NextResponse.json({ error: "nameInvalidChars" }, { status: 400 });
     }
+    // Split name (first/last required, middle optional). `name` is rebuilt from the parts so every
+    // reader of users.name keeps working. A name in Latin letters is confirmed by the admin
+    // (latinNameConfirmed) so the student isn't forced to retype it in Thai; a Thai name leaves the
+    // flag as it was. Saving parts clears the "please confirm your name" flag.
+    let nameFields: Record<string, unknown> | undefined;
+    if (typeof body.firstName === "string" || typeof body.lastName === "string" || typeof body.middleName === "string") {
+      const firstName = String(body.firstName ?? "").trim().slice(0, 100);
+      const middleName = String(body.middleName ?? "").trim().slice(0, 100);
+      const lastName = String(body.lastName ?? "").trim().slice(0, 100);
+      const incomplete = !firstName || !lastName;
+      // A legacy one-word name (e.g. a staff nickname) the admin did not touch has no last name to
+      // offer: leave it alone so unrelated edits (role, house...) still save. Changing it to
+      // something else still needs both parts.
+      if (incomplete && composeFullName({ firstName, middleName, lastName }) !== targetUser.name) {
+        return NextResponse.json({ error: "nameRequired" }, { status: 400 });
+      }
+      if (!incomplete && [firstName, middleName, lastName].some(hasInvalidNameChars)) {
+        return NextResponse.json({ error: "nameInvalidChars" }, { status: 400 });
+      }
+      if (!incomplete) nameFields = {
+        name: composeFullName({ firstName, middleName, lastName }),
+        firstName,
+        middleName: middleName || null,
+        lastName,
+        nameNeedsReview: false,
+        ...([firstName, middleName, lastName].some(hasLatinLetters) ? { latinNameConfirmed: true } : {}),
+      };
+    }
+
+    // Emergency contacts are medical-adjacent PII: super_admin only (the same gate as reading them
+    // in GET /api/admin/students/[id]), and only touched when the body carries them, so an
+    // unrelated edit never blanks them.
+    let emergencyContacts: unknown;
+    if (isSuperAdminActor && Array.isArray(body.emergencyContacts)) {
+      const result = sanitizeAdminContacts(body.emergencyContacts);
+      if ("error" in result) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      emergencyContacts = result.contacts;
+    }
+
     const isTargetSuperAdmin = targetUser.role === "super_admin" || (targetUser.roles as string[] | null)?.includes("super_admin");
     if (isTargetSuperAdmin && session.user.role !== "super_admin") {
       return NextResponse.json({ error: "Forbidden: Cannot edit Super Admin accounts" }, { status: 403 });
@@ -169,7 +211,8 @@ export async function PATCH(
     if (newRoles && JSON.stringify(newRoles) !== JSON.stringify(oldRoles)) {
       changes.push(`roles: [${oldRoles.join(", ")}] → [${newRoles.join(", ")}]`);
     }
-    if (name !== undefined && name !== targetUser.name) changes.push("name");
+    if (nameFields && nameFields.name !== targetUser.name) changes.push("name");
+    else if (!nameFields && name !== undefined && name !== targetUser.name) changes.push("name");
     if (prefix !== undefined && prefix !== targetUser.prefix) changes.push("prefix");
     if (major !== undefined && major !== targetUser.major) changes.push("major");
     if (houseId !== undefined && houseId !== targetUser.houseId) changes.push("houseId");
@@ -187,6 +230,10 @@ export async function PATCH(
     if (phone !== undefined && phone !== targetUser.phone) changes.push("phone");
     if (contactChannels !== undefined && contactChannels !== targetUser.contactChannels) changes.push("contactChannels");
     // Field names only, like the self-edit trail (no medical values in the log).
+    // Field name only, like the other medical fields: no contact values in the audit log.
+    if (emergencyContacts !== undefined && JSON.stringify(emergencyContacts) !== JSON.stringify(targetUser.emergencyContacts ?? [])) {
+      changes.push("emergencyContacts");
+    }
     if (hospitalNumber !== undefined && hospitalNumber !== targetUser.hospitalNumber) changes.push("hospitalNumber");
     if (hospitalName !== undefined && hospitalName !== targetUser.hospitalName) changes.push("hospitalName");
 
@@ -209,6 +256,8 @@ export async function PATCH(
       targetUserName: targetUser.name,
       fields: {
         name,
+        ...nameFields,
+        emergencyContacts: emergencyContacts as typeof targetUser.emergencyContacts | undefined,
         prefix,
         role,
         roles,

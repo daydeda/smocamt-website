@@ -74,3 +74,62 @@ export function emergencyContactColumns(raw: unknown, withName: boolean): Record
   }
   return cols;
 }
+
+// ── Admin (super_admin) edit of a student's emergency contacts ──────────────
+// Validates and normalises the contacts a super_admin submits from the student edit
+// form. Unlike the student's own form it does not enforce the Thai-script rule (an
+// admin is correcting data and may enter a non-Thai contact); instead a contact written
+// in Latin letters is marked latinNameConfirmed so the student's next save is not blocked.
+
+import { composeFullName, customRelationshipText, hasInvalidNameChars, hasLatinLetters } from "@/lib/profile/name";
+
+export type AdminContact = {
+  name: string;
+  firstName: string;
+  middleName?: string;
+  lastName: string;
+  nickname?: string;
+  relationship: string;
+  phone: string;
+  latinNameConfirmed?: true;
+};
+
+export type AdminContactsResult =
+  | { contacts: AdminContact[] }
+  | { error: "contactInvalid" | "nameInvalidChars" | "nameRequired" };
+
+const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+
+export function sanitizeAdminContacts(raw: unknown): AdminContactsResult {
+  if (!Array.isArray(raw) || raw.length > EMERGENCY_CONTACT_SLOTS) return { error: "contactInvalid" };
+  const contacts: AdminContact[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") return { error: "contactInvalid" };
+    const c = item as Record<string, unknown>;
+    const firstName = str(c.firstName).slice(0, 100);
+    const middleName = str(c.middleName).slice(0, 100);
+    const lastName = str(c.lastName).slice(0, 100);
+    const nickname = str(c.nickname).slice(0, 100);
+    const relationship = str(c.relationship).slice(0, 100);
+    const phone = str(c.phone).replace(/[^0-9]/g, "");
+    // A completely empty card is just dropped (the optional second contact).
+    if (!firstName && !middleName && !lastName && !nickname && !relationship && !phone) continue;
+    if (!firstName || !lastName) return { error: "nameRequired" };
+    if ([firstName, middleName, lastName, nickname].some(hasInvalidNameChars)) return { error: "nameInvalidChars" };
+    if (!relationship || relationship === "Other:" || !/^[0-9]{10}$/.test(phone)) return { error: "contactInvalid" };
+    const out: AdminContact = {
+      name: composeFullName({ firstName, middleName, lastName }),
+      firstName,
+      lastName,
+      relationship,
+      phone,
+    };
+    if (middleName) out.middleName = middleName;
+    if (nickname) out.nickname = nickname;
+    if ([firstName, middleName, lastName].some(hasLatinLetters) || hasLatinLetters(customRelationshipText(relationship))) {
+      out.latinNameConfirmed = true;
+    }
+    contacts.push(out);
+  }
+  return { contacts };
+}

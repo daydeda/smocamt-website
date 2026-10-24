@@ -86,16 +86,19 @@ export async function readSlipAmounts(buffer: Buffer): Promise<number[] | null> 
     return amounts;
   };
   const startedAt = Date.now();
+  // The timer is cleared once the race settles, or every successful read would log a
+  // false timeout 20s later.
+  let timer: ReturnType<typeof setTimeout> | undefined;
   const job = queue.then(() =>
     Promise.race([
       run(),
-      new Promise<null>((resolve) =>
-        setTimeout(() => {
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => {
           console.error(`Slip amount OCR timed out after ${OCR_TIMEOUT_MS}ms`);
           resolve(null);
-        }, OCR_TIMEOUT_MS),
-      ),
-    ]),
+        }, OCR_TIMEOUT_MS);
+      }),
+    ]).finally(() => clearTimeout(timer)),
   );
   queue = job.catch(() => null);
   try {

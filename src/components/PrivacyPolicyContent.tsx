@@ -5,6 +5,8 @@
 // see EN (same fallback as admin strings).
 
 export const PRIVACY_CONTACT_EMAIL = "smocamt.official@camt.info";
+export const PRIVACY_CONTACT_INSTAGRAM = { handle: "smocamt.official", url: "https://www.instagram.com/smocamt.official/" };
+export const PRIVACY_CONTACT_FACEBOOK = { name: "สโมสรนักศึกษาวิทยาลัยศิลปะ สื่อ และเทคโนโลยี", url: "https://www.facebook.com/smo.camt" };
 export const PRIVACY_UPDATED = "2026-10-20";
 
 export type PrivacyLang = "en" | "th";
@@ -224,12 +226,24 @@ export function PrivacySections({ lang, compact = false }: { lang: PrivacyLang; 
       >
         <h3 style={{ fontSize: 17, fontWeight: 700, color: "var(--text-primary)", marginBottom: 6 }}>{c.contactTitle}</h3>
         <p style={{ fontSize: 14, lineHeight: 1.7, color: "var(--text-secondary)", marginBottom: 10 }}>{c.contactBody}</p>
-        <a
-          href={`mailto:${PRIVACY_CONTACT_EMAIL}`}
-          style={{ fontSize: 15, fontWeight: 700, color: "var(--accent-primary)", textDecoration: "underline" }}
-        >
-          {PRIVACY_CONTACT_EMAIL}
-        </a>
+        <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8, fontSize: 15 }}>
+          {[
+            { label: "Email", text: PRIVACY_CONTACT_EMAIL, href: `mailto:${PRIVACY_CONTACT_EMAIL}`, external: false },
+            { label: "Instagram", text: PRIVACY_CONTACT_INSTAGRAM.handle, href: PRIVACY_CONTACT_INSTAGRAM.url, external: true },
+            { label: "Facebook", text: PRIVACY_CONTACT_FACEBOOK.name, href: PRIVACY_CONTACT_FACEBOOK.url, external: true },
+          ].map((r) => (
+            <li key={r.label} style={{ lineHeight: 1.6, overflowWrap: "anywhere" }}>
+              <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>{r.label}: </span>
+              <a
+                href={r.href}
+                {...(r.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                style={{ fontWeight: 700, color: "var(--accent-primary)", textDecoration: "underline" }}
+              >
+                {r.text}
+              </a>
+            </li>
+          ))}
+        </ul>
       </div>
     </>
   );

@@ -26,6 +26,8 @@ export function LandingUI({
   const [userCount, setUserCount] = useState(initialUserCount);
   const [devEmail, setDevEmail] = useState("dev-superadmin@localhost.test");
   const [devRole, setDevRole] = useState("super_admin");
+  // What the dropdown shows: a role id, or "test:<email>" for a seeded name-flow account.
+  const [devPreset, setDevPreset] = useState("super_admin");
 
   useEffect(() => {
     fetch("/api/users/count")
@@ -243,13 +245,20 @@ export function LandingUI({
                       <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                         <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-secondary)" }}>Test Role</label>
                         <select
-                          value={devRole}
+                          value={devPreset}
                           onChange={(e) => {
                             const r = e.target.value;
+                            const wasTestPreset = devPreset.startsWith("test:");
+                            setDevPreset(r);
+                            if (r.startsWith("test:")) {
+                              setDevRole("student");
+                              setDevEmail(r.slice(5));
+                              return;
+                            }
                             setDevRole(r);
                             // Only swap in the preset address while the field still holds a
                             // preset; never clobber an email the tester typed (e.g. a seeded account).
-                            if (!/^dev-[a-z_]+@localhost\.test$/.test(devEmail)) return;
+                            if (!wasTestPreset && !/^dev-[a-z_]+@localhost\.test$/.test(devEmail)) return;
                             if (r === "super_admin") {
                               setDevEmail("dev-superadmin@localhost.test");
                             } else if (r === "admin") {
@@ -274,6 +283,17 @@ export function LandingUI({
                           <option value="smo">SMO Student Union (dev-smo@localhost.test)</option>
                           <option value="club_president">Club President (dev-club_president@localhost.test)</option>
                           <option value="student">Regular Student (dev-student@localhost.test)</option>
+                          <optgroup label="Onboarding test accounts (local seed)">
+                            <option value="test:t-new@localhost.test">New student, not onboarded (t-new)</option>
+                          </optgroup>
+                          {/* More local test accounts (need the seeded t-*@localhost.test users). Uncomment to use:
+                          <optgroup label="Name-split test accounts (local seed)">
+                            <option value="test:t-split@localhost.test">Name already split (t-split)</option>
+                            <option value="test:t-one@localhost.test">One-word name, forced review (t-one)</option>
+                            <option value="test:t-three@localhost.test">Three-word name, forced review (t-three)</option>
+                            <option value="test:t-latin@localhost.test">English name, forced review (t-latin)</option>
+                          </optgroup>
+                          */}
                         </select>
                       </div>
 

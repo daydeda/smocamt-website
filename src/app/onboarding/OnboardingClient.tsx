@@ -3,7 +3,7 @@
 import { useSession, signOut } from "next-auth/react";
 import type { Session } from "next-auth";
 import { useState, useEffect, useCallback } from "react";
-import { Camera, Check, Loader2, LogOut, User, Menu, X, AlertTriangle, Lock } from "lucide-react";
+import { Camera, Check, Loader2, LogOut, User, Menu, X, AlertTriangle, Lock, Pencil } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { compressImageFile } from "@/lib/media/compress-image";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
@@ -16,6 +16,7 @@ import { ContactNameFields } from "@/components/profile/ContactNameFields";
 import { NameFields } from "@/components/profile/NameFields";
 import { composeFullName, sanitizeNameInput, contactHasName, contactNeedsLatinConfirm, partsHaveLatin } from "@/lib/profile/name";
 import { unsubscribePushBeforeSignOut } from "@/lib/push/push-client";
+import { isSeniorStudentId, studyYear, intakeYearBE } from "@/lib/profile/student-year";
 
 // Rich CAMT major labels; other faculties show their bare code (or no Major
 // dropdown at all until their major lists are provided).
@@ -133,6 +134,11 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
     ] as EmergencyContact[],
   });
 
+  // Students in year 5+ are asked whether they have graduated; graduates skip the
+  // emergency contact. `null` = not answered yet.
+  const [graduated, setGraduated] = useState<boolean | null>(null);
+  const [recheckConfirmed, setRecheckConfirmed] = useState(false);
+
   // Only the first emergency contact is required; the second card appears on request.
   const [showSecondContact, setShowSecondContact] = useState(false);
   const removeSecondContact = () => {
@@ -187,6 +193,10 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [degreeDigit, derivedFaculty]);
 
+  // Start every step at the top, so its heading (and on the last step, the re-check
+  // banner) is the first thing seen rather than wherever the Continue button sat.
+  useEffect(() => { window.scrollTo({ top: 0 }); }, [step]);
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -211,7 +221,14 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
     finally { setUploading(false); }
   };
 
+  const isSenior = !!isStudent && isSeniorStudentId(formData.studentId);
+  // Graduates may leave the emergency contact blank, but can still fill it in.
+  const contactOptional = isSenior && graduated === true;
+  const contactTouched = (c: EmergencyContact) =>
+    !!(c.name.trim() || c.firstName?.trim() || c.middleName?.trim() || c.lastName?.trim() || c.nickname?.trim() || c.relationship.trim() || c.phone.trim());
+
   const handleSubmit = async () => {
+    if (!recheckConfirmed) { setError(t.recheckRequired); setValidationTriggered(true); return; }
     if (!formData.pdpaConsent) { setError(t.pdpaConsent); return; }
     setSubmitting(true);
     setError(null);
@@ -272,6 +289,10 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
         return;
       }
     }
+    if (step === 2 && isSenior && graduated === null) {
+      setError(t.graduatedQuestion);
+      setValidationTriggered(true); return;
+    }
     if (step === 2) {
       if (formData.emergencyContacts.some((c) => contactNeedsLatinConfirm(c, formData.latinNameConfirmed))) {
         setError(t.contactNameThaiOnly);
@@ -279,16 +300,17 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
       }
       const ec1 = formData.emergencyContacts[0];
       const isEc1RelEmpty = !ec1.relationship.trim() || ec1.relationship.trim() === "Other:";
-      if (!contactHasName(ec1) || isEc1RelEmpty || !ec1.phone.trim()) {
+      const ec1Required = !contactOptional || contactTouched(ec1);
+      if (ec1Required && (!contactHasName(ec1) || isEc1RelEmpty || !ec1.phone.trim())) {
         setError(isTh ? "กรุณากรอกข้อมูลผู้ติดต่อฉุกเฉินคนที่ 1 ให้ครบถ้วน" : "Please fill out all fields for Emergency Contact #1.");
         setValidationTriggered(true); return;
       }
-      if (!/^[0-9]{10}$/.test(ec1.phone.trim())) {
+      if (ec1Required && !/^[0-9]{10}$/.test(ec1.phone.trim())) {
         setError(isTh ? "เบอร์โทรศัพท์ต้องเป็นตัวเลข 10 หลักเท่านั้น" : "Emergency Contact #1 phone must be exactly 10 digits.");
         setValidationTriggered(true); return;
       }
       const ec2 = formData.emergencyContacts[1];
-      const hasAnyEc2 = ec2.name.trim() || ec2.relationship.trim() || ec2.phone.trim();
+      const hasAnyEc2 = contactTouched(ec2);
       if (hasAnyEc2) {
         const isEc2RelEmpty = !ec2.relationship.trim() || ec2.relationship.trim() === "Other:";
         if (!contactHasName(ec2) || isEc2RelEmpty || !ec2.phone.trim()) {
@@ -306,6 +328,9 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
   };
 
   const goBack = () => { setStep((s) => s - 1); setValidationTriggered(false); setError(null); };
+  // Jump back to a step from the review screen. The re-check tick covers the final
+  // data, so editing anything clears it.
+  const goToStep = (target: number) => { setStep(target); setValidationTriggered(false); setError(null); setRecheckConfirmed(false); };
 
   const inp = "input";
   const lbl = "label";
@@ -420,7 +445,7 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
           className="btn btn-primary"
           style={{ flex: 1, minHeight: 52, fontSize: 16, fontWeight: 700 }}
           onClick={handleSubmit}
-          disabled={submitting || !formData.pdpaConsent}
+          disabled={submitting || !formData.pdpaConsent || !recheckConfirmed}
         >
           {submitting ? (
             <><Loader2 className="animate-spin inline mr-2" size={18} />Submitting...</>
@@ -618,12 +643,47 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
       {/* ── Step 2: Emergency Contacts ── */}
       {step === 2 && (
         <>
+          {isSenior && (
+            <div style={{ background: "var(--bg-surface)", border: `1.5px solid ${validationTriggered && graduated === null ? "var(--red-500)" : "var(--border-medium)"}`, borderRadius: "var(--radius-xl)", padding: "18px 16px" }}>
+              <p style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>{t.graduatedQuestion}</p>
+              {/* High-contrast pill (fixed amber on dark ink, readable in both themes) so a
+                  student with a mistyped id notices the year claim straight away. */}
+              <p style={{ display: "inline-block", margin: "10px 0 14px", padding: "6px 12px", borderRadius: 8, background: "var(--amber-400)", color: "#451a03", fontSize: 13, fontWeight: 800, lineHeight: 1.45 }}>
+                {t.graduatedHint.replace("{year}", String(studyYear(formData.studentId) ?? 5))}
+              </p>
+              {/* Custom radios: the form renders twice (mobile + desktop), so a native
+                  radio group sharing one `name` would fight across the two copies. */}
+              <div role="radiogroup" aria-label={t.graduatedQuestion} className="flex flex-col sm:flex-row gap-3">
+                {([[true, t.graduatedYes], [false, t.graduatedNo]] as const).map(([val, label]) => {
+                  const on = graduated === val;
+                  return (
+                    <button key={String(val)} type="button" role="radio" aria-checked={on} onClick={() => setGraduated(val)} style={{ flex: 1, display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", minHeight: 52, borderRadius: "var(--radius-md)", cursor: "pointer", textAlign: "left", background: on ? "rgb(var(--accent-rgb) / 0.08)" : "var(--bg-elevated)", border: `1.5px solid ${on ? "var(--accent-primary)" : "var(--border-medium)"}`, transition: "all 0.15s" }}>
+                      <span aria-hidden style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", border: `2px solid ${on ? "var(--accent-primary)" : "var(--border-medium)"}`, background: "var(--bg-surface)" }}>
+                        {on && <span style={{ width: 10, height: 10, borderRadius: "50%", background: "var(--accent-primary)" }} />}
+                      </span>
+                      <span style={{ fontSize: 14, fontWeight: on ? 700 : 600, color: "var(--text-primary)" }}>{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <ErrMsg show={validationTriggered && graduated === null} msg={t.graduatedQuestion} />
+              <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px dashed var(--border-medium)", display: "flex", flexDirection: "column", gap: 8 }}>
+                <p style={{ fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.55, margin: 0 }}>
+                  {t.graduatedWrongIdNote.split("{year}").join(String(studyYear(formData.studentId) ?? 5)).split("{code}").join(formData.studentId.trim().slice(0, 2))}
+                </p>
+                <button type="button" className="btn btn-ghost btn-sm" style={{ alignSelf: "flex-start", minHeight: 40 }} onClick={() => { setGraduated(null); goToStep(0); }}>
+                  ← {t.graduatedGoToStep1}
+                </button>
+              </div>
+            </div>
+          )}
+          {(isSenior && graduated === null) ? null : (<>
           {!formData.latinNameConfirmed && <ContactThaiCallout />}
-          <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.5, margin: 0 }}>{t.emergencyContactOneEnough}</p>
+          <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.5, margin: 0 }}>{contactOptional ? t.graduatedNoContactNote : t.emergencyContactOneEnough}</p>
           {[0, 1].filter((i) => i === 0 || showSecondContact).map((i) => {
             const contact = formData.emergencyContacts[i];
-            const partial = i === 1 && !!(contact.name.trim() || contact.relationship.trim() || contact.phone.trim());
-            const required = i === 0 || partial;
+            const partial = (i === 1 || contactOptional) && contactTouched(contact);
+            const required = (i === 0 && !contactOptional) || partial;
             return (
               <div key={i} style={{ background: "var(--bg-surface)", border: "1px solid var(--border-medium)", borderRadius: "var(--radius-xl)", padding: "20px 18px", boxShadow: "0 4px 16px rgb(var(--shadow-rgb) / 0.04)" }}>
                 <p style={{ fontSize: 11, fontWeight: 800, color: "var(--accent-primary)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 14 }}>
@@ -695,38 +755,129 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
               + {t.addEmergencyContact}
             </button>
           )}
+          </>)}
         </>
       )}
 
       {/* ── Step 3: Review + PDPA ── */}
-      {step === 3 && (
-        <>
-          {/* Summary */}
-          <div style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-lg)", padding: "18px 16px" }}>
-            <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)", marginBottom: 14 }}>{t.profileSummary}</p>
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
-              {[
-                [t.fullName, `${formData.prefix}${composeFullName(formData)}`],
-                [t.nickname, formData.nickname],
-                [t.studentId, formData.studentId || "—"],
-                [t.faculty, derivedFaculty ? (FACULTIES.find((f) => f.id === derivedFaculty)?.name ?? derivedFaculty) : "—"],
-                [t.major, formData.major],
-                [t.phone, formData.phone],
-                [t.religion, (() => {
-                  if (!formData.religion) return "—";
-                  const map: Record<string, string> = { Buddhism: t.buddhism, Christianity: t.christianity, Islam: t.islam, Hinduism: t.hinduism, Sikhism: t.sikhism, None: t.noReligion };
-                  if (map[formData.religion]) return map[formData.religion];
-                  if (formData.religion.startsWith("Other:")) return formData.religion.substring(6);
-                  return formData.religion;
-                })()],
-              ].map(([k, v]) => (
-                <div key={k}>
-                  <dt style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>{k}</dt>
-                  <dd style={{ fontSize: 14, color: "var(--text-primary)", marginTop: 3, fontWeight: 600 }}>{v}</dd>
-                </div>
-              ))}
-            </dl>
+      {step === 3 && (() => {
+        const dash = "—";
+        const hasOrNone = (v: string) => v.trim() || t.none;
+        const relLabel = (r: string) => {
+          const map: Record<string, string> = { Father: t.father, Mother: t.mother, Guardian: t.guardian, Sibling: t.sibling, Relative: t.relative, Friend: t.friend };
+          return map[r] ?? (r.startsWith("Other:") ? r.substring(6) : r);
+        };
+        const dietLabel = (d: string) => {
+          const map: Record<string, string> = { "": t.none, Vegetarian: t.veg, Vegan: t.vegan, Halal: t.halal, Kosher: t.kosher };
+          return map[d] ?? (d.startsWith("Other:") ? d.substring(6) || dash : d);
+        };
+        const religionLabel = (r: string) => {
+          if (!r) return dash;
+          const map: Record<string, string> = { Buddhism: t.buddhism, Christianity: t.christianity, Islam: t.islam, Hinduism: t.hinduism, Sikhism: t.sikhism, None: t.noReligion };
+          return map[r] ?? (r.startsWith("Other:") ? r.substring(6) : r);
+        };
+        const intake = intakeYearBE(formData.studentId);
+        const year = studyYear(formData.studentId);
+        const contacts = formData.emergencyContacts.filter(contactTouched);
+        const Row = ({ k, v, locked }: { k: string; v: string; locked?: boolean }) => (
+          <div>
+            <dt style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--text-muted)", fontWeight: 700, letterSpacing: "0.03em" }}>
+              {k}{locked && <Lock size={11} aria-label={t.reviewLocked} />}
+            </dt>
+            <dd style={{ fontSize: 14, color: "var(--text-primary)", marginTop: 2, fontWeight: 600, overflowWrap: "anywhere" }}>{v || dash}</dd>
           </div>
+        );
+        const Section = ({ n, title, children }: { n: number; title: string; children: React.ReactNode }) => (
+          <section style={{ background: "var(--bg-surface)", border: "1px solid var(--border-medium)", borderRadius: "var(--radius-lg)", padding: "16px" }}>
+            <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>
+                <span style={{ color: "var(--accent-primary)", marginRight: 6 }}>{n + 1}.</span>{title}
+              </h3>
+              <button type="button" className="btn btn-ghost btn-sm" style={{ minHeight: 40, gap: 6 }} onClick={() => goToStep(n)} aria-label={`${t.edit}: ${title}`}>
+                <Pencil size={13} /> {t.edit}
+              </button>
+            </header>
+            {children}
+          </section>
+        );
+        return (
+        <>
+          {/* Re-check first: a wrong student id is the most common onboarding mistake */}
+          <div style={{ background: "rgb(var(--accent-rgb) / 0.06)", border: "2px solid var(--accent-primary)", borderRadius: "var(--radius-lg)", padding: "16px", display: "flex", gap: 12, alignItems: "flex-start" }}>
+            <AlertTriangle size={18} style={{ color: "var(--accent-primary)", flexShrink: 0, marginTop: 1 }} />
+            <div>
+              <p style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>{t.recheckTitle}</p>
+              <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6, margin: "6px 0 0" }}>{t.recheckBody}</p>
+            </div>
+          </div>
+
+          <Section n={0} title={t.personalInfo}>
+            {/* Student id: big, digit-spaced, with the intake/year it implies, so a 60-vs-68 slip is visible */}
+            <div style={{ border: "2px solid var(--amber-400)", background: "rgb(251 191 36 / 0.08)", borderRadius: "var(--radius-md)", padding: "12px 14px", marginBottom: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700 }}>{t.studentId}</span>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 99, background: "var(--amber-400)", color: "#451a03", fontSize: 11, fontWeight: 800 }}>
+                  <Lock size={11} /> {t.reviewLocked}
+                </span>
+              </div>
+              <p style={{ fontSize: 26, fontWeight: 800, letterSpacing: "0.14em", color: "var(--text-primary)", margin: "6px 0 2px", fontVariantNumeric: "tabular-nums" }}>{formData.studentId || dash}</p>
+              {intake !== null && year !== null && (
+                <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-secondary)", margin: 0 }}>
+                  {t.reviewIntake.replace("{intake}", String(intake)).replace("{year}", String(year))}
+                </p>
+              )}
+            </div>
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+              <Row k={t.fullName} v={`${formData.prefix}${composeFullName(formData)}`} />
+              <Row k={t.nickname} v={formData.nickname} />
+              <Row k={t.faculty} locked v={derivedFaculty ? (FACULTIES.find((f) => f.id === derivedFaculty)?.name ?? derivedFaculty) : dash} />
+              <Row k={t.major} v={formData.major} />
+              <Row k={t.phone} v={formatPhone(formData.phone)} />
+              <Row k={t.contactChannels} v={formData.contactChannels} />
+              <Row k={t.religion} v={religionLabel(formData.religion)} />
+            </dl>
+          </Section>
+
+          <Section n={1} title={t.medicalInfo}>
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+              <Row k={t.chronicDiseases} v={hasOrNone(formData.chronicDiseases)} />
+              <Row k={t.medicalHistory} v={hasOrNone(formData.medicalHistory)} />
+              <Row k={t.drugAllergies} v={hasOrNone(formData.drugAllergies)} />
+              <Row k={t.foodAllergies} v={hasOrNone(formData.foodAllergies)} />
+              <Row k={t.dietaryRestrictions} v={dietLabel(formData.dietaryRestrictions)} />
+              <Row k={t.emergencyMed} v={hasOrNone(formData.emergencyMedication)} />
+              <Row k={t.faintingHistory} v={formData.faintingHistory ? t.has : t.none} />
+              <Row k="HN" v={formData.hospitalNumber.trim() ? `${formData.hospitalNumber.trim()} · ${formData.hospitalName.trim()}` : dash} />
+            </dl>
+          </Section>
+
+          <Section n={2} title={t.emergencyContacts}>
+            {isSenior && graduated !== null && (
+              <dl style={{ marginBottom: 12 }}><Row k={t.graduatedQuestion} v={graduated ? t.graduatedYes : t.graduatedNo} /></dl>
+            )}
+            {contacts.length === 0 ? (
+              <p style={{ fontSize: 14, color: "var(--text-muted)", margin: 0 }}>{t.reviewNotProvided}</p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {contacts.map((c, i) => (
+                  <dl key={i} className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-3" style={i > 0 ? { paddingTop: 12, borderTop: "1px solid var(--border-subtle)" } : undefined}>
+                    <Row k={`${t.fullName}${contacts.length > 1 ? ` #${i + 1}` : ""}`} v={`${composeFullName({ firstName: c.firstName ?? "", middleName: c.middleName, lastName: c.lastName ?? "" }) || c.name}${c.nickname?.trim() ? ` (${c.nickname.trim()})` : ""}`} />
+                    <Row k={t.relationship} v={relLabel(c.relationship)} />
+                    <Row k={t.phone} v={formatPhone(c.phone)} />
+                  </dl>
+                ))}
+              </div>
+            )}
+          </Section>
+
+          {/* Explicit confirmation, placed after the data it confirms */}
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "16px", cursor: "pointer", userSelect: "none", borderRadius: "var(--radius-md)", background: recheckConfirmed ? "rgb(var(--accent-rgb) / 0.06)" : "var(--bg-surface)", border: `2px solid ${validationTriggered && !recheckConfirmed ? "var(--red-500)" : "var(--accent-primary)"}`, transition: "all 0.15s" }}>
+            <input type="checkbox" style={{ width: 20, height: 20, accentColor: "var(--accent-primary)", flexShrink: 0, marginTop: 2 }} checked={recheckConfirmed} onChange={(e) => setRecheckConfirmed(e.target.checked)} />
+            <span style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.5 }}>{t.recheckConfirm}</span>
+              <ErrMsg show={validationTriggered && !recheckConfirmed} msg={t.recheckRequired} />
+            </span>
+          </label>
 
           {/* PDPA */}
           <label style={{ display: "flex", alignItems: "flex-start", gap: 14, padding: "18px 16px", background: formData.pdpaConsent ? "rgb(var(--accent-rgb) / 0.05)" : "var(--bg-surface)", borderRadius: "var(--radius-md)", border: `1.5px solid ${formData.pdpaConsent ? "rgb(var(--accent-rgb) / 0.35)" : "var(--border-medium)"}`, cursor: "pointer", transition: "all 0.15s" }}>
@@ -750,7 +901,8 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
 
           {error && <div className="alert alert-error"><AlertTriangle size={14} style={{ flexShrink: 0 }} /> {error}</div>}
         </>
-      )}
+        );
+      })()}
 
       {/* Error banner for steps 0–2 */}
       {error && step < 3 && (

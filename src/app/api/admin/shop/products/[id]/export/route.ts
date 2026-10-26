@@ -29,7 +29,7 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 // Downloading + resizing one slip per order is slower than a plain sheet.
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 // Longest edge for the embedded slip. Big enough that the amount/name stay
 // readable when the picture is enlarged in Excel; small enough that a slip
@@ -37,8 +37,9 @@ export const maxDuration = 120;
 const SLIP_PX = 800;
 const SLIP_COL_WIDTH = 30; // ≈ 215px
 const SLIP_ROW_HEIGHT = 225; // points ≈ 300px
-// Every slip is fetched and resized in memory — cap the embedded set.
-const MAX_SLIPS = 500;
+// No cap on the embedded set: slips are fetched and resized SLIP_CONCURRENCY at a
+// time, so only a small batch of full-size images is ever in memory. The shrunk
+// JPEGs (~50-100KB each) do accumulate inside the workbook until it is zipped.
 const SLIP_CONCURRENCY = 6;
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -78,12 +79,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     // One slip per order (an order can hold several lines of this product).
     const orders = [...new Map(rows.map((r) => [r.orderId, r])).values()];
     const withSlip = orders.filter((o) => o.slipPath);
-    if (withSlip.length > MAX_SLIPS) {
-      return NextResponse.json(
-        { error: `This product has ${withSlip.length} slips; the export is capped at ${MAX_SLIPS}.` },
-        { status: 413 },
-      );
-    }
 
     // Same rule as GET /api/shop/orders/[id]/slip: a scoped president/seller may
     // see a slip only for an order that is ENTIRELY their products — a mixed
@@ -206,7 +201,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
           s.row.getCell(8).value = "— could not load slip —";
           return;
         }
-        const imageId = wb.addImage({ buffer: new Uint8Array(thumb.data) as unknown as ExcelJS.Buffer, extension: "jpeg" });
+        const imageId = wb.addImage({ buffer: thumb.data as unknown as ExcelJS.Buffer, extension: "jpeg" });
         const scale = Math.min(slipCellPx.w / thumb.info.width, slipCellPx.h / thumb.info.height);
         wsSlip.addImage(imageId, {
           tl: { col: 7.05, row: s.row.number - 1 + 0.03 },

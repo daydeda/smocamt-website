@@ -9,6 +9,7 @@ import ShopHandoverScanner from "../ShopHandoverScanner";
 import { FulfillmentChip, FulfillmentPanel, FulfilModal, canRevertPayment, type FulfilRequest } from "../ShopFulfillmentControls";
 import { isHttpUrl, SLIP_FLAG_COPY, baht, ymdDaysAgo, PAGE_SIZE, type AdminProduct, type ShopContext, type AdminOrder, type OrderFilter, matchesOrderFilter, type AdminOrderItem } from "./shop-model";
 import { Field, Spinner, Pagination, FilterDropdown, inputStyle, ORDER_BADGE } from "./ui";
+import { OptionSummary } from "./OptionSummary";
 
 // `productId` pins the tab to a single product (the /admin/shop/[productId] page):
 // only orders with a line for that product are shown and the product dropdown is hidden.
@@ -287,6 +288,8 @@ export function OrdersTab({ th, ctx, productId }: { th: boolean; ctx: ShopContex
           <button onClick={() => { setProductFilter("all"); setFromDate(""); setToDate(""); setSearch(""); setFlaggedOnly(false); }} className="btn btn-ghost" style={{ fontSize: 13, padding: "9px 12px", display: "inline-flex", alignItems: "center", gap: 4 }}><X size={14} />{th ? "ล้างตัวกรอง" : "Clear"}</button>
         )}
       </div>
+
+      {productId && <OptionSummary th={th} orders={base} productId={productId} filtered={hasExtraFilter} />}
 
       {actionError && <p style={{ color: "var(--red-500)", fontSize: 13, margin: "0 0 12px" }}>{actionError}</p>}
 

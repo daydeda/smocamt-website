@@ -1,8 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
+import { X } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
-import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
+import { StudentNav } from "@/components/layout/StudentNav";
+import { StudentFooter } from "@/components/layout/StudentFooter";
+import { PosterCarousel } from "@/app/dashboard/_components/dashboard-parts";
+import { parseRichText } from "@/lib/ui/rich-text";
 import type { PublicEvent } from "@/lib/events/public-event";
 import { googleCalendarUrl, outlookCalendarUrl, type CalItem } from "@/lib/calendar/ical";
 import { loginHref } from "@/lib/util/safe-callback-url";
@@ -14,7 +19,8 @@ export function PublicEventView({ event }: { event: PublicEvent }) {
   const locale = LOCALE_TAG[lang as keyof typeof LOCALE_TAG] ?? "en-GB";
   const fmt = (iso: string) =>
     new Date(iso).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
-  const cover = event.imageUrls[0];
+  const posters = event.imageUrls;
+  const [expanded, setExpanded] = useState<number | null>(null);
   const calItem: CalItem = {
     uid: `event-${event.id}`,
     title: event.title,
@@ -29,18 +35,19 @@ export function PublicEventView({ event }: { event: PublicEvent }) {
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-base)", color: "var(--text-primary)" }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 24px" }}>
-        <Link href="/dashboard" style={{ fontWeight: 800, color: "var(--text-primary)", textDecoration: "none" }}>ActiveCAMT</Link>
-        <LanguageSwitcher />
-      </header>
+      <StudentNav />
 
       <main style={{ maxWidth: 720, margin: "0 auto", padding: "8px 16px 48px" }}>
-        {cover && (
-          <img
-            src={cover}
-            alt={event.title}
-            style={{ width: "100%", maxHeight: 360, objectFit: "cover", borderRadius: 20, marginBottom: 20 }}
-          />
+        {posters.length > 0 && (
+          // Same stage as the dashboard event modal: the whole poster fits
+          // (contain) over a blurred backdrop, and tapping it opens the zoom view.
+          <div style={{
+            position: "relative", width: "100%", height: "min(70vh, 560px)", marginBottom: 20,
+            borderRadius: 20, overflow: "hidden", background: "var(--black)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <PosterCarousel posters={posters} objectFit="contain" backdrop arrowSize={22} onExpand={setExpanded} />
+          </div>
         )}
         <h1 style={{ fontSize: "clamp(28px, 5vw, 40px)", fontWeight: 900, lineHeight: 1.15, marginBottom: 16 }}>{event.title}</h1>
 
@@ -87,7 +94,10 @@ export function PublicEventView({ event }: { event: PublicEvent }) {
         {event.description && (
           <section style={{ marginTop: 32 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>{t.publicEventAbout}</h2>
-            <p style={{ whiteSpace: "pre-line", lineHeight: 1.7, color: "var(--text-secondary)" }}>{event.description}</p>
+            <div
+              style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.7, color: "var(--text-secondary)" }}
+              dangerouslySetInnerHTML={{ __html: parseRichText(event.description) }}
+            />
           </section>
         )}
 
@@ -95,6 +105,36 @@ export function PublicEventView({ event }: { event: PublicEvent }) {
           <Link href="/dashboard" style={{ color: "var(--accent-primary)", fontWeight: 700 }}>{t.publicEventBrowse}</Link>
         </p>
       </main>
+      <StudentFooter />
+
+      {expanded !== null && (
+        <div
+          style={{
+            position: "fixed", inset: 0, zIndex: 2000, padding: 24, cursor: "pointer",
+            background: "rgb(var(--scrim-rgb) / 0.85)", backdropFilter: "blur(20px)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+          onClick={() => setExpanded(null)}
+        >
+          <button
+            aria-label="Close"
+            style={{
+              position: "absolute", top: 24, right: 24, width: 48, height: 48, border: "none",
+              borderRadius: "50%", background: "rgb(var(--white-rgb) / 0.15)", color: "var(--text-on-color)",
+              display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+            }}
+            onClick={() => setExpanded(null)}
+          >
+            <X size={24} />
+          </button>
+          <div
+            style={{ position: "relative", width: "min(900px, 92vw)", height: "85vh", borderRadius: 24, overflow: "hidden" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <PosterCarousel posters={posters} objectFit="contain" arrowSize={24} initialIndex={expanded} zoomable />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

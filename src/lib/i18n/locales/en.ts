@@ -819,6 +819,7 @@ export const en = {
   calendarCopied: "Copied!",
   calendarAddGoogle: "Add to Google",
   calendarAddApple: "Add to Apple",
+  calendarAddOutlook: "Add to Outlook",
   calendarRegenerate: "Regenerate link",
   calendarRevoke: "Revoke",
   calendarSubscribeWarning: "Anyone with this link can see your calendar. Regenerate it if you share it by mistake.",

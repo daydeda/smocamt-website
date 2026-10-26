@@ -799,6 +799,7 @@ export const th = {
   calendarCopied: "คัดลอกแล้ว!",
   calendarAddGoogle: "เพิ่มใน Google",
   calendarAddApple: "เพิ่มใน Apple",
+  calendarAddOutlook: "เพิ่มใน Outlook",
   calendarRegenerate: "สร้างลิงก์ใหม่",
   calendarRevoke: "เพิกถอน",
   calendarSubscribeWarning: "ผู้ที่มีลิงก์นี้สามารถเห็นปฏิทินของคุณได้ หากเผลอแชร์ ให้สร้างลิงก์ใหม่",

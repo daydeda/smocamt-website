@@ -1232,6 +1232,10 @@ function SubscribePanel({ publicFeed = false, onClose }: { publicFeed?: boolean;
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const feedUrl = publicFeed ? `${origin}/api/calendar/public` : token ? `${origin}/api/calendar/feed/${token}` : "";
   const webcalUrl = feedUrl.replace(/^https?:/, "webcal:");
+  // CMU mailboxes are Microsoft 365, so use the work/school Outlook endpoint.
+  const outlookAddUrl = feedUrl
+    ? `https://outlook.office.com/calendar/0/addfromweb?url=${encodeURIComponent(feedUrl)}&name=ActiveCAMT`
+    : "";
   const googleAddUrl = feedUrl
     ? `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcalUrl)}`
     : "";
@@ -1310,6 +1314,14 @@ function SubscribePanel({ publicFeed = false, onClose }: { publicFeed?: boolean;
                 rel="noopener noreferrer"
               >
                 {t.calendarAddGoogle}
+              </a>
+              <a
+                className="btn-ghost"
+                href={outlookAddUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {t.calendarAddOutlook}
               </a>
               <a className="btn-ghost" href={webcalUrl}>
                 {t.calendarAddApple}

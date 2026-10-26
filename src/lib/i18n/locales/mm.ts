@@ -787,6 +787,7 @@ export const mm = {
   calendarCopied: "ကူးယူပြီး!",
   calendarAddGoogle: "Google သို့ ထည့်ရန်",
   calendarAddApple: "Apple သို့ ထည့်ရန်",
+  calendarAddOutlook: "Outlook သို့ ထည့်ရန်",
   calendarRegenerate: "လင့်ခ်အသစ်ထုတ်ရန်",
   calendarRevoke: "ပြန်ရုပ်သိမ်းရန်",
   calendarSubscribeWarning: "ဤလင့်ခ်ရှိသူတိုင်း သင်၏ပြက္ခဒိန်ကို မြင်နိုင်သည်။ မှားယွင်းမျှဝေမိပါက အသစ်ပြန်ထုတ်ပါ။",

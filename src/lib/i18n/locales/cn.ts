@@ -787,6 +787,7 @@ export const cn = {
   calendarCopied: "已复制！",
   calendarAddGoogle: "添加到 Google",
   calendarAddApple: "添加到 Apple",
+  calendarAddOutlook: "添加到 Outlook",
   calendarRegenerate: "重新生成链接",
   calendarRevoke: "撤销",
   calendarSubscribeWarning: "任何拥有此链接的人都能查看您的日历。如误分享，请重新生成。",

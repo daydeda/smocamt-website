@@ -5,6 +5,7 @@ export const cn = {
   walkInsDisabledLabel: "该活动未开放现场报名",
   walkInsAllowedLabel: "可现场报名",
   walkInsOnlyBadge: "仅限现场报名",
+  eventViewOnlyBadge: "仅可查看",
   walkInsOnlyNotice: "此活动不开放预先报名 — 到场后现场扫码签到即可参加。",
   signInTitle: "体验 ActiveCAMT",
   signInSub: "CAMT 学生的一体化活动平台。跟踪您的进度，累积积分，并发展您的社区。",

@@ -6,6 +6,7 @@ export const en = {
   walkInsDisabledLabel: "Walk-ins Not Allowed",
   walkInsAllowedLabel: "Walk-ins Allowed",
   walkInsOnlyBadge: "Walk-in Only",
+  eventViewOnlyBadge: "View only",
   walkInsOnlyNotice: "No pre-registration for this event — just show up and get scanned in at the door.",
   signInTitle: "Experience ActiveCAMT",
   signInSub: "The all-in-one activity platform for CAMT students. Track your progress, collect points, and grow your community.",

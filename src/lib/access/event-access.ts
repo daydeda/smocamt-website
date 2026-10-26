@@ -28,6 +28,8 @@ export interface EligibilityItem {
 
 export interface Viewer {
   isAdminRole: boolean;
+  /** May SEE every event, eligible or not (admin roles and SMO). Registering still needs eligibility. */
+  canViewAll: boolean;
   /** roles with professor/officer normalized to "staff" */
   effectiveRoles: string[];
   userMajor: string | null;
@@ -167,6 +169,7 @@ export function buildViewer(opts: {
   const isFirstYear = isFirstYearStudent(opts.studentId);
   return {
     isAdminRole,
+    canViewAll: isAdminRole || userRoles.includes("smo"),
     effectiveRoles,
     userMajor: opts.major ?? null,
     isThai,

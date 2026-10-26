@@ -5,6 +5,7 @@ export const th = {
   walkInsDisabledLabel: "กิจกรรมนี้ไม่อนุญาตให้ Walk-in",
   walkInsAllowedLabel: "อนุญาตให้ Walk-in",
   walkInsOnlyBadge: "Walk-in เท่านั้น",
+  eventViewOnlyBadge: "ดูข้อมูลเท่านั้น",
   walkInsOnlyNotice: "กิจกรรมนี้ไม่เปิดให้ลงทะเบียนล่วงหน้า มาถึงแล้วสแกนเข้าร่วมได้เลย",
   signInTitle: "สัมผัสประสบการณ์ ActiveCAMT",
   signInSub: "เว็บกิจกรรมสำหรับเด็ก CAMT — อัปเดตกิจกรรม สะสมคะแนนบ้าน และเช็กชั่วโมงกิจกรรมได้ง่ายๆ ครบจบในที่เดียว!",

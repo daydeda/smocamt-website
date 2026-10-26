@@ -113,7 +113,7 @@ export async function getCalendarItemsForViewer(
 
   const attended = new Set(atts.map((a) => a.eventId));
   const events = allEvents
-    .filter((e) => attended.has(e.id) || isEligibleFor(e, viewer))
+    .filter((e) => attended.has(e.id) || viewer.canViewAll || isEligibleFor(e, viewer))
     .map(mapEvent);
   const entries = allEntries
     .filter((e) => isEligibleFor(e, viewer))

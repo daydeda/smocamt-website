@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { eventPath, normalizeShortSlug, parseEventRef, slugifyTitle } from "./event-slug";
+import { eventPath, eventRef, matchesEventRef, normalizeShortSlug, parseEventRef, slugifyTitle } from "./event-slug";
 
 const ID = "407097cc-d7b5-4a29-a4e7-ff2d56b65c86";
 
@@ -37,5 +37,15 @@ describe("event-slug", () => {
     expect(normalizeShortSlug("407097cc")).toEqual({ ok: false, reason: "format" });
     expect(normalizeShortSlug(ID)).toEqual({ ok: false, reason: "format" });
     expect(normalizeShortSlug("admin")).toEqual({ ok: false, reason: "reserved" });
+  });
+
+  it("matches a link ref against an event by id, custom name or automatic ref", () => {
+    const e = { id: ID, title: "Trekking", shortSlug: "cmucamttrekking2026" };
+    expect(eventRef(e.id, e.title, e.shortSlug)).toBe("cmucamttrekking2026");
+    expect(matchesEventRef(e, "cmucamttrekking2026")).toBe(true);
+    expect(matchesEventRef(e, ID)).toBe(true);
+    expect(matchesEventRef(e, "other")).toBe(false);
+    const auto = { id: ID, title: "Trekking", shortSlug: null };
+    expect(matchesEventRef(auto, "trekking-407097cc")).toBe(true);
   });
 });

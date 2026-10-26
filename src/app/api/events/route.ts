@@ -105,7 +105,9 @@ export async function GET() {
       // Always surface an event the student is registered for / checked into,
       // regardless of the eligibility rules below.
       if (attendanceMap.has(event.id)) return true;
-      return isEligibleFor(event, viewer);
+      // SMO (and admin roles) see every event; canRegister below keeps the
+      // ineligible ones view-only.
+      return viewer.canViewAll || isEligibleFor(event, viewer);
     });
 
     // Pre-test (K_pre) status per event, so the dashboard can force a student to
@@ -142,6 +144,8 @@ export async function GET() {
       return {
         ...event,
         isRegistered: attendanceMap.has(event.id),
+        // false = visible but not open to this viewer (view-only; the register route enforces it too).
+        canRegister: isEligibleFor(event, viewer),
         attendanceStatus: att?.status || null,
         registeredCount: seatCountMap.get(event.id) ?? 0,
         waitlistPosition: waitlistMap.get(event.id) ?? null,

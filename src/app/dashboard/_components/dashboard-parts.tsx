@@ -37,6 +37,8 @@ export type Event = {
   title: string;
   // Owner-chosen /e/<slug> link name; null/absent = the automatic link.
   shortSlug?: string | null;
+  // false = SMO/admin can see this event but is not eligible to register (view-only).
+  canRegister?: boolean;
   description?: string;
   location?: string;
   startTime: string;

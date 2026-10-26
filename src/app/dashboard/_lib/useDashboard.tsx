@@ -11,6 +11,7 @@ import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { useNotifications } from "@/lib/hooks/useNotifications";
 import { useRouter } from "next/navigation";
 import { NO_SHOW_STRIKE_THRESHOLD } from "@/lib/points/strikes";
+import { eventRef, matchesEventRef } from "@/lib/events/event-slug";
 import { type Event, type HouseItem } from "../_components/dashboard-parts";
 
 // State, effects and handlers for DashboardClient.tsx. Moved out of the page
@@ -147,9 +148,12 @@ export function useDashboard({ initialSession }: { initialSession: Session | nul
   const openPreview = (e: Event) => {
     setLinkCopied(false);
     setPreviewEventId(e.id);
+    // The address bar carries the short, readable ref (owner's custom link name, or
+    // title + id prefix); the full id is still accepted when a link arrives with it.
+    const ref = eventRef(e.id, e.title, e.shortSlug);
     const current = new URLSearchParams(window.location.search).get("event");
-    if (current !== e.id) {
-      window.history.pushState({ event: e.id }, "", `${window.location.pathname}?event=${encodeURIComponent(e.id)}`);
+    if (current !== ref) {
+      window.history.pushState({ event: e.id }, "", `${window.location.pathname}?event=${encodeURIComponent(ref)}`);
     }
   };
 
@@ -178,6 +182,19 @@ export function useDashboard({ initialSession }: { initialSession: Session | nul
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
+
+  // A link that arrived with the full id (or a stale ref) is rewritten in place to the
+  // short ref once the events list has loaded, so the address bar always reads short.
+  useEffect(() => {
+    if (!previewEventId) return;
+    const match = events.find((e) => matchesEventRef(e, previewEventId));
+    if (!match) return;
+    const ref = eventRef(match.id, match.title, match.shortSlug);
+    const current = new URLSearchParams(window.location.search).get("event");
+    if (current && current !== ref) {
+      window.history.replaceState(window.history.state, "", `${window.location.pathname}?event=${encodeURIComponent(ref)}`);
+    }
+  }, [events, previewEventId]);
 
   const HOUSE_MAP: Record<string, { name: string, color: string }> = {
     red:    { name: t.houseMom || "Mom",   color: "var(--red-500)" }, // Red
@@ -490,7 +507,7 @@ export function deriveDashboard(base: BaseDashboardCtx) {
   // The event whose preview modal is open, derived from the URL-backed id. Resolves
   // once the events list has loaded; if the id isn't found (bad/stale link) the modal
   // simply stays closed.
-  const previewEvent = previewEventId ? (events.find((e) => e.id === previewEventId) ?? null) : null;
+  const previewEvent = previewEventId ? (events.find((e) => matchesEventRef(e, previewEventId)) ?? null) : null;
 
   const now = new Date();
 

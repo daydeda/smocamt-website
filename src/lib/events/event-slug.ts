@@ -17,9 +17,21 @@ export function slugifyTitle(title: string): string {
 }
 
 /** The public path for an event: the owner's custom link name if set, else title + id prefix. */
+export function eventRef(id: string, title: string, shortSlug?: string | null): string {
+  return shortSlug || `${slugifyTitle(title)}-${id.slice(0, 8).toLowerCase()}`;
+}
+
 export function eventPath(id: string, title: string, shortSlug?: string | null): string {
-  if (shortSlug) return `/e/${shortSlug}`;
-  return `/e/${slugifyTitle(title)}-${id.slice(0, 8).toLowerCase()}`;
+  return `/e/${eventRef(id, title, shortSlug)}`;
+}
+
+/** Whether a link reference (custom name, slug-prefix form or full id) points at this event. */
+export function matchesEventRef(
+  e: { id: string; title: string; shortSlug?: string | null },
+  ref: string,
+): boolean {
+  const r = ref.toLowerCase();
+  return e.id.toLowerCase() === r || eventRef(e.id, e.title, e.shortSlug) === r;
 }
 
 // Words that would read as (or collide with) other routes or the id-based forms.

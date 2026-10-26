@@ -5,7 +5,7 @@ import { buildViewer } from "@/lib/access/event-access";
 import { ClubsService } from "@/modules/clubs/clubs.service";
 import { UsersService } from "@/modules/users/users.service";
 import { EventsService } from "@/modules/events/events.service";
-import { eventPath, parseEventRef } from "@/lib/events/event-slug";
+import { eventPath, eventRef, parseEventRef } from "@/lib/events/event-slug";
 import { PublicEventView } from "./PublicEventView";
 
 export const dynamic = "force-dynamic";
@@ -62,6 +62,6 @@ export default async function PublicEventPage({ params }: { params: Promise<{ id
   // A signed-in visitor gets the real dashboard (their theme, account menu and the
   // event card with a working Register button) instead of a guest page that tells
   // them to sign in and then bounces them there anyway.
-  if (signedIn) redirect(`/dashboard?event=${encodeURIComponent(event.id)}`);
+  if (signedIn) redirect(`/dashboard?event=${encodeURIComponent(eventRef(event.id, event.title, event.shortSlug))}`);
   return <PublicEventView event={event} />;
 }

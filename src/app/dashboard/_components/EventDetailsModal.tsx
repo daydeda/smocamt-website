@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { eventPath } from "@/lib/events/event-slug";
-import { MapPin, Clock, Calendar, CheckCircle2, RefreshCw, Trophy, Sparkles, X, AlertCircle, DoorOpen, Share2, Check, Camera } from "lucide-react";
+import { MapPin, Clock, Calendar, CheckCircle2, RefreshCw, Trophy, Sparkles, X, AlertCircle, DoorOpen, Eye, Share2, Check, Camera } from "lucide-react";
 import { parseRichText } from "@/lib/ui/rich-text";
 import { getPosters, PosterCarousel } from "./dashboard-parts";
 import type { DashboardCtx } from "../_lib/useDashboard";
@@ -24,8 +24,9 @@ export function EventDetailsModal({ ctx }: { ctx: DashboardCtx }) {
         const notYetOpen = !liveEvent.isRegistered && !!regOpenAt && nowTs < regOpenAt;
         const regClosed = !liveEvent.isRegistered && regWindowClosed;
         const walkInsOnlyMode = !liveEvent.isRegistered && !!liveEvent.walkInsOnly;
-        const windowBlocked = notYetOpen || regClosed || walkInsOnlyMode;
-        const greyed = regClosed || walkInsOnlyMode || (liveEvent.isRegistered && !canCancel);
+        const viewOnlyMode = !liveEvent.isRegistered && liveEvent.canRegister === false;
+        const windowBlocked = notYetOpen || regClosed || walkInsOnlyMode || viewOnlyMode;
+        const greyed = regClosed || walkInsOnlyMode || viewOnlyMode || (liveEvent.isRegistered && !canCancel);
         const isDisabled = (liveEvent.isRegistered && !canCancel) || windowBlocked || registeringId === liveEvent.id;
         const waitlisted = !liveEvent.isRegistered && liveEvent.waitlistPosition != null;
         const isFull = liveEvent.quota != null && liveEvent.quota > 0 && (liveEvent.registeredCount ?? 0) >= liveEvent.quota;
@@ -408,6 +409,8 @@ export function EventDetailsModal({ ctx }: { ctx: DashboardCtx }) {
                     <><AlertCircle size={18} /> {t.registrationClosed}</>
                   ) : walkInsOnlyMode ? (
                     <><DoorOpen size={18} /> {t.walkInsOnlyBadge}</>
+                  ) : viewOnlyMode ? (
+                    <><Eye size={18} /> {t.eventViewOnlyBadge}</>
                   ) : isFull ? (
                     t.waitlistJoin
                   ) : (

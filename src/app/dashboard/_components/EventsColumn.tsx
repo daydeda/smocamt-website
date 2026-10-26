@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin, Clock, Calendar, CheckCircle2, RefreshCw, Trophy, Sparkles, AlertCircle, Megaphone, LayoutGrid, List, DoorOpen } from "lucide-react";
+import { MapPin, Clock, Calendar, CheckCircle2, RefreshCw, Trophy, Sparkles, AlertCircle, Megaphone, LayoutGrid, List, DoorOpen, Eye } from "lucide-react";
 import { parseRichText } from "@/lib/ui/rich-text";
 import { getPosters, PosterCarousel } from "./dashboard-parts";
 import type { DashboardCtx } from "../_lib/useDashboard";
@@ -381,9 +381,10 @@ export function EventsColumn({ ctx }: { ctx: DashboardCtx }) {
                             const notYetOpen = !e.isRegistered && !!regOpenAt && nowTs < regOpenAt;
                             const regClosed = !e.isRegistered && regWindowClosed;
                             const walkInsOnlyMode = !e.isRegistered && !!e.walkInsOnly;
-                            const windowBlocked = notYetOpen || regClosed || walkInsOnlyMode;
+                            const viewOnlyMode = !e.isRegistered && e.canRegister === false;
+                            const windowBlocked = notYetOpen || regClosed || walkInsOnlyMode || viewOnlyMode;
                             const isDisabled = (e.isRegistered && !canCancel) || windowBlocked || registeringId === e.id;
-                            const greyed = regClosed || walkInsOnlyMode || (e.isRegistered && !canCancel);
+                            const greyed = regClosed || walkInsOnlyMode || viewOnlyMode || (e.isRegistered && !canCancel);
                             const waitlisted = !e.isRegistered && e.waitlistPosition != null;
                             const isFull = e.quota != null && e.quota > 0 && (e.registeredCount ?? 0) >= e.quota;
 
@@ -425,6 +426,8 @@ export function EventsColumn({ ctx }: { ctx: DashboardCtx }) {
                                   <><AlertCircle size={18} /> {t.registrationClosed}</>
                                 ) : walkInsOnlyMode ? (
                                   <><DoorOpen size={18} /> {t.walkInsOnlyBadge}</>
+                                ) : viewOnlyMode ? (
+                                  <><Eye size={18} /> {t.eventViewOnlyBadge}</>
                                 ) : isFull ? (
                                   t.waitlistJoin
                                 ) : (

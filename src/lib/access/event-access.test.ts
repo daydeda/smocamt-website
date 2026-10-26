@@ -90,3 +90,17 @@ describe("event year updates", () => {
     }
   });
 });
+
+describe("view-all visibility", () => {
+  it("lets SMO and admin roles see every event, but only others by eligibility", () => {
+    expect(buildViewer({ studentId: "680000001", roles: ["smo"], major: "SE" }).canViewAll).toBe(true);
+    expect(buildViewer({ studentId: "680000001", roles: ["admin"], major: "SE" }).canViewAll).toBe(true);
+    expect(buildViewer({ studentId: "680000001", roles: ["student"], major: "SE" }).canViewAll).toBe(false);
+    expect(buildViewer({ studentId: "680000001", roles: ["student", "club_president"], major: "SE" }).canViewAll).toBe(false);
+  });
+
+  it("keeps an SMO viewer ineligible for a student-only event so it stays view-only", () => {
+    const smo = buildViewer({ studentId: "680000001", roles: ["smo"], major: "SE" });
+    expect(isEligibleFor({ allowedRoles: ["student"] }, smo)).toBe(false);
+  });
+});

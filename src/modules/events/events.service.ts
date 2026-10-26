@@ -178,7 +178,7 @@ export class EventsService {
     if (!event) return null;
     // A signed-in viewer is judged by their own roles/major/clubs, so an event
     // restricted to e.g. SMO still opens for them; guests keep the guest predicate.
-    if (!(viewer ? isEligibleFor(event, viewer) : isEligibleForGuest(event))) return null;
+    if (!(viewer ? viewer.canViewAll || isEligibleFor(event, viewer) : isEligibleForGuest(event))) return null;
     const [seat] = await db
       .select({ value: sql<number>`count(distinct ${attendance.studentId})` })
       .from(attendance)

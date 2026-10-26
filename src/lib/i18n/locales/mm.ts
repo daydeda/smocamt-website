@@ -5,6 +5,7 @@ export const mm = {
   walkInsDisabledLabel: "ဤပွဲတွင် Walk-in ခွင့်မပြုပါ",
   walkInsAllowedLabel: "Walk-in ခွင့်ပြုသည်",
   walkInsOnlyBadge: "Walk-in သာ",
+  eventViewOnlyBadge: "ကြည့်ရှုရန်သာ",
   walkInsOnlyNotice: "ဤပွဲအတွက် ကြိုတင်စာရင်းသွင်းခြင်း မရှိပါ — ရောက်လာပြီး တံခါးဝတွင် စကင်ဖတ်ကာ ဝင်ရောက်နိုင်ပါသည်။",
   signInTitle: "ActiveCAMT ကို အတွေ့အကြုံယူပါ",
   signInSub: "CAMT ကျောင်းသားများအတွက် အားလုံးပါဝင်သော လှုပ်ရှားမှုပလက်ဖောင်း။ သင်၏တိုးတက်မှုကို ခြေရာခံပါ၊ အမှတ်များစုဆောင်းပါ၊ သင်၏အသိုင်းအဝိုင်းကို တိုးတက်စေပါ။",

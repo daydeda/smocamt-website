@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { attendance, events, eventSessions, forms, users } from "@/db/schema";
 import { AuditService } from "@/modules/audit/audit.service";
 import { bangkokDateKey } from "@/lib/events/event-schema";
-import { isEligibleForGuest } from "@/lib/access/event-access";
+import { isEligibleFor, isEligibleForGuest, type Viewer } from "@/lib/access/event-access";
 import { toPublicEvent, type PublicEvent } from "@/lib/events/public-event";
 import { and, asc, eq, gt, inArray, isNotNull, sql } from "drizzle-orm";
 
@@ -126,9 +126,12 @@ export class EventsService {
    * One event for the logged-out public page (/e/[id]). Returns null when the
    * event is missing OR not open to guests, so restricted events never leak.
    */
-  static async getPublicEvent(id: string): Promise<PublicEvent | null> {
+  static async getPublicEvent(id: string, viewer?: Viewer): Promise<PublicEvent | null> {
     const event = await db.query.events.findFirst({ where: eq(events.id, id) });
-    if (!event || !isEligibleForGuest(event)) return null;
+    if (!event) return null;
+    // A signed-in viewer is judged by their own roles/major/clubs, so an event
+    // restricted to e.g. SMO still opens for them; guests keep the guest predicate.
+    if (!(viewer ? isEligibleFor(event, viewer) : isEligibleForGuest(event))) return null;
     const [seat] = await db
       .select({ value: sql<number>`count(distinct ${attendance.studentId})` })
       .from(attendance)

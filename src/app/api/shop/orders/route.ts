@@ -209,8 +209,11 @@ export async function POST(req: Request) {
     after(async () => {
       const audienceIds = await getShopOrderAudienceUserIds(created.productIds, created.sellerId);
       await PushService.sendToUserIds(audienceIds, {
-        title: "New shop order",
-        body: "A new order is waiting for review.",
+        title: created.productNames[0] ?? "New shop order",
+        body:
+          created.productNames.length > 1
+            ? `A new order is waiting for review. +${created.productNames.length - 1} more`
+            : "A new order is waiting for review.",
         url: "/admin/shop",
         tag: `shop-order:${created.orderId}`,
       });

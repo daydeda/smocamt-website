@@ -6,7 +6,7 @@ import type { EventFormBuilderCtx } from "./useEventFormBuilder";
 export function BuilderTabs({ ctx }: { ctx: EventFormBuilderCtx }) {
   const { canManageForms, formSubmissions, formTab, lang, setFormTab } = ctx;
   return (
-    <div style={{ display: "flex", borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-surface)", flexShrink: 0 }}>
+    <div style={{ display: "flex", borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-surface)", flexShrink: 0, position: "sticky", top: 0, zIndex: 2 }}>
               {canManageForms && (
               <button
                 style={{

@@ -382,27 +382,34 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const periodicDue = Date.now() - lastRefresh > DB_REFRESH_INTERVAL_MS;
 
       if (profileIncomplete || periodicDue) {
-        const dbUser = await fetchUserDataFromDb(userId);
-        if (!dbUser) return null;
-        if (isBypass) {
-          token.name = dbUser.name;
-          token.image = dbUser.image;
-          token.email = dbUser.email;
-          token.profileCompleted = dbUser.profileCompleted ?? false;
-          token.houseId = dbUser.houseId ?? null;
-          token.imageTransform = dbUser.imageTransform ?? null;
-          token.qrToken = dbUser.qrToken;
-          token.studentId = dbUser.studentId ?? null;
-          token.majorPosition = dbUser.majorPosition ?? null;
-          token.smoPosition = dbUser.smoPosition ?? null;
-          token.anusmoPosition = dbUser.anusmoPosition ?? null;
-          token.hasClubPosition = dbUser.hasClubPosition;
-          token.hasClubRegistrationPosition = dbUser.hasClubRegistrationPosition;
-          token.hasStaffPosition = !!(dbUser.majorPosition || dbUser.smoPosition || dbUser.anusmoPosition || dbUser.hasClubPosition);
-        } else {
-          await applyDbUserToToken(token, dbUser, userId);
+        // A transient DB outage must not log the user out: keep the token we already
+        // signed, and retry the refresh on the next request (lastDbRefresh stays old).
+        // A deleted user (dbUser missing) still returns null above.
+        try {
+          const dbUser = await fetchUserDataFromDb(userId);
+          if (!dbUser) return null;
+          if (isBypass) {
+            token.name = dbUser.name;
+            token.image = dbUser.image;
+            token.email = dbUser.email;
+            token.profileCompleted = dbUser.profileCompleted ?? false;
+            token.houseId = dbUser.houseId ?? null;
+            token.imageTransform = dbUser.imageTransform ?? null;
+            token.qrToken = dbUser.qrToken;
+            token.studentId = dbUser.studentId ?? null;
+            token.majorPosition = dbUser.majorPosition ?? null;
+            token.smoPosition = dbUser.smoPosition ?? null;
+            token.anusmoPosition = dbUser.anusmoPosition ?? null;
+            token.hasClubPosition = dbUser.hasClubPosition;
+            token.hasClubRegistrationPosition = dbUser.hasClubRegistrationPosition;
+            token.hasStaffPosition = !!(dbUser.majorPosition || dbUser.smoPosition || dbUser.anusmoPosition || dbUser.hasClubPosition);
+          } else {
+            await applyDbUserToToken(token, dbUser, userId);
+          }
+          token.lastDbRefresh = Date.now();
+        } catch (err) {
+          console.error("[auth] DB refresh failed; keeping existing session token", err);
         }
-        token.lastDbRefresh = Date.now();
       }
 
       return token;

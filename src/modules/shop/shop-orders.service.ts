@@ -385,7 +385,10 @@ export class ShopOrdersService {
 
       await tx.insert(shopOrderItems).values(lines.map((l) => ({ ...l, orderId: order.id })));
 
-      return { orderId: order.id, status: 201 as const, productIds, sellerId };
+      // Distinct product names in line order, for the staff push title.
+      const productNames = [...new Set(lines.map((l) => l.productName))];
+
+      return { orderId: order.id, status: 201 as const, productIds, productNames, sellerId };
     });
   }
 

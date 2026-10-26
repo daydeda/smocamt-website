@@ -39,8 +39,9 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
         {/* Centered dialog with a dimmed/blurred backdrop — matches the rest of
             the app's modal pattern (see admin/clubs's Members/Create modals)
             instead of a full-screen page-covering panel. The card itself is a
-            flex column capped at 90vh; header/chip-selector/tabs stay fixed
-            (flexShrink: 0) and only the body below scrolls. */}
+            flex column capped at 90vh and scrolls as one column: only the tab
+            bar is pinned (sticky), so the header and form chips scroll away
+            and the body gets the full height on small screens. */}
         <div
           style={{
             position: "fixed",
@@ -57,7 +58,7 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
           onClick={closeFormBuilder}
         >
           <div
-            className="animate-fade-in-up"
+            className="animate-fade-in-up custom-scrollbar"
             onClick={(e) => e.stopPropagation()}
             style={{
               background: "var(--bg-surface)",
@@ -67,7 +68,7 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
               display: "flex",
               flexDirection: "column",
               borderRadius: "clamp(20px, 5vw, 32px)",
-              overflow: "hidden",
+              overflowY: "auto",
               boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.3)",
               border: "1px solid var(--border-medium)",
             }}
@@ -85,9 +86,8 @@ export function EventFormBuilderModal({ eventId, eventTitle, onClose, onChanged 
             {/* Modal Navigation Tabs */}
             <BuilderTabs ctx={ctx} />
 
-            {/* Scrollable Modal Body — the only part of the card that scrolls;
-                header/chip-selector/tabs above stay fixed (flexShrink: 0). */}
-            <div className="custom-scrollbar" style={{ overflowY: "auto", flex: 1 }}>
+            {/* Modal Body — scrolls with the card, under the sticky tabs. */}
+            <div>
             {formLoading ? (
               <div style={{ padding: "80px 0", textAlign: "center" }}>
                 <div className="spinner w-8 h-8 border-4 border-t-transparent" style={{ margin: "0 auto 16px" }} />

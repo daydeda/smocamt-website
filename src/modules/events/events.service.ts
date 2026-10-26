@@ -187,6 +187,14 @@ export class EventsService {
   }
 
   /**
+   * The raw eligibility fields of an event that exists, for the "you can't access
+   * this event" page. Callers must only turn these into a summary, never a payload.
+   */
+  static async getEligibilitySource(id: string) {
+    return db.query.events.findFirst({ where: eq(events.id, id) });
+  }
+
+  /**
    * Upcoming events open to logged-out visitors, soonest first, for the public home
    * page. Filters by the same guest predicate as /api/events, then takes `limit`.
    */

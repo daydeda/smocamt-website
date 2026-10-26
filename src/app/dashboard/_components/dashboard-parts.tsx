@@ -35,6 +35,8 @@ export const houseLogo = (idOrName?: string | null): string | null =>
 export type Event = {
   id: string;
   title: string;
+  // Owner-chosen /e/<slug> link name; null/absent = the automatic link.
+  shortSlug?: string | null;
   description?: string;
   location?: string;
   startTime: string;

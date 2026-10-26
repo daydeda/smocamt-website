@@ -951,6 +951,7 @@ export function useAdminEventsPage() {
       title: eff("title", evt.title),
       description: eff("description", evt.description) || "",
       location: eff("location", evt.location) || "",
+      shortSlug: eff("shortSlug", evt.shortSlug) || "",
       startTime: toLocal(eff("startTime", evt.startTime)),
       endTime: toLocal(eff("endTime", evt.endTime)),
       registrationOpenTime: eff("registrationOpenTime", evt.registrationOpenTime)

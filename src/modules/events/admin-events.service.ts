@@ -18,6 +18,7 @@ export type EventUpdateData = {
   registrationCloseTime?: string | null;
   quota?: number | null;
   location?: string | null;
+  shortSlug?: string | null;
   pointsAwarded?: number | null;
   individualPointsAwarded?: number | null;
   imageUrl?: string | null;
@@ -64,7 +65,7 @@ export type EventCreateData = EventUpdateData & {
 // check, and what gets applied to live columns when staff approve it.
 const PRESIDENT_EDITABLE_FIELDS = [
   "title", "description", "startTime", "endTime", "registrationOpenTime",
-  "registrationCloseTime", "quota", "location", "imageUrl", "imageUrls",
+  "registrationCloseTime", "quota", "location", "shortSlug", "imageUrl", "imageUrls",
   "walkInsEnabled", "walkInsOnly", "quotaWalkIn", "registrationMode",
   "sessions", "targetThai", "targetInternational", "quotaThai",
   "quotaInternational", "firstYearOnly", "allowedYears",
@@ -104,6 +105,7 @@ function buildEventSetFields(
     }),
     ...(data.quota !== undefined && { quota: data.quota }),
     ...(data.location !== undefined && { location: data.location }),
+    ...(data.shortSlug !== undefined && { shortSlug: data.shortSlug }),
     ...(data.pointsAwarded !== undefined && { pointsAwarded: data.pointsAwarded }),
     ...(data.individualPointsAwarded !== undefined && { individualPointsAwarded: data.individualPointsAwarded }),
     ...(posters !== undefined
@@ -556,6 +558,7 @@ export class AdminEventsService {
           registrationCloseTime: data.registrationCloseTime ? new Date(data.registrationCloseTime) : null,
           quota: data.quota,
           location: data.location,
+          shortSlug: data.shortSlug ?? null,
           pointsAwarded: data.pointsAwarded ?? 0,
           individualPointsAwarded: data.individualPointsAwarded ?? 0,
           imageUrl: cover,

@@ -19,6 +19,8 @@ const eventUpdateSchema = z.object({
   registrationCloseTime: z.string().datetime().optional().nullable(),
   quota: z.number().int().min(0).optional().nullable(),
   location: z.string().optional().nullable(),
+  // Owner-chosen public link name (/e/<shortSlug>); validated + checked for uniqueness in the handler.
+  shortSlug: z.string().max(80).optional().nullable(),
   pointsAwarded: z.number().int().min(0).max(10000).optional().nullable(),
   individualPointsAwarded: z.number().int().min(0).max(10000).optional().nullable(),
   imageUrl: z.string().optional().nullable(),
@@ -121,6 +123,11 @@ export async function PUT(
     const { id } = await params;
     const body = await req.json().catch(() => null);
     const parsed = eventUpdateSchema.parse(body);
+    if (parsed.shortSlug !== undefined) {
+      const slug = await EventsService.prepareShortSlug(parsed.shortSlug, id);
+      if (!slug.ok) return NextResponse.json({ error: slug.error }, { status: slug.status });
+      parsed.shortSlug = slug.slug;
+    }
     const data = { ...parsed, ...eventYearFields(parsed) };
 
     // Posters normalization from the submitted payload — used both for a

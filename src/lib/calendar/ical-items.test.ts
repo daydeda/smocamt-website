@@ -22,13 +22,13 @@ function row(over: Partial<CalendarFeedRow>): CalendarFeedRow {
 }
 
 describe("toCalItems", () => {
-  it("links events to /e/<id> and entries to the calendar page", () => {
+  it("links events to /e/<slug>-<id prefix> and entries to the calendar page", () => {
     const [ev, en] = toCalItems(
       [row({ id: "e1" }), row({ id: "n1", kind: "entry" })],
       "https://x.test",
       now,
     );
-    expect(ev.url).toBe("https://x.test/e/e1");
+    expect(ev.url).toBe("https://x.test/e/t-e1");
     expect(en.url).toBe("https://x.test/dashboard/calendar");
     expect(ev.uid).toBe("event-e1");
   });

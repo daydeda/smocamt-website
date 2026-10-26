@@ -8,6 +8,8 @@
 // Asia/Bangkok (+07:00) via a VTIMEZONE block, and convert to UTC for the
 // Google/Outlook quick-add URLs.
 
+import { eventPath } from "@/lib/events/event-slug";
+
 const TZID = "Asia/Bangkok";
 const TZ_OFFSET_MS = 7 * 60 * 60 * 1000; // +07:00, fixed (no DST)
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -189,6 +191,7 @@ export interface CalendarFeedRow {
   updatedAt: string | null;
   recurrence: "none" | "daily" | "weekly" | "monthly";
   recurrenceUntil: string | null;
+  shortSlug?: string | null;
 }
 
 /**
@@ -217,7 +220,7 @@ export function toCalItems(rows: CalendarFeedRow[], origin: string, now: number)
       start: new Date(it.startTime),
       end: new Date(it.endTime),
       allDay: it.allDay,
-      url: it.kind === "event" ? `${origin}/e/${it.id}` : `${origin}/dashboard/calendar`,
+      url: it.kind === "event" ? `${origin}${eventPath(it.id, it.title, it.shortSlug)}` : `${origin}/dashboard/calendar`,
       updatedAt: it.updatedAt ? new Date(it.updatedAt) : null,
       recurrence: it.recurrence,
       recurrenceUntil: it.recurrenceUntil ? new Date(it.recurrenceUntil) : null,

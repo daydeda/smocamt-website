@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { eventPath } from "@/lib/events/event-slug";
 import { MapPin, Clock, Calendar, CheckCircle2, RefreshCw, Trophy, Sparkles, X, AlertCircle, DoorOpen, Share2, Check, Camera } from "lucide-react";
 import { parseRichText } from "@/lib/ui/rich-text";
 import { getPosters, PosterCarousel } from "./dashboard-parts";
@@ -34,7 +35,7 @@ export function EventDetailsModal({ ctx }: { ctx: DashboardCtx }) {
         // to a hidden-textarea copy for in-app webviews where navigator.clipboard
         // is unavailable (insecure context / restricted permissions).
         const copyShareLink = async () => {
-          const url = `${window.location.origin}/e/${encodeURIComponent(liveEvent.id)}`;
+          const url = `${window.location.origin}${eventPath(liveEvent.id, liveEvent.title, liveEvent.shortSlug)}`;
           try {
             if (navigator.clipboard?.writeText) {
               await navigator.clipboard.writeText(url);

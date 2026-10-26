@@ -354,9 +354,14 @@ export const events = pgTable("events", {
   // this event; ActiveCAMT remains the single source of truth for creation,
   // registration, quota, and check-in.
   songsueLinked: boolean("songsue_linked").notNull().default(false),
+  // Optional owner-chosen public link name: /e/<short_slug>. NULL = the automatic
+  // /e/<title>-<id prefix> link. Unique when set (see events_short_slug_unique).
+  shortSlug: text("short_slug"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-});
+}, (table) => ([
+  uniqueIndex("events_short_slug_unique").on(table.shortSlug),
+]));
 
 // A session is one occurrence of an event — typically a day (CAMT LINK Day 1 /
 // Day 2), but could be a morning/afternoon block. "Day N" is just the Nth session

@@ -3,6 +3,7 @@ import { attendance, events, eventSessions, forms, users } from "@/db/schema";
 import { AuditService } from "@/modules/audit/audit.service";
 import { bangkokDateKey } from "@/lib/events/event-schema";
 import { isEligibleFor, isEligibleForGuest, type Viewer } from "@/lib/access/event-access";
+import { normalizeShortSlug } from "@/lib/events/event-slug";
 import { toPublicEvent, type PublicEvent } from "@/lib/events/public-event";
 import { and, asc, eq, gt, inArray, isNotNull, sql } from "drizzle-orm";
 
@@ -126,6 +127,52 @@ export class EventsService {
    * One event for the logged-out public page (/e/[id]). Returns null when the
    * event is missing OR not open to guests, so restricted events never leak.
    */
+  /**
+   * Validates an owner-typed link name and checks nobody else uses it. `slug` is
+   * the normalised value to store (null clears it).
+   */
+  static async prepareShortSlug(
+    input: string | null,
+    exceptId?: string,
+  ): Promise<{ ok: true; slug: string | null } | { ok: false; status: 400 | 409; error: string }> {
+    const r = normalizeShortSlug(input);
+    if (!r.ok) {
+      return {
+        ok: false,
+        status: 400,
+        error: r.reason === "reserved"
+          ? "That link name is reserved. Please choose another."
+          : "Link name must be 3 to 40 characters: lowercase letters, numbers and single hyphens.",
+      };
+    }
+    if (r.slug && (await this.isShortSlugTaken(r.slug, exceptId))) {
+      return { ok: false, status: 409, error: "That link name is already used by another event." };
+    }
+    return { ok: true, slug: r.slug };
+  }
+
+  /** Event id for an owner-chosen link name, or null. */
+  static async findIdByShortSlug(slug: string): Promise<string | null> {
+    const [row] = await db.select({ id: events.id }).from(events).where(eq(events.shortSlug, slug)).limit(1);
+    return row?.id ?? null;
+  }
+
+  /** Whether another event (not `exceptId`) already uses this link name. */
+  static async isShortSlugTaken(slug: string, exceptId?: string): Promise<boolean> {
+    const id = await this.findIdByShortSlug(slug);
+    return id !== null && id !== exceptId;
+  }
+
+  /** Resolves the 8-hex id prefix from a short /e/ link; null unless it matches exactly one event. */
+  static async resolveIdByPrefix(prefix: string): Promise<string | null> {
+    const rows = await db
+      .select({ id: events.id })
+      .from(events)
+      .where(sql`${events.id}::text like ${prefix + "%"}`)
+      .limit(2);
+    return rows.length === 1 ? rows[0].id : null;
+  }
+
   static async getPublicEvent(id: string, viewer?: Viewer): Promise<PublicEvent | null> {
     const event = await db.query.events.findFirst({ where: eq(events.id, id) });
     if (!event) return null;

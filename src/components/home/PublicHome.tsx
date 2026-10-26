@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { eventPath } from "@/lib/events/event-slug";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { parseRichText } from "@/lib/ui/rich-text";
@@ -75,7 +76,7 @@ export function PublicHome({
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(240px, 100%), 1fr))", gap: 16 }}>
               {events.map((e) => (
-                <Link key={e.id} href={`/e/${e.id}`} className="glass" style={{ display: "flex", flexDirection: "column", borderRadius: 20, overflow: "hidden", color: "inherit", textDecoration: "none" }}>
+                <Link key={e.id} href={eventPath(e.id, e.title, e.shortSlug)} className="glass" style={{ display: "flex", flexDirection: "column", borderRadius: 20, overflow: "hidden", color: "inherit", textDecoration: "none" }}>
                   {e.imageUrls[0] ? (
                     <img src={e.imageUrls[0]} alt={e.title} style={{ width: "100%", height: 140, objectFit: "cover" }} />
                   ) : null}

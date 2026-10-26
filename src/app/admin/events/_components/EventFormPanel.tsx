@@ -94,6 +94,26 @@ export function EventFormPanel({ ctx }: { ctx: AdminEventsPageCtx }) {
                 </div>
 
                 <div className="field">
+                  <label className="label">{t.eventShortLinkLabel}</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ color: "var(--text-muted)", fontSize: 14, whiteSpace: "nowrap" }}>/e/</span>
+                    <input
+                      className="input"
+                      value={formData.shortSlug}
+                      onChange={(e) => set("shortSlug", e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                      maxLength={40}
+                      placeholder="freshy-night-2026"
+                    />
+                  </div>
+                  <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}>
+                    {t.eventShortLinkHint}
+                    {formData.shortSlug && (
+                      <> {t.eventShortLinkPreview}: <strong>{`/e/${formData.shortSlug}`}</strong></>
+                    )}
+                  </p>
+                </div>
+
+                <div className="field">
                   <label className="label">{t.eventLocationLabel}</label>
                   <div style={{ position: "relative" }}>
                     <MapPin size={18} style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />

@@ -15,6 +15,7 @@ export type PublicEventSource = {
   registrationOpenTime: Date | null;
   registrationCloseTime: Date | null;
   walkInsOnly: boolean | null;
+  shortSlug?: string | null;
 };
 
 export type PublicEvent = {
@@ -30,6 +31,7 @@ export type PublicEvent = {
   registrationOpenTime: string | null;
   registrationCloseTime: string | null;
   walkInsOnly: boolean;
+  shortSlug: string | null;
 };
 
 export function toPublicEvent(event: PublicEventSource, registeredCount: number): PublicEvent {
@@ -47,5 +49,6 @@ export function toPublicEvent(event: PublicEventSource, registeredCount: number)
     registrationOpenTime: event.registrationOpenTime?.toISOString() ?? null,
     registrationCloseTime: event.registrationCloseTime?.toISOString() ?? null,
     walkInsOnly: !!event.walkInsOnly,
+    shortSlug: event.shortSlug ?? null,
   };
 }

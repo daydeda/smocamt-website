@@ -8,6 +8,7 @@ export interface AdminEvent {
   title: string;
   description: string | null;
   location: string | null;
+  shortSlug?: string | null;
   startTime: string;
   endTime: string;
   registrationOpenTime: string | null;
@@ -129,6 +130,7 @@ export function formatPendingDetailsDiff(
     { key: "registrationCloseTime", label: t.eventRegistrationCloseLabel || "Registration closes", fmt: fmtDate },
     { key: "quota", label: t.eventQuotaLabel || "Quota", fmt: fmtNumber },
     { key: "location", label: t.eventLocationLabel || "Location", fmt: fmtText },
+    { key: "shortSlug", label: t.eventShortLinkLabel || "Short link", fmt: fmtText },
     { key: "imageUrls", label: t.eventPosterLabel || "Poster", fmt: fmtImages },
     { key: "walkInsEnabled", label: t.allowWalkins || "Allow walk-ins", fmt: fmtBool },
     { key: "walkInsOnly", label: t.walkInsOnlyToggleLabel || "Walk-ins only", fmt: fmtBool },
@@ -298,6 +300,7 @@ export const EMPTY_FORM = {
   title: "",
   description: "",
   location: "",
+  shortSlug: "",
   startTime: "",
   endTime: "",
   registrationOpenTime: "",

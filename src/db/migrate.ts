@@ -1781,6 +1781,13 @@ async function migrate() {
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS hospital_name text`;
   console.log("  ✅ users.hospital_number + users.hospital_name (optional HN)");
 
+  // 109. events.short_slug: optional owner-chosen public link name (/e/<short_slug>).
+  // Mirrors the generated drizzle migration. Additive, idempotent, non-destructive:
+  // a nullable column plus a unique index (NULLs never collide, so existing rows are fine).
+  await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS short_slug text`;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS events_short_slug_unique ON events (short_slug)`;
+  console.log("  ✅ events.short_slug + unique index (custom public link name)");
+
   console.log("✅ Migration complete!");
   await sql.end();
   process.exit(0);

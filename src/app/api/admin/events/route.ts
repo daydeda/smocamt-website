@@ -20,6 +20,8 @@ const eventSchema = z.object({
   registrationCloseTime: z.string().datetime().optional().nullable(),
   quota: z.number().int().min(0).optional().nullable(),
   location: z.string().optional().nullable(),
+  // Owner-chosen public link name (/e/<shortSlug>); validated + checked for uniqueness in the handler.
+  shortSlug: z.string().max(80).optional().nullable(),
   pointsAwarded: z.number().int().min(0).max(10000).optional().nullable(),
   individualPointsAwarded: z.number().int().min(0).max(10000).optional().nullable(),
   imageUrl: z.string().optional().nullable(),
@@ -202,6 +204,11 @@ export async function POST(req: Request) {
 
     const body = await req.json().catch(() => null);
     const data = eventSchema.parse(body);
+    if (data.shortSlug !== undefined) {
+      const slug = await EventsService.prepareShortSlug(data.shortSlug);
+      if (!slug.ok) return NextResponse.json({ error: slug.error }, { status: slug.status });
+      data.shortSlug = slug.slug;
+    }
 
     // Normalize posters: drop blanks, dedupe-free order preserved. The cover
     // (imageUrl) always mirrors imageUrls[0] so single-image consumers keep working.

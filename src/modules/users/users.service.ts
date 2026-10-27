@@ -273,6 +273,15 @@ export class UsersService {
     });
   }
 
+  /** True when another user already holds this phone number (users.phone is unique). */
+  static async isPhoneTakenByOther(phone: string, userId: string): Promise<boolean> {
+    const row = await db.query.users.findFirst({
+      where: and(eq(users.phone, phone), sql`${users.id} <> ${userId}`),
+      columns: { id: true },
+    });
+    return !!row;
+  }
+
   /** Full user row by id (admin user edit/delete pre-checks). */
   static async findUserById(userId: string) {
     return db.query.users.findFirst({

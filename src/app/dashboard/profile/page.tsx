@@ -162,6 +162,9 @@ export default function ProfilePage() {
   }, []);
   const set = <K extends keyof typeof formData>(key: K, value: typeof formData[K]) => setFormData((p) => ({ ...p, [key]: value }));
 
+  // Staff / bypass accounts have no student id (the server only lets non-students
+  // through onboarding that way), so they don't need to give an emergency contact.
+  const hasStudentId = formData.studentId.trim() !== "";
   const degreeDigit = formData.studentId.trim()[4];
   const majorOptions: string[] =
     degreeDigit === "3" ? ["SE", "KIM", "DTM"]
@@ -349,13 +352,14 @@ export default function ProfilePage() {
     }
     const ec1 = formData.emergencyContacts[0];
     const isEc1RelEmpty = !ec1 || !ec1.relationship.trim() || ec1.relationship.trim() === "Other:";
-    if (!ec1 || !contactHasName(ec1) || isEc1RelEmpty || !ec1.phone.trim()) {
+    const ec1Started = !!ec1 && !!(ec1.name.trim() || ec1.firstName?.trim() || ec1.lastName?.trim() || ec1.relationship.trim() || ec1.phone.trim());
+    if ((hasStudentId || ec1Started) && (!ec1 || !contactHasName(ec1) || isEc1RelEmpty || !ec1.phone.trim())) {
       setError(isTh ? "กรุณากรอกข้อมูลผู้ติดต่อฉุกเฉินคนที่ 1 ให้ครบถ้วน" : "Please fill out all fields for Emergency Contact #1.");
       setSaving(false);
       setValidationTriggered(true);
       return;
     }
-    if (!/^[0-9]{10}$/.test(ec1.phone.trim())) {
+    if (ec1Started && !/^[0-9]{10}$/.test(ec1.phone.trim())) {
       setError(isTh ? "เบอร์โทรศัพท์ผู้ติดต่อฉุกเฉินคนที่ 1 ต้องเป็นตัวเลข 10 หลักเท่านั้น" : "Emergency Contact #1 phone number must be exactly 10 digits and contain only numbers.");
       setSaving(false);
       setValidationTriggered(true);
@@ -587,10 +591,12 @@ export default function ProfilePage() {
                 {t.personalInfo}
               </h2>
               <div className="form-grid">
-                <div className="field col-span-12">
-                  <label className="label">{t.studentId} (Locked)</label>
-                  <input className="input" disabled value={formData.studentId} style={{ background: "var(--bg-elevated)", cursor: "not-allowed", opacity: 0.7 }} />
-                </div>
+                {hasStudentId && (
+                  <div className="field col-span-12">
+                    <label className="label">{t.studentId} (Locked)</label>
+                    <input className="input" disabled value={formData.studentId} style={{ background: "var(--bg-elevated)", cursor: "not-allowed", opacity: 0.7 }} />
+                  </div>
+                )}
                 <div className="col-span-12">
                   <NameFields
                     value={formData}
@@ -684,21 +690,17 @@ export default function ProfilePage() {
                 )}
                 <div className="field col-span-6">
                   <label className="label">
-                    {t.phone} {isProfileCompleted ? "(Locked)" : <span style={{ color: "var(--red-500)" }}>*</span>}
+                    {t.phone} <span style={{ color: "var(--red-500)" }}>*</span>
                   </label>
                   <input
                     className="input"
                     name="phone"
                     required
-                    disabled={isProfileCompleted}
                     placeholder="081-xxx-xxxx"
                     inputMode="tel"
                     value={formatPhone(formData.phone)}
                     onChange={(e) => set("phone", phoneDigits(e.target.value))}
                     style={{
-                      background: isProfileCompleted ? "var(--bg-elevated)" : undefined,
-                      cursor: isProfileCompleted ? "not-allowed" : undefined,
-                      opacity: isProfileCompleted ? 0.7 : undefined,
                       borderColor: validationTriggered && (!formData.phone.trim() || !/^[0-9]{10}$/.test(formData.phone.trim())) ? "var(--red-500)" : undefined,
                       boxShadow: validationTriggered && (!formData.phone.trim() || !/^[0-9]{10}$/.test(formData.phone.trim())) ? "0 0 0 1px var(--red-500)" : undefined
                     }}
@@ -789,7 +791,8 @@ export default function ProfilePage() {
                   if (i === 1 && !showSecondContact) return null;
                   const isFirst = i === 0;
                   const isSecondPartiallyFilled = i === 1 && !!(contact.name.trim() || contact.relationship.trim() || contact.phone.trim());
-                  const isFieldRequired = isFirst || isSecondPartiallyFilled;
+                  const isFieldRequired = (isFirst && hasStudentId) || isSecondPartiallyFilled
+                    || (isFirst && !!(contact.name.trim() || contact.firstName?.trim() || contact.lastName?.trim() || contact.relationship.trim() || contact.phone.trim()));
 
                   return (
                     <div key={i} className="emergency-contact-box">

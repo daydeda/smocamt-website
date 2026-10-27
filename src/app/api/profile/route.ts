@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { FACULTY_IDS } from "@/lib/profile/faculties";
+import { rateLimit } from "@/lib/util/rate-limit";
 import { getClientIp } from "@/modules/audit/audit.service";
 import { UsersService } from "@/modules/users/users.service";
 import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
@@ -287,6 +288,19 @@ export async function PATCH(req: Request) {
     }
     const { name: _n, firstName: _f, middleName: _m, lastName: _l, latinNameConfirmed: _c, hospitalNumber: _hn, hospitalName: _hh, ...rest } = data;
     void [_n, _f, _m, _l, _c, _hn, _hh];
+
+    // The phone is editable after onboarding, so tell the user when the number
+    // belongs to someone else (the unique index stays the race-proof backstop).
+    // This confirms a number exists in the system, so the lookup is rate limited.
+    if (data.phone?.trim()) {
+      const phoneLimit = await rateLimit(`profile-phone:${session.user.id}`, 10, 60_000);
+      if (!phoneLimit.success) {
+        return NextResponse.json({ error: "Too many requests. Please wait a moment and try again." }, { status: 429 });
+      }
+      if (await UsersService.isPhoneTakenByOther(data.phone.trim(), session.user.id)) {
+        return NextResponse.json({ error: "phoneAlreadyRegistered" }, { status: 400 });
+      }
+    }
 
     const updated = await UsersService.updateOwnProfile(session.user.id, { ...rest, ...nameFields.fields, ...hospitalFields.fields }, getClientIp(req));
 

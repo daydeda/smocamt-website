@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Sans, IBM_Plex_Sans_Thai, Noto_Sans_Myanmar, Noto_Sans_SC } from "next/font/google";
 import "./globals.css";
+import { ThemeInitScript } from "@/components/ui/ThemeInitScript";
 
 // Primary UI font (Latin), preloaded into the critical path. NOTE: do not add
 // an explicit `fallback` of system fonts here — this variable sits first in the
@@ -103,7 +104,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${ibmPlexSans.variable} ${ibmPlexSansThai.variable} ${notoSansMyanmar.variable} ${notoSansSC.variable} h-full`} data-scroll-behavior="smooth" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <ThemeInitScript code={THEME_INIT_SCRIPT} />
       </head>
       <body className="min-h-full flex flex-col antialiased">
         {SITE_MOVED ? (

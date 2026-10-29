@@ -2,34 +2,17 @@
 
 import Link from "next/link";
 import { eventPath } from "@/lib/events/event-slug";
-import { MapPin, Clock, Calendar, CheckCircle2, RefreshCw, Trophy, Sparkles, X, AlertCircle, DoorOpen, Eye, Share2, Check, Camera } from "lucide-react";
+import { MapPin, Clock, Trophy, Sparkles, X, Share2, Check, Camera } from "lucide-react";
 import { parseRichText } from "@/lib/ui/rich-text";
 import { getPosters, PosterCarousel } from "./dashboard-parts";
+import { RegisterButton } from "./RegisterButton";
 import type { DashboardCtx } from "../_lib/useDashboard";
 
 export function EventDetailsModal({ ctx }: { ctx: DashboardCtx }) {
-  const { closePreview, events, getEventStatus, lang, linkCopied, previewEvent, promptRegister, quotaWalkInRows, regWindowRow, registeringId, setLinkCopied, setPreviewImage, t } = ctx;
+  const { closePreview, events, getEventStatus, lang, linkCopied, previewEvent, quotaWalkInRows, regWindowRow, setLinkCopied, setPreviewImage, t } = ctx;
   return (
     <>{previewEvent && (() => {
         const liveEvent = events.find(x => x.id === previewEvent.id) || previewEvent;
-        const nowTs = new Date();
-        const isPastEvent = nowTs > new Date(liveEvent.endTime);
-        const isAttended = liveEvent.attendanceStatus === "attended";
-        const regOpenAt = liveEvent.registrationOpenTime ? new Date(liveEvent.registrationOpenTime) : null;
-        const regCloseAt = liveEvent.registrationCloseTime ? new Date(liveEvent.registrationCloseTime) : null;
-        // Once the registration window closes the headcount locks in both
-        // directions: no new sign-ups AND no cancellations.
-        const regWindowClosed = !!regCloseAt && nowTs > regCloseAt;
-        const canCancel = !isPastEvent && !isAttended && !regWindowClosed;
-        const notYetOpen = !liveEvent.isRegistered && !!regOpenAt && nowTs < regOpenAt;
-        const regClosed = !liveEvent.isRegistered && regWindowClosed;
-        const walkInsOnlyMode = !liveEvent.isRegistered && !!liveEvent.walkInsOnly;
-        const viewOnlyMode = !liveEvent.isRegistered && liveEvent.canRegister === false;
-        const windowBlocked = notYetOpen || regClosed || walkInsOnlyMode || viewOnlyMode;
-        const greyed = regClosed || walkInsOnlyMode || viewOnlyMode || (liveEvent.isRegistered && !canCancel);
-        const isDisabled = (liveEvent.isRegistered && !canCancel) || windowBlocked || registeringId === liveEvent.id;
-        const waitlisted = !liveEvent.isRegistered && liveEvent.waitlistPosition != null;
-        const isFull = liveEvent.quota != null && liveEvent.quota > 0 && (liveEvent.registeredCount ?? 0) >= liveEvent.quota;
         const previewPosters = getPosters(liveEvent);
 
         // Copy a direct, shareable link to this event to the clipboard. Falls back
@@ -371,52 +354,7 @@ export function EventDetailsModal({ ctx }: { ctx: DashboardCtx }) {
                     {lang === "th" ? "ส่งหลักฐานวันนี้" : lang === "cn" ? "提交今日证据" : lang === "mm" ? "ယနေ့ သက်သေတင်ရန်" : "Submit today's evidence"}
                   </Link>
                 ) : (
-                <button
-                  disabled={isDisabled}
-                  onClick={() => promptRegister(liveEvent.id, !!liveEvent.isRegistered || waitlisted, liveEvent.title)}
-                  className={`btn ${liveEvent.isRegistered ? "btn-success-solid" : "btn-primary"}`}
-                  style={{
-                    borderRadius: 16,
-                    height: 48,
-                    padding: "0 24px",
-                    fontWeight: 800,
-                    background: notYetOpen ? "var(--amber-500)" : greyed ? "var(--bg-elevated)" : liveEvent.isRegistered ? (canCancel ? "var(--emerald-500)" : "var(--bg-elevated)") : undefined,
-                    color: notYetOpen ? "var(--text-on-color)" : greyed ? "var(--text-muted)" : liveEvent.isRegistered ? (canCancel ? "var(--text-on-color)" : "var(--text-muted)") : undefined,
-                    boxShadow: notYetOpen ? "0 10px 25px rgb(var(--amber-500-rgb) / 0.3)" : (liveEvent.isRegistered && canCancel) ? "0 10px 25px rgb(var(--emerald-500-rgb) / 0.3)" : (greyed ? "none" : "0 10px 25px var(--accent-glow)"),
-                    border: greyed ? "1px solid var(--border-subtle)" : "none",
-                    cursor: isDisabled && !registeringId ? "not-allowed" : "pointer",
-                    opacity: greyed ? 0.8 : 1,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px"
-                  }}
-                >
-                  {registeringId === liveEvent.id ? (
-                    <RefreshCw size={18} className="animate-spin" />
-                  ) : liveEvent.isRegistered ? (
-                    isAttended ? (
-                      <><CheckCircle2 size={18} /> {t.attended || "Attended"}</>
-                    ) : isPastEvent ? (
-                      <><Calendar size={18} /> {t.eventEnded || "Event Ended"}</>
-                    ) : (
-                      <><CheckCircle2 size={18} /> {t.registered || "Registered"}</>
-                    )
-                  ) : waitlisted ? (
-                    <><Clock size={18} /> {t.waitlistOn.replace("{n}", String(liveEvent.waitlistPosition))}</>
-                  ) : notYetOpen ? (
-                    <><Clock size={18} /> {t.registrationNotOpen}</>
-                  ) : regClosed ? (
-                    <><AlertCircle size={18} /> {t.registrationClosed}</>
-                  ) : walkInsOnlyMode ? (
-                    <><DoorOpen size={18} /> {t.walkInsOnlyBadge}</>
-                  ) : viewOnlyMode ? (
-                    <><Eye size={18} /> {t.eventViewOnlyBadge}</>
-                  ) : isFull ? (
-                    t.waitlistJoin
-                  ) : (
-                    t.registerNow || "Register Now"
-                  )}
-                </button>
+                <RegisterButton e={liveEvent} ctx={ctx} variant="modal" />
                 )}
               </div>
             </div>

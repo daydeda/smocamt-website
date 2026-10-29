@@ -23,6 +23,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
+import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import {
   getAllGroups,
@@ -166,6 +167,12 @@ export function ServicesLauncher({
         </div>
 
         <div className="launcher-body">
+          {/* Phones and tablets: the navbar has no room for the language switcher
+              (desktop has its own there), so it lives at the top of this menu. */}
+          <div className="launcher-lang">
+            <p className="section-title launcher-group-title">{t.languageLabel}</p>
+            <LanguageSwitcher variant="segmented" fullWidth />
+          </div>
           {groups.map((group) => (
             <div key={group.id} className="launcher-group">
               {group.titleI18nKey && (
@@ -291,6 +298,11 @@ export function ServicesLauncher({
         }
         .launcher-group-title {
           margin-bottom: 10px;
+        }
+        @media (min-width: 1025px) {
+          .launcher-lang {
+            display: none;
+          }
         }
 
         .launcher-grid {

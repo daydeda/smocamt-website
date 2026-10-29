@@ -1,42 +1,106 @@
 "use client";
 
-import { MapPin, Clock, Calendar, CheckCircle2, RefreshCw, Trophy, Sparkles, AlertCircle, Megaphone, LayoutGrid, List, DoorOpen, Eye } from "lucide-react";
+import { useState } from "react";
+import { MapPin, Clock, Calendar, RefreshCw, Trophy, Sparkles, Megaphone, LayoutGrid, List, ChevronDown, Info } from "lucide-react";
 import { parseRichText } from "@/lib/ui/rich-text";
-import { getPosters, PosterCarousel } from "./dashboard-parts";
+import { getRegisterState } from "@/lib/events/register-state";
+import { formatEventWhen } from "@/lib/events/event-when";
+import { getPosters, PosterCarousel, type Event } from "./dashboard-parts";
+import { EventRow } from "./EventRow";
+import { RegisterButton } from "./RegisterButton";
 import type { DashboardCtx } from "../_lib/useDashboard";
 
+const DEFAULT_ANNOUNCEMENT = "ขณะนี้ Web Application ActiveCAMT อยู่ระหว่างการพัฒนาและทดสอบระบบเพื่อเพิ่มประสิทธิภาพในการใช้งานสูงสุด\nหากท่านพบข้อผิดพลาดหรือมีข้อสงสัยประการใด สามารถแจ้งปัญหาหรือติดต่อเราได้ที่ IG: smocamt.official";
+
+type FilterKey = "all" | "mine" | "open" | "week";
+
 export function EventsColumn({ ctx }: { ctx: DashboardCtx }) {
-  const { announcement, eventView, getEventStatus, lang, loadingEvents, openPreview, promptRegister, quotaWalkInRows, regWindowRow, registeringId, setEventView, setEvents, setLoadingEvents, setPreviewImage, stats, t, timelineSections, upcoming, user } = ctx;
+  const { announcement, byStartAsc, byStartDesc, eventView, getEventStatus, loadingEvents, openPreview, past, quotaWalkInRows, regWindowRow, setEventView, setEvents, setLoadingEvents, setPreviewImage, stats, t, timelineGroupOf, upcoming, user, weekEnd } = ctx;
+  const [filter, setFilter] = useState<FilterKey>("all");
+  const [showPast, setShowPast] = useState(false);
+  const [announcementOpen, setAnnouncementOpen] = useState(false);
+
+  const announcementBody = announcement?.body ?? DEFAULT_ANNOUNCEMENT;
+
+  // Quick filters over the upcoming events. "My events" only makes sense signed in.
+  const filters: { key: FilterKey; label: string; match: (e: Event) => boolean }[] = [
+    { key: "all", label: t.dashFilterAll, match: () => true },
+    ...(user ? [{ key: "mine" as const, label: t.dashFilterMine, match: (e: Event) => !!e.isRegistered || e.waitlistPosition != null }] : []),
+    { key: "open", label: t.dashFilterOpen, match: (e: Event) => { const k = getRegisterState(e).kind; return k === "register" || k === "joinWaitlist"; } },
+    { key: "week", label: t.secThisWeek, match: (e: Event) => new Date(e.startTime) < weekEnd },
+  ];
+  const activeFilter = filters.find((f) => f.key === filter) ?? filters[0];
+  const shown = upcoming.filter(activeFilter.match);
+
+  const sections = [
+    { key: "today", label: t.secToday },
+    { key: "week", label: t.secThisWeek },
+    { key: "later", label: t.secLater },
+  ]
+    .map((s) => ({ ...s, items: shown.filter((e) => timelineGroupOf(e) === s.key).sort(byStartAsc) }))
+    .filter((s) => s.items.length > 0);
+  const pastSorted = [...past].sort(byStartDesc);
+
+  const emptyState = (message: string) => (
+    <div style={{ padding: "48px 24px", textAlign: "center", background: "var(--bg-surface)", borderRadius: 24, border: "2px dashed var(--border-subtle)" }}>
+      <p style={{ color: "var(--text-muted)", fontWeight: 500 }}>{message}</p>
+    </div>
+  );
+
+  const sectionHeader = (label: string, count: number) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+      <h3 style={{ fontSize: 13, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--text-muted)" }}>{label}</h3>
+      <span style={{ fontSize: 11, fontWeight: 900, background: "var(--bg-elevated)", color: "var(--text-muted)", padding: "2px 8px", borderRadius: 99 }}>{count}</span>
+      <div style={{ flex: 1, height: 1, background: "var(--border-subtle)" }} />
+    </div>
+  );
+
   return (
-    <div className="order-2 lg:order-1" style={{ display: "flex", flexDirection: "column", gap: 32 }}>
-            
-            {/* Featured Event / Alert — body is admin-editable via /admin/announcement.
+    <div className="dash-events order-2 lg:order-1">
+
+            {/* Announcement — body is admin-editable via /admin/announcement.
                 Hidden only when an announcement is loaded AND explicitly disabled.
-                When none is loaded yet / fetch failed, fall back to the built-in text. */}
+                When none is loaded yet / fetch failed, fall back to the built-in text.
+                On phones it is one tappable line (tap to read it all) so the events stay
+                near the top; from tablet width it always shows in full. */}
             {!(announcement && announcement.enabled === false) && (
-            <div className="alert alert-info" style={{ borderRadius: "var(--radius-lg)", padding: 20, background: "rgb(var(--accent-rgb) / 0.04)", border: "1px solid rgb(var(--accent-rgb) / 0.1)" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-surface)", padding: 8, borderRadius: 12, boxShadow: "0 4px 12px rgb(var(--shadow-rgb) / 0.05)", color: "var(--accent-primary)", width: 40, height: 40, flexShrink: 0 }}>
-                <Megaphone size={22} />
+            <div
+              className={`dash-announce${announcementOpen ? " dash-announce-open" : ""}`}
+              onClick={() => setAnnouncementOpen((o) => !o)}
+              role="button"
+              tabIndex={0}
+              aria-expanded={announcementOpen}
+              onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setAnnouncementOpen((o) => !o); } }}
+            >
+              <div className="dash-announce-head">
+                <div className="dash-announce-icon">
+                  <Megaphone size={18} />
+                </div>
+                <p className="dash-announce-title">ประกาศสำคัญ | Important Announcement</p>
               </div>
-              <div>
-                <p style={{ fontWeight: 700, fontSize: 16, color: "var(--text-primary)" }}>ประกาศสำคัญ | Important Announcement</p>
-                <p
-                  style={{ fontSize: 14, color: "var(--text-secondary)" }}
-                  dangerouslySetInnerHTML={{ __html: parseRichText(announcement?.body ?? "ขณะนี้ Web Application ActiveCAMT อยู่ระหว่างการพัฒนาและทดสอบระบบเพื่อเพิ่มประสิทธิภาพในการใช้งานสูงสุด\nหากท่านพบข้อผิดพลาดหรือมีข้อสงสัยประการใด สามารถแจ้งปัญหาหรือติดต่อเราได้ที่ IG: smocamt.official") }}
-                />
+              <div
+                className="dash-announce-body"
+                dangerouslySetInnerHTML={{ __html: parseRichText(announcementBody) }}
+              />
+              <div className="dash-announce-footer">
+                {!announcementOpen && <span className="dash-announce-hint">{t.dashAnnounceHint}</span>}
+                <span className="dash-announce-more">
+                  {announcementOpen ? t.dashShowLess : t.dashAnnounceMore}
+                  <ChevronDown size={16} style={{ transform: announcementOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+                </span>
               </div>
             </div>
             )}
 
-            <div style={{ marginBottom: 40 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, gap: 12, flexWrap: "wrap" }}>
-                <h2 style={{ color: "var(--text-primary)", fontSize: 24, fontWeight: 900, letterSpacing: "-0.03em" }}>{t.upcomingEvents}</h2>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  {/* View toggle — Cards (action-first grid) vs Timeline (at-a-glance agenda). */}
+            <div>
+              <div className="dash-events-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                <h2 className="dash-events-title" style={{ color: "var(--text-primary)", fontWeight: 900, letterSpacing: "-0.03em" }}>{t.upcomingEvents}</h2>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {/* View toggle — Cards (poster grid) vs List (compact rows). The choice is remembered per device. */}
                   <div style={{ display: "flex", background: "var(--bg-elevated)", borderRadius: 12, padding: 3, border: "1px solid var(--border-subtle)" }}>
                     {([
-                      { key: "grid", label: t.gridView, Icon: LayoutGrid },
                       { key: "timeline", label: t.timelineView, Icon: List },
+                      { key: "grid", label: t.gridView, Icon: LayoutGrid },
                     ] as const).map(({ key, label, Icon }) => {
                       const active = eventView === key;
                       return (
@@ -46,9 +110,10 @@ export function EventsColumn({ ctx }: { ctx: DashboardCtx }) {
                           onClick={() => setEventView(key)}
                           aria-pressed={active}
                           aria-label={label}
+                          className="dash-toggle"
                           style={{
                             display: "flex", alignItems: "center", gap: 6,
-                            padding: "7px 12px", borderRadius: 9, border: "none", cursor: "pointer",
+                            padding: "7px 12px", minHeight: 36, borderRadius: 9, border: "none", cursor: "pointer",
                             fontSize: 13, fontWeight: 800,
                             background: active ? "var(--bg-surface)" : "transparent",
                             color: active ? "var(--accent-primary)" : "var(--text-muted)",
@@ -57,13 +122,14 @@ export function EventsColumn({ ctx }: { ctx: DashboardCtx }) {
                           }}
                         >
                           <Icon size={14} />
-                          <span className="hidden sm:inline">{label}</span>
+                          <span className="dash-toggle-label">{label}</span>
                         </button>
                       );
                     })}
                   </div>
                   <button
                     className="btn btn-ghost btn-sm"
+                    aria-label={t.refresh}
                     onClick={() => {
                       setLoadingEvents(true);
                       fetch("/api/events")
@@ -71,24 +137,24 @@ export function EventsColumn({ ctx }: { ctx: DashboardCtx }) {
                         .then(d => { if (Array.isArray(d)) setEvents(d); })
                         .finally(() => setLoadingEvents(false));
                     }}
-                    style={{ gap: 6 }}
+                    style={{ gap: 6, minHeight: 36 }}
                   >
                      <RefreshCw size={14} />
-                     {t.refresh}
+                     <span className="hidden sm:inline">{t.refresh}</span>
                   </button>
                 </div>
               </div>
 
               {/* Overview stats strip — quick counts regardless of which view is active. */}
               {user && (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: 24 }}>
+                <div className="dash-stats">
                   {stats.map(({ key, label, value, icon: Icon }) => (
-                    <div key={key} className="glass" style={{ padding: "16px 18px", borderRadius: 18, display: "flex", alignItems: "center", gap: 14, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)" }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 12, background: "rgb(var(--accent-rgb) / 0.06)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-primary)", flexShrink: 0 }}>
+                    <div key={key} className="glass dash-stat" style={{ borderRadius: 18, display: "flex", alignItems: "center", background: "var(--bg-surface)", border: "1px solid var(--border-subtle)" }}>
+                      <div className="dash-stat-icon" style={{ borderRadius: 12, background: "rgb(var(--accent-rgb) / 0.06)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-primary)", flexShrink: 0 }}>
                         <Icon size={18} />
                       </div>
                       <div style={{ minWidth: 0 }}>
-                        <p style={{ fontSize: 24, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1 }}>{value}</p>
+                        <p className="dash-stat-value" style={{ fontWeight: 900, color: "var(--text-primary)", lineHeight: 1 }}>{value}</p>
                         <p style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</p>
                       </div>
                     </div>
@@ -96,104 +162,102 @@ export function EventsColumn({ ctx }: { ctx: DashboardCtx }) {
                 </div>
               )}
 
-              {loadingEvents ? (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 24 }}>
-                  {[1, 2, 3].map((i) => (
-                    <div 
-                      key={i} 
-                      className="glass animate-pulse"
-                      style={{ 
-                        height: 340, 
-                        borderRadius: 32, 
-                        background: "rgb(var(--ink-rgb) / 0.01)",
-                        border: "1px solid var(--border-subtle)"
+              {/* Quick filters. Scrolls sideways on a narrow phone instead of wrapping. */}
+              <div className="dash-filters" role="group" aria-label={t.upcomingEvents}>
+                {filters.map((f) => {
+                  const active = f.key === filter;
+                  const count = upcoming.filter(f.match).length;
+                  return (
+                    <button
+                      key={f.key}
+                      type="button"
+                      onClick={() => setFilter(f.key)}
+                      aria-pressed={active}
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0,
+                        minHeight: 36, padding: "6px 14px", borderRadius: 99, cursor: "pointer",
+                        fontSize: 13, fontWeight: 800, whiteSpace: "nowrap",
+                        border: `1px solid ${active ? "var(--accent-primary)" : "var(--border-subtle)"}`,
+                        background: active ? "rgb(var(--accent-rgb) / 0.08)" : "var(--bg-surface)",
+                        color: active ? "var(--accent-primary)" : "var(--text-secondary)",
                       }}
-                    />
-                  ))}
-                </div>
-              ) : eventView === "timeline" ? (
-                timelineSections.length > 0 ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-                    {timelineSections.map((section) => (
-                      <div key={section.key}>
-                        {/* Section header with a count badge and a hairline rule. */}
-                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                          <h3 style={{ fontSize: 13, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--text-muted)" }}>{section.label}</h3>
-                          <span style={{ fontSize: 11, fontWeight: 900, background: "var(--bg-elevated)", color: "var(--text-muted)", padding: "2px 8px", borderRadius: 99 }}>{section.items.length}</span>
-                          <div style={{ flex: 1, height: 1, background: "var(--border-subtle)" }} />
-                        </div>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                          {section.items.map((e) => {
-                            const st = getEventStatus(e);
-                            const start = new Date(e.startTime);
-                            const end = new Date(e.endTime);
-                            const timeOpts: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Bangkok" };
-                            const attended = e.attendanceStatus === "attended";
-                            const statusColor = st === "live" ? "var(--red-500)" : st === "past" ? "var(--text-muted)" : "var(--accent-primary)";
-                            return (
-                              <button
-                                key={e.id}
-                                type="button"
-                                onClick={() => openPreview(e)}
-                                className="timeline-row"
-                                style={{
-                                  display: "flex", alignItems: "center", gap: 16, width: "100%", textAlign: "left",
-                                  padding: "12px 16px", borderRadius: 16, cursor: "pointer",
-                                  background: "var(--bg-surface)", border: "1px solid var(--border-subtle)",
-                                  opacity: section.key === "past" ? 0.65 : 1, transition: "all 0.2s",
-                                }}
-                              >
-                                {/* Date chip */}
-                                <div style={{ flexShrink: 0, width: 54, textAlign: "center", background: "var(--bg-elevated)", borderRadius: 12, padding: "8px 4px" }}>
-                                  <p style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.05em", color: statusColor }}>
-                                    {start.toLocaleDateString("en-GB", { month: "short", timeZone: "Asia/Bangkok" })}
-                                  </p>
-                                  <p style={{ fontSize: 20, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1.1 }}>
-                                    {start.toLocaleDateString("en-GB", { day: "numeric", timeZone: "Asia/Bangkok" })}
-                                  </p>
-                                </div>
-                                {/* Title + time + location */}
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <p style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.title}</p>
-                                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4, fontSize: 12, color: "var(--text-muted)", fontWeight: 600, flexWrap: "wrap" }}>
-                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
-                                      <Clock size={12} /> {start.toLocaleTimeString("en-GB", timeOpts)}–{end.toLocaleTimeString("en-GB", timeOpts)}
-                                    </span>
-                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                      <MapPin size={12} /> {e.location || "CAMT Building"}
-                                    </span>
-                                  </div>
-                                </div>
-                                {/* Status + registration state */}
-                                <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-                                  <span style={{ padding: "4px 10px", background: statusColor, color: "var(--text-on-color)", borderRadius: 99, fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.04em" }}>{st}</span>
-                                  {attended ? (
-                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 800, color: "var(--emerald-500)" }}><CheckCircle2 size={12} /> {t.attended}</span>
-                                  ) : e.isRegistered ? (
-                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 800, color: "var(--accent-primary)" }}><CheckCircle2 size={12} /> {t.registered}</span>
-                                  ) : null}
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
+                    >
+                      {f.label}
+                      <span style={{ fontSize: 11, fontWeight: 900, padding: "1px 7px", borderRadius: 99, background: active ? "var(--accent-primary)" : "var(--bg-elevated)", color: active ? "var(--text-on-color)" : "var(--text-muted)" }}>{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {loadingEvents ? (
+                eventView === "timeline" ? (
+                  <div className="dash-rows">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className="animate-pulse" style={{ height: 96, borderRadius: 18, background: "var(--bg-elevated)" }} />
                     ))}
                   </div>
                 ) : (
-                  <div style={{ padding: "80px 40px", textAlign: "center", background: "var(--bg-surface)", borderRadius: 24, border: "2px dashed var(--border-subtle)" }}>
-                     <p style={{ color: "var(--text-muted)", fontWeight: 500 }}>{t.noEvents}</p>
+                  <div className="dash-cards">
+                    {[1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="glass animate-pulse"
+                        style={{ height: 340, borderRadius: 28, background: "rgb(var(--ink-rgb) / 0.01)", border: "1px solid var(--border-subtle)" }}
+                      />
+                    ))}
                   </div>
                 )
-              ) : upcoming.length > 0 ? (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 24 }}>
-                  {upcoming.map((e) => (
-                    <div 
-                      key={e.id} 
+              ) : eventView === "timeline" ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                  {sections.length > 0
+                    ? sections.map((section) => (
+                        <div key={section.key}>
+                          {sectionHeader(section.label, section.items.length)}
+                          <div className="dash-rows">
+                            {section.items.map((e) => (
+                              <EventRow key={e.id} e={e} ctx={ctx} featured={section.key === "today"} />
+                            ))}
+                          </div>
+                        </div>
+                      ))
+                    : emptyState(upcoming.length === 0 ? t.noEvents : t.dashNoEventsFilter)}
+
+                  {/* Past events stay out of the way until asked for. */}
+                  {filter === "all" && pastSorted.length > 0 && (
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => setShowPast((s) => !s)}
+                        aria-expanded={showPast}
+                        style={{
+                          display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%",
+                          minHeight: 44, borderRadius: 14, cursor: "pointer", marginBottom: showPast ? 12 : 0,
+                          border: "1px dashed var(--border-subtle)", background: "transparent",
+                          color: "var(--text-muted)", fontSize: 13, fontWeight: 800,
+                        }}
+                      >
+                        {showPast ? t.dashHidePast : t.dashShowPast.replace("{n}", String(pastSorted.length))}
+                        <ChevronDown size={16} style={{ transform: showPast ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+                      </button>
+                      {showPast && (
+                        <div className="dash-rows">
+                          {pastSorted.map((e) => (
+                            <EventRow key={e.id} e={e} ctx={ctx} dimmed />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : shown.length > 0 ? (
+                <div className="dash-cards">
+                  {shown.map((e) => (
+                    <div
+                      key={e.id}
                       className="glass animate-fade-in-up event-card-ig"
-                      style={{ 
+                      style={{
                         height: "100%",
-                        borderRadius: 32,
+                        borderRadius: 28,
                         border: "1px solid var(--border-subtle)",
                         transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                         cursor: "default",
@@ -204,8 +268,8 @@ export function EventsColumn({ ctx }: { ctx: DashboardCtx }) {
                         boxShadow: "0 10px 40px rgb(var(--shadow-rgb) / 0.03)"
                       }}
                     >
-                      {/* Poster Area */}
-                      <div style={{ position: "relative", aspectRatio: "1/1", background: "var(--media-bg)", overflow: "hidden" }}>
+                      {/* Poster Area — 4:3 rather than square keeps a card under a screen tall on a tablet. */}
+                      <div style={{ position: "relative", aspectRatio: "4/3", background: "var(--media-bg)", overflow: "hidden" }}>
                          {getPosters(e).length > 0 ? (
                            <PosterCarousel
                              posters={getPosters(e)}
@@ -217,36 +281,36 @@ export function EventsColumn({ ctx }: { ctx: DashboardCtx }) {
                              <Calendar size={48} style={{ color: "var(--text-muted)", opacity: 0.2 }} />
                            </div>
                          )}
-                         
+
                          {/* Date Overlay */}
-                         <div style={{ position: "absolute", top: 16, right: 16, zIndex: 2 }}>
-                            <div style={{ 
+                         <div style={{ position: "absolute", top: 12, right: 12, zIndex: 2 }}>
+                            <div style={{
                                background: "var(--bg-surface)",
-                               padding: "10px 14px",
-                               borderRadius: 18, 
+                               padding: "8px 12px",
+                               borderRadius: 16,
                                boxShadow: "0 8px 24px rgb(var(--shadow-rgb) / 0.15)",
-                               textAlign: "center", 
-                               minWidth: 64,
+                               textAlign: "center",
+                               minWidth: 56,
                                border: "1px solid rgb(var(--ink-rgb) / 0.05)"
                             }}>
                                <p style={{ fontSize: 11, fontWeight: 900, color: "var(--accent-primary)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>
                                  {new Date(e.startTime).toLocaleDateString("en-GB", { month: "short", timeZone: "Asia/Bangkok" })}
                                </p>
-                               <p style={{ fontSize: 22, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1 }}>
+                               <p style={{ fontSize: 20, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1 }}>
                                  {new Date(e.startTime).toLocaleDateString("en-GB", { day: "numeric", timeZone: "Asia/Bangkok" })}
                                </p>
                             </div>
                          </div>
 
-                         <div style={{ position: "absolute", top: 16, left: 16, zIndex: 2 }}>
+                         <div style={{ position: "absolute", top: 12, left: 12, zIndex: 2 }}>
                            <span style={{
-                             padding: "8px 16px",
-                             background: getEventStatus(e) === 'live' ? "var(--red-500)" : "var(--accent-primary)", 
-                             color: "var(--text-on-color)", 
-                             borderRadius: 20, 
-                             fontSize: 12, 
-                             fontWeight: 900, 
-                             textTransform: "uppercase", 
+                             padding: "6px 14px",
+                             background: getEventStatus(e) === 'live' ? "var(--red-500)" : "var(--accent-primary)",
+                             color: "var(--text-on-color)",
+                             borderRadius: 20,
+                             fontSize: 11,
+                             fontWeight: 900,
+                             textTransform: "uppercase",
                              letterSpacing: "0.05em",
                              boxShadow: "0 4px 12px rgb(var(--shadow-rgb) / 0.1)"
                            }}>
@@ -255,7 +319,7 @@ export function EventsColumn({ ctx }: { ctx: DashboardCtx }) {
                          </div>
 
                          {/* Points Badges — house winner bonus + (when set) the individual points the student earns just by checking in */}
-                         <div style={{ position: "absolute", bottom: 16, left: 16, zIndex: 2, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                         <div style={{ position: "absolute", bottom: 12, left: 12, zIndex: 2, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                            {e.pointsAwarded !== undefined && (
                              <div style={{
                                background: "rgb(var(--scrim-rgb) / 0.7)",
@@ -299,29 +363,23 @@ export function EventsColumn({ ctx }: { ctx: DashboardCtx }) {
 
                       {/* Content Area */}
                       <div
+                        className="dash-card-body"
                         onClick={() => openPreview(e)}
-                        style={{ padding: 24, flex: 1, display: "flex", flexDirection: "column", cursor: "pointer" }}
+                        style={{ flex: 1, display: "flex", flexDirection: "column", cursor: "pointer" }}
                       >
-                        <h3 style={{ fontSize: 20, fontWeight: 900, color: "var(--text-primary)", letterSpacing: "-0.03em", marginBottom: 16, overflowWrap: "break-word", wordBreak: "break-word" }}>{e.title}</h3>
-                        
-                        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+                        <h3 style={{ fontSize: 19, fontWeight: 900, color: "var(--text-primary)", letterSpacing: "-0.03em", marginBottom: 14, overflowWrap: "break-word", wordBreak: "break-word" }}>{e.title}</h3>
+
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: "var(--text-secondary)", fontWeight: 600 }}>
-                            <div style={{ width: 32, height: 32, borderRadius: 10, background: "rgb(var(--accent-rgb) / 0.05)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-primary)" }}>
+                            <div style={{ width: 32, height: 32, borderRadius: 10, background: "rgb(var(--accent-rgb) / 0.05)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-primary)", flexShrink: 0 }}>
                                <Clock size={16} />
                             </div>
                             <div style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 600, lineHeight: 1.4 }}>
-                              {(() => {
-                                const start = new Date(e.startTime);
-                                const end = new Date(e.endTime);
-                                const dateOpts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Bangkok' };
-                                const timeOpts: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Bangkok' };
-                                
-                                return `${start.toLocaleDateString('en-GB', dateOpts)} ${start.toLocaleTimeString('en-GB', timeOpts)} — ${end.toLocaleDateString('en-GB', dateOpts)} ${end.toLocaleTimeString('en-GB', timeOpts)}`;
-                              })()}
+                              {formatEventWhen(e.startTime, e.endTime, true)}
                             </div>
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: "var(--text-secondary)", fontWeight: 600 }}>
-                            <div style={{ width: 32, height: 32, borderRadius: 10, background: "rgb(var(--accent-rgb) / 0.05)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-primary)" }}>
+                            <div style={{ width: 32, height: 32, borderRadius: 10, background: "rgb(var(--accent-rgb) / 0.05)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-primary)", flexShrink: 0 }}>
                                <MapPin size={16} />
                             </div>
                             {e.location || "CAMT Building"}
@@ -335,116 +393,42 @@ export function EventsColumn({ ctx }: { ctx: DashboardCtx }) {
                             fontSize: 14,
                             color: "var(--text-secondary)",
                             lineHeight: 1.6,
-                            marginBottom: 24,
+                            marginBottom: 20,
                             display: "-webkit-box",
-                            WebkitLineClamp: 3,
+                            WebkitLineClamp: 2,
                             WebkitBoxOrient: "vertical",
                             overflow: "hidden"
                           }}
                           dangerouslySetInnerHTML={{ __html: parseRichText(e.description || "") }}
                         />
                         {e.description && e.description.trim().length > 0 && (
-                          <button 
+                          <button
                             type="button"
                             onClick={(event) => {
                               event.stopPropagation();
                               openPreview(e);
                             }}
                             style={{
-                              border: "none",
-                              background: "transparent",
-                              color: "var(--accent-primary)",
-                              fontSize: 13,
-                              fontWeight: 800,
-                              cursor: "pointer",
-                              padding: 0,
-                              marginTop: -16,
-                              marginBottom: 24,
-                              alignSelf: "flex-start"
+                              display: "inline-flex", alignItems: "center", gap: 6, alignSelf: "flex-start",
+                              minHeight: 36, marginTop: -8, marginBottom: 16, padding: "6px 12px", borderRadius: 99,
+                              border: "1px solid rgb(var(--accent-rgb) / 0.25)", background: "rgb(var(--accent-rgb) / 0.06)",
+                              color: "var(--accent-primary)", fontSize: 13, fontWeight: 800, cursor: "pointer",
                             }}
                           >
-                            {lang === "th" ? "อ่านเพิ่มเติม..." : "Read more..."}
+                            <Info size={14} />
+                            {t.dashReadMore}
                           </button>
                         )}
 
                         <div style={{ marginTop: "auto", paddingTop: 8 }}>
-                          {(() => {
-                            const nowTs = new Date();
-                            const isPastEvent = nowTs > new Date(e.endTime);
-                            const isAttended = e.attendanceStatus === "attended";
-                            const regOpenAt = e.registrationOpenTime ? new Date(e.registrationOpenTime) : null;
-                            const regCloseAt = e.registrationCloseTime ? new Date(e.registrationCloseTime) : null;
-                            // Once the registration window closes the headcount locks
-                            // in both directions: no new sign-ups AND no cancellations.
-                            const regWindowClosed = !!regCloseAt && nowTs > regCloseAt;
-                            const canCancel = !isPastEvent && !isAttended && !regWindowClosed;
-                            const notYetOpen = !e.isRegistered && !!regOpenAt && nowTs < regOpenAt;
-                            const regClosed = !e.isRegistered && regWindowClosed;
-                            const walkInsOnlyMode = !e.isRegistered && !!e.walkInsOnly;
-                            const viewOnlyMode = !e.isRegistered && e.canRegister === false;
-                            const windowBlocked = notYetOpen || regClosed || walkInsOnlyMode || viewOnlyMode;
-                            const isDisabled = (e.isRegistered && !canCancel) || windowBlocked || registeringId === e.id;
-                            const greyed = regClosed || walkInsOnlyMode || viewOnlyMode || (e.isRegistered && !canCancel);
-                            const waitlisted = !e.isRegistered && e.waitlistPosition != null;
-                            const isFull = e.quota != null && e.quota > 0 && (e.registeredCount ?? 0) >= e.quota;
-
-                            return (
-                              <button
-                                disabled={isDisabled}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  promptRegister(e.id, !!e.isRegistered || waitlisted, e.title);
-                                }}
-                                className={`btn btn-full ${e.isRegistered ? "btn-success-solid" : "btn-primary"}`}
-                                style={{
-                                  borderRadius: 16,
-                                  height: 48,
-                                  fontWeight: 800,
-                                  background: notYetOpen ? "var(--amber-500)" : greyed ? "var(--bg-elevated)" : e.isRegistered ? (canCancel ? "var(--emerald-500)" : "var(--bg-elevated)") : undefined,
-                                  color: notYetOpen ? "var(--text-on-color)" : greyed ? "var(--text-muted)" : e.isRegistered ? (canCancel ? "var(--text-on-color)" : "var(--text-muted)") : undefined,
-                                  boxShadow: notYetOpen ? "0 10px 25px rgb(var(--amber-500-rgb) / 0.3)" : (e.isRegistered && canCancel) ? "0 10px 25px rgb(var(--emerald-500-rgb) / 0.3)" : (greyed ? "none" : "0 10px 25px var(--accent-glow)"),
-                                  border: greyed ? "1px solid var(--border-subtle)" : "none",
-                                  cursor: isDisabled && !registeringId ? "not-allowed" : "pointer",
-                                  opacity: greyed ? 0.8 : 1
-                                }}
-                              >
-                                {registeringId === e.id ? (
-                                  <RefreshCw size={18} className="animate-spin" />
-                                ) : e.isRegistered ? (
-                                  isAttended ? (
-                                    <><CheckCircle2 size={18} /> {t.attended || "Attended"}</>
-                                  ) : isPastEvent ? (
-                                    <><Calendar size={18} /> {t.eventEnded || "Event Ended"}</>
-                                  ) : (
-                                    <><CheckCircle2 size={18} /> {t.registered || "Registered"}</>
-                                  )
-                                ) : waitlisted ? (
-                                  <><Clock size={18} /> {t.waitlistOn.replace("{n}", String(e.waitlistPosition))}</>
-                                ) : notYetOpen ? (
-                                  <><Clock size={18} /> {t.registrationNotOpen}</>
-                                ) : regClosed ? (
-                                  <><AlertCircle size={18} /> {t.registrationClosed}</>
-                                ) : walkInsOnlyMode ? (
-                                  <><DoorOpen size={18} /> {t.walkInsOnlyBadge}</>
-                                ) : viewOnlyMode ? (
-                                  <><Eye size={18} /> {t.eventViewOnlyBadge}</>
-                                ) : isFull ? (
-                                  t.waitlistJoin
-                                ) : (
-                                  t.registerNow || "Register Now"
-                                )}
-                              </button>
-                            );
-                          })()}
+                          <RegisterButton e={e} ctx={ctx} variant="card" />
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div style={{ padding: "80px 40px", textAlign: "center", background: "var(--bg-surface)", borderRadius: 24, border: "2px dashed var(--border-subtle)" }}>
-                   <p style={{ color: "var(--text-muted)", fontWeight: 500 }}>{t.noEvents}</p>
-                </div>
+                emptyState(upcoming.length === 0 ? t.noEvents : t.dashNoEventsFilter)
               )}
             </div>
           </div>

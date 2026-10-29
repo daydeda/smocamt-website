@@ -11,6 +11,7 @@ import { houseLogo } from "./_components/dashboard-parts";
 import { useDashboard, deriveDashboard } from "./_lib/useDashboard";
 import { EventsColumn } from "./_components/EventsColumn";
 import { SidebarColumn } from "./_components/SidebarColumn";
+import { CompactHeader } from "./_components/CompactHeader";
 import { StrikeBanner } from "./_components/StrikeBanner";
 import { AppealModal } from "./_components/AppealModal";
 import { PreTestGateModal } from "./_components/PreTestGateModal";
@@ -44,16 +45,17 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
       
       <StudentNav />
 
-      <main className="page-container" style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", gap: 40 }}>
+      <main className="page-container dash-main" style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column" }}>
         
-        {/* Header Section */}
+        {/* Header Section — large heading from lg up; below that CompactHeader is one line. */}
+        <div className="hidden lg:block">
         <section className="animate-fade-in-up" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 24 }}>
-          <div style={{ minWidth: 280, maxWidth: "100%" }}>
+          <div style={{ minWidth: 0, maxWidth: "100%" }}>
             <h1 className="text-fluid-h1" style={{ color: "var(--text-primary)", fontWeight: 900, letterSpacing: "-0.04em", wordBreak: "break-word", overflowWrap: "break-word" }}>
               {t.hey} <span className="gradient-text">{user ? (user.name?.split(" ")[0] || "Student") : (lang === "th" ? "ผู้เยี่ยมชม" : "Guest")}!</span>
             </h1>
-            <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 12 }}>
-              <p style={{ color: "var(--text-secondary)", fontSize: 17, fontWeight: 500, wordBreak: "break-word", overflowWrap: "break-word" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 8 }}>
+              <p className="dash-subtitle" style={{ color: "var(--text-secondary)", fontWeight: 500, wordBreak: "break-word", overflowWrap: "break-word" }}>
                 {t.upcomingEventsCount.replace("{count}", upcoming.length.toString())}
               </p>
             </div>
@@ -86,6 +88,10 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
             </div>
           )}
         </section>
+        </div>
+
+        {/* Phones and tablets: greeting, house and ID in one line. */}
+        <CompactHeader ctx={ctx} />
 
         {/* Outstanding forms (pre-test / post-test / feedback) — persists until done. */}
         <FormsDueBanner userId={session?.user?.id} />
@@ -101,7 +107,7 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
         <AppealModal ctx={ctx} />
 
         {/* Dynamic Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-8 items-start">
           
           {/* Left Column: Events */}
           <EventsColumn ctx={ctx} />
@@ -243,21 +249,149 @@ export default function DashboardClient({ initialSession }: { initialSession: Se
         <ProfileReviewGate />
 
         <style jsx global>{`
-          .event-card-ig:hover {
-            transform: translateY(-8px);
-            box-shadow: 0 30px 60px rgb(var(--shadow-rgb) / 0.08) !important;
-            border-color: var(--accent-primary) !important;
+          /* Phone first: everything above the event list stays small so the first events
+             show without scrolling. Wider screens override below. */
+          .page-container.dash-main { padding: 12px 16px 32px; }
+          .dash-main { gap: 12px; }
+          .dash-events { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+          .dash-events-head { margin-bottom: 10px; flex-wrap: nowrap; }
+          .dash-events-title { font-size: 20px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+          /* One-line greeting + house + ID. Display lives in the media query, because an
+             unlayered display here would beat Tailwind's lg:hidden. */
+          .dash-compact-head { display: none; }
+          @media (max-width: 1023px) {
+            .dash-compact-head { display: flex; align-items: center; gap: 8px; min-height: 44px; }
           }
-          .event-card-ig img {
-            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+          .dash-compact-hello { flex: 1; min-width: 0; font-size: 17px; font-weight: 800; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          .dash-chip {
+            display: inline-flex; align-items: center; gap: 6px; min-width: 0; min-height: 36px; padding: 4px 10px;
+            border-radius: 99px; font-size: 13px; font-weight: 800; text-decoration: none;
           }
-          .event-card-ig:hover img {
-            transform: scale(1.05);
+          .dash-chip-id { flex-shrink: 0; color: var(--accent-primary); background: rgb(var(--accent-rgb) / 0.08); border: 1px solid rgb(var(--accent-rgb) / 0.2); }
+          .dash-chip-id-label { display: none; }
+          .dash-globe {
+            width: 36px; height: 36px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+            border-radius: 99px; border: 1px solid var(--border-subtle); background: var(--bg-surface); color: var(--text-secondary); cursor: pointer;
           }
-          .timeline-row:hover {
-            border-color: var(--accent-primary) !important;
-            box-shadow: 0 6px 20px rgb(var(--shadow-rgb) / 0.06);
-            transform: translateX(2px);
+          .dash-globe-menu {
+            position: absolute; right: 0; top: calc(100% + 6px); z-index: 60; min-width: 140px; padding: 6px;
+            display: flex; flex-direction: column; gap: 2px; border-radius: 14px;
+            background: var(--bg-surface); border: 1px solid var(--border-medium); box-shadow: 0 12px 30px rgb(var(--shadow-rgb) / 0.15);
+          }
+          .dash-globe-option {
+            text-align: left; min-height: 38px; padding: 6px 12px; border: none; border-radius: 10px; cursor: pointer;
+            background: transparent; color: var(--text-primary); font-size: 14px; font-weight: 700;
+          }
+          .dash-globe-option.active { background: rgb(var(--accent-rgb) / 0.1); color: var(--accent-primary); }
+
+          /* Announcement: a card with an accent edge. Collapsed on phones (two lines
+             plus a visible Read more button and hint); the full text on tablets and up. */
+          .dash-announce {
+            position: relative; overflow: hidden; cursor: pointer; border-radius: 18px;
+            padding: 12px 14px 12px 16px;
+            background: linear-gradient(135deg, rgb(var(--accent-rgb) / 0.14) 0%, rgb(var(--accent-rgb) / 0.04) 100%);
+            border: 1px solid rgb(var(--accent-rgb) / 0.35);
+            box-shadow: 0 6px 18px rgb(var(--accent-rgb) / 0.12);
+          }
+          .dash-announce::before {
+            content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--accent-primary);
+          }
+          .dash-announce-head { display: flex; align-items: center; gap: 10px; }
+          .dash-announce-icon {
+            width: 34px; height: 34px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+            border-radius: 12px; background: var(--accent-primary); color: var(--text-on-color);
+          }
+          .dash-announce-title { font-size: 15px; font-weight: 900; color: var(--text-primary); line-height: 1.3; }
+          .dash-announce-body {
+            margin-top: 8px; font-size: 14px; line-height: 1.5; color: var(--text-secondary);
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+          }
+          .dash-announce-open .dash-announce-body { display: block; -webkit-line-clamp: unset; overflow: visible; }
+          .dash-announce-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+          .dash-announce-hint { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+          .dash-announce-more {
+            display: inline-flex; align-items: center; gap: 4px; min-height: 34px; padding: 6px 14px;
+            border-radius: 99px; background: var(--accent-primary); color: var(--text-on-color);
+            font-size: 13px; font-weight: 900; box-shadow: 0 6px 14px var(--accent-glow); margin-left: auto;
+          }
+          /* Tablets and up: the whole announcement shows, so the hint and button go. */
+          @media (min-width: 768px) {
+            .dash-announce { padding: 18px 22px 18px 24px; cursor: default; }
+            .dash-announce-icon { width: 40px; height: 40px; }
+            .dash-announce-title { font-size: 16px; }
+            .dash-announce-body { display: block; -webkit-line-clamp: unset; overflow: visible; font-size: 15px; }
+            .dash-announce-footer { display: none; }
+          }
+          .dash-toggle-label { display: none; }
+          /* The four stat tiles repeat the filter counts, so phones skip them. */
+          .dash-stats { display: none; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+          .glass.dash-stat { padding: 10px 12px; gap: 10px; }
+          .dash-stat-icon { width: 32px; height: 32px; }
+          .dash-stat-value { font-size: 20px; }
+          .dash-filters {
+            display: flex; gap: 8px; margin: 0 -16px 12px; padding: 2px 16px;
+            overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+          }
+          .dash-filters::-webkit-scrollbar { display: none; }
+          .dash-rows { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+          .dash-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 16px; }
+          .dash-card-body { padding: 18px; }
+
+          @media (min-width: 480px) {
+            .dash-chip-id-label { display: inline; }
+          }
+
+          /* Tablet: two-up rows, roomier spacing, full announcement and stats. */
+          @media (min-width: 768px) {
+            .page-container.dash-main { padding: 24px; }
+            .dash-main { gap: 24px; }
+            .dash-events { gap: 24px; }
+            .dash-events-head { margin-bottom: 16px; }
+            .dash-events-title { font-size: 24px; }
+            .dash-toggle-label { display: inline; }
+            .dash-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+            .glass.dash-stat { padding: 16px 18px; gap: 14px; }
+            .dash-stat-icon { width: 40px; height: 40px; }
+            .dash-stat-value { font-size: 24px; }
+            .dash-filters { flex-wrap: wrap; margin: 0 0 20px; padding: 0; overflow: visible; }
+            .dash-rows { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .dash-cards { gap: 20px; }
+            .dash-card-body { padding: 22px; }
+          }
+          /* Small laptop / landscape tablet: the sidebar takes 340px, so rows go back to one column. */
+          @media (min-width: 1024px) {
+            .page-container.dash-main { padding: 32px 24px; }
+            .dash-main { gap: 40px; }
+            .dash-events { gap: 28px; }
+            .dash-rows { grid-template-columns: minmax(0, 1fr); }
+          }
+          @media (min-width: 1280px) {
+            .dash-rows { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .dash-cards { gap: 24px; }
+          }
+
+          /* Hover lift only where there is a real pointer; on iPad a tap would leave it stuck. */
+          @media (hover: hover) {
+            .event-card-ig:hover {
+              transform: translateY(-6px);
+              box-shadow: 0 30px 60px rgb(var(--shadow-rgb) / 0.08) !important;
+              border-color: var(--accent-primary) !important;
+            }
+            .event-card-ig img {
+              transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            .event-card-ig:hover img {
+              transform: scale(1.05);
+            }
+            .event-row:hover {
+              border-color: var(--accent-primary) !important;
+              box-shadow: 0 6px 20px rgb(var(--shadow-rgb) / 0.06);
+            }
+          }
+          .event-row:has(> button:first-child:focus-visible) {
+            outline: 2px solid var(--accent-primary);
+            outline-offset: 2px;
           }
         `}</style>
       </div>

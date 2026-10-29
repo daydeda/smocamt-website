@@ -3,7 +3,7 @@
 import { loginHref } from "@/lib/util/safe-callback-url";
 import type { Session } from "next-auth";
 import { useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { useQrToken } from "@/lib/hooks/useQrToken";
 import { Calendar, CalendarClock, CheckCircle2, Trophy, Users, DoorOpen } from "lucide-react";
@@ -13,6 +13,43 @@ import { useRouter } from "next/navigation";
 import { NO_SHOW_STRIKE_THRESHOLD } from "@/lib/points/strikes";
 import { eventRef, matchesEventRef } from "@/lib/events/event-slug";
 import { type Event, type HouseItem } from "../_components/dashboard-parts";
+
+// Events view preference: remembered per device. With no saved choice, phones
+// and tablets get the compact list, since a column of poster cards there is a
+// screen-height per event. `memoryView` keeps a toggle working when storage is
+// blocked (private mode).
+type EventView = "grid" | "timeline";
+const EVENT_VIEW_KEY = "dashboard.eventView";
+const NARROW_QUERY = "(max-width: 1023px)";
+const eventViewListeners = new Set<() => void>();
+let memoryView: EventView | null = null;
+
+function readEventView(): EventView {
+  try {
+    const saved = localStorage.getItem(EVENT_VIEW_KEY);
+    if (saved === "grid" || saved === "timeline") return saved;
+  } catch {}
+  if (memoryView) return memoryView;
+  return window.matchMedia(NARROW_QUERY).matches ? "timeline" : "grid";
+}
+
+function subscribeEventView(onChange: () => void) {
+  const mq = window.matchMedia(NARROW_QUERY);
+  eventViewListeners.add(onChange);
+  window.addEventListener("storage", onChange);
+  mq.addEventListener("change", onChange);
+  return () => {
+    eventViewListeners.delete(onChange);
+    window.removeEventListener("storage", onChange);
+    mq.removeEventListener("change", onChange);
+  };
+}
+
+function setEventView(view: EventView) {
+  memoryView = view;
+  try { localStorage.setItem(EVENT_VIEW_KEY, view); } catch {}
+  eventViewListeners.forEach((fn) => fn());
+}
 
 // State, effects and handlers for DashboardClient.tsx. Moved out of the page
 // component so its JSX can be split into section components that read from
@@ -34,10 +71,10 @@ export function useDashboard({ initialSession }: { initialSession: Session | nul
 
   const [loadingEvents, setLoadingEvents] = useState(true);
 
-  // How the events section is rendered. "grid" is the action-first card grid
-  // (upcoming only, default). "timeline" is the at-a-glance agenda — every event,
-  // past included, grouped by Today / This Week / Upcoming / Past.
-  const [eventView, setEventView] = useState<"grid" | "timeline">("grid");
+  // How the events section is rendered. "grid" is the poster card grid.
+  // "timeline" is the compact list grouped by Today / This Week / Upcoming, with
+  // past events behind a toggle. Server render and hydration use "grid".
+  const eventView = useSyncExternalStore(subscribeEventView, readEventView, () => "grid" as const);
 
   const [registeringId, setRegisteringId] = useState<string | null>(null);
 
@@ -531,7 +568,7 @@ export function deriveDashboard(base: BaseDashboardCtx) {
     return "upcoming";
   };
 
-  // --- Timeline view: group every event into Today / This Week / Upcoming / Past. ---
+  // --- List view: events group into Today / This Week / Upcoming / Past. ---
   const startOfToday = new Date(now);
 
  startOfToday.setHours(0, 0, 0, 0);
@@ -556,13 +593,6 @@ export function deriveDashboard(base: BaseDashboardCtx) {
 
   const byStartDesc = (a: Event, b: Event) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime();
 
-  const timelineSections = [
-    { key: "today", label: t.secToday, items: events.filter((e) => timelineGroupOf(e) === "today").sort(byStartAsc) },
-    { key: "week", label: t.secThisWeek, items: events.filter((e) => timelineGroupOf(e) === "week").sort(byStartAsc) },
-    { key: "later", label: t.secLater, items: events.filter((e) => timelineGroupOf(e) === "later").sort(byStartAsc) },
-    // Past sorted most-recent-first so the freshly-ended events are at the top.
-    { key: "past", label: t.secPast, items: events.filter((e) => timelineGroupOf(e) === "past").sort(byStartDesc) },
-  ].filter((s) => s.items.length > 0);
 
   // --- Overview stats strip (logged-in students only). Counts are derived from the
   // events list. Points is the stored users.points balance (same as the leaderboard),
@@ -677,7 +707,6 @@ export function deriveDashboard(base: BaseDashboardCtx) {
     timelineGroupOf,
     byStartAsc,
     byStartDesc,
-    timelineSections,
     thisWeekCount,
     attendedEvents,
     pointsEarned,

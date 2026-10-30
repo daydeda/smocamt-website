@@ -119,7 +119,10 @@ export class EventsService {
       // registering for their own event inflated the numerator past quota
       // (e.g. showing "17/16") even though the quota check itself already
       // excludes them.
-      .where(eq(attendance.isStaff, false))
+      // Walk-ins are NOT seats: they have their own per-session sub-cap (quotaWalkIn)
+      // checked by the scanner, so they must not fill the "X / quota" bar or trigger
+      // the waitlist label. Only registered students count here.
+      .where(and(eq(attendance.isStaff, false), sql`coalesce(${attendance.method}, '') <> 'walk-in'`))
       .groupBy(attendance.eventId);
   }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { RichTextEditor } from "@/components/RichTextEditor";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
@@ -17,7 +18,6 @@ import {
   ChevronRight,
   Clock,
   Edit2,
-  ExternalLink,
   Eye,
   GraduationCap,
   Loader2,
@@ -421,60 +421,9 @@ export function ProposeEventSection({ scope }: { scope: ProposeEventScope }) {
     return () => clearTimeout(timer);
   }, [showForm, form.clubId, isClub, ownMajor]);
 
-  // ---- Rich text description toolbar (bold / link / color) — mirrors the
-  // staff create-event description editor byte-for-byte so proposal text
-  // renders identically once approved. See src/lib/rich-text.ts. ----
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const injectMarkup = (prefix: string, suffix: string) => {
-    if (!textareaRef.current) return;
-    const el = textareaRef.current;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const text = el.value;
-    const selected = text.substring(start, end);
-    const before = text.substring(0, start);
-    const after = text.substring(end);
-
-    // Color: replace the color of an already-selected {{color:…|…}} block
-    // instead of nesting another one; otherwise wrap the selection in a new
-    // color block. Only ever acts on the CURRENT selection (never a
-    // remembered range from a previous call) — a remembered range can go
-    // stale the moment the user types or moves the cursor, silently editing
-    // the wrong part of the text on the next color pick.
-    if (prefix.startsWith("{{color:")) {
-      const m = selected.match(/^\{\{color:[^|]*\|([\s\S]*)\}\}$/);
-      const inner = m ? m[1] : selected || "text";
-      const block = prefix + inner + suffix;
-      set("description", before + block + after);
-      setTimeout(() => { el.focus(); el.setSelectionRange(start, start + block.length); }, 10);
-      return;
-    }
-
-    if (prefix !== "" && selected.startsWith(prefix) && selected.endsWith(suffix)) {
-      const unwrapped = selected.substring(prefix.length, selected.length - suffix.length);
-      set("description", before + unwrapped + after);
-      setTimeout(() => { el.focus(); el.setSelectionRange(start, start + unwrapped.length); }, 10);
-      return;
-    }
-
-    if (prefix === "**" && before.endsWith("**") && after.startsWith("**")) {
-      set("description", before.slice(0, -2) + selected + after.slice(2));
-      setTimeout(() => { el.focus(); el.setSelectionRange(start - 2, end - 2); }, 10);
-      return;
-    }
-
-    const content = selected || (prefix === "**" ? "bold text" : "text");
-    const newText = before + prefix + content + suffix + after;
-    set("description", newText);
-
-    const finalStart = start;
-    const finalEnd = start + prefix.length + content.length + suffix.length;
-    setTimeout(() => { el.focus(); el.setSelectionRange(finalStart, finalEnd); }, 10);
-  };
-
   // ---- Poster upload — mirrors the staff create-event multi-poster pipeline
   // (client-side compress to WebP, then POST /api/upload; server re-checks
-  // the 5MB cap / magic bytes regardless — see CLAUDE.md). ----
+  // the 5MB cap / magic bytes regardless). ----
   const [posterUploading, setPosterUploading] = useState(0);
 
   const compressAndUploadPoster = async (file: File): Promise<string | null> => {
@@ -935,42 +884,20 @@ export function ProposeEventSection({ scope }: { scope: ProposeEventScope }) {
                 <input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} maxLength={200} style={{ fontSize: 16, padding: "16px 20px", borderRadius: 16 }} />
               </div>
 
-              {/* Description — rich text toolbar + live preview, byte-for-byte
-                  the same markup syntax as the staff create-event form. */}
+              {/* Description: the same shared editor as the staff create-event form,
+                  so proposal text uses identical markup and renders identically
+                  once approved. */}
               <div className="field">
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                  <label className="label" style={{ marginBottom: 0 }}>{t.adminProposalsDescriptionLabel}</label>
-                  <div style={{ display: "flex", gap: 4, background: "var(--bg-elevated)", padding: 2, borderRadius: 10 }}>
-                    <button type="button" className="btn btn-ghost btn-sm" style={{ padding: 6, border: "none" }} onClick={() => injectMarkup("**", "**")}><Edit2 size={14} /></button>
-                    <button type="button" className="btn btn-ghost btn-sm" style={{ padding: 6, border: "none" }} onClick={() => injectMarkup("[", "](https://...)")}><ExternalLink size={14} /></button>
-                    <div style={{ position: "relative" }}>
-                      <input type="color" defaultValue="#ff6b00" style={{ opacity: 0, position: "absolute", inset: 0, cursor: "pointer" }} onChange={(e) => injectMarkup(`{{color:${e.target.value}|`, "}}")} />
-                      <button type="button" className="btn btn-ghost btn-sm" style={{ padding: 6, border: "none" }}>
-                        <span style={{ width: 14, height: 14, borderRadius: 4, background: "linear-gradient(135deg,var(--red-500),var(--indigo-500))", display: "inline-block" }} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-auto md:h-[200px]">
-                  <textarea
-                    ref={textareaRef}
-                    className="input h-[160px] md:h-full"
-                    style={{ resize: "none", borderRadius: 16, background: "var(--bg-elevated)", border: "none", fontSize: 14, padding: 16 }}
-                    value={form.description}
-                    onChange={(e) => set("description", e.target.value)}
-                    maxLength={2000}
-                    placeholder={lang === "th" ? "อธิบายรายละเอียดเกี่ยวกับกิจกรรม..." : "Tell them about the event..."}
-                  />
-                  <div
-                    className="custom-scrollbar h-[160px] md:h-full"
-                    style={{ background: "var(--bg-elevated)", borderRadius: 16, padding: 16, fontSize: 14, lineHeight: 1.6, overflowY: "auto", color: "var(--text-primary)", border: "1px solid var(--border-subtle)" }}
-                  >
-                    <p style={{ fontSize: 10, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8, letterSpacing: "0.05em" }}>
-                      {lang === "th" ? "ตัวอย่างการแสดงผล" : "Live Preview"}
-                    </p>
-                    <div dangerouslySetInnerHTML={{ __html: parseRichText(form.description) || `<span style="color: var(--text-muted); font-style: italic;">${lang === "th" ? "ยังไม่มีเนื้อหา..." : "No content yet..."}</span>` }} />
-                  </div>
-                </div>
+                <RichTextEditor
+                  layout="split"
+                  lang={lang}
+                  minHeight={240}
+                  maxLength={2000}
+                  label={<label className="label" style={{ marginBottom: 0 }}>{t.adminProposalsDescriptionLabel}</label>}
+                  value={form.description}
+                  onChange={(v) => set("description", v)}
+                  placeholder={lang === "th" ? "อธิบายรายละเอียดเกี่ยวกับกิจกรรม..." : "Tell them about the event..."}
+                />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

@@ -367,7 +367,6 @@ export function useAdminEventsPage() {
   const hasMedicalSignal = (user: AdminStudent | null | undefined) =>
     !!user && (user.hasMedicalInfo === true || hasActualMedicalInfo(user));
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // The create/edit panel. Used to scroll it into view when it opens — the admin
   // content scrolls inside `.admin-main` (overflow-y:auto), NOT the window, so a
@@ -574,66 +573,6 @@ export function useAdminEventsPage() {
       const replacement = split.map((d) => ({ title: "", startTime: d.startTime, endTime: d.endTime, quotaWalkIn: row.quotaWalkIn, evidenceNonce: row.evidenceNonce, evidencePrompt: row.evidencePrompt }));
       return [...prev.slice(0, idx), ...replacement, ...prev.slice(idx + 1)];
     });
-  };
-
-  const injectMarkup = (prefix: string, suffix: string) => {
-    if (!textareaRef.current) return;
-    const el = textareaRef.current;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const text = el.value;
-    const selected = text.substring(start, end);
-    const before = text.substring(0, start);
-    const after = text.substring(end);
-
-    // Color: replace the color of an already-selected {{color:…|…}} block
-    // instead of nesting another one; otherwise wrap the selection in a new
-    // color block. Only ever acts on the CURRENT selection (never a
-    // remembered range from a previous call) — a remembered range can go
-    // stale the moment the user types or moves the cursor, silently editing
-    // the wrong part of the text on the next color pick.
-    if (prefix.startsWith("{{color:")) {
-      const m = selected.match(/^\{\{color:[^|]*\|([\s\S]*)\}\}$/);
-      const inner = m ? m[1] : selected || "text";
-      const block = prefix + inner + suffix;
-      set("description", before + block + after);
-      setTimeout(() => {
-        el.focus();
-        el.setSelectionRange(start, start + block.length);
-      }, 10);
-      return;
-    }
-
-    if (prefix !== "" && selected.startsWith(prefix) && selected.endsWith(suffix)) {
-      const unwrapped = selected.substring(prefix.length, selected.length - suffix.length);
-      set("description", before + unwrapped + after);
-      setTimeout(() => {
-        el.focus();
-        el.setSelectionRange(start, start + unwrapped.length);
-      }, 10);
-      return;
-    }
-
-    if (prefix === "**" && before.endsWith("**") && after.startsWith("**")) {
-      set("description", before.slice(0, -2) + selected + after.slice(2));
-      setTimeout(() => {
-        el.focus();
-        el.setSelectionRange(start - 2, end - 2);
-      }, 10);
-      return;
-    }
-
-    const content = selected || (prefix === "**" ? "bold text" : "text");
-    const newText = before + prefix + content + suffix + after;
-    set("description", newText);
-
-    const finalStart = start;
-    const finalEnd = start + prefix.length + content.length + suffix.length;
-
-    setTimeout(() => {
-      el.focus();
-      el.setSelectionRange(finalStart, finalEnd);
-    }, 10);
   };
 
   // ---- Multi-poster management ----
@@ -1902,7 +1841,6 @@ export function useAdminEventsPage() {
     setReviewNoticeModal,
     hasActualMedicalInfo,
     hasMedicalSignal,
-    textareaRef,
     formRef,
     fetchEvents,
     openFormHandledRef,
@@ -1912,7 +1850,6 @@ export function useAdminEventsPage() {
     addSessionRow,
     removeSessionRow,
     splitSessionRow,
-    injectMarkup,
     compressAndUploadPoster,
     posterUploading,
     setPosterUploading,

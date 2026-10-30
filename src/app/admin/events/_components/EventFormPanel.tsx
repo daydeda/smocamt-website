@@ -1,8 +1,7 @@
 "use client";
 
-import { Plus, MapPin, Users, CheckCircle2, X, ExternalLink, ChevronLeft, ChevronRight, AlertCircle, RefreshCw, AlertTriangle } from "lucide-react";
-import { parseRichText } from "@/lib/ui/rich-text";
-import type { MouseEvent as ReactMouseEvent } from "react";
+import { Plus, MapPin, Users, CheckCircle2, X, ChevronLeft, ChevronRight, AlertCircle, RefreshCw, AlertTriangle } from "lucide-react";
+import { RichTextEditor } from "@/components/RichTextEditor";
 import { sessionSpansTooLong, splitIntoDailySessions } from "@/lib/events/event-schema";
 import { EMPTY_FORM } from "../_lib/event-model";
 import type { AdminEventsPageCtx } from "../_lib/useAdminEventsPage";
@@ -21,16 +20,8 @@ import { ManagedByField } from "./event-form/ManagedByField";
 import { EventStaffField } from "./event-form/EventStaffField";
 import { SongsueToggle } from "./event-form/SongsueToggle";
 
-// Preset description colours. Swatches apply on click (no native picker), so
-// the same colour can be applied again to another word without the browser
-// swallowing the change.
-const DESCRIPTION_COLORS = ["#ff6b00", "#e11d48", "#16a34a", "#2563eb", "#7c3aed", "#111827", "#6b7280"];
-
-// Keep the textarea's text selection when a toolbar button is pressed.
-const keepSelection = (e: ReactMouseEvent) => e.preventDefault();
-
 export function EventFormPanel({ ctx }: { ctx: AdminEventsPageCtx }) {
-  const { addPosters, editingId, error, events, formData, formRef, handleSubmit, injectMarkup, isAttendanceOnly, isPresidentRole, lang, movePoster, posterUploading, registrationMode, removePoster, sessions, set, setEditingId, setFormData, setRegistrationMode, setSessions, setShowForm, setSourceProposalId, showForm, submitting, t, textareaRef } = ctx;
+  const { addPosters, editingId, error, events, formData, formRef, handleSubmit, isAttendanceOnly, isPresidentRole, lang, movePoster, posterUploading, registrationMode, removePoster, sessions, set, setEditingId, setFormData, setRegistrationMode, setSessions, setShowForm, setSourceProposalId, showForm, submitting, t } = ctx;
   return (
     <>{showForm && (
         <div
@@ -712,68 +703,17 @@ export function EventFormPanel({ ctx }: { ctx: AdminEventsPageCtx }) {
 
               </div>
             </div>
-          {/* Description — full width so the editor and the live preview both have
-              room to read. Swatches apply straight away (no native picker), so the
-              same colour can be applied again to another word. */}
+          {/* Description: full width so the editor and the live preview both have
+              room to read. See RichTextEditor layout="split". */}
           <div className="field" style={{ marginTop: 32 }}>
-            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 12 }}>
-              <label className="label" style={{ marginBottom: 0 }}>{t.eventDescriptionLabel}</label>
-              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
-                <button type="button" className="btn btn-ghost btn-sm" title={lang === "th" ? "ตัวหนา" : "Bold"} style={{ padding: "6px 10px", border: "1px solid var(--border-subtle)", borderRadius: 10, fontWeight: 800 }} onMouseDown={keepSelection} onClick={() => injectMarkup("**", "**")}>B</button>
-                <button type="button" className="btn btn-ghost btn-sm" title={lang === "th" ? "ลิงก์" : "Link"} style={{ padding: "6px 10px", border: "1px solid var(--border-subtle)", borderRadius: 10, display: "inline-flex", alignItems: "center", gap: 6 }} onMouseDown={keepSelection} onClick={() => injectMarkup("[", "](https://...)")}><ExternalLink size={14} /> {lang === "th" ? "ลิงก์" : "Link"}</button>
-                <span aria-hidden style={{ width: 1, height: 22, background: "var(--border-subtle)", margin: "0 4px" }} />
-                {DESCRIPTION_COLORS.map((hex) => (
-                  <button
-                    key={hex}
-                    type="button"
-                    title={`${lang === "th" ? "สีตัวอักษร" : "Text colour"} ${hex}`}
-                    aria-label={`${lang === "th" ? "สีตัวอักษร" : "Text colour"} ${hex}`}
-                    onMouseDown={keepSelection}
-                    onClick={() => injectMarkup(`{{color:${hex}|`, "}}")}
-                    style={{ width: 24, height: 24, borderRadius: 99, background: hex, border: "2px solid var(--bg-surface)", boxShadow: "0 0 0 1px var(--border-medium)", cursor: "pointer", padding: 0 }}
-                  />
-                ))}
-                <label title={lang === "th" ? "เลือกสีเอง" : "Custom colour"} style={{ position: "relative", width: 24, height: 24, borderRadius: 99, background: "conic-gradient(#ef4444, #f59e0b, #22c55e, #3b82f6, #a855f7, #ef4444)", boxShadow: "0 0 0 1px var(--border-medium)", cursor: "pointer", display: "inline-block" }}>
-                  <input
-                    type="color"
-                    defaultValue="#ff6b00"
-                    onChange={(e) => {
-                      const hex = e.target.value;
-                      // Reset to a value no swatch uses, so the next pick (even the same
-                      // colour) is a real change and fires onChange again.
-                      e.target.value = "#000000";
-                      injectMarkup(`{{color:${hex}|`, "}}");
-                    }}
-                    style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }}
-                  />
-                </label>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                <span style={{ fontSize: 11, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>{lang === "th" ? "เขียน" : "Write"}</span>
-                <textarea
-                  ref={textareaRef}
-                  className="input"
-                  style={{ flex: 1, minHeight: 320, resize: "vertical", borderRadius: 16, background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)", fontSize: 15, lineHeight: 1.7, padding: 18 }}
-                  value={formData.description}
-                  onChange={(e) => set("description", e.target.value)}
-                  placeholder={lang === "th" ? "อธิบายรายละเอียดเกี่ยวกับกิจกรรม..." : "Tell them about the event..."}
-                />
-              </div>
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                <span style={{ fontSize: 11, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>{lang === "th" ? "ตัวอย่างการแสดงผล" : "Live Preview"}</span>
-                <div
-                  className="custom-scrollbar"
-                  style={{ flex: 1, minHeight: 320, maxHeight: 640, overflowY: "auto", overflowWrap: "anywhere", background: "var(--bg-surface)", borderRadius: 16, padding: 22, fontSize: 16, lineHeight: 1.75, color: "var(--text-primary)", border: "1px solid var(--border-subtle)" }}
-                  dangerouslySetInnerHTML={{ __html: parseRichText(formData.description) || `<span style="color: var(--text-muted); font-style: italic;">${lang === "th" ? "ยังไม่มีเนื้อหา..." : "No content yet..."}</span>` }}
-                />
-              </div>
-            </div>
-            <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8, lineHeight: 1.6 }}>
-              <code>**bold**</code> · <code>[text](https://…)</code> · <code>{"{{color:#ff6b00|text}}"}</code> — {lang === "th" ? "เลือกข้อความก่อน แล้วกดปุ่มสีเพื่อใส่สี" : "select text first, then click a colour to apply it"}
-            </p>
+            <RichTextEditor
+              layout="split"
+              lang={lang}
+              label={<label className="label" style={{ marginBottom: 0 }}>{t.eventDescriptionLabel}</label>}
+              value={formData.description}
+              onChange={(v) => set("description", v)}
+              placeholder={lang === "th" ? "อธิบายรายละเอียดเกี่ยวกับกิจกรรม..." : "Tell them about the event..."}
+            />
           </div>
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6" style={{ marginTop: 40, paddingTop: 32, borderTop: "1px solid var(--border-subtle)" }}>

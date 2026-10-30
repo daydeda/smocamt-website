@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Megaphone, Save, Eye, EyeOff, Bold, Link2, AlertTriangle, Check } from "lucide-react";
+import { RichTextEditor } from "@/components/RichTextEditor";
+import { useEffect, useState } from "react";
+import { Megaphone, Save, Eye, EyeOff, AlertTriangle, Check } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { parseRichText } from "@/lib/ui/rich-text";
 
@@ -13,7 +14,6 @@ export function AnnouncementEditor() {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const taRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     fetch("/api/admin/announcement")
@@ -24,74 +24,6 @@ export function AnnouncementEditor() {
       })
       .finally(() => setLoading(false));
   }, []);
-
-  // Replace the [start,end) range with `replacement` and re-select `selLen`
-  // characters from `selStart`, keeping focus in the textarea.
-  const apply = (start: number, end: number, replacement: string, selStart: number, selLen: number) => {
-    const ta = taRef.current;
-    setBody(body.slice(0, start) + replacement + body.slice(end));
-    requestAnimationFrame(() => {
-      ta?.focus();
-      ta?.setSelectionRange(selStart, selStart + selLen);
-    });
-  };
-
-  // Toggle a paired marker (e.g. **…**): strip it if the selection already has it
-  // (markers inside OR immediately outside the selection), otherwise add it.
-  const toggleWrap = (before: string, after: string, placeholder: string) => {
-    const ta = taRef.current;
-    if (!ta) return;
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    const sel = body.slice(start, end);
-
-    // Markers inside the selection -> remove them.
-    if (sel.length >= before.length + after.length && sel.startsWith(before) && sel.endsWith(after)) {
-      const inner = sel.slice(before.length, sel.length - after.length);
-      apply(start, end, inner, start, inner.length);
-      return;
-    }
-    // Markers just outside the selection -> remove them.
-    if (body.slice(start - before.length, start) === before && body.slice(end, end + after.length) === after) {
-      apply(start - before.length, end + after.length, sel, start - before.length, sel.length);
-      return;
-    }
-    // Otherwise wrap.
-    const inner = sel || placeholder;
-    apply(start, end, before + inner + after, start + before.length, inner.length);
-  };
-
-  // Pick a color: replace the color of an existing {{color:…|…}} block instead of
-  // nesting another one; otherwise wrap the selection in a new color block.
-  const applyColor = (hex: string) => {
-    const ta = taRef.current;
-    if (!ta) return;
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    const sel = body.slice(start, end);
-    const m = sel.match(/^\{\{color:[^|]*\|([\s\S]*)\}\}$/);
-    const inner = m ? m[1] : sel || "text";
-    const block = `{{color:${hex}|${inner}}}`;
-    apply(start, end, block, start, block.length);
-  };
-
-  // Toggle a link: unlink [label](url) back to label if the selection is a link,
-  // otherwise insert [label](https://) with the cursor on the url.
-  const toggleLink = () => {
-    const ta = taRef.current;
-    if (!ta) return;
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    const sel = body.slice(start, end);
-    const m = sel.match(/^\[([\s\S]*?)\]\(([\s\S]*?)\)$/);
-    if (m) {
-      apply(start, end, m[1], start, m[1].length);
-      return;
-    }
-    const label = sel || "link text";
-    const url = "https://";
-    apply(start, end, `[${label}](${url})`, start + `[${label}](`.length, url.length);
-  };
 
   const save = async () => {
     setSaving(true);
@@ -112,21 +44,6 @@ export function AnnouncementEditor() {
     } finally {
       setSaving(false);
     }
-  };
-
-  const toolBtn: React.CSSProperties = {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    height: 34,
-    padding: "0 12px",
-    borderRadius: "var(--radius-md)",
-    border: "1px solid var(--border-subtle)",
-    background: "var(--bg-base)",
-    fontSize: 13,
-    fontWeight: 700,
-    cursor: "pointer",
   };
 
   return (
@@ -159,50 +76,14 @@ export function AnnouncementEditor() {
               {t.announcementBodyLabel}
             </label>
 
-            {/* Formatting toolbar */}
-            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 10 }}>
-              <button type="button" style={toolBtn} onClick={() => toggleWrap("**", "**", "text")} title="Bold / unbold — **text**">
-                <Bold size={15} /> Bold
-              </button>
-              <button type="button" style={toolBtn} onClick={toggleLink} title="Link / unlink — [text](https://…)">
-                <Link2 size={15} /> Link
-              </button>
-              <label style={{ ...toolBtn, position: "relative" }} title="Text color — {{color:#HEX|text}}">
-                <span style={{ width: 15, height: 15, borderRadius: 4, background: "linear-gradient(135deg,var(--red-500),var(--indigo-500))", display: "inline-block" }} />
-                Color
-                <input
-                  type="color"
-                  defaultValue="#ff6b00"
-                  onChange={(e) => applyColor(e.target.value)}
-                  style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }}
-                />
-              </label>
-            </div>
-
-            <textarea
-              ref={taRef}
+            <RichTextEditor
               value={body}
-              onChange={(e) => setBody(e.target.value)}
+              onChange={setBody}
               rows={6}
+              showPreview={false}
               placeholder={t.announcementBodyPlaceholder}
-              style={{
-                width: "100%",
-                padding: 14,
-                borderRadius: "var(--radius-md)",
-                border: "1px solid var(--border-subtle)",
-                fontSize: 15,
-                lineHeight: 1.6,
-                resize: "vertical",
-                fontFamily: "inherit",
-                background: "var(--bg-base)",
-              }}
+              hint={t.announcementBodyHint}
             />
-            <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8 }}>
-              {t.announcementBodyHint}
-            </p>
-            <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
-              <code>**bold**</code> · <code>[text](https://…)</code> · <code>{`{{color:#ff6b00|text}}`}</code>
-            </p>
 
             {/* Live preview */}
             <div style={{ marginTop: 20 }}>

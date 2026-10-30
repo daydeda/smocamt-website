@@ -15,7 +15,7 @@ const DEFAULT_ANNOUNCEMENT = "ขณะนี้ Web Application ActiveCAMT อ�
 type FilterKey = "all" | "mine" | "open" | "week";
 
 export function EventsColumn({ ctx }: { ctx: DashboardCtx }) {
-  const { announcement, byStartAsc, byStartDesc, eventView, getEventStatus, loadingEvents, openPreview, past, quotaWalkInRows, regWindowRow, setEventView, setEvents, setLoadingEvents, setPreviewImage, stats, t, timelineGroupOf, upcoming, user, weekEnd } = ctx;
+  const { announcement, byStartAsc, byStartDesc, eventView, getEventStatus, loadingEvents, openPreview, past, quotaWalkInRows, regWindowRow, setEventView, setEvents, setLoadingEvents, stats, t, timelineGroupOf, upcoming, user, weekEnd } = ctx;
   const [filter, setFilter] = useState<FilterKey>("all");
   const [showPast, setShowPast] = useState(false);
   const [announcementOpen, setAnnouncementOpen] = useState(false);
@@ -274,7 +274,6 @@ export function EventsColumn({ ctx }: { ctx: DashboardCtx }) {
                            <PosterCarousel
                              posters={getPosters(e)}
                              objectFit="contain"
-                             onExpand={(i) => setPreviewImage({ posters: getPosters(e), index: i })}
                            />
                          ) : (
                            <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(45deg, var(--bg-elevated), var(--bg-surface))" }}>

@@ -60,3 +60,6 @@ public/house_logo/original/
 docs/workload/
 docs/manual-tor-srs/
 .archify/
+
+# Local video assets and scripts
+/docs/videos/

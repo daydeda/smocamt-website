@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin, Clock, Calendar, CheckCircle2, Trophy, Sparkles, AlertCircle, DoorOpen, Eye, ChevronRight, Info } from "lucide-react";
+import { MapPin, Clock, Calendar, CheckCircle2, Trophy, Sparkles, AlertCircle, DoorOpen, Eye, ChevronRight, Info, Users } from "lucide-react";
 import { getRegisterState, type RegisterKind } from "@/lib/events/register-state";
 import { formatEventWhen, formatShortDateTime } from "@/lib/events/event-when";
 import { getPosters, type Event } from "./dashboard-parts";
@@ -51,6 +51,13 @@ export function EventRow({ e, ctx, featured = false, dimmed = false }: { e: Even
   const hasDescription = !!e.description && e.description.trim().length > 0;
   const housePts = e.pointsAwarded;
   const youPts = e.individualPointsAwarded ?? 0;
+  // Seats: shown only when a quota is set (0/null = unlimited), so a student sees
+  // how full an event is without opening the card.
+  const hasQuota = e.quota != null && e.quota > 0;
+  const taken = e.registeredCount ?? 0;
+  const seatsFull = hasQuota && taken >= e.quota!;
+  const waitlistCount = e.waitlistCount ?? 0;
+  const seatsPct = hasQuota ? Math.min(100, (taken / e.quota!) * 100) : 0;
   const thumb = featured ? 88 : 64;
 
   return (
@@ -108,6 +115,21 @@ export function EventRow({ e, ctx, featured = false, dimmed = false }: { e: Even
           <MapPin size={12} style={{ flexShrink: 0 }} />
           <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.location || "CAMT Building"}</span>
         </span>
+        {hasQuota && (
+          // Filled/capacity with a thin bar. Full is amber, not red: the waitlist is still open,
+          // so the label says so (or "Full" when the student can't join the waitlist).
+          <span style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "2px 8px", minWidth: 0, fontSize: 12, fontWeight: 700, color: seatsFull ? "var(--amber-500)" : "var(--text-secondary)" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, whiteSpace: "nowrap" }}>
+              <Users size={12} style={{ flexShrink: 0 }} />
+              <span style={{ fontWeight: 800 }}>{taken}/{e.quota}</span>
+            </span>
+            <span aria-hidden style={{ width: 48, height: 4, flexShrink: 0, background: "var(--bg-elevated)", borderRadius: 99, overflow: "hidden" }}>
+              <span style={{ display: "block", width: `${seatsPct}%`, height: "100%", borderRadius: 99, background: seatsFull ? "var(--amber-500)" : "var(--accent-primary)" }} />
+            </span>
+            {seatsFull && <span style={{ whiteSpace: "nowrap", fontWeight: 900 }}>{kind === "joinWaitlist" ? t.dashWaitlistOpen : t.eventFull}</span>}
+            {waitlistCount > 0 && <span style={{ whiteSpace: "nowrap", fontWeight: 700, color: "var(--text-muted)" }}>· {t.dashWaitingCount.replace("{n}", String(waitlistCount))}</span>}
+          </span>
+        )}
         {hasDescription && (
           // Just the hint: a one-line description preview gets cut to a few words next to it.
           // The row is already tappable, so this only tells the student there is more to read.

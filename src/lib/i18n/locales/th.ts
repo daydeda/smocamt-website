@@ -185,6 +185,8 @@ export const th = {
   dashHidePast: "ซ่อนกิจกรรมที่ผ่านมา",
   dashShowMore: "ดูเพิ่มเติม",
   dashReadMore: "อ่านรายละเอียดก่อนเข้าร่วม",
+  dashWaitingCount: "{n} คนรอคิว",
+  dashWaitlistOpen: "เปิดรับรอคิว",
   dashAnnounceMore: "อ่านเพิ่มเติม",
   dashAnnounceHint: "แตะปุ่มอ่านเพิ่มเติมเพื่อดูประกาศฉบับเต็ม",
   languageLabel: "ภาษา",

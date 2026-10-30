@@ -186,6 +186,8 @@ export const en = {
   dashHidePast: "Hide past events",
   dashShowMore: "Show more",
   dashReadMore: "Read more before joining",
+  dashWaitingCount: "{n} waiting",
+  dashWaitlistOpen: "Waitlist open",
   dashAnnounceMore: "Read more",
   dashAnnounceHint: "Tap Read more to see the full announcement",
   languageLabel: "Language",

@@ -185,6 +185,8 @@ export const cn = {
   dashHidePast: "隐藏已结束的活动",
   dashShowMore: "展开",
   dashReadMore: "参加前请阅读详情",
+  dashWaitingCount: "{n} 人候补",
+  dashWaitlistOpen: "候补已开放",
   dashAnnounceMore: "阅读更多",
   dashAnnounceHint: "点击“阅读更多”查看完整公告",
   languageLabel: "语言",

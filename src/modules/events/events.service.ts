@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { attendance, events, eventSessions, forms, users } from "@/db/schema";
+import { attendance, eventSessions, eventWaitlist, events, forms, users } from "@/db/schema";
 import { AuditService } from "@/modules/audit/audit.service";
 import { bangkokDateKey } from "@/lib/events/event-schema";
 import { isEligibleFor, isEligibleForGuest, type Viewer } from "@/lib/access/event-access";
@@ -121,6 +121,14 @@ export class EventsService {
       // excludes them.
       .where(eq(attendance.isStaff, false))
       .groupBy(attendance.eventId);
+  }
+
+  /** Students waiting for a seat, per event (the waitlist size shown beside "X / quota"). */
+  static async getWaitlistCounts() {
+    return db
+      .select({ eventId: eventWaitlist.eventId, value: sql<number>`count(*)` })
+      .from(eventWaitlist)
+      .groupBy(eventWaitlist.eventId);
   }
 
   /**

@@ -1,12 +1,12 @@
 "use client";
 
-import { Edit2, Trash2, Calendar, MapPin, Clock, Users, Sparkles, BarChart3, Zap, Trophy, ClipboardList, ShieldCheck, AlertTriangle, GraduationCap, Building2 } from "lucide-react";
+import { Edit2, Trash2, BellRing, Calendar, MapPin, Clock, Users, Sparkles, BarChart3, Zap, Trophy, ClipboardList, ShieldCheck, AlertTriangle, GraduationCap, Building2 } from "lucide-react";
 import { getAllowedEventYears } from "@/lib/access/event-access";
 import { formatPendingDetailsDiff, type ParticipantRole, ROLE_LABELS, EMPTY_FORM } from "../_lib/event-model";
 import type { AdminEventsPageCtx } from "../_lib/useAdminEventsPage";
 
 export function EventsGrid({ ctx }: { ctx: AdminEventsPageCtx }) {
-  const { canEditEventDetails, canViewForms, clubs, deletingId, ensureAssigneeUsersLoaded, filteredEvents, getEventStatus, handleDelete, handleEdit, isAttendanceOnly, lang, loading, openFormBuilder, setEditingId, setFormData, setRegistrationMode, setSessions, setShowForm, setSourceProposalId, t, viewAttendance } = ctx;
+  const { canEditEventDetails, canRepush, handleRepush, repushingId, canViewForms, clubs, deletingId, ensureAssigneeUsersLoaded, filteredEvents, getEventStatus, handleDelete, handleEdit, isAttendanceOnly, lang, loading, openFormBuilder, setEditingId, setFormData, setRegistrationMode, setSessions, setShowForm, setSourceProposalId, t, viewAttendance } = ctx;
   return (
     <>{loading ? (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "100px 0", gap: 20 }}>
@@ -448,6 +448,17 @@ export function EventsGrid({ ctx }: { ctx: AdminEventsPageCtx }) {
                         </button>
                         )}
                      </div>
+                     {canRepush && getEventStatus(evt) === "upcoming" && (
+                       <button
+                         id={`repush-event-${evt.id}-btn`}
+                         className="btn btn-ghost"
+                         style={{ width: "100%", height: 44, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "rgb(var(--ink-rgb) / 0.03)", fontSize: 13 }}
+                         disabled={repushingId === evt.id}
+                         onClick={() => handleRepush(evt.id)}
+                       >
+                         {repushingId === evt.id ? <div className="spinner w-4 h-4 border-2" /> : <BellRing size={13} />} {lang === "th" ? "ส่งแจ้งเตือนอีกครั้ง" : "Re-send push"}
+                       </button>
+                     )}
                      {(canEditEventDetails || !isAttendanceOnly) && (
                      <div style={{ display: "flex", alignItems: "center", gap: 12, width: "100%" }}>
                        {canEditEventDetails && (

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formReminderPayload, isOpenToStudents, isReminderFormType, newEventPayload, reminderStage } from "./reminders";
+import { eventReminderPayload, EVENT_REPUSH_COOLDOWN_MS, formReminderPayload, isOpenToStudents, isReminderFormType, newEventPayload, reminderStage, repushWaitMs } from "./reminders";
 
 const now = new Date("2026-10-23T10:00:00Z");
 const at = (mins: number) => new Date(now.getTime() + mins * 60_000);
@@ -46,5 +46,19 @@ describe("isOpenToStudents", () => {
   });
   it("is hidden when only staff roles are listed", () => {
     expect(isOpenToStudents(["smo"])).toBe(false);
+  });
+});
+
+describe("event re-push", () => {
+  it("builds a reminder push with its own tag", () => {
+    const p = eventReminderPayload({ eventId: "e1", title: "Camp", startTime: "2026-11-01T03:00:00Z" });
+    expect(p.tag).toBe("event-reminder:e1");
+    expect(p.body).toContain("Camp");
+  });
+  it("waits out the cooldown after the last re-send", () => {
+    expect(repushWaitMs(null, now)).toBe(0);
+    expect(repushWaitMs(at(-10), now)).toBe(EVENT_REPUSH_COOLDOWN_MS - 10 * 60_000);
+    expect(repushWaitMs(at(-60), now)).toBe(0);
+    expect(repushWaitMs(at(-120), now)).toBe(0);
   });
 });

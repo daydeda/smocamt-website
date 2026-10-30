@@ -175,9 +175,10 @@ export async function getShopOrderAudienceUserIds(productIds: string[], directSe
 
 /**
  * Audience for "a new event you can join": users with a push subscription who pass
- * the same isEligibleFor() check as the dashboard event list. The admin bypass is
- * switched off on purpose, so staff are only told about events a plain student
- * with their profile could join (not every event on the platform).
+ * the same isEligibleFor() check as the dashboard event list. super_admin/admin always
+ * get it, whatever the event's year/role/major/club/Thai-Intl limits (so they can see
+ * the push works); every other staff role is only told about events a plain student with their profile
+ * could join (not every event on the platform).
  */
 export async function getNewEventAudienceUserIds(event: EligibilityItem, excludeUserIds: string[] = []): Promise<string[]> {
   const subscribed = await db.selectDistinct({ userId: pushSubscriptions.userId }).from(pushSubscriptions);
@@ -202,6 +203,8 @@ export async function getNewEventAudienceUserIds(event: EligibilityItem, exclude
         major: p.major,
         clubIds: clubsByUser.get(p.id) ?? [],
       });
+      const roles = effectiveRoles(p.role, p.roles);
+      if (roles.includes("super_admin") || roles.includes("admin")) return true;
       return isEligibleFor(event, { ...viewer, isAdminRole: false });
     })
     .map((p) => p.id);

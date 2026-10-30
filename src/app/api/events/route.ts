@@ -26,6 +26,12 @@ const getSeatCounts = unstable_cache(
   { revalidate: 15, tags: ["events-seat-counts"] },
 );
 
+const getWaitlistCounts = unstable_cache(
+  async () => EventsService.getWaitlistCounts(),
+  ["events-waitlist-counts"],
+  { revalidate: 15, tags: ["events-waitlist-counts"] },
+);
+
 // GET /api/events — List all upcoming & past events (student-facing, FE-04)
 export async function GET() {
   try {
@@ -56,6 +62,8 @@ export async function GET() {
     // can show "X / quota".
     const seatCounts = await getSeatCounts();
     const seatCountMap = new Map(seatCounts.map((c) => [c.eventId, Number(c.value)]));
+    const waitlistCounts = await getWaitlistCounts();
+    const waitlistCountMap = new Map(waitlistCounts.map((c) => [c.eventId, Number(c.value)]));
 
     if (!session?.user) {
       // For guest, filter events by allowedRoles: only show if no role limits, or if "student" is allowed
@@ -66,6 +74,7 @@ export async function GET() {
         isRegistered: false,
         attendanceStatus: null,
         registeredCount: seatCountMap.get(event.id) ?? 0,
+        waitlistCount: waitlistCountMap.get(event.id) ?? 0,
         pointsCredited: false,
       }));
       return NextResponse.json(enrichedEvents);
@@ -148,6 +157,7 @@ export async function GET() {
         canRegister: isEligibleFor(event, viewer),
         attendanceStatus: att?.status || null,
         registeredCount: seatCountMap.get(event.id) ?? 0,
+        waitlistCount: waitlistCountMap.get(event.id) ?? 0,
         waitlistPosition: waitlistMap.get(event.id) ?? null,
         preTest,
         // requireCheckOut events defer the individual-points award to the check-out

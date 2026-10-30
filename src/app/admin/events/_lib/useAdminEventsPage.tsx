@@ -31,6 +31,8 @@ export function useAdminEventsPage() {
   const myRoles = session?.user?.roles ?? (session?.user?.role ? [session.user.role] : []);
 
   const canExportAttendance = myRoles.includes("super_admin") || myRoles.includes("admin");
+  // Re-sending an event's push reaches every eligible student: super_admin/admin only.
+  const canRepush = myRoles.includes("super_admin") || myRoles.includes("admin");
 
   // A global registration position (smoPosition/anusmoPosition === "registration"
   // held by an smo/anusmo) gets the same full staff-tier breadth the "registration" ROLE
@@ -181,6 +183,7 @@ export function useAdminEventsPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [repushingId, setRepushingId] = useState<string | null>(null);
 
   const [removingStudentId, setRemovingStudentId] = useState<string | null>(null);
 
@@ -777,6 +780,60 @@ export function useAdminEventsPage() {
       });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Re-sends an already-posted event's push as a reminder. Asks the server first how
+  // many people it reaches (and whether the 1h cooldown allows it), then confirms.
+  const repushError = (err: { error?: string; reason?: string; retryAfterMs?: number }) => {
+    const mins = Math.max(1, Math.ceil((err.retryAfterMs ?? 0) / 60_000));
+    const message =
+      err.reason === "cooldown" ? (lang === "th" ? `ส่งแจ้งเตือนกิจกรรมนี้ไปเมื่อไม่นานนี้ ลองใหม่ได้ในอีก ${mins} นาที` : `A push for this event was sent recently. Try again in ${mins} min.`)
+      : err.reason === "started" ? (lang === "th" ? "กิจกรรมนี้เริ่มไปแล้ว" : "This event has already started.")
+      : err.reason === "hidden" ? (lang === "th" ? "กิจกรรมนี้ไม่ได้เปิดให้นักศึกษา" : "This event is not open to students.")
+      : err.error || (lang === "th" ? "ส่งแจ้งเตือนไม่สำเร็จ" : "Failed to send the push");
+    setErrorModal({ show: true, title: lang === "th" ? "ส่งแจ้งเตือนไม่ได้" : "Can't send push", message });
+  };
+
+  const handleRepush = async (id: string) => {
+    setRepushingId(id);
+    try {
+      const res = await fetch(`/api/admin/events/${id}/repush`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return repushError(data);
+      const count: number = data.audienceCount ?? 0;
+      setConfirmModal({
+        show: true,
+        title: lang === "th" ? "ส่งแจ้งเตือนอีกครั้ง?" : "Re-send push?",
+        message: lang === "th"
+          ? `ส่งแจ้งเตือน "ยังเปิดลงทะเบียนอยู่" ให้ ${count} คน (รวมผู้ที่เคยได้รับแล้ว) ส่งซ้ำได้อีกครั้งหลัง 1 ชั่วโมง`
+          : `Send a "registration is still open" reminder to ${count} people (including anyone who already got the first one). It can be re-sent again after 1 hour.`,
+        confirmText: lang === "th" ? "ส่งแจ้งเตือน" : "Send push",
+        cancelText: lang === "th" ? "ยกเลิก" : "Cancel",
+        isDanger: false,
+        onConfirm: async () => {
+          setConfirmModal(prev => ({ ...prev, show: false }));
+          setRepushingId(id);
+          try {
+            const sent = await fetch(`/api/admin/events/${id}/repush`, { method: "POST" });
+            const result = await sent.json().catch(() => ({}));
+            if (!sent.ok) return repushError(result);
+            setReviewNoticeModal({
+              show: true,
+              title: lang === "th" ? "ส่งแจ้งเตือนแล้ว" : "Push sent",
+              message: lang === "th" ? `กำลังส่งให้ ${result.audienceCount ?? count} คน` : `Sending to ${result.audienceCount ?? count} people.`,
+            });
+          } catch {
+            repushError({});
+          } finally {
+            setRepushingId(null);
+          }
+        },
+      });
+    } catch {
+      repushError({});
+    } finally {
+      setRepushingId(null);
     }
   };
 
@@ -1722,6 +1779,9 @@ export function useAdminEventsPage() {
     session,
     myRoles,
     canExportAttendance,
+    canRepush,
+    handleRepush,
+    repushingId,
     globalRegPosition,
     isAttendanceOnly,
     canSeeExportButton,

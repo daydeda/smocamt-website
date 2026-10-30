@@ -8,7 +8,7 @@ import { syncEventToSongsue } from "@/lib/integrations/songsue-sync";
 import { eventYearFields } from "@/lib/access/event-access";
 import { AdminEventsService } from "@/modules/events/admin-events.service";
 import { EventsService } from "@/modules/events/events.service";
-import { announceNewEventIfOpen } from "@/modules/notifications/new-event.service";
+import { announceNewEventIfOpen, snapshotEventEligibility } from "@/modules/notifications/new-event.service";
 
 const eventUpdateSchema = z.object({
   title: z.string().min(1).optional(),
@@ -149,6 +149,7 @@ export async function PUT(
     // held-for-review edit or a no-op discard never fires a sync of stale data.
     let liveColumnsChanged = false;
 
+    const eligibilityBefore = await snapshotEventEligibility(id);
     let updated: Awaited<ReturnType<typeof AdminEventsService.updateEvent>>["updated"];
     try {
       const result = await AdminEventsService.updateEvent({
@@ -204,7 +205,7 @@ export async function PUT(
     // An event hidden from students (e.g. SMO-only) that this edit opened up gets its
     // one-time "new event" push. No-op when already announced or still hidden.
     if (liveColumnsChanged) {
-      after(() => announceNewEventIfOpen(updated.id));
+      after(() => announceNewEventIfOpen(updated.id, eligibilityBefore));
     }
 
     return NextResponse.json({ success: true, event: updated });

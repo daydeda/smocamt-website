@@ -185,6 +185,8 @@ export const mm = {
   dashHidePast: "ပြီးခဲ့သောပွဲများကိုဖျောက်ရန်",
   dashShowMore: "ပိုမိုကြည့်ရန်",
   dashReadMore: "မဝင်ခင် အသေးစိတ်ဖတ်ရန်",
+  dashWaitingCount: "စောင့်ဆိုင်းနေသူ {n} ဦး",
+  dashWaitlistOpen: "စောင့်ဆိုင်းစာရင်း ဖွင့်ထားသည်",
   dashAnnounceMore: "ပိုမိုဖတ်ရန်",
   dashAnnounceHint: "ပိုမိုဖတ်ရန် ကိုနှိပ်ပြီး ကြေညာချက်အပြည့်အစုံကို ဖတ်ပါ",
   languageLabel: "ဘာသာစကား",

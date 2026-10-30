@@ -49,6 +49,8 @@ export type Event = {
   // Live headcount: distinct students currently holding a seat for this event.
   // Shown as "registeredCount / quota" so students see how full an event is.
   registeredCount?: number;
+  // Students waiting for a seat (0 when none or no quota). Shown beside "X / quota".
+  waitlistCount?: number;
   // 1-based place in the waitlist when the student is queued for this full event.
   waitlistPosition?: number | null;
   // Whether the event accepts walk-ins (unregistered students scanned in at the

@@ -65,3 +65,23 @@ export function newEventPayload(input: { eventId: string; title: string; startTi
     tag: `new-event:${input.eventId}`,
   };
 }
+
+/** Admin "re-send push" for an event already posted: a reminder, so it doesn't read as a duplicate. */
+export function eventReminderPayload(input: { eventId: string; title: string; startTime: Date | string }): PushNotificationPayload {
+  const when = new Date(input.startTime);
+  const th = when.toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Bangkok" });
+  return {
+    title: "เตือนความจำ / Reminder",
+    body: `"${input.title}" ยังเปิดให้ลงทะเบียนอยู่ (${th}) / Registration is still open for "${input.title}".`,
+    url: `/dashboard?event=${encodeURIComponent(input.eventId)}`,
+    tag: `event-reminder:${input.eventId}`,
+  };
+}
+
+export const EVENT_REPUSH_COOLDOWN_MS = HOUR_MS;
+
+/** Milliseconds until an event's push may be re-sent again (0 = allowed now). */
+export function repushWaitMs(lastSentAt: Date | null | undefined, now: Date): number {
+  if (!lastSentAt) return 0;
+  return Math.max(0, lastSentAt.getTime() + EVENT_REPUSH_COOLDOWN_MS - now.getTime());
+}

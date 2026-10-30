@@ -1,4 +1,5 @@
 "use client";
+import { getRegisterState } from "@/lib/events/register-state";
 
 import { loginHref } from "@/lib/util/safe-callback-url";
 import type { Session } from "next-auth";
@@ -659,7 +660,7 @@ export function deriveDashboard(base: BaseDashboardCtx) {
     // `quota !== null && quota > 0` convention) — treat it exactly like null.
     const hasQuota = ev.quota != null && ev.quota > 0;
     // "Full" only means something when a quota is set. When full, colour the count
-    // red so a student can see at a glance the seats are gone.
+    // amber (not red): the waitlist is usually still open, so it isn't "closed".
     const isFull = hasQuota && registered >= ev.quota!;
     return (
       <>
@@ -668,10 +669,23 @@ export function deriveDashboard(base: BaseDashboardCtx) {
             <Users size={16} />
           </div>
           <div style={{ fontSize: 13, fontWeight: 600 }}>
-            <span style={{ fontWeight: 800, color: isFull ? "var(--red-500)" : "var(--text-primary)" }}>
+            <span style={{ fontWeight: 800, color: isFull ? "var(--amber-500)" : "var(--text-primary)" }}>
               {hasQuota ? `${registered} / ${ev.quota}` : registered}
             </span>
             <span style={{ color: "var(--text-muted)", fontWeight: 600 }}> {t.registered}</span>
+            {hasQuota && (
+              <div aria-hidden style={{ width: 120, maxWidth: "100%", height: 4, marginTop: 6, background: "var(--bg-elevated)", borderRadius: 99, overflow: "hidden" }}>
+                <div style={{ width: `${Math.min(100, (registered / ev.quota!) * 100)}%`, height: "100%", borderRadius: 99, background: isFull ? "var(--amber-500)" : "var(--accent-primary)" }} />
+              </div>
+            )}
+            {isFull && (
+              <div style={{ marginTop: 4, fontSize: 12, fontWeight: 800, color: "var(--amber-500)" }}>
+                {getRegisterState(ev).kind === "joinWaitlist" ? t.dashWaitlistOpen : t.eventFull}
+                {(ev.waitlistCount ?? 0) > 0 && (
+                  <span style={{ fontWeight: 700, color: "var(--text-muted)" }}> · {t.dashWaitingCount.replace("{n}", String(ev.waitlistCount))}</span>
+                )}
+              </div>
+            )}
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, fontWeight: 600 }}>

@@ -59,6 +59,7 @@ export function getRegisterState(e: RegisterStateInput, now: Date = new Date()):
 
   const kind: RegisterKind = registered
     ? isAttended ? "attended" : isPastEvent ? "ended" : "registered"
+    : isPastEvent ? "ended"
     : waitlisted ? "waitlisted"
     : notYetOpen ? "notYetOpen"
     : regClosed ? "closed"
@@ -71,7 +72,7 @@ export function getRegisterState(e: RegisterStateInput, now: Date = new Date()):
     kind,
     canCancel,
     waitlisted,
-    blocked: (registered && !canCancel) || notYetOpen || regClosed || walkInsOnlyMode || viewOnlyMode,
-    greyed: regClosed || walkInsOnlyMode || viewOnlyMode || (registered && !canCancel),
+    blocked: (registered && !canCancel) || (!registered && isPastEvent) || notYetOpen || regClosed || walkInsOnlyMode || viewOnlyMode,
+    greyed: (!registered && isPastEvent) || regClosed || walkInsOnlyMode || viewOnlyMode || (registered && !canCancel),
   };
 }

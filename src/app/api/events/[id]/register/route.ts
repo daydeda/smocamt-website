@@ -175,6 +175,11 @@ export async function POST(
       );
     }
 
+    // An ended event takes no sign-ups or waitlist joins, whatever the window says.
+    if (new Date() > new Date(event.endTime) && !isEventStaff && !adminRoles.includes(userRole)) {
+      return NextResponse.json({ error: "This event has already ended" }, { status: 403 });
+    }
+
     // Validate registration window if set
     if (event.registrationOpenTime && new Date() < new Date(event.registrationOpenTime)) {
       return NextResponse.json({ error: "Registration for this event has not opened yet" }, { status: 403 });

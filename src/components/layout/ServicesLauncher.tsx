@@ -307,7 +307,8 @@ export function ServicesLauncher({
 
         .launcher-grid {
           display: grid;
-          grid-template-columns: repeat(3, 1fr);
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-auto-rows: 104px;
           gap: 10px;
         }
 
@@ -317,8 +318,10 @@ export function ServicesLauncher({
           align-items: center;
           justify-content: center;
           gap: 8px;
-          padding: 16px 8px;
-          min-height: 88px;
+          padding: 12px 6px;
+          min-width: 0;
+          overflow: hidden;
+          line-height: 1.25;
           border-radius: var(--radius-lg);
           background: var(--bg-elevated);
           border: 1px solid transparent;
@@ -346,7 +349,7 @@ export function ServicesLauncher({
           align-items: center;
           justify-content: flex-start;
           gap: 12px;
-          min-height: unset;
+          height: auto;
           padding: 14px 16px;
           text-align: left;
           opacity: 0.55;
@@ -354,6 +357,14 @@ export function ServicesLauncher({
         }
         :global(.launcher-tile.coming-soon .coming-soon-label) {
           flex: 1;
+        }
+        :global(.launcher-tile > span:not(.tile-icon-wrap)) {
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          max-width: 100%;
+          overflow-wrap: anywhere;
         }
         :global(.launcher-tile .tile-icon-wrap) {
           width: 40px;
@@ -402,7 +413,7 @@ export function ServicesLauncher({
             opacity: 1;
           }
           .launcher-grid {
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(4, minmax(0, 1fr));
             gap: 14px;
           }
         }

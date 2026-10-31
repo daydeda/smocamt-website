@@ -388,6 +388,8 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
   const [slipMeta, setSlipMeta] = useState<string | null>(null);
   const [slipPreview, setSlipPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  // True while the slip upload is waiting out a deploy (502/503/504 or dropped connection).
+  const [retrying, setRetrying] = useState(false);
   const [note, setNote] = useState("");
   const [fulfillment, setFulfillment] = useState<"pickup" | "delivery">("pickup");
   const [recipientName, setRecipientName] = useState("");
@@ -469,7 +471,24 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
       fd.append("file", upload);
       // A proxy-level rejection (e.g. 413) returns an HTML body, not JSON; the
       // helper parses defensively and hands back {} in that case.
-      let res = await uploadFormViaXHR("/api/shop/slip", fd);
+      // A deploy restart surfaces as a dropped connection or a proxy 502/503/504. The
+      // compressed slip is already in memory, so wait it out and resend instead of
+      // making the buyer pick the photo again.
+      const RETRY_DELAYS_MS = [3000, 5000, 8000, 10000, 15000];
+      let res: Awaited<ReturnType<typeof uploadFormViaXHR>> | undefined;
+      for (let attempt = 0; ; attempt++) {
+        try {
+          res = await uploadFormViaXHR("/api/shop/slip", fd);
+          if (![502, 503, 504].includes(res.status)) break;
+        } catch {
+          res = undefined;
+        }
+        if (attempt >= RETRY_DELAYS_MS.length) break;
+        setRetrying(true);
+        await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]));
+      }
+      setRetrying(false);
+      if (!res) throw new Error(th ? "เชื่อมต่อไม่ได้ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่" : "Could not connect. Please check your connection and try again.");
       // The server couldn't parse the body (it arrived empty/truncated). The
       // bytes are already in memory, so one silent retry usually succeeds.
       if (res.status === 400 && res.body.code === "BODY_UNREADABLE") {
@@ -489,6 +508,7 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed");
     } finally {
+      setRetrying(false);
       setUploading(false);
     }
   };
@@ -769,7 +789,7 @@ function ProductModal({ product, settings, th, onClose, onOrdered }: {
               ) : (
                 <button onClick={() => fileRef.current?.click()} disabled={uploading} style={{ width: "100%", padding: 24, borderRadius: "var(--radius-md)", border: "2px dashed var(--border-subtle)", background: "var(--bg-base)", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, color: "var(--text-muted)", marginBottom: 16 }}>
                   {uploading ? <Loader2 size={24} className="animate-spin" /> : <Upload size={24} />}
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>{uploading ? (th ? "กำลังอัปโหลด…" : "Uploading…") : (th ? "แตะเพื่อเลือกรูปสลิป" : "Tap to choose slip image")}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>{uploading ? (retrying ? (th ? "ActiveCAMT กำลังอัปเดต กำลังลองอัปโหลดใหม่อัตโนมัติ…" : "ActiveCAMT is updating — retrying your upload automatically…") : (th ? "กำลังอัปโหลด…" : "Uploading…")) : (th ? "แตะเพื่อเลือกรูปสลิป" : "Tap to choose slip image")}</span>
                 </button>
               )}
 

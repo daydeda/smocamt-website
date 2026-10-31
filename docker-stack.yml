@@ -54,12 +54,48 @@
 version: '3.8'
 
 services:
+  # Zero-downtime gateway. Owns the public port so a redeploy never leaves it
+  # unbound: while `web` is being recreated, Caddy keeps retrying the dial for up
+  # to 45s instead of answering 502, so a page load or slip upload made during a
+  # deploy just takes a few seconds longer. 45s stays under the CAMT openresty's
+  # default 60s proxy timeout. Pinned image → Portainer's re-pull never recreates
+  # it. No depends_on on purpose: it must not be restarted along with `web`.
+  # The X-Forwarded-* lines pass openresty's values through unchanged (Caddy would
+  # otherwise overwrite them), so rate-limit / audit IP logic sees what it saw
+  # before. X-Real-IP is passed through by default.
+  gateway:
+    image: caddy:2.10.0-alpine
+    ports:
+      # CAMT-assigned public port 10780. The CAMT reverse proxy routes
+      # https://activecamt.camt.cmu.ac.th here.
+      - "10780:80"
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        cat > /etc/caddy/Caddyfile <<'EOF'
+        {
+        	admin off
+        	auto_https off
+        }
+        :80 {
+        	reverse_proxy web:3000 {
+        		lb_try_duration 45s
+        		lb_try_interval 500ms
+        		# Buffer bodies (uploads are capped at 5MB) so a POST can be replayed.
+        		request_buffers 10MB
+        		header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+        		header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}
+        		header_up X-Forwarded-Host {http.request.header.X-Forwarded-Host}
+        	}
+        }
+        EOF
+        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+
   web:
     image: ghcr.io/daydeda/smocamt-website:latest
-    ports:
-      # CAMT-assigned public port 10780 → Next.js inside the container (3000).
-      # The CAMT reverse proxy routes https://activecamt.camt.cmu.ac.th here.
-      - "10780:3000"
+    # No published port: only `gateway` (and `scheduler`) reach it, over the
+    # stack's internal network.
     restart: unless-stopped
     environment:
       # Points at the `db` service below over the stack's internal network.

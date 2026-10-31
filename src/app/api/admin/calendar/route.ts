@@ -5,10 +5,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 
-// Only the four managing roles may create/edit/delete calendar entries. Scanner
-// roles (smo, club_president, major_president) are deliberately excluded — same
-// rule as event writes.
-const MANAGING_ROLES = ["super_admin", "admin", "registration", "organizer"];
+// Only admin/super_admin and a global registration position (smo/anusmo) may
+// create/edit/delete calendar entries. Scanner roles (plain smo, club_president,
+// major_president) are deliberately excluded — same rule as event writes.
+const MANAGING_ROLES = ["super_admin", "admin"];
 
 const entrySchema = z.object({
   title: z.string().min(1),

@@ -9,8 +9,6 @@ export const FORM_MANAGER_ROLES = ["super_admin", "admin"] as const;
 // Roles an admin can assign a form to (by role). Mirrors the participant +
 // staff roles used elsewhere in the app.
 export const ASSIGNABLE_ROLES = [
-  "organizer",
-  "registration",
   "staff",
   "smo",
   "anusmo",
@@ -44,7 +42,7 @@ export function isFormManager(role?: string | null): boolean {
 // Whether `role` may see a submission's respondent identity (name, student ID,
 // nickname, major, phone, contact channels) on a form's submissions list.
 // Managers (super_admin/admin) always see it, for audit/data-integrity reasons —
-// everyone else (registration, organizer, and any future viewer role like smo/
+// everyone else (the registration desk, and any other viewer role like smo/
 // club_president/major_president) only sees it when the form creator opted in via
 // `showRespondentIdentity`. Every form type defaults that flag to false so opening
 // submissions access to more roles doesn't silently expose who said what; forms

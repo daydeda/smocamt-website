@@ -378,7 +378,7 @@ role, the narrower president scope won and hid everything else — see
 
 | Action | Who |
 |---|---|
-| Create / configure / close a prize | `super_admin`, `admin`, `organizer`; `club_president`/`major_president` for prizes attached to an event they own |
+| Create / configure / close a prize | `super_admin`, `admin`, a global registration position (`smo` + `registration`; the `anusmo` registration desk is check-in only); `club_president`/`major_president` for prizes attached to an event they own |
 | **Award (scan + ยืนยัน + ถ่ายรูป)** | the above **plus `smo`** |
 | View claim list for a prize | the above |
 | Dean report — `.xlsx` export **and** the PDF print page | **not `smo`** — see below |

@@ -110,7 +110,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroupDef[] = [
 // Shared predicates, computed once per item rather than inline, so the truth
 // table in admin-nav-config.test.ts has stable names to assert against.
 const has = (ctx: AdminNavContext, allowed: string[]) => ctx.roles.some((r) => allowed.includes(r));
-const canSeeStudents = (ctx: AdminNavContext) => has(ctx, ["super_admin", "admin", "registration"]) || ctx.globalReg;
+const canSeeStudents = (ctx: AdminNavContext) => has(ctx, ["super_admin", "admin"]) || ctx.globalReg;
 const canSeeAudit = (ctx: AdminNavContext) => has(ctx, ["super_admin", "admin"]);
 const canManage = (ctx: AdminNavContext) => has(ctx, ["super_admin", "admin"]);
 const canManageShop = (ctx: AdminNavContext) =>
@@ -118,14 +118,14 @@ const canManageShop = (ctx: AdminNavContext) =>
 const canSeeClubs = (ctx: AdminNavContext) => has(ctx, ["super_admin", "admin"]);
 const canReviewProposals = (ctx: AdminNavContext) => has(ctx, [...REVIEW_PROPOSAL_ROLES]) || ctx.globalReg;
 // Coming-soon placeholders: shown only to the roles who'd eventually manage
-// that module, so registration/organizer views stay exactly as narrow as
-// they are today (no "heads up" noise for roles who couldn't act on it).
+// that module, so the registration desk's view stays exactly as narrow as
+// it is today (no "heads up" noise for roles who couldn't act on it).
 // Scanner-only contexts never reach this predicate at all — isAdminItemVisible
 // short-circuits to scannerOnlyAllowed before `allowed` is ever called — so
 // no explicit scannerOnly check is needed here. Revisit once VOC/Study land
 // for real and pick up their own scoping.
 const canSeeRoadmap = (ctx: AdminNavContext) => has(ctx, ["super_admin", "admin"]);
-const canSeePrizes = (ctx: AdminNavContext) => canManagePrizes(ctx.roles);
+const canSeePrizes = (ctx: AdminNavContext) => canManagePrizes(ctx.roles, ctx.smoPosition, ctx.anusmoPosition);
 
 export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   {
@@ -208,7 +208,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     fallback: "Property Tags",
     icon: Tag,
     group: "events",
-    allowed: (ctx) => canManagePropertyTags(ctx.roles),
+    allowed: (ctx) => canManagePropertyTags(ctx.roles, ctx.smoPosition, ctx.anusmoPosition),
     keywords: ["qr", "sticker", "bag", "label"],
   },
 
@@ -229,9 +229,9 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     fallback: "Manage Majors",
     icon: GraduationCap,
     group: "community",
-    // Ported verbatim: major_president-only, deliberately bypasses the
-    // full-admin fallback (no staff-facing "majors directory" concept).
-    allowed: (ctx) => ctx.roles.includes("major_president"),
+    // Same audience as Clubs (super_admin/admin, who pick any major), plus a
+    // major_president for their own major.
+    allowed: (ctx) => canSeeClubs(ctx) || ctx.roles.includes("major_president"),
   },
   {
     id: "adminStudentsDirectory",
@@ -267,7 +267,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   // Feedback (VOC) shipped — see docs/features/feedback-complaints.md — real
   // route now, no longer comingSoon. Deliberately gated to canManage
   // (super_admin/admin only), NOT canSeeRoadmap's wider roadmap-preview
-  // audience: registration/organizer can themselves be the subject of a
+  // audience: registration-desk staff can themselves be the subject of a
   // Staff Conduct or Harassment complaint, so this stays narrower than most
   // admin areas (docs §6). Study remains a roadmap placeholder below.
   {
@@ -326,9 +326,9 @@ function scannerOnlyAllowed(item: AdminNavItem, ctx: AdminNavContext): boolean {
     // smo/club_president/major_president staff the prize table, so they get the
     // link even though they can't configure a prize or pull the report — the
     // page's own gates narrow what they see once they're there.
-    (item.href === PRIZES_HREF && canAwardPrizes(ctx.roles)) ||
+    (item.href === PRIZES_HREF && canAwardPrizes(ctx.roles, ctx.smoPosition, ctx.anusmoPosition)) ||
     // smo manages property tags in full; presidents don't.
-    (item.href === PROPERTY_TAGS_HREF && canManagePropertyTags(ctx.roles))
+    (item.href === PROPERTY_TAGS_HREF && canManagePropertyTags(ctx.roles, ctx.smoPosition, ctx.anusmoPosition))
   );
 }
 

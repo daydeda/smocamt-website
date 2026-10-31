@@ -10,12 +10,12 @@ import { EventScopeService } from "@/modules/events/event-scope.service";
 import { EventsService } from "@/modules/events/events.service";
 import { FormsService } from "@/modules/forms/forms.service";
 
-// Staff manage every event's forms, unscoped. club_president/major_president may
+// Staff (admin, or a global registration position) manage every event's forms, unscoped. club_president/major_president may
 // also fully manage forms (create/edit/delete/schedule/identity toggle), but only
 // for events they own — mirrors the scoping already used for attendance/strikes/
 // appeals (see EventScopeService). smo gets read-only access to every event's
 // forms, unscoped — it may GET but never create/edit/delete.
-const STAFF_ROLES = ["super_admin", "admin", "registration", "organizer"];
+const STAFF_ROLES = ["super_admin", "admin"];
 const PRESIDENT_ROLES = ["club_president", "major_president"];
 const VIEW_ONLY_ROLES = ["smo"];
 

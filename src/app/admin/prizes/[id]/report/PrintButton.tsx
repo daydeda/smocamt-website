@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { Loader2, Printer } from "lucide-react";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 // Tiny client island so the report page itself can stay a server component
 // (it reads the DB and writes the export audit log).
 export default function PrintButton() {
+  const { t } = useLanguage();
   const [preparing, setPreparing] = useState(false);
 
   // Proof photos stream through an auth-guarded route and can still be loading
@@ -20,15 +22,9 @@ export default function PrintButton() {
   };
 
   return (
-    <button
-      onClick={handlePrint}
-      disabled={preparing}
-      className="flex shrink-0 items-center gap-2 rounded-lg bg-neutral-900 text-sm font-semibold text-white shadow-sm hover:bg-neutral-700 disabled:opacity-60"
-      // Inline padding: globals.css's unlayered `* { padding: 0 }` reset beats Tailwind's px-*/py-*.
-      style={{ padding: "10px 16px" }}
-    >
-      {preparing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
-      {preparing ? "กำลังโหลดรูป…" : "พิมพ์ / บันทึกเป็น PDF"}
+    <button onClick={handlePrint} disabled={preparing} className="btn btn-primary" style={{ flexShrink: 0 }}>
+      {preparing ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : <Printer size={18} aria-hidden="true" />}
+      {preparing ? t.adminPtPrzPrintPreparing : t.adminPtPrzPrintBtn}
     </button>
   );
 }

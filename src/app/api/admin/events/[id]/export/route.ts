@@ -5,6 +5,7 @@ import { EventScopeService } from "@/modules/events/event-scope.service";
 import { EventsService } from "@/modules/events/events.service";
 import { AttendanceService } from "@/modules/events/attendance.service";
 import { emergencyContactColumns, emergencyContactHeaders } from "@/lib/pdpa/emergency-contacts";
+import { isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 import { canonicalHouseName } from "@/lib/profile/faculties";
 import { medicalCategoriesOf, MEDICAL_CATEGORY_LABELS } from "@/lib/pdpa/medical-signal";
 
@@ -12,7 +13,7 @@ import { medicalCategoriesOf, MEDICAL_CATEGORY_LABELS } from "@/lib/pdpa/medical
 export const runtime = "nodejs";
 
 // The medical/emergency columns are selected conditionally (admin-tier, or
-// fetched-but-unrendered for registration/organizer's aggregate — see
+// fetched-but-unrendered for the registration desk's aggregate — see
 // fetchMedicalFields below), and email/phone/contactChannels are selected
 // conditionally (thin-roster roles get none of them), so Drizzle infers them
 // as absent. Treat them as optional when present.
@@ -50,7 +51,7 @@ type AttendeeUser = {
 // member-roster grant (see ClubsService.getClubMembers) — except emergency
 // contacts are redacted to relationship + phone only (no contact name), same
 // as that roster; the audit log is the accountability mechanism.
-// registration/organizer may now also export (previously blocked here, unlike
+// the registration desk may now also export (previously blocked here, unlike
 // the attendance/report endpoints which already admit them for on-screen
 // viewing): phone only (not email/contactChannels — see
 // includeFullContactColumns), and NO individual medical/meds-check column at
@@ -77,13 +78,16 @@ export async function GET(
     const isThinExportRole = roles.some((r) =>
       ["smo", "club_president", "major_president"].includes(r)
     );
-    const isRegOrgExportRole = roles.some((r) => ["registration", "organizer"].includes(r));
+    // The registration desk = a GLOBAL registration position (smo/anusmo +
+    // "registration"). It replaces the retired registration role and keeps that
+    // role's signal-only PDPA tier below; plain smo stays thin.
+    const isRegOrgExportRole = isGlobalRegistrationPosition(roles, session?.user?.smoPosition, session?.user?.anusmoPosition);
     const canExport = isStaffRole || isThinExportRole || isRegOrgExportRole;
     // A user who ALSO holds admin/super_admin or a president role (multi-role)
     // must not lose the meds-check/full-contact/medical breadth those higher
-    // tiers already grant just because "registration"/"organizer" happens to
-    // also be in their role set — the narrowing below only applies to someone
-    // who is registration/organizer and NOTHING higher.
+    // tiers already grant just because a registration position happens to
+    // also be in their set — the narrowing below only applies to someone
+    // who is the registration desk and NOTHING higher.
     const isRegOrgOnlyExportRole = isRegOrgExportRole && !isStaffRole && !isPresidentRole;
     if (!session?.user || !canExport) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
@@ -100,21 +104,21 @@ export async function GET(
     const includeMedicalColumns = canViewMedical || isPresidentRole;
     // Thin export: identity + check-in only, same as the attendance roster's
     // thin-roster view. Any staff role, a president exporting their own event,
-    // or registration/organizer (who get contact info, just no medical signal —
+    // or the registration desk (who gets contact info, just no medical signal —
     // see includeMedsCheckColumn below) overrides this.
     const isThinRoster = !isStaffRole && !isPresidentRole && !isRegOrgExportRole;
     // "Meds Check" reveals whether a meds-check happened at all — itself a
-    // medical signal — so registration/organizer don't get it either, even
+    // medical signal — so the registration desk doesn't get it either, even
     // though they're not thin. Every other non-thin exporter still does.
     const includeMedsCheckColumn = !isThinRoster && !isRegOrgOnlyExportRole;
-    // Email + Contact Channels are NOT part of registration/organizer's
+    // Email + Contact Channels are NOT part of the registration desk's
     // on-screen roster (the sibling attendance API's FULL_USER_COLUMNS/safeUser
     // give them phone only, never email/contactChannels) — so the export must
     // not hand them two new bulk-PII columns they never had access to. Staff and
     // president still get all three, same as before.
     const includeFullContactColumns = !isThinRoster && !isRegOrgOnlyExportRole;
     // Medical fields still need to be FETCHED (not rendered) for
-    // registration/organizer so the aggregate-only summary below has data to
+    // the registration desk so the aggregate-only summary below has data to
     // count from, without ever exposing a single row's detail.
     const fetchMedicalFields = includeMedicalColumns || isRegOrgExportRole;
 
@@ -132,7 +136,7 @@ export async function GET(
     // (see events.requireCheckOut) — everyone else's checkOutTime/evidenceFileKey
     // are always null. The evidence photo link goes further: it's gated to the
     // same roles ADMIN_ROLES in /api/attendance/evidence/[attendanceId] actually
-    // allows through (super_admin/admin/registration/organizer) — smo and
+    // allows through (super_admin/admin/global registration position) — smo and
     // club/major presidents can export this file but would get a 403 clicking
     // the link, so they don't get the column at all rather than a dead link.
     const showCheckoutColumns = !!event.requireCheckOut;
@@ -244,7 +248,7 @@ export async function GET(
     // get full medical detail + full emergency-contact columns (incl. contact
     // name) and the Meds Check column; a club/major president exporting their
     // own event gets the same medical detail + Meds Check but with the contact's
-    // NAME redacted (relationship + phone only); registration/organizer get
+    // NAME redacted (relationship + phone only); the registration desk gets
     // contact info (phone only — see includeFullContactColumns below) but NO
     // individual medical signal at all, not even Meds Check, in exchange for the
     // aggregate-only Medical Summary appended to the Summary sheet; thin-roster
@@ -279,7 +283,7 @@ export async function GET(
     // Which medical categories a user filled in — never the value itself.
     // Shared with the attendance API and the scanner so all three agree on
     // what counts as "flagged". Used here only to COUNT (never name) for
-    // registration/organizer's aggregate summary.
+    // the registration desk's aggregate summary.
     const categoryLabelsOf = (u: AttendeeUser | null | undefined): string[] =>
       u ? medicalCategoriesOf(u).map((k) => MEDICAL_CATEGORY_LABELS[k]) : [];
 
@@ -314,16 +318,16 @@ export async function GET(
       // phone, contact channels, or meds-check status (the latter would reveal
       // a medical condition). Mirrors THIN_USER_COLUMNS in the sibling
       // attendance API. They must ask an admin for detail. club_president/
-      // major_president and registration/organizer are NOT thin (see
+      // major_president and the registration desk are NOT thin (see
       // isThinRoster above), so this branch covers them too.
       if (!isThinRoster) {
         // Email + Contact Channels: staff/president only — see
-        // includeFullContactColumns above (registration/organizer's on-screen
+        // includeFullContactColumns above (the registration desk's on-screen
         // roster never had these either, only Phone).
         if (includeFullContactColumns) base["Email"] = u?.email || "";
         base["Phone"] = u?.phone || "";
         if (includeFullContactColumns) base["Contact Channels"] = u?.contactChannels || "";
-        // Registration/organizer don't get this column — see
+        // The registration desk doesn't get this column — see
         // includeMedsCheckColumn above.
         if (includeMedsCheckColumn) base["Meds Check"] = m.medsCheckOption || "";
       }
@@ -508,7 +512,7 @@ export async function GET(
     summaryWs["!autofilter"] = { ref: summaryWs["!ref"] || "A1" };
     summaryWs["!cols"] = summaryHeader.map((h) => ({ wch: Math.max(14, h.length + 2) }));
 
-    // Registration/organizer get no individual medical column (see
+    // The registration desk gets no individual medical column (see
     // includeMedicalColumns/isThinRoster above) — instead, an AGGREGATE-only
     // block (counts per category across distinct attendees) is appended below
     // the summary table, so they still know the overall shape of the crowd's

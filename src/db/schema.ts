@@ -75,7 +75,7 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   emailVerified: timestamp("emailVerified", { mode: "date", withTimezone: true }),
   image: text("image"),
-  role: text("role").default("student"), // 'student', 'smo', 'anusmo', 'club_president', 'major_president', 'admin', 'registration', 'organizer', 'super_admin'
+  role: text("role").default("student"), // 'student', 'smo', 'anusmo', 'club_president', 'major_president', 'admin', 'super_admin'
   roles: jsonb("roles").$type<string[]>().default(["student"]),
   houseId: text("house_id").references(() => houses.id),
   points: integer("points").notNull().default(0),

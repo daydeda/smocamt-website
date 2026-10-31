@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 // major presidents yet (unlike the attendance roster's medical-detail tier) —
 // evidence check-in is currently only used for centrally-run campaigns; add
 // EventScopeService scoping here if a president-run evidence event needs it.
-const ADMIN_ROLES = ["super_admin", "admin", "registration", "organizer"];
+const ADMIN_ROLES = ["super_admin", "admin"];
 
 // A stored key is always "<uuid>.<ext>" (see form-file-storage.ts, reused as-is
 // for evidence uploads).

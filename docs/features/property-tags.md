@@ -17,7 +17,7 @@ Printed QR stickers that staff stick on a student's belongings (bag, phone, …)
 
 ## Rules
 
-- **Who can manage:** `super_admin`, `admin`, `registration`, `organizer`, `smo`, all with full rights (`PROPERTY_TAG_ROLES` in `src/lib/access/admin-access.ts`). Presidents and sellers are excluded. The server gate is `resolvePropertyTagStaff` (`src/lib/property-tags/property-tag-access.ts`).
+- **Who can manage:** `super_admin`, `admin`, `smo` (which includes the registration desk, `smo` + smoPosition `registration`) all with full rights (an `anusmo` holding the `registration` position is a check-in-only desk and is excluded) (`PROPERTY_TAG_ROLES` in `src/lib/access/admin-access.ts`). Presidents and sellers are excluded. The server gate is `resolvePropertyTagStaff` (`src/lib/property-tags/property-tag-access.ts`).
 - **Viewing an owner** requires a signed-in, onboarded account. `/t/*` is a public route in `src/proxy.ts` only so it can render its own sign-in prompt that returns to the same sticker. Lookups are rate-limited to 30/min per viewer. The page is `noindex`.
 - **The owner is read live** from `users`, so a name change shows immediately. The owner's role is never returned.
 - **The series is stock-keeping only.** Giving an `SMO-`/`ANU-` tag to someone without that role shows a soft warning at assign time. Nothing re-checks it later, so a tag stays valid after its owner leaves SMO. Owning another tag in the same group also only warns.

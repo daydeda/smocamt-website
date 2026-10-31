@@ -31,8 +31,6 @@ function visibleHrefs(c: AdminNavContext): string[] {
 
 const SUPER_ADMIN = ctx({ roles: ["super_admin"] });
 const ADMIN = ctx({ roles: ["admin"] });
-const REGISTRATION = ctx({ roles: ["registration"] });
-const ORGANIZER = ctx({ roles: ["organizer"] });
 const SMO_SCANNER_ONLY = ctx({ roles: ["smo"], hasStaffPosition: true });
 const SMO_GLOBAL_REGISTRATION = ctx({ roles: ["smo"], hasStaffPosition: true, smoPosition: "registration" });
 const SMO_FINANCE = ctx({ roles: ["smo"], hasStaffPosition: true, smoPosition: "finance" });
@@ -66,8 +64,8 @@ describe("admin-nav-config: full-admin roles (super_admin/admin) see the full no
 
   it("super_admin", () => {
     for (const href of FULL_SET) expect(visibleHrefs(SUPER_ADMIN)).toContain(href);
-    // major_president-only item stays hidden even from super_admin (role-only gate).
-    expect(visibleHrefs(SUPER_ADMIN)).not.toContain("/admin/majors");
+    // Majors is shown to full admins, same as Clubs.
+    expect(visibleHrefs(SUPER_ADMIN)).toContain("/admin/majors");
     // "voc" (Feedback & Complaints) shipped — real link now, not comingSoon.
     expect(getVisibleAdminItems(SUPER_ADMIN).some((i) => i.id === "voc" && i.comingSoon)).toBe(false);
     // "study" remains a roadmap placeholder.
@@ -79,32 +77,35 @@ describe("admin-nav-config: full-admin roles (super_admin/admin) see the full no
   });
 });
 
-describe("admin-nav-config: registration/organizer are barred from admin/students-adjacent + audit + content", () => {
-  it("registration sees students (role-listed) but not clubs/audit/announcement/shop/appeals", () => {
-    const hrefs = visibleHrefs(REGISTRATION);
+describe("admin-nav-config: the registration desk (smo + global registration position) is barred from clubs/audit/content", () => {
+  it("sees students (position-listed) and prizes but not clubs/audit/announcement/shop/appeals-only extras", () => {
+    const hrefs = visibleHrefs(SMO_GLOBAL_REGISTRATION);
     expect(hrefs).toContain("/admin/property-tags");
     expect(hrefs).toContain("/admin/students");
     expect(hrefs).toContain("/admin/proposals");
     expect(hrefs).toContain("/admin/reviews");
+    expect(hrefs).toContain("/admin/prizes");
     expect(hrefs).not.toContain("/admin/clubs");
     expect(hrefs).not.toContain("/admin/audit-logs");
     expect(hrefs).not.toContain("/admin/announcement");
     expect(hrefs).not.toContain("/admin/shop");
-    expect(hrefs).not.toContain("/admin/appeals");
-    // Feedback & Complaints stays super_admin/admin-only — registration can
-    // itself be the subject of a Staff Conduct complaint (docs §6).
+    // Feedback & Complaints stays super_admin/admin-only — the registration desk
+    // can itself be the subject of a Staff Conduct complaint (docs §6).
     expect(hrefs).not.toContain("/admin/feedback");
   });
 
-  it("organizer: same shape as registration for the role-listed items", () => {
-    const hrefs = visibleHrefs(ORGANIZER);
-    expect(hrefs).toContain("/admin/property-tags");
-    expect(hrefs).not.toContain("/admin/students"); // organizer excluded from canSeeStudents
-    expect(hrefs).toContain("/admin/proposals");
-    expect(hrefs).toContain("/admin/reviews");
-    expect(hrefs).not.toContain("/admin/clubs");
+  it("anusmo + registration position is a check-in desk: the scanner, none of the registration-desk items", () => {
+    const hrefs = visibleHrefs(ctx({ roles: ["anusmo"], hasStaffPosition: true, anusmoPosition: "registration" }));
+    expect(hrefs).toContain("/admin/scanner");
+    expect(hrefs).not.toContain("/admin/students");
+    expect(hrefs).not.toContain("/admin/prizes");
+    expect(hrefs).not.toContain("/admin/property-tags");
     expect(hrefs).not.toContain("/admin/audit-logs");
-    expect(hrefs).not.toContain("/admin/feedback");
+  });
+
+  it("the retired roles see nothing on their own", () => {
+    expect(visibleHrefs(ctx({ roles: ["registration"] }))).not.toContain("/admin/students");
+    expect(visibleHrefs(ctx({ roles: ["organizer"] }))).not.toContain("/admin/property-tags");
   });
 });
 
@@ -165,14 +166,14 @@ describe("admin-nav-config: scanner-only confinement (smo, club_president, major
   });
 });
 
-describe("admin-nav-config: /admin/majors is major_president-only even for full admins", () => {
+describe("admin-nav-config: /admin/majors for presidents and full admins", () => {
   it("a major_president who ALSO holds admin sees /admin/majors via the role-only bypass", () => {
     const combo = ctx({ roles: ["major_president", "admin"] });
     expect(visibleHrefs(combo)).toContain("/admin/majors");
   });
 
-  it("super_admin alone never sees /admin/majors", () => {
-    expect(visibleHrefs(SUPER_ADMIN)).not.toContain("/admin/majors");
+  it("super_admin alone sees /admin/majors (picks any major, like Clubs)", () => {
+    expect(visibleHrefs(SUPER_ADMIN)).toContain("/admin/majors");
   });
 });
 

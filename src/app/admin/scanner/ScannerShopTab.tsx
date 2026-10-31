@@ -30,7 +30,7 @@ export default function ScannerShopTab() {
           <ShoppingBag size={20} style={{ color: "var(--accent-primary)", flexShrink: 0 }} />
           {t.scannerShopHint}
         </p>
-        <Link href="/admin/shop" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, color: "var(--accent-primary)" }}>
+        <Link href="/admin/shop" style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, fontSize: 14, fontWeight: 700, color: "var(--accent-primary)" }}>
           {t.scannerShopManageLink} <ArrowRight size={14} />
         </Link>
       </div>

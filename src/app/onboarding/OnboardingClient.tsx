@@ -17,6 +17,7 @@ import { NameFields } from "@/components/profile/NameFields";
 import { composeFullName, sanitizeNameInput, contactHasName, contactNeedsLatinConfirm, partsHaveLatin } from "@/lib/profile/name";
 import { unsubscribePushBeforeSignOut } from "@/lib/push/push-client";
 import { isSeniorStudentId, studyYear, intakeYearBE } from "@/lib/profile/student-year";
+import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 
 // Rich CAMT major labels; other faculties show their bare code (or no Major
 // dropdown at all until their major lists are provided).
@@ -85,8 +86,11 @@ export default function OnboardingClient({ initialSession }: { initialSession: S
   const session = sessionData || initialSession;
   const isStudent =
     session?.user &&
-    !["super_admin", "admin", "registration", "organizer"].includes(
-      session.user.role || ""
+    !["super_admin", "admin"].includes(session.user.role || "") &&
+    !isGlobalRegistrationPosition(
+      effectiveRoles(session.user.role, session.user.roles),
+      session.user.smoPosition,
+      session.user.anusmoPosition,
     );
   const { t, lang } = useLanguage();
 

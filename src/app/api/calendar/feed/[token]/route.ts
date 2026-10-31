@@ -38,6 +38,8 @@ export async function GET(
       studentId: user.studentId,
       major: user.major,
       clubIds,
+      smoPosition: user.smoPosition,
+      anusmoPosition: user.anusmoPosition,
     });
 
     const items = await getCalendarItemsForViewer(viewer, user.id);

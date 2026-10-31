@@ -10,8 +10,10 @@ export const SUBMIT_PROPOSAL_ROLES = ["club_president", "major_president"] as co
 
 // Same staff set that may create a real event today (POST /api/admin/events) —
 // reviewing/rejecting/converting a proposal is just "can create events" plus
-// EventScopeService-based ownership scoping for president submissions.
-export const REVIEW_PROPOSAL_ROLES = ["super_admin", "admin", "registration", "organizer"] as const;
+// EventScopeService-based ownership scoping for president submissions. A GLOBAL
+// registration position (smo/anusmo, isGlobalRegistrationPosition) also reviews;
+// every caller layers that check on top of this role list.
+export const REVIEW_PROPOSAL_ROLES = ["super_admin", "admin"] as const;
 
 export const PROPOSAL_STATUSES = ["pending", "approved", "rejected", "withdrawn"] as const;
 export type ProposalStatus = (typeof PROPOSAL_STATUSES)[number];

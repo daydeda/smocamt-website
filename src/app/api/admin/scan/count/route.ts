@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { captureException } from "@/lib/util/logger";
-import { canEnterAdminAny, effectiveRoles, isEventUnscopedStaff } from "@/lib/access/admin-access";
+import { canEnterAdminAny, effectiveRoles, canCheckInEveryEvent } from "@/lib/access/admin-access";
 import { EventsService } from "@/modules/events/events.service";
 import { AttendanceService } from "@/modules/events/attendance.service";
 import { EventScopeService } from "@/modules/events/event-scope.service";
@@ -46,7 +46,7 @@ export async function GET(req: Request) {
     const myRoles = session.user.roles ?? (session.user.role ? [session.user.role] : []);
     const smoPosition = session.user.smoPosition;
     const anusmoPosition = session.user.anusmoPosition;
-    const isStaff = isEventUnscopedStaff(myRoles, smoPosition, anusmoPosition);
+    const isStaff = canCheckInEveryEvent(myRoles, smoPosition, anusmoPosition);
     const presidentTags = myRoles.filter((r) =>
       ["club_president", "major_president"].includes(r),
     );

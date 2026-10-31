@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { effectiveRoles, isGlobalRegistrationPosition, isEventUnscopedStaff } from "@/lib/access/admin-access";
+import { canCheckInEveryEvent, effectiveRoles, isAnusmoRegistration, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 import { getClientIp } from "@/modules/audit/audit.service";
 import { EventScopeService } from "@/modules/events/event-scope.service";
 import { AdminEventsService } from "@/modules/events/admin-events.service";
@@ -119,7 +119,9 @@ export async function GET() {
     const myRoles = session?.user?.roles ?? (session?.user?.role ? [session.user.role] : []);
     const smoPosition = session?.user?.smoPosition;
     const anusmoPosition = session?.user?.anusmoPosition;
-    const isRoleAdmin = myRoles.some((r) => ["super_admin", "admin", "registration", "organizer", "smo", "club_president", "major_president"].includes(r));
+    // The ANUSMO registration desk (check-in only) needs this list for the scanner's picker.
+    const isRoleAdmin = myRoles.some((r) => ["super_admin", "admin", "smo", "club_president", "major_president"].includes(r))
+      || isAnusmoRegistration(myRoles, anusmoPosition);
     const isAdminRole = isRoleAdmin || (!!session?.user?.id
       && (await EventScopeService.hasRegistrationScope(session.user.id, myRoles, smoPosition, anusmoPosition)));
     if (!session?.user || !isAdminRole) {
@@ -135,7 +137,7 @@ export async function GET() {
     // registration position (case 2/3) is scoped the same way presidents are. This
     // drives both the admin events page AND the scanner's event picker, which
     // share this endpoint.
-    const isStaff = isEventUnscopedStaff(myRoles, smoPosition, anusmoPosition);
+    const isStaff = canCheckInEveryEvent(myRoles, smoPosition, anusmoPosition);
     const presidentTags = myRoles.filter((r) => ["club_president", "major_president"].includes(r));
     const access = await EventScopeService.resolveEventAccess({
       userId: session.user.id!, roles: myRoles, smoPosition, anusmoPosition, isUnscopedStaff: isStaff, hasPresidentTag: presidentTags.length > 0,
@@ -188,15 +190,15 @@ export async function POST(req: Request) {
   try {
     const session = await auth();
     // effectiveRoles, not the singular session.user.role — otherwise a staffer
-    // whose PRIMARY role isn't in this admin set (e.g. a registration officer
-    // who is also tagged club_president elsewhere) gets wrongly rejected here,
+    // whose PRIMARY role isn't in this admin set (e.g. a registration-position
+    // anusmo who is also tagged club_president elsewhere) gets wrongly rejected here,
     // matching how PUT /api/admin/events/[id] already resolves roles.
     const myRoles = effectiveRoles(session?.user?.role, session?.user?.roles);
     // Creating a brand-new event has no existing ownerClubIds/ownerMajors to scope
     // against, so a club/major-scoped registration position (case 2/3) does NOT
     // get this — only a GLOBAL registration position (smo/anusmo, case 1) does,
     // matching the org-wide-capability split used elsewhere in this rollout.
-    const isAdminRole = myRoles.some((r) => ["super_admin", "admin", "registration", "organizer"].includes(r))
+    const isAdminRole = myRoles.some((r) => ["super_admin", "admin"].includes(r))
       || isGlobalRegistrationPosition(myRoles, session?.user?.smoPosition, session?.user?.anusmoPosition);
     if (!session?.user || !isAdminRole) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

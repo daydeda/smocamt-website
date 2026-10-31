@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { parseRichText } from "@/lib/ui/rich-text";
+import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 import { StudentNav } from "@/components/layout/StudentNav";
 import {
   buildVCalendar,
@@ -57,7 +58,7 @@ interface EventOption {
   title: string;
 }
 
-const MANAGING_ROLES = ["super_admin", "admin", "registration", "organizer"];
+const MANAGING_ROLES = ["super_admin", "admin"];
 const ALL_ROLES = [
   "student",
   "staff",
@@ -168,7 +169,10 @@ export default function CalendarClient({
   const { t, lang } = useLanguage();
   const locale = LOCALE[lang] ?? "en-US";
 
-  const canManage = MANAGING_ROLES.includes(session?.user?.role || "");
+  // Admin roles, or a global registration position (smo/anusmo) — mirrors the
+  // /api/admin/calendar gate, which stays the real check.
+  const canManage = MANAGING_ROLES.includes(session?.user?.role || "")
+    || isGlobalRegistrationPosition(effectiveRoles(session?.user?.role, session?.user?.roles), session?.user?.smoPosition, session?.user?.anusmoPosition);
 
   const [items, setItems] = useState<CalendarItem[]>([]);
   const [loading, setLoading] = useState(true);

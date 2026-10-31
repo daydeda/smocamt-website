@@ -39,7 +39,7 @@ export async function GET(req: Request) {
 
     const appeals = await AppealsService.listForReview(status);
 
-    const isUnscoped = myRoles.some((r) => ["super_admin", "admin", "registration", "smo"].includes(r))
+    const isUnscoped = myRoles.some((r) => ["super_admin", "admin", "smo"].includes(r))
       || isGlobalRegistrationPosition(myRoles, session.user.smoPosition, session.user.anusmoPosition);
     const presidentTags = myRoles.filter((r) => ["club_president", "major_president"].includes(r));
     const access = await EventScopeService.resolveEventAccess({

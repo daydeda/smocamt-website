@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { availableScanModes, scansTagAsStaff } from "./scan-modes";
+import { availableScanModes } from "./scan-modes";
 
 const modes = (roles: string[], shopManager = false, hasStaffPosition = false) =>
   availableScanModes({ roles, shopManager, hasStaffPosition });
@@ -24,12 +24,5 @@ describe("availableScanModes", () => {
 
   it("a staff position alone opens the check-in handoff but not prize", () => {
     expect(modes(["student"], false, true)).toEqual(["tag", "checkin"]);
-  });
-});
-
-describe("scansTagAsStaff", () => {
-  it("is true for the property-tag roles, false for students and presidents", () => {
-    for (const r of ["super_admin", "admin", "registration", "organizer", "smo"]) expect(scansTagAsStaff([r])).toBe(true);
-    for (const r of ["student", "anusmo", "club_president", "major_president", "shop_seller"]) expect(scansTagAsStaff([r])).toBe(false);
   });
 });

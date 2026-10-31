@@ -1,11 +1,9 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { PrizeService } from "@/modules/events/prize.service";
 import { AuditService } from "@/modules/audit/audit.service";
 import { canReachPrize, resolvePrizeAccess } from "@/lib/prizes/prize-scope";
 import { headers } from "next/headers";
-import PrintButton from "./PrintButton";
+import ReportToolbar from "./ReportToolbar";
 
 export const dynamic = "force-dynamic";
 
@@ -71,13 +69,7 @@ export default async function PrizeReportPage({ params }: { params: Promise<{ id
 
       {/* Screen-only toolbar */}
       <div className="pr-toolbar no-print">
-        <Link href="/admin/prizes" className="pr-back">
-          <ArrowLeft size={16} /> กลับไปหน้ารางวัล
-        </Link>
-        <p className="pr-hint">
-          กด &quot;พิมพ์ / บันทึกเป็น PDF&quot; แล้วเลือกปลายทางเป็น <b>Save as PDF</b> — ไฟล์นี้คือหลักฐานตัวจริง (รูปผูกกับชื่อถาวร)
-        </p>
-        <PrintButton />
+        <ReportToolbar />
       </div>
 
       {/* The paper */}

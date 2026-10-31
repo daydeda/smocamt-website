@@ -9,7 +9,7 @@ export async function resolvePropertyTagStaff(): Promise<{ userId: string; roles
   const session = await auth();
   if (!session?.user?.id) return null;
   const roles = effectiveRoles(session.user.role, session.user.roles);
-  if (!canManagePropertyTags(roles)) return null;
+  if (!canManagePropertyTags(roles, session.user.smoPosition, session.user.anusmoPosition)) return null;
   return { userId: session.user.id, roles };
 }
 

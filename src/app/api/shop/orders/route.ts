@@ -184,6 +184,8 @@ export async function POST(req: Request) {
       roles: session.user.roles || [session.user.role || "student"],
       studentId: session.user.studentId,
       major: me?.major,
+      smoPosition: session.user.smoPosition,
+      anusmoPosition: session.user.anusmoPosition,
     });
 
     const created = await ShopOrdersService.createOrder({

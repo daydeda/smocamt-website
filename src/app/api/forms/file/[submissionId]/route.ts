@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 // Mirrors ADMIN_ROLES in /api/admin/events/[id]/form — the same people who can
 // see submissions in the admin events page may view their file answers.
-const ADMIN_ROLES = ["super_admin", "admin", "registration", "organizer"];
+const ADMIN_ROLES = ["super_admin", "admin"];
 
 // A stored key is always "<uuid>.<ext>"; anything else is a text/choice answer
 // that happens to live at this question id, not a file — reject it.

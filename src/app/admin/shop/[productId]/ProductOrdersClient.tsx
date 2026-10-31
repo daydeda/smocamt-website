@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { PageHeader } from "@/components/admin/ui";
 import { OrdersTab } from "../_components/OrdersTab";
 import type { ShopContext } from "../_components/shop-model";
 
@@ -21,9 +20,13 @@ export default function ProductOrdersClient({ productId }: { productId: string }
 
   return (
     <div className="pb-20">
-      <Link href="/admin/shop" className="btn btn-ghost" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13, padding: "6px 12px", marginBottom: 16 }}>
-        <ChevronLeft size={15} />{th ? "กลับไปจัดการร้านค้า" : "Back to Manage Shop"}
-      </Link>
+      <PageHeader
+        back={{ href: "/admin/shop", label: th ? "กลับไปจัดการร้านค้า" : "Back to Manage Shop" }}
+        title={th ? "คำสั่งซื้อของสินค้า" : "Product orders"}
+        description={th
+          ? "คำสั่งซื้อที่มีสินค้านี้ พร้อมสรุปจำนวนตามตัวเลือก ใช้ตรวจสลิปและส่งมอบสินค้า"
+          : "Every order that includes this product, with a count per option. Review slips and hand items over from here."}
+      />
       <OrdersTab th={th} ctx={ctx} productId={productId} />
     </div>
   );

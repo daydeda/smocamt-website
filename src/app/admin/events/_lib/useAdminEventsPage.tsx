@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useState, useRef, useMemo } from "react";
-import { Calendar, Clock, User, CheckCircle2, Activity, Info, ShieldCheck, UserX } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { NO_SHOW_PENALTY_POINTS } from "@/lib/points/strikes";
 import { eventYearFields, getAllowedEventYears, yearOfStudy } from "@/lib/access/event-access";
 import { sessionSpansTooLong, splitIntoDailySessions } from "@/lib/events/event-schema";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { usePolling } from "@/lib/hooks/usePolling";
+import { useToast } from "@/components/admin/ui";
 import { isGlobalRegistrationPosition } from "@/lib/access/admin-access";
-import { type AdminEvent, type SessionRow, type AdminStudent, type AdminAttendance, isRegularStudent, primaryRoleLabel, MASTER_MAJORS, PHD_MAJORS, EMPTY_FORM } from "./event-model";
+import { type AdminEvent, type SessionRow, type AdminStudent, type AdminAttendance, isRegularStudent, MASTER_MAJORS, PHD_MAJORS, EMPTY_FORM } from "./event-model";
 
 // One attendee on the roster: their primary row plus every per-session row.
 export type AttendanceUnit = { key: string; primary: AdminAttendance; rows: AdminAttendance[] };
@@ -21,8 +21,9 @@ export function useAdminEventsPage() {
   const { t, lang } = useLanguage();
 
   const { data: session } = useSession();
+  const toast = useToast();
 
-  // The admin area also admits registration/organizer (see admin/layout.tsx),
+  // The admin area also admits a global registration position (see admin/layout.tsx),
   // but seeing medical detail in the exported file / student modal — which
   // includes PDPA-sensitive medical & emergency contact data — is restricted to
   // super_admin/admin, plus (2026-07-18) a club/major president viewing an
@@ -34,13 +35,13 @@ export function useAdminEventsPage() {
   // Re-sending an event's push reaches every eligible student: super_admin/admin only.
   const canRepush = myRoles.includes("super_admin") || myRoles.includes("admin");
 
-  // A global registration position (smoPosition/anusmoPosition === "registration"
-  // held by an smo/anusmo) gets the same full staff-tier breadth the "registration" ROLE
-  // has on this page — mirrors every server-side gate this page talks to
+  // A global registration position (smoPosition === "registration" held by an
+  // smo) gets the full staff-tier breadth the retired "registration" ROLE
+  // had on this page — mirrors every server-side gate this page talks to
   // (POST/PUT/DELETE /api/admin/events, .../form) via isGlobalRegistrationPosition.
-  // Without this, such a user's role SET (["smo"]) never matches the
-  // "registration" string below, so they'd be silently stuck on the thin,
-  // view-only surface even though the server accepts their writes.
+  // Without this, such a user's role SET (["smo"]) never matches the admin
+  // roles below, so they'd be silently stuck on the thin, view-only surface
+  // even though the server accepts their writes.
   const globalRegPosition = isGlobalRegistrationPosition(myRoles, session?.user?.smoPosition, session?.user?.anusmoPosition);
 
   // Scanner-only roles (smo, club_president, major_president) reach this page to
@@ -50,15 +51,15 @@ export function useAdminEventsPage() {
   // canManageForms/canViewForms below. Students never reach here (proxy blocks
   // them).
   const isAttendanceOnly = !globalRegPosition && !myRoles.some((r) =>
-    ["super_admin", "admin", "registration", "organizer"].includes(r)
+    ["super_admin", "admin"].includes(r)
   );
 
   // The Export Excel button: staff export the full (role-gated) file; the
   // scanner-only student-leader roles (smo/club_president/major_president)
   // may also export, but the server (api/admin/events/[id]/export) hands them
   // a THIN file with no phone, meds-check, medical, or emergency-contact
-  // columns — they must ask an admin/super_admin for that detail. registration/
-  // organizer may also export: contact info yes, but no individual medical
+  // columns — they must ask an admin/super_admin for that detail. A global
+  // registration position may also export: contact info yes, but no individual medical
   // signal (an aggregate-only medical summary is added to the file's Summary
   // sheet instead) — mirrors the server's isRegOrgExportRole. Mirrors the
   // server's isThinExportRole/isRegOrgExportRole exactly — deliberately
@@ -67,19 +68,18 @@ export function useAdminEventsPage() {
   // position, see src/lib/positions.ts — cosmetic, not a system role) but who
   // holds no export-eligible role; the server already 403s that case, so the
   // button must not be shown for it either.
-  const canSeeExportButton = canExportAttendance || myRoles.some((r) =>
-    ["smo", "club_president", "major_president", "registration", "organizer"].includes(r)
+  const canSeeExportButton = canExportAttendance || globalRegPosition || myRoles.some((r) =>
+    ["smo", "club_president", "major_president"].includes(r)
   );
 
-  // No-show strike-out (US-STRI-15): organizers confirm no-shows for their own
-  // ended events; registration is unscoped staff, like admin. smo may view the
-  // roster but does NOT apply strikes. club_president/major_president are
+  // No-show strike-out (US-STRI-15): a global registration position is unscoped
+  // staff, like admin. Plain smo may view the roster but does NOT apply strikes. club_president/major_president are
   // additionally scoped server-side to events they own (see EventScopeService in
   // api/admin/events/[id]/apply-strikes) — the GET/POST list here already only
   // ever contains events they're allowed to see. Narrower than "reset strikes",
   // which is admin/super_admin only (see /api/admin/students/[id]/strikes/reset).
-  const canApplyStrikes = myRoles.some((r) =>
-    ["super_admin", "admin", "organizer", "registration", "club_president", "major_president"].includes(r)
+  const canApplyStrikes = globalRegPosition || myRoles.some((r) =>
+    ["super_admin", "admin", "club_president", "major_president"].includes(r)
   );
 
   // Club/major presidents may edit their OWN event's details (title, description,
@@ -93,15 +93,15 @@ export function useAdminEventsPage() {
   const canEditEventDetails = !isAttendanceOnly || isPresidentRole;
 
   // Attendee Contact/Medical sections + filter, on the roster and in the
-  // per-student detail modal: staff (registration/organizer included, thin
+  // per-student detail modal: staff (a global registration position included, thin
   // signal only) OR a president viewing an event they own — server-scoped via
   // GET /api/admin/events already only listing events they manage. smo stays
   // excluded (thin roster, no contact/medical data at all — see
   // api/admin/events/[id]/attendance).
   const canSeeAttendeeContactAndMedical = !isAttendanceOnly || isPresidentRole;
 
-  // Raw medical TEXT (vs. the category-signal-only view registration/organizer
-  // get): super_admin/admin, or a president viewing their own event — by
+  // Raw medical TEXT (vs. the category-signal-only view the global registration
+  // position gets): super_admin/admin, or a president viewing their own event — by
   // deliberate product decision (2026-07-18) mirroring the club/major
   // member-roster grant (see ClubsService.getClubMembers). The server
   // (api/admin/events/[id]/attendance, .../export) redacts the emergency
@@ -119,8 +119,8 @@ export function useAdminEventsPage() {
   // truth (see gateEventForms in api/admin/events/[id]/form/route.ts).
   const isSmoRole = myRoles.includes("smo");
 
-  // A "registration" TITLE (src/lib/positions.ts) — distinct from the
-  // "registration" ROLE already folded into isAttendanceOnly above — also gets
+  // A "registration" TITLE (src/lib/positions.ts) — the global case is already
+  // folded into isAttendanceOnly above — also gets
   // full form management, scoped to their own club/major's events server-side
   // (EventScopeService.hasRegistrationScope / gateEventForms's isPositionScoped).
   // Covers all three places that title can be held: smo/anusmo (globalRegPosition,
@@ -138,15 +138,15 @@ export function useAdminEventsPage() {
   const canViewForms = canManageForms || isSmoRole;
 
   // Role/major access control, Managed By (president/owner), and points are
-  // admin/registration/organizer only — even for a president editing their own event.
+  // admin/global-registration-position only — even for a president editing their own event.
   const canEditRestrictedFields = !isAttendanceOnly;
 
-  // Removing a wrongly-registered student is admin/registration only — deliberately
-  // NARROWER than canEditEventDetails (excludes organizer AND presidents). A
+  // Removing a wrongly-registered student is admin/global-registration-position only — deliberately
+  // NARROWER than canEditEventDetails (excludes presidents). A
   // president removing a peer's registration is a bias/conflict-of-interest risk;
   // see the matching server-side gate in api/admin/events/[id]/attendance DELETE
   // (which also honors a global registration position the same way).
-  const canRemoveRegistrant = globalRegPosition || myRoles.some((r) => ["super_admin", "admin", "registration"].includes(r));
+  const canRemoveRegistrant = globalRegPosition || myRoles.some((r) => ["super_admin", "admin"].includes(r));
 
   const [events, setEvents] = useState<AdminEvent[]>([]);
 
@@ -365,8 +365,8 @@ export function useAdminEventsPage() {
   };
 
   // The "has a medical condition" signal shown to every admin-area role.
-  // Admins compute it from the raw fields they receive; registration/organizer
-  // only get the server-derived hasMedicalInfo boolean (no detail).
+  // Admins compute it from the raw fields they receive; a global registration
+  // position only gets the server-derived hasMedicalInfo boolean (no detail).
   const hasMedicalSignal = (user: AdminStudent | null | undefined) =>
     !!user && (user.hasMedicalInfo === true || hasActualMedicalInfo(user));
 
@@ -755,6 +755,9 @@ export function useAdminEventsPage() {
         setEditingId(null);
         setSourceProposalId(null);
         fetchEvents();
+        if (!submittedForReview) {
+          toast.success(editingId ? t.adminEvlSavedToast : t.adminEvlCreatedToast, formData.title || undefined);
+        }
         if (submittedForReview) {
           setReviewNoticeModal({
             show: true,
@@ -804,7 +807,7 @@ export function useAdminEventsPage() {
       const count: number = data.audienceCount ?? 0;
       setConfirmModal({
         show: true,
-        title: lang === "th" ? "ส่งแจ้งเตือนอีกครั้ง?" : "Re-send push?",
+        title: (lang === "th" ? "ส่งแจ้งเตือนอีกครั้ง" : "Re-send push") + (events.find((e) => e.id === id)?.title ? ` “${events.find((e) => e.id === id)?.title}”?` : "?"),
         message: lang === "th"
           ? `ส่งแจ้งเตือน "ยังเปิดลงทะเบียนอยู่" ให้ ${count} คน (รวมผู้ที่เคยได้รับแล้ว) ส่งซ้ำได้อีกครั้งหลัง 1 ชั่วโมง`
           : `Send a "registration is still open" reminder to ${count} people (including anyone who already got the first one). It can be re-sent again after 1 hour.`,
@@ -818,11 +821,7 @@ export function useAdminEventsPage() {
             const sent = await fetch(`/api/admin/events/${id}/repush`, { method: "POST" });
             const result = await sent.json().catch(() => ({}));
             if (!sent.ok) return repushError(result);
-            setReviewNoticeModal({
-              show: true,
-              title: lang === "th" ? "ส่งแจ้งเตือนแล้ว" : "Push sent",
-              message: lang === "th" ? `กำลังส่งให้ ${result.audienceCount ?? count} คน` : `Sending to ${result.audienceCount ?? count} people.`,
-            });
+            toast.success(t.adminEvlPushSentToast, t.adminEvlPushSentToastDesc.replace("{n}", String(result.audienceCount ?? count)));
           } catch {
             repushError({});
           } finally {
@@ -838,13 +837,12 @@ export function useAdminEventsPage() {
   };
 
   const handleDelete = (id: string) => {
+    const eventTitle = events.find((e) => e.id === id)?.title ?? "";
     setConfirmModal({
       show: true,
-      title: lang === "th" ? "คุณแน่ใจหรือไม่?" : "Are you sure?",
-      message: lang === "th" 
-        ? "การดำเนินการนี้จะลบกิจกรรมและบันทึกการเช็คอินทั้งหมดของกิจกรรมนี้อย่างถาวร!" 
-        : "This will permanently delete this event and all associated attendance records!",
-      confirmText: lang === "th" ? "ลบกิจกรรม" : "Delete Event",
+      title: t.adminEvlDeleteTitle.replace("{title}", eventTitle),
+      message: t.adminEvlDeleteBody,
+      confirmText: t.adminEvlDeleteConfirm,
       cancelText: lang === "th" ? "ยกเลิก" : "Cancel",
       isDanger: true,
       onConfirm: async () => {
@@ -854,6 +852,7 @@ export function useAdminEventsPage() {
           const res = await fetch(`/api/admin/events/${id}`, { method: "DELETE" });
           if (res.ok) {
             fetchEvents();
+            toast.success(t.adminEvlDeletedToast, t.adminEvlDeletedToastDesc.replace("{title}", eventTitle));
           } else {
             const err = await res.json();
             setErrorModal({
@@ -878,15 +877,14 @@ export function useAdminEventsPage() {
   // Removes a student's registration/check-in for the currently open event
   // (all sessions, for a multi-day event) — admin/registration only, see
   // canRemoveRegistrant above.
-  const removeRegistrant = (studentId: string, studentName: string) => {
+  const removeRegistrant = (studentId: string, studentNameRaw: string) => {
     if (!activeEventId) return;
+    const studentName = studentNameRaw || "this student";
     setConfirmModal({
       show: true,
-      title: lang === "th" ? "ยกเลิกการลงทะเบียน?" : "Remove registration?",
-      message: lang === "th"
-        ? `การดำเนินการนี้จะลบการลงทะเบียน/เช็คอินของ ${studentName} สำหรับกิจกรรมนี้ทั้งหมด (ทุกวัน)`
-        : `This will remove ${studentName}'s registration and check-in for this event entirely (all days).`,
-      confirmText: lang === "th" ? "ลบการลงทะเบียน" : "Remove Registration",
+      title: t.adminEvlRemoveRegTitle.replace("{name}", studentName),
+      message: t.adminEvlRemoveRegBody.replace(/\{name\}/g, studentName).replace("{event}", events.find((e) => e.id === activeEventId)?.title ?? ""),
+      confirmText: t.adminEvlRemoveRegConfirm,
       cancelText: lang === "th" ? "ยกเลิก" : "Cancel",
       isDanger: true,
       onConfirm: async () => {
@@ -899,6 +897,7 @@ export function useAdminEventsPage() {
           );
           if (res.ok) {
             setAttendance(prev => prev.filter(a => a.studentId !== studentId));
+            toast.success(t.adminEvlRemovedRegToast, studentName);
           } else {
             const err = await res.json().catch(() => null);
             setErrorModal({
@@ -1533,7 +1532,7 @@ export function useAdminEventsPage() {
       setStrikesSelected(new Set(students.map((s: { id: string }) => s.id)));
     } catch (e) {
       setStrikesPreview([]);
-      setErrorModal({ show: true, title: "Couldn't load no-shows", message: e instanceof Error ? e.message : "Please try again." });
+      setErrorModal({ show: true, title: t.adminEvlStrikeLoadFailed, message: e instanceof Error ? e.message : t.adminEvlTryAgain });
       setShowStrikesModal(false);
     } finally {
       setStrikesLoading(false);
@@ -1555,189 +1554,19 @@ export function useAdminEventsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to apply strikes");
       setStrikesResult(data);
+      toast.success(t.adminEvlStrikeApplied);
       setStrikesPreview([]);
       setStrikesSelected(new Set());
       viewAttendance(activeEventId);
     } catch (e) {
-      setErrorModal({ show: true, title: "Couldn't apply strikes", message: e instanceof Error ? e.message : "Please try again." });
+      setErrorModal({ show: true, title: t.adminEvlStrikeApplyFailed, message: e instanceof Error ? e.message : t.adminEvlTryAgain });
     } finally {
       setStrikesSubmitting(false);
     }
   };
 
-  // Meds-check badge — PDPA-gated to super_admin/admin or a president viewing
-  // their own event (canSeeRawMedicalDetail), since the presence of a meds
-  // check reveals who has a medical condition. Shared by the single-day card
-  // and each day-row of a collapsed multi-day card.
-  const renderMedsBadge = (option: string | null, badgeKey?: string) => {
-    if (!canSeeRawMedicalDetail || !option) return null;
-    const color = option === "brought" ? "var(--emerald-500)" : option === "forgot" ? "var(--red-500)" : "var(--blue-500)";
-    const bg = option === "brought" ? "rgb(var(--emerald-500-rgb) / 0.12)" : option === "forgot" ? "rgb(var(--red-500-rgb) / 0.12)" : "rgb(var(--blue-500-rgb) / 0.12)";
-    const border = option === "brought" ? "rgb(var(--emerald-500-rgb) / 0.2)" : option === "forgot" ? "rgb(var(--red-500-rgb) / 0.2)" : "rgb(var(--blue-500-rgb) / 0.2)";
-    const label = option === "brought"
-      ? "Brought Meds / พกยามาด้วย"
-      : option === "forgot"
-      ? "No Meds (Risk) / ไม่ได้พกยา (รับความเสี่ยง)"
-      : "Acknowledged / รับทราบข้อมูล";
-    return (
-      <div key={badgeKey} style={{
-        display: "inline-flex", alignItems: "center", gap: 6, marginTop: 6,
-        padding: "4px 10px", borderRadius: 8, fontSize: 11, fontWeight: 800,
-        textTransform: "uppercase", background: bg, color, border: `1px solid ${border}`,
-      }}>
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: color, boxShadow: `0 0 8px ${color}` }} />
-        {label}
-      </div>
-    );
-  };
-
-  // One roster card, shared by the Staff section and each house group so the
-  // two sections stay visually identical apart from the role badge (staff
-  // only — house-grouped students already carry their house color).
-  const renderAttendanceCard = (unit: AttendanceUnit) => {
-    const m = unit.primary;
-    // A person attending >1 session collapses into one card with a Day 1 → Day N
-    // breakdown (only in the "All days" view). Single-row units render exactly as before.
-    const multiDay = unit.rows.length > 1;
-    const attendedDays = unit.rows.filter((r) => r.status === "attended").length;
-    const assignedStaff = m.isStaff;
-    const staffMember = assignedStaff || (!!m.user?.id && eventStaffIds.has(m.user.id));
-    const unregistered = m.status === "not_registered";
-    return (
-      <div key={unit.key} className="attendance-card" style={{
-        padding: "18px",
-        background: "var(--bg-surface)",
-        borderRadius: 20,
-        border: "1px solid var(--border-subtle)",
-        display: "flex",
-        flexDirection: "column",
-        gap: 14,
-        transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-        boxShadow: "0 4px 12px rgb(var(--shadow-rgb) / 0.02)"
-      }}>
-        {/* Header: identity on the left, actions + status on the right. */}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontWeight: 800, fontSize: 16, color: "var(--text-primary)", overflowWrap: "anywhere" }}>{m.user?.name}</p>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 3, flexWrap: "wrap" }}>
-              <p style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>{m.user?.studentId || "No ID"}</p>
-              {staffMember && (
-                <span title={`${assignedStaff ? "Assigned as event staff" : "Checked attendees in for this event"} · base role: ${primaryRoleLabel(m.user)}`} style={{
-                  display: "inline-flex", alignItems: "center", gap: 4,
-                  padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 800,
-                  textTransform: "uppercase", letterSpacing: "0.03em",
-                  background: "rgb(var(--indigo-500-rgb) / 0.12)", color: "var(--indigo-500)", border: "1px solid rgb(var(--indigo-500-rgb) / 0.25)",
-                }}>
-                  <ShieldCheck size={10} />
-                  {primaryRoleLabel(m.user)}
-                </span>
-              )}
-              {!multiDay && (
-                <>
-                  <div style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--border-medium)" }} />
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <Clock size={12} className="text-muted" />
-                    <p style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>
-                      {m.checkInTime ? new Date(m.checkInTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Bangkok' }) : "-"}
-                    </p>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-            {!unregistered && hasMedicalSignal(m.user) && (
-              <div style={{ color: "var(--red-500)", animation: "pulse-glow 2s infinite" }} title="Medical Condition">
-                <Activity size={20} />
-              </div>
-            )}
-            {/* Student Profile: admin/super_admin only for now — every other
-                role/position (registration, organizer, smo, presidents, etc.)
-                is TBD and excluded until that's determined; canExportAttendance
-                already means exactly "super_admin or admin". */}
-            {!unregistered && canExportAttendance && (
-              <button
-                className="btn btn-ghost"
-                style={{ padding: 8, borderRadius: 10 }}
-                onClick={() => setSelectedStudent(m.user || null)}
-              >
-                <Info size={18} />
-              </button>
-            )}
-            {/* Remove registration: admin/registration only (server re-checks —
-                see DELETE .../attendance). Deliberately excludes organizer,
-                presidents, and smo to avoid peer-bias/conflict-of-interest risk. */}
-            {!unregistered && canRemoveRegistrant && m.user?.id && (
-              <button
-                className="btn btn-ghost"
-                style={{ padding: 8, borderRadius: 10, color: "var(--red-500)" }}
-                title={lang === "th" ? "ลบการลงทะเบียน" : "Remove registration"}
-                disabled={removingStudentId === m.user.id}
-                onClick={() => removeRegistrant(m.user!.id, m.user!.name || m.user!.studentId || "this student")}
-              >
-                {removingStudentId === m.user.id ? <div className="spinner w-4 h-4 border-2" /> : <UserX size={18} />}
-              </button>
-            )}
-            {multiDay ? (
-              <div style={{ minWidth: 50, height: 32, padding: "0 10px", borderRadius: 16, background: attendedDays > 0 ? "rgb(var(--emerald-500-rgb) / 0.1)" : "rgb(var(--accent-rgb) / 0.08)", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, color: attendedDays > 0 ? "var(--emerald-500)" : "var(--accent-primary)", fontSize: 13, fontWeight: 800, border: attendedDays > 0 ? "none" : "1px dashed var(--accent-primary)" }} title={`${attendedDays} / ${unit.rows.length} ${lang === "th" ? "วันเช็คอินแล้ว" : "days checked in"}`}>
-                <CheckCircle2 size={14} />
-                {attendedDays}/{unit.rows.length}
-              </div>
-            ) : m.status === "attended" ? (
-              <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgb(var(--emerald-500-rgb) / 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--emerald-500)" }} title="Checked In">
-                <CheckCircle2 size={16} />
-              </div>
-            ) : unregistered ? (
-              <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--bg-elevated)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", border: "1px dashed var(--border-medium)" }} title="Assigned as staff — hasn't registered or checked in yet">
-                <User size={14} />
-              </div>
-            ) : (
-              <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgb(var(--accent-rgb) / 0.08)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-primary)", border: "1px dashed var(--accent-primary)" }} title="Registered (Not Checked In)">
-                <Clock size={14} className="animate-pulse" />
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Body. The meds-check badge reveals who went through the
-            medication check (i.e. who has a medical condition), so
-            renderMedsBadge restricts it to super_admin/admin. */}
-        {multiDay ? (
-          // One contained row per session this person took part in:
-          // day label, that day's check-in time / registered state,
-          // and (for admins) that day's meds-check badge.
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {unit.rows.map((r) => {
-              const dayLabel = r.session?.title?.trim() || `${lang === "th" ? "วันที่" : lang === "cn" ? "第" : lang === "mm" ? "နေ့" : "Day"} ${(r.session?.sortOrder ?? 0) + 1}`;
-              const checked = r.status === "attended";
-              return (
-                <div key={r.id} style={{ padding: "10px 12px", borderRadius: 14, background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-                    <span style={{
-                      display: "inline-flex", alignItems: "center", gap: 5,
-                      fontSize: 12, fontWeight: 800, color: "var(--text-secondary)",
-                    }}>
-                      <Calendar size={12} />
-                      {dayLabel}
-                    </span>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700, color: checked ? "var(--emerald-500)" : "var(--accent-primary)", flexShrink: 0 }}>
-                      {checked ? <CheckCircle2 size={13} /> : <Clock size={13} className="animate-pulse" />}
-                      {checked
-                        ? (r.checkInTime ? new Date(r.checkInTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Bangkok' }) : (lang === "th" ? "เช็คอินแล้ว" : lang === "cn" ? "已签到" : lang === "mm" ? "ချက်အင်ပြီး" : "Checked in"))
-                        : (lang === "th" ? "ลงทะเบียน" : lang === "cn" ? "已登记" : lang === "mm" ? "စာရင်းသွင်း" : "Registered")}
-                    </span>
-                  </div>
-                  {renderMedsBadge(r.medsCheckOption, r.id)}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          renderMedsBadge(m.medsCheckOption)
-        )}
-      </div>
-    );
-  };
+  // The roster card (incl. the PDPA-gated meds-check badge) now lives in
+  // _components/AttendanceCard.tsx; the gates (hasMedicalSignal, canSeeRawMedicalDetail) are unchanged.
 
   const getEventStatus = (evt: AdminEvent) => {
     const now = new Date();
@@ -1948,8 +1777,6 @@ export function useAdminEventsPage() {
     exportAttendanceXlsx,
     openStrikesModal,
     confirmApplyStrikes,
-    renderMedsBadge,
-    renderAttendanceCard,
     getEventStatus,
     STATUS_ORDER,
     filteredEvents,

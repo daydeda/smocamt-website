@@ -7,7 +7,7 @@
 // Roles allowed to open the admin area at all. The scoped roles below can enter,
 // but their exact pages remain confined by isScannerOnlyAllowedPath + each
 // page/API's server-side gate.
-export const ADMIN_ENTRY_ROLES = ["super_admin", "admin", "registration", "organizer", "smo", "club_president", "major_president", "shop_seller"] as const;
+export const ADMIN_ENTRY_ROLES = ["super_admin", "admin", "smo", "club_president", "major_president", "shop_seller"] as const;
 
 // Confined roles: allowed into /admin, but only to their explicitly permitted
 // scanner/events/organization/shop surfaces.
@@ -18,7 +18,7 @@ export const SCANNER_ONLY_ROLES = ["smo", "club_president", "major_president", "
 // only — they can scan attendance but must not give/deduct individual points.
 // Enforced server-side in /api/admin/scan and ScannerService; the UI just hides
 // the Score toggle for non-scoring roles.
-export const SCORING_ROLES = ["super_admin", "admin", "registration", "organizer", "smo"] as const;
+export const SCORING_ROLES = ["super_admin", "admin", "smo"] as const;
 
 // Canonical scanner path — also the landing for scanner-only roles.
 export const SCANNER_HREF = "/admin/scanner";
@@ -30,23 +30,25 @@ export const PRIZES_HREF = "/admin/prizes";
 // Roles that may AWARD a prize: scan a student, confirm, attach the photo.
 // Includes "smo" — the prize table is staffed the same way the scanner is, and
 // awarding is one student at a time, in person, with that student present.
-// Includes "registration": in practice the registration desk is already sitting
-// at the table where prizes get handed out, so excluding it would just mean an
-// organizer has to be fetched for every claim.
-export const PRIZE_AWARD_ROLES = ["super_admin", "admin", "registration", "organizer", "smo", "club_president", "major_president"] as const;
+// The registration desk (smo + the global "registration" position, see
+// isGlobalRegistrationPosition) is already sitting at the table where prizes get
+// handed out; smo covers it. The ANUSMO desk is check-in only and does not.
+export const PRIZE_AWARD_ROLES = ["super_admin", "admin", "smo", "club_president", "major_president"] as const;
 
 // Roles that may CREATE/CONFIGURE/CLOSE a prize, see the full claim list, and
 // pull the dean report (.xlsx + the PDF print page).
 //
-// Deliberately NARROWER than PRIZE_AWARD_ROLES by exactly "smo": awarding is one
+// Deliberately NARROWER than PRIZE_AWARD_ROLES by plain "smo": awarding is one
 // student at a time, but the report is every winner's name + รหัสนักศึกษา + face
 // photo in one forwardable file. That is the same "ask an admin for the file"
 // split the event export already applies to smo (see
 // api/admin/events/[id]/export, where smo gets a thin roster).
-// club_president/major_president pass here but are EVENT-SCOPED server-side via
-// EventScopeService — this predicate answers "may this role at all", never
+// A GLOBAL registration position (smo + position "registration") DOES
+// pass, via canManagePrizes — it has the breadth the retired registration role
+// had. club_president/major_president pass here but are EVENT-SCOPED server-side
+// via EventScopeService — this predicate answers "may this role at all", never
 // "which prizes".
-export const PRIZE_MANAGE_ROLES = ["super_admin", "admin", "registration", "organizer", "club_president", "major_president"] as const;
+export const PRIZE_MANAGE_ROLES = ["super_admin", "admin", "club_president", "major_president"] as const;
 
 // Property tags (ป้ายทรัพย์สิน, docs/features/property-tags.md): printed QR
 // stickers for a student's bag/phone. One flat role list for EVERYTHING —
@@ -54,7 +56,7 @@ export const PRIZE_MANAGE_ROLES = ["super_admin", "admin", "registration", "orga
 // decision (2026-10-21): smo staffs the desk where stickers are handed out and
 // also prints them. Presidents are deliberately not included.
 export const PROPERTY_TAGS_HREF = "/admin/property-tags";
-export const PROPERTY_TAG_ROLES = ["super_admin", "admin", "registration", "organizer", "smo"] as const;
+export const PROPERTY_TAG_ROLES = ["super_admin", "admin", "smo"] as const;
 
 // Pages a scanner-only role (smo, club_president, major_president) may open.
 // Besides the scanner they may now reach the events page for a widening set of
@@ -164,24 +166,30 @@ export function effectiveRoles(role?: string | null, roles?: string[] | null): s
  * Scoped positions (src/lib/positions.ts titles), replacing the old single
  * global users.position column: club_members.position (per club),
  * users.majorPosition, users.smoPosition, users.anusmoPosition. A holder of
- * "registration" as their smoPosition/anusmoPosition grants access whose
- * breadth depends on who holds it. SMO/ANUSMO holders get the full unscoped
- * breadth the "registration" ROLE has today (this predicate); club/major
- * members holding the position instead get an EVENT-scoped subset — see
- * EventScopeService.getRegistrationPositionScope, which is NOT reflected
- * here (a club/major-scoped holder must never pass this global check).
- * smoPosition/anusmoPosition params are all optional so every existing call
- * site keeps its exact current behavior until it's deliberately updated.
+ * "registration" grants access whose breadth depends on who holds it:
+ *  - smo + smoPosition "registration": the full unscoped breadth the retired
+ *    "registration" ROLE had (this predicate);
+ *  - anusmo + anusmoPosition "registration": CHECK-IN ONLY, at every event
+ *    (isAnusmoRegistration / canCheckInEveryEvent) — never this predicate;
+ *  - club/major members: an EVENT-scoped subset, see
+ *    EventScopeService.getRegistrationPositionScope (never this predicate).
+ * The anusmoPosition param is accepted so every caller can pass the full
+ * position pair; it deliberately grants nothing here.
  * ------------------------------------------------------------------------- */
 export function isGlobalRegistrationPosition(
   roles: string[],
   smoPosition?: string | null,
-  anusmoPosition?: string | null,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept so callers pass the full position pair
+  _anusmoPosition?: string | null,
 ): boolean {
-  return (
-    (roles.includes("smo") && smoPosition === "registration") ||
-    (roles.includes("anusmo") && anusmoPosition === "registration")
-  );
+  return roles.includes("smo") && smoPosition === "registration";
+}
+
+// ANUSMO registration desk (product decision, 2026-10-31): may check students
+// in at any event and nothing else — no rosters, exports, strikes, prizes, tags
+// or scoring. Confined to the scanner like the other scanner-only holders.
+export function isAnusmoRegistration(roles: string[], anusmoPosition?: string | null): boolean {
+  return roles.includes("anusmo") && anusmoPosition === "registration";
 }
 
 // Roles that are UNSCOPED with respect to EVENT OWNERSHIP: they see/scan every
@@ -194,11 +202,11 @@ export function isGlobalRegistrationPosition(
 // held club_president/major_president, the president scope won and hid every
 // SMO-run event from them. Route handlers should call isEventUnscopedStaff
 // instead of hand-rolling this list.
-export const EVENT_UNSCOPED_ROLES = ["super_admin", "admin", "registration", "organizer", "smo"] as const;
+export const EVENT_UNSCOPED_ROLES = ["super_admin", "admin", "smo"] as const;
 
 // May this role set reach EVERY event regardless of club/major ownership? Holds
-// for the roles above, or a GLOBAL registration position (smo/anusmo +
-// smoPosition/anusmoPosition === "registration"). A club/major-scoped
+// for the roles above, or a GLOBAL registration position (smo +
+// smoPosition === "registration"). A club/major-scoped
 // registration position does NOT pass here — see
 // EventScopeService.getRegistrationPositionScope for that narrower case, which
 // route handlers layer on top of this when it doesn't apply.
@@ -213,11 +221,24 @@ export function isEventUnscopedStaff(
   );
 }
 
+// May this role set check students in at EVERY event (scan, live count, the
+// scanner's event picker)? Unscoped staff plus the ANUSMO registration desk.
+// Check-in only: routes that show rosters or edit events use
+// isEventUnscopedStaff, which the ANUSMO desk does not pass.
+export function canCheckInEveryEvent(
+  roles: string[],
+  smoPosition?: string | null,
+  anusmoPosition?: string | null,
+): boolean {
+  return isEventUnscopedStaff(roles, smoPosition, anusmoPosition) || isAnusmoRegistration(roles, anusmoPosition);
+}
+
 // Roles that write an event's LIVE columns directly (PUT /api/admin/events/[id]
 // staff branch). Narrower than EVENT_UNSCOPED_ROLES: plain "smo" can SEE every
 // event but not edit one, and a club/major president's edits are held for
-// review instead of applied — neither passes here.
-export const EVENT_DIRECT_EDIT_ROLES = ["super_admin", "admin", "registration", "organizer"] as const;
+// review instead of applied — neither passes here. A GLOBAL registration
+// position does (canEditEventDirectly), matching the retired registration role.
+export const EVENT_DIRECT_EDIT_ROLES = ["super_admin", "admin"] as const;
 
 // May this role set change an event's schedule without review? Gates the
 // scanner's "Go live now" (POST /api/admin/events/[id]/go-live), which moves
@@ -255,7 +276,7 @@ export function canEnterAdminAny(roles: string[], hasStaffPosition?: boolean): b
 
 // Scanner-only iff the set can enter admin but holds NO full-admin role — i.e.
 // every admin-granting role they have is scanner-only. A global registration
-// position (smo/anusmo) is full admin, not scanner-only; a club/major-scoped
+// position (smo) is full admin, not scanner-only; the ANUSMO desk and a club/major-scoped
 // registration position falls into the same scanner-only-confined bucket as
 // club_president/major_president (SCANNER_ONLY_PAGES already covers it).
 export function isScannerOnlyAny(
@@ -268,22 +289,40 @@ export function isScannerOnlyAny(
   return canEnterAdminAny(roles, hasStaffPosition) && !roles.some((r) => FULL_ADMIN_ROLES.includes(r));
 }
 
-// May any of these roles award/deduct individual student points? Deliberately
-// role-only/unchanged: a registration-position holder (club/major-scoped or
-// not) never gets individual scoring, matching club_president/major_president.
+// May any of these roles award/deduct individual student points? A GLOBAL
+// registration position held by an smo scores like the retired registration role
+// did (smo is in SCORING_ROLES). Deliberately role-only: an anusmo holder is NOT
+// widened here (ScannerService re-checks the primary role), and a
+// club/major-scoped registration position never gets individual scoring,
+// matching club_president/major_president.
 export function canGiveIndividualScoreAny(roles: string[]): boolean {
   return roles.some(canGiveIndividualScore);
 }
 
 // May any of these roles award a prize (scan + confirm + photo)? Includes smo.
-export function canAwardPrizes(roles: string[]): boolean {
-  return roles.some((r) => (PRIZE_AWARD_ROLES as readonly string[]).includes(r));
+export function canAwardPrizes(
+  roles: string[],
+  smoPosition?: string | null,
+  anusmoPosition?: string | null,
+): boolean {
+  return (
+    roles.some((r) => (PRIZE_AWARD_ROLES as readonly string[]).includes(r)) ||
+    isGlobalRegistrationPosition(roles, smoPosition, anusmoPosition)
+  );
 }
 
 // May any of these roles create/configure a prize and see its full claim list?
-// Excludes smo. Presidents still get event-scoped server-side.
-export function canManagePrizes(roles: string[]): boolean {
-  return roles.some((r) => (PRIZE_MANAGE_ROLES as readonly string[]).includes(r));
+// Excludes plain smo; a GLOBAL registration position passes. Presidents still
+// get event-scoped server-side.
+export function canManagePrizes(
+  roles: string[],
+  smoPosition?: string | null,
+  anusmoPosition?: string | null,
+): boolean {
+  return (
+    roles.some((r) => (PRIZE_MANAGE_ROLES as readonly string[]).includes(r)) ||
+    isGlobalRegistrationPosition(roles, smoPosition, anusmoPosition)
+  );
 }
 
 // May any of these roles generate the dean report (.xlsx export / PDF print
@@ -291,13 +330,24 @@ export function canManagePrizes(roles: string[]): boolean {
 // "may configure a giveaway" and "may download every winner's face photo" are
 // different questions that will likely diverge — collapsing them means a future
 // change to one silently changes the other.
-export function canExportPrizeReport(roles: string[]): boolean {
-  return canManagePrizes(roles);
+export function canExportPrizeReport(
+  roles: string[],
+  smoPosition?: string | null,
+  anusmoPosition?: string | null,
+): boolean {
+  return canManagePrizes(roles, smoPosition, anusmoPosition);
 }
 
 // May any of these roles manage property tags (create/generate/print/assign)?
-export function canManagePropertyTags(roles: string[]): boolean {
-  return roles.some((r) => (PROPERTY_TAG_ROLES as readonly string[]).includes(r));
+export function canManagePropertyTags(
+  roles: string[],
+  smoPosition?: string | null,
+  anusmoPosition?: string | null,
+): boolean {
+  return (
+    roles.some((r) => (PROPERTY_TAG_ROLES as readonly string[]).includes(r)) ||
+    isGlobalRegistrationPosition(roles, smoPosition, anusmoPosition)
+  );
 }
 
 // Landing href for a role set (scanner-only → scanner, else dashboard).
@@ -308,7 +358,7 @@ export function adminLandingHrefForRoles(
   anusmoPosition?: string | null,
 ): string {
   const sellerOnly = roles.includes("shop_seller") &&
-    !roles.some((r) => ["super_admin", "admin", "registration", "organizer", "smo", "club_president", "major_president"].includes(r)) &&
+    !roles.some((r) => ["super_admin", "admin", "smo", "club_president", "major_president"].includes(r)) &&
     !hasStaffPosition;
   if (sellerOnly) return "/admin/shop";
   return isScannerOnlyAny(roles, hasStaffPosition, smoPosition, anusmoPosition) ? SCANNER_HREF : "/admin/dashboard";

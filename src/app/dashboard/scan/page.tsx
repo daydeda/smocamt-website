@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { effectiveRoles } from "@/lib/access/admin-access";
 import { isShopManager } from "@/lib/shop/shop-auth";
-import { availableScanModes, scansTagAsStaff } from "@/lib/qr/scan-modes";
+import { availableScanModes } from "@/lib/qr/scan-modes";
 import ScanClient from "./ScanClient";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,9 @@ export default async function ScanPage() {
     roles,
     shopManager: isShopManager(session),
     hasStaffPosition: session.user.hasStaffPosition,
+    smoPosition: session.user.smoPosition,
+    anusmoPosition: session.user.anusmoPosition,
   });
 
-  return <ScanClient modes={modes} staffTag={scansTagAsStaff(roles)} />;
+  return <ScanClient modes={modes} />;
 }

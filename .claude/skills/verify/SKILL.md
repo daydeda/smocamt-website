@@ -1,6 +1,7 @@
 ---
 name: verify
 description: Runtime-verify a change in ActiveCAMT by driving the real app (admin UI / API) with a dev-bypass login against the local DB. Use before calling a change done.
+model: sonnet
 ---
 
 # Verify (ActiveCAMT)

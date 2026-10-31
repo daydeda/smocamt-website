@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import type { Html5Qrcode } from "html5-qrcode";
 import { compressImageFile } from "@/lib/media/compress-image";
 import { uploadFormViaXHR } from "@/lib/media/xhr-upload";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { QR_SCANNER_CONSTRUCTOR_CONFIG, QR_SCANNER_START_CONFIG } from "@/lib/qr/qr-scanner-config";
-import { Camera, Check, X, AlertTriangle, Loader2, Search, ImagePlus } from "lucide-react";
+import { Camera, Check, AlertTriangle, Loader2, Search, ImagePlus, Gift } from "lucide-react";
+import { Modal, IconButton, InlineAlert } from "@/components/admin/ui";
 import styles from "./PrizeAwardPanel.module.css";
 import viewfinderStyles from "@/components/admin/QrViewfinder.module.css";
 
@@ -100,6 +100,10 @@ export default function PrizeAwardPanel({
   const [photoErrorMessage, setPhotoErrorMessage] = useState<string | null>(null);
   const [manualQuery, setManualQuery] = useState("");
   const [manualResults, setManualResults] = useState<ClaimStudent[]>([]);
+  const [manualSearched, setManualSearched] = useState(false);
+  // Hidden file inputs behind the visible photo buttons (see the committed step).
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const mountedRef = useRef(true);
@@ -328,9 +332,7 @@ export default function PrizeAwardPanel({
       // whether the blob was already empty before we even touch the network
       // — no server-log spelunking needed to isolate which half is broken.
       if (compressed.size === 0) {
-        throw new Error(
-          "Photo data was empty before upload (0 bytes) — this looks like a camera/browser issue. Try picking an existing photo from your library instead of taking a new one.",
-        );
+        throw new Error(t.adminPtPrzPhotoEmpty);
       }
       const form = new FormData();
       // uploadFormViaXHR (src/lib/xhr-upload.ts) re-materializes every
@@ -338,7 +340,7 @@ export default function PrizeAwardPanel({
       // work happens, so this call site just appends the file as-is.
       form.append("file", compressed);
       const up = await uploadFormViaXHR("/api/forms/upload", form);
-      if (!up.ok) throw new Error((up.body.error as string) || "upload failed");
+      if (!up.ok) throw new Error((up.body.error as string) || t.adminPtPrzUploadFailed);
       const { key } = up.body as { key: string };
 
       const attach = await fetch(`/api/admin/prizes/claims/${committed.claimId}/photo`, {
@@ -346,7 +348,7 @@ export default function PrizeAwardPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ photoKey: key }),
       });
-      if (!attach.ok) throw new Error("attach failed");
+      if (!attach.ok) throw new Error(t.adminPtPrzUploadFailed);
       if (mountedRef.current) setPhotoState("done");
       onClaimed();
     } catch (e) {
@@ -362,6 +364,13 @@ export default function PrizeAwardPanel({
     }
   }
 
+  function onPhotoPicked(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    // Reset so choosing the same file again after a failure still fires onChange.
+    e.target.value = "";
+    if (f) void uploadPhoto(f);
+  }
+
   async function runManualSearch() {
     const q = manualQuery.trim();
     if (q.length < 2) return;
@@ -372,9 +381,15 @@ export default function PrizeAwardPanel({
       // surface — one fewer place that can leak the student directory.
       const res = await fetch(`/api/admin/scan?q=${encodeURIComponent(q)}`);
       const data = await res.json();
-      if (mountedRef.current) setManualResults(Array.isArray(data) ? data : []);
+      if (mountedRef.current) {
+        setManualResults(Array.isArray(data) ? data : []);
+        setManualSearched(true);
+      }
     } catch {
-      if (mountedRef.current) setManualResults([]);
+      if (mountedRef.current) {
+        setManualResults([]);
+        setManualSearched(true);
+      }
     } finally {
       if (mountedRef.current) setBusy(false);
     }
@@ -395,115 +410,139 @@ export default function PrizeAwardPanel({
     setPhotoState("idle");
     setPhotoErrorMessage(null);
     setManualResults([]);
+    setManualSearched(false);
     setManualQuery("");
   }
 
-  return createPortal(
-    <div
-      className={styles.backdrop}
-      onClick={onClose}
-    >
-      <div
-        className={`${styles.dialog} animate-fade-in-up`}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="prize-award-title"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className={styles.header}>
-          <div style={{ minWidth: 0 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>{t.adminPrizesAwardBtn}</p>
-            <h2 id="prize-award-title" style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", overflowWrap: "break-word" }}>{prizeName}</h2>
-          </div>
-          <button className={`btn btn-ghost ${styles.closeButton}`} onClick={onClose} aria-label={t.adminPrizesCloseLabel}>
-            <X size={16} />
+  // Footer actions per step: pinned to the bottom of the sheet so they stay
+  // under the thumb on a phone held at the booth.
+  const awardingBlocked = busy || photoState === "uploading";
+  let footer: React.ReactNode = null;
+  if (committed) {
+    footer = (
+      <button className={`btn btn-lg ${photoState === "done" ? "btn-primary" : "btn-ghost"}`} onClick={resetForNext} disabled={photoState === "uploading"}>
+        {t.adminPrizesNextPerson}
+      </button>
+    );
+  } else if (preview) {
+    footer = (
+      <>
+        <button className={`btn btn-lg ${preview.status === "success" ? "btn-ghost" : "btn-primary"}`} onClick={resetForNext} disabled={busy}>
+          {t.adminPrizesRescan}
+        </button>
+        {preview.status === "success" && preview.student && (
+          <button
+            className="btn btn-success-solid btn-lg"
+            disabled={busy}
+            onClick={() =>
+              confirmClaim(
+                preview.rawToken ? { qrToken: preview.rawToken } : { studentUserId: preview.student!.id },
+              )
+            }
+          >
+            {busy ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : <Check size={18} aria-hidden="true" />}
+            {busy ? t.saving : t.adminPrizesConfirmClaim}
           </button>
-        </div>
+        )}
+      </>
+    );
+  }
 
-        <div className={styles.content}>
-          {committed ? (
-            /* ---- Committed: the handover is recorded; now the photo ---- */
-            <>
-              <div style={{ borderRadius: 16, padding: 16, background: "rgb(var(--green-500-rgb) / 0.1)", border: "1px solid rgb(var(--green-500-rgb) / 0.3)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, color: "var(--teal-600)", fontSize: 15 }}>
-                  <Check size={20} /> {t.adminPrizesCommittedTitle}
-                </div>
-                <p style={{ marginTop: 4, fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>
-                  {committed.student.name}
-                  {committed.student.studentId ? ` · ${committed.student.studentId}` : ""}
-                </p>
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      dismissible={!awardingBlocked}
+      size="sm"
+      icon={<Gift size={20} />}
+      title={`${t.adminPrizesAwardBtn}: ${prizeName}`}
+      footer={footer}
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {committed ? (
+          /* ---- Committed: the handover is recorded; now the photo ---- */
+          <>
+            <div role="status" style={{ borderRadius: 16, padding: 16, background: "rgb(var(--green-500-rgb) / 0.1)", border: "1px solid rgb(var(--green-500-rgb) / 0.3)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, color: "var(--teal-600)", fontSize: 15 }}>
+                <Check size={20} aria-hidden="true" /> {t.adminPrizesCommittedTitle}
               </div>
+              <p style={{ marginTop: 4, fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>
+                {committed.student.name}
+                {committed.student.studentId ? ` · ${committed.student.studentId}` : ""}
+              </p>
+            </div>
 
-              <div style={{ borderRadius: 16, padding: 16, background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)" }}>
-                <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{t.adminPrizesPhotoCardTitle}</p>
-                <p style={{ marginTop: 4, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
-                  {t.adminPrizesPhotoCardHint}
+            <div style={{ borderRadius: 16, padding: 16, background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)" }}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{t.adminPrizesPhotoCardTitle}</p>
+              <p style={{ marginTop: 4, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
+                {t.adminPrizesPhotoCardHint}
+              </p>
+
+              {photoState === "done" ? (
+                <p role="status" style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 700, color: "var(--teal-600)" }}>
+                  <Check size={16} aria-hidden="true" /> {t.adminPrizesPhotoAttached}
                 </p>
-
-                {photoState === "done" ? (
-                  <p style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 700, color: "var(--teal-600)" }}>
-                    <Check size={16} /> {t.adminPrizesPhotoAttached}
-                  </p>
-                ) : (
-                  <>
-                    {/* Two separate inputs, not one bare accept="image/*": Android's
-                        OEM file picker (Samsung/Xiaomi/the Android 13+ Photo Picker)
-                        frequently shows gallery-only when there's no `capture`
-                        attribute to force the camera — the camera option simply
-                        isn't there, not merely un-obvious. `capture="environment"`
-                        on the first input guarantees the camera opens; the second
-                        input (no `capture`) keeps the existing HEIC-escape-hatch —
-                        staff can pick an already-converted photo when the phone's
-                        native camera format fails to upload. Both share the same
-                        uploadPhoto() handler. */}
-                    {/* flexWrap so the two buttons stack instead of clipping
-                        their label text on a narrow phone (checked at 360px);
-                        smaller padding than btn-lg's default gives each one more
-                        breathing room before that wrap point is needed at all. */}
-                    <div style={{ marginTop: 14, display: "flex", flexWrap: "wrap", gap: 8 }}>
-                      <label
-                        className="btn btn-primary btn-lg"
-                        style={{ flex: "1 1 150px", padding: "12px 16px", cursor: photoState === "uploading" ? "not-allowed" : "pointer" }}
-                      >
-                        {photoState === "uploading" ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
-                        {photoState === "uploading" ? t.adminPrizesPhotoUploading : t.adminPrizesPhotoCtaCamera}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          capture="environment"
-                          style={{ display: "none" }}
-                          disabled={photoState === "uploading"}
-                          onChange={(e) => {
-                            const f = e.target.files?.[0];
-                            if (f) void uploadPhoto(f);
-                          }}
-                        />
-                      </label>
-                      <label
-                        className="btn btn-ghost btn-lg"
-                        style={{ flex: "1 1 150px", padding: "12px 16px", cursor: photoState === "uploading" ? "not-allowed" : "pointer" }}
-                      >
-                        <ImagePlus size={18} />
-                        {t.adminPrizesPhotoCtaGallery}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          style={{ display: "none" }}
-                          disabled={photoState === "uploading"}
-                          onChange={(e) => {
-                            const f = e.target.files?.[0];
-                            if (f) void uploadPhoto(f);
-                          }}
-                        />
-                      </label>
-                    </div>
-                    {typeof window !== "undefined" && window.isSecureContext === false && (
-                      <p style={{ marginTop: 10, fontSize: 12.5, color: "var(--amber-700)", lineHeight: 1.5 }}>
-                        {t.adminPrizesCameraBlockedHttps}
-                      </p>
-                    )}
-                    {photoState === "failed" && (
-                      <p style={{ marginTop: 10, fontSize: 12.5, color: "var(--amber-700)", lineHeight: 1.5 }}>
+              ) : (
+                <>
+                  {/* Two separate inputs, not one bare accept="image/*": Android's
+                      OEM file picker (Samsung/Xiaomi/the Android 13+ Photo Picker)
+                      frequently shows gallery-only when there's no `capture`
+                      attribute to force the camera — the camera option simply
+                      isn't there, not merely un-obvious. `capture="environment"`
+                      on the first input guarantees the camera opens; the second
+                      input (no `capture`) keeps the existing HEIC-escape-hatch —
+                      staff can pick an already-converted photo when the phone's
+                      native camera format fails to upload. Both share the same
+                      uploadPhoto() handler. The visible controls are real
+                      <button>s that open the hidden inputs, so they are
+                      reachable by keyboard too. */}
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    hidden
+                    onChange={onPhotoPicked}
+                  />
+                  <input
+                    ref={galleryInputRef}
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    onChange={onPhotoPicked}
+                  />
+                  {/* flexWrap so the two buttons stack instead of clipping
+                      their label text on a narrow phone (checked at 360px). */}
+                  <div style={{ marginTop: 14, display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-lg"
+                      style={{ flex: "1 1 150px", padding: "12px 16px" }}
+                      disabled={photoState === "uploading"}
+                      onClick={() => cameraInputRef.current?.click()}
+                    >
+                      {photoState === "uploading" ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : <Camera size={18} aria-hidden="true" />}
+                      {photoState === "uploading" ? t.adminPrizesPhotoUploading : t.adminPrizesPhotoCtaCamera}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-lg"
+                      style={{ flex: "1 1 150px", padding: "12px 16px" }}
+                      disabled={photoState === "uploading"}
+                      onClick={() => galleryInputRef.current?.click()}
+                    >
+                      <ImagePlus size={18} aria-hidden="true" />
+                      {t.adminPrizesPhotoCtaGallery}
+                    </button>
+                  </div>
+                  {typeof window !== "undefined" && window.isSecureContext === false && (
+                    <p style={{ marginTop: 10, fontSize: 13, color: "var(--amber-700)", lineHeight: 1.5 }}>
+                      {t.adminPrizesCameraBlockedHttps}
+                    </p>
+                  )}
+                  {photoState === "failed" && (
+                    <div style={{ marginTop: 10 }}>
+                      <InlineAlert tone="warning">
                         {t.adminPrizesPhotoFailedNotice} <strong>{t.adminPrizesPhotoFailedEmphasis}</strong>{" "}
                         {t.adminPrizesPhotoFailedRetry}
                         {photoErrorMessage && (
@@ -512,110 +551,93 @@ export default function PrizeAwardPanel({
                             {photoErrorMessage}
                           </>
                         )}
-                      </p>
-                    )}
-                  </>
-                )}
-              </div>
+                      </InlineAlert>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </>
+        ) : preview ? (
+          /* ---- Preview: who it is, and whether they may have it ---- */
+          <PreviewCard result={preview} />
+        ) : (
+          /* ---- Scanning ---- */
+          <>
+            <div className={viewfinderStyles.viewfinder}>
+              <div id="prize-qr-reader" className={viewfinderStyles.reader} />
+              <div className={viewfinderStyles.scanGuide} aria-hidden="true" />
+            </div>
+            {cameraError && <InlineAlert tone="warning">{cameraError}</InlineAlert>}
+            {busy && (
+              <p role="status" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 14, color: "var(--text-muted)" }}>
+                <Loader2 size={16} className="animate-spin" aria-hidden="true" /> {t.adminPrizesChecking}
+              </p>
+            )}
 
-              <button className="btn btn-ghost btn-lg btn-full" onClick={resetForNext}>
-                {t.adminPrizesNextPerson}
-              </button>
-            </>
-          ) : preview ? (
-            /* ---- Preview: who it is, and whether they may have it ---- */
-            <>
-              <PreviewCard result={preview} />
-              <div style={{ display: "flex", gap: 10 }}>
-                <button className="btn btn-ghost btn-lg" style={{ flex: 1 }} onClick={resetForNext}>
-                  {t.adminPrizesRescan}
-                </button>
-                {preview.status === "success" && preview.student && (
-                  <button
-                    className="btn btn-success-solid btn-lg"
-                    style={{ flex: 1 }}
-                    disabled={busy}
-                    onClick={() =>
-                      confirmClaim(
-                        preview.rawToken ? { qrToken: preview.rawToken } : { studentUserId: preview.student!.id },
-                      )
-                    }
-                  >
-                    {busy ? t.saving : t.adminPrizesConfirmClaim}
-                  </button>
-                )}
+            <details className={styles.searchDetails}>
+              <summary className={styles.searchSummary}>
+                {t.adminPrizesManualSearchToggle}
+              </summary>
+              <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+                <input
+                  className="input"
+                  type="search"
+                  value={manualQuery}
+                  onChange={(e) => setManualQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && runManualSearch()}
+                  placeholder={t.adminPrizesManualSearchPlaceholder}
+                  aria-label={t.adminPrizesManualSearchPlaceholder}
+                  style={{ flex: 1, minWidth: 0 }}
+                />
+                <IconButton
+                  tone="accent"
+                  label={t.adminPrizesSearchLabel}
+                  icon={busy ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
+                  onClick={runManualSearch}
+                  disabled={busy}
+                />
               </div>
-            </>
-          ) : (
-            /* ---- Scanning ---- */
-            <>
-              <div className={viewfinderStyles.viewfinder}>
-                <div id="prize-qr-reader" className={viewfinderStyles.reader} />
-                <div className={viewfinderStyles.scanGuide} aria-hidden="true" />
-              </div>
-              {cameraError && (
-                <p style={{ borderRadius: 12, padding: "10px 14px", fontSize: 12.5, background: "rgb(var(--amber-500-rgb) / 0.1)", color: "var(--amber-700)", lineHeight: 1.5 }}>
-                  {cameraError}
+              {/* No free-text entry: every option here is a real users row. */}
+              {manualResults.length > 0 && (
+                <ul style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 2, listStyle: "none" }}>
+                  {manualResults.map((s) => (
+                    <li key={s.id}>
+                      <button
+                        type="button"
+                        onClick={() => setPreview({ status: "success", student: s })}
+                        style={{
+                          width: "100%",
+                          minHeight: 44,
+                          textAlign: "left",
+                          padding: "10px 10px",
+                          borderRadius: 10,
+                          border: "none",
+                          background: "transparent",
+                          cursor: "pointer",
+                          fontSize: 14,
+                          color: "var(--text-primary)",
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-elevated)"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                      >
+                        {s.name}
+                        {s.studentId ? <span style={{ color: "var(--text-muted)" }}> · {s.studentId}</span> : null}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {manualSearched && !busy && manualResults.length === 0 && (
+                <p role="status" style={{ marginTop: 10, fontSize: 13, color: "var(--text-muted)", lineHeight: 1.5 }}>
+                  {t.adminPtPrzNoStudents}
                 </p>
               )}
-              {busy && (
-                <p style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 14, color: "var(--text-muted)" }}>
-                  <Loader2 size={16} className="animate-spin" /> {t.adminPrizesChecking}
-                </p>
-              )}
-
-              <details className={styles.searchDetails}>
-                <summary className={styles.searchSummary}>
-                  {t.adminPrizesManualSearchToggle}
-                </summary>
-                <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
-                  <input
-                    className="input"
-                    value={manualQuery}
-                    onChange={(e) => setManualQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && runManualSearch()}
-                    placeholder={t.adminPrizesManualSearchPlaceholder}
-                    style={{ flex: 1, minWidth: 0 }}
-                  />
-                  <button className="btn btn-ghost" onClick={runManualSearch} aria-label={t.adminPrizesSearchLabel}>
-                    <Search size={16} />
-                  </button>
-                </div>
-                {/* No free-text entry: every option here is a real users row. */}
-                {manualResults.length > 0 && (
-                  <ul style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 2 }}>
-                    {manualResults.map((s) => (
-                      <li key={s.id}>
-                        <button
-                          onClick={() => setPreview({ status: "success", student: s })}
-                          style={{
-                            width: "100%",
-                            textAlign: "left",
-                            padding: "10px 10px",
-                            borderRadius: 10,
-                            border: "none",
-                            background: "transparent",
-                            cursor: "pointer",
-                            fontSize: 14,
-                            color: "var(--text-primary)",
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-elevated)"; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                        >
-                          {s.name}
-                          {s.studentId ? <span style={{ color: "var(--text-muted)" }}> · {s.studentId}</span> : null}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </details>
-            </>
-          )}
-        </div>
+            </details>
+          </>
+        )}
       </div>
-    </div>,
-    document.body,
+    </Modal>
   );
 }
 
@@ -628,13 +650,15 @@ function PreviewCard({ result }: { result: ClaimResult }) {
 
   if (result.status === "success" && student) {
     return (
-      <div style={{ borderRadius: 16, padding: 18, background: "rgb(var(--green-500-rgb) / 0.1)", border: "1px solid rgb(var(--green-500-rgb) / 0.3)" }}>
+      <div role="status" style={{ borderRadius: 16, padding: 18, background: "rgb(var(--green-500-rgb) / 0.1)", border: "1px solid rgb(var(--green-500-rgb) / 0.3)" }}>
         <p style={{ fontSize: 20, fontWeight: 800, color: "var(--text-primary)" }}>{student.name}</p>
         <p style={{ marginTop: 2, fontSize: 14, fontWeight: 600, color: "var(--text-secondary)" }}>
           {student.studentId ?? t.adminPrizesNoStudentId}
           {student.nickname ? ` · ${student.nickname}` : ""}
         </p>
-        <p style={{ marginTop: 10, fontSize: 14, fontWeight: 700, color: "var(--teal-600)" }}>{t.adminPrizesEligibleNotice}</p>
+        <p style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 700, color: "var(--teal-600)" }}>
+          <Check size={16} aria-hidden="true" /> {t.adminPrizesEligibleNotice}
+        </p>
       </div>
     );
   }
@@ -664,9 +688,9 @@ function PreviewCard({ result }: { result: ClaimResult }) {
       : { bg: "rgb(var(--red-500-rgb) / 0.1)", border: "rgb(var(--red-500-rgb) / 0.3)", color: "var(--red-600)" };
 
   return (
-    <div style={{ borderRadius: 16, padding: 18, background: tone.bg, border: `1px solid ${tone.border}` }}>
+    <div role="alert" style={{ borderRadius: 16, padding: 18, background: tone.bg, border: `1px solid ${tone.border}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, fontSize: 15, color: tone.color }}>
-        <AlertTriangle size={20} />
+        <AlertTriangle size={20} aria-hidden="true" />
         {result.status === "already_claimed" && t.adminPrizesStatusAlreadyClaimed}
         {result.status === "not_eligible" && t.adminPrizesStatusNotEligible}
         {result.status === "prize_closed" && t.adminPrizesStatusClosed}

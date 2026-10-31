@@ -18,8 +18,9 @@ export default async function AdminPrizesPage() {
   if (!session?.user) redirect("/login");
 
   const roles = effectiveRoles(session.user.role, session.user.roles);
-  const canAward = canAwardPrizes(roles);
-  const canManage = canManagePrizes(roles);
+  const { smoPosition, anusmoPosition } = session.user;
+  const canAward = canAwardPrizes(roles, smoPosition, anusmoPosition);
+  const canManage = canManagePrizes(roles, smoPosition, anusmoPosition);
   if (!canAward && !canManage) redirect("/admin/dashboard");
 
   // Deleting a prize cascades its claims + proof photos — the ONLY way any of

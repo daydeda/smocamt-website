@@ -1,12 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
 import PrizeAwardPanel from "./PrizeAwardPanel";
-import { Gift, Plus, QrCode, FileSpreadsheet, Printer, Loader2, ImageOff, Lock, X, PackageOpen, Pencil, Camera, Check, ImagePlus, Trash2, AlertTriangle } from "lucide-react";
+import { Gift, Plus, QrCode, FileSpreadsheet, Printer, Loader2, ImageOff, Lock, PackageOpen, Pencil, Camera, Check, ImagePlus, Trash2, AlertTriangle, Search } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { compressImageFile } from "@/lib/media/compress-image";
 import { uploadFormViaXHR } from "@/lib/media/xhr-upload";
+import {
+  PageHeader,
+  Toolbar,
+  Modal,
+  Field,
+  IconButton,
+  InlineAlert,
+  StatusBadge,
+  LoadingState,
+  EmptyState,
+  ErrorState,
+  useToast,
+} from "@/components/admin/ui";
 
 // /admin/prizes — the top-level prize tab.
 //
@@ -18,8 +30,7 @@ import { uploadFormViaXHR } from "@/lib/media/xhr-upload";
 // only light` so a phone's OS dark mode can't algorithmically invert the
 // black-on-white attendance QR into something a scanner can't read — see
 // /dashboard/id). So this file deliberately has NO `dark:` Tailwind classes —
-// it reuses the same .btn/.input/.field/.badge system and CSS var tokens as
-// every other admin page (see globals.css and admin/clubs/page.tsx).
+// it reuses the shared admin kit (@/components/admin/ui) and CSS var tokens.
 
 interface PrizeRow {
   id: string;
@@ -40,17 +51,24 @@ interface EventOption {
   title: string;
 }
 
+// Below this many prizes a search box is noise; above it, finding one prize at a
+// busy booth gets slow.
+const TOOLBAR_MIN_PRIZES = 6;
+
 export default function PrizesClient({ canAward, canManage, isSuperAdmin }: { canAward: boolean; canManage: boolean; isSuperAdmin: boolean }) {
   const { t } = useLanguage();
   const [prizes, setPrizes] = useState<PrizeRow[]>([]);
   const [events, setEvents] = useState<EventOption[]>([]);
   const [canExport, setCanExport] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [awarding, setAwarding] = useState<PrizeRow | null>(null);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<PrizeRow | null>(null);
   const [awaitingPhotoPrize, setAwaitingPhotoPrize] = useState<PrizeRow | null>(null);
   const [deleting, setDeleting] = useState<PrizeRow | null>(null);
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "open" | "closed">("all");
 
   const load = useCallback(async () => {
     try {
@@ -59,8 +77,10 @@ export default function PrizesClient({ canAward, canManage, isSuperAdmin }: { ca
       const data = await res.json();
       setPrizes(data.prizes ?? []);
       setCanExport(!!data.canExport);
+      setLoadFailed(false);
     } catch {
       setPrizes([]);
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -92,159 +112,187 @@ export default function PrizesClient({ canAward, canManage, isSuperAdmin }: { ca
     return () => clearTimeout(timer);
   }, [canManage]);
 
+  const q = query.trim().toLowerCase();
+  const visible = prizes.filter((p) => (statusFilter === "all" || p.status === statusFilter) && (!q || p.name.toLowerCase().includes(q)));
+  const filtering = q !== "" || statusFilter !== "all";
+
   return (
     <div className="pb-20">
-      {/* Header matches admin/appeals and admin/reviews: no extra max-width/
-          padding wrapper (admin-main in AdminLayoutWrapper already provides
-          that), same clamp() h1 size + 32px accent icon + optional subtitle,
-          same flex row for the primary action (mirrors admin/clubs' "New
-          Club" placement). */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4" style={{ marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: "clamp(28px,5vw,42px)", fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1.3, display: "flex", alignItems: "center", gap: 12 }}>
-            <Gift size={32} strokeWidth={2.5} style={{ color: "var(--accent-primary)" }} />
-            {t.adminPrizesTitle}
-          </h1>
-          <p style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 6 }}>
-            {t.adminPrizesSubtitle}
-          </p>
-        </div>
-        {canManage && (
-          <button className="btn btn-primary" onClick={() => setCreating(true)}>
-            <Plus size={18} /> {t.adminPrizesCreate}
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title={t.adminPrizesTitle}
+        description={t.adminPrizesSubtitle}
+        actions={
+          canManage ? (
+            <button className="btn btn-primary" onClick={() => setCreating(true)}>
+              <Plus size={18} aria-hidden="true" /> {t.adminPrizesCreate}
+            </button>
+          ) : undefined
+        }
+      />
 
       {!canManage && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            gap: 10,
-            background: "var(--bg-elevated)",
-            border: "1px solid var(--border-subtle)",
-            borderRadius: "var(--radius-md)",
-            padding: "14px 16px",
-            marginBottom: 20,
-            fontSize: 13,
-            color: "var(--text-secondary)",
-            lineHeight: 1.5,
-          }}
-        >
-          <Lock size={16} style={{ marginTop: 2, flexShrink: 0, color: "var(--text-muted)" }} />
-          <span>
-            {t.adminPrizesAwardOnlyNotice}
-            {canAward && <> {t.adminPrizesAwardOnlyAwaitingNote}</>}
-          </span>
+        <div style={{ marginBottom: 20 }}>
+          <InlineAlert tone="info">
+            <span style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+              <Lock size={16} aria-hidden="true" style={{ marginTop: 4, flexShrink: 0 }} />
+              <span>
+                {t.adminPrizesAwardOnlyNotice}
+                {canAward && <> {t.adminPrizesAwardOnlyAwaitingNote}</>}
+              </span>
+            </span>
+          </InlineAlert>
         </div>
       )}
 
       {loading ? (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "48px 0", color: "var(--text-muted)", fontSize: 14 }}>
-          <Loader2 size={18} className="animate-spin" /> {t.adminPrizesLoading}
-        </div>
+        <LoadingState variant="skeleton" rows={3} label={t.adminPrizesLoading} />
+      ) : loadFailed ? (
+        <ErrorState message={t.adminPtPrzLoadError} onRetry={() => { setLoading(true); void load(); }} />
       ) : prizes.length === 0 ? (
-        <div className="stat-card" style={{ textAlign: "center", padding: "56px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-          <PackageOpen size={40} style={{ color: "var(--text-muted)" }} />
-          <p style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)" }}>{t.adminPrizesEmptyTitle}</p>
-          <p style={{ fontSize: 13, color: "var(--text-muted)", maxWidth: 320, lineHeight: 1.5 }}>
-            {canManage ? t.adminPrizesEmptyHintManage : t.adminPrizesEmptyHintAward}
-          </p>
-        </div>
+        <EmptyState
+          icon={<PackageOpen size={24} />}
+          title={t.adminPrizesEmptyTitle}
+          description={canManage ? t.adminPrizesEmptyHintManage : t.adminPrizesEmptyHintAward}
+          action={
+            canManage ? (
+              <button className="btn btn-primary" onClick={() => setCreating(true)}>
+                <Plus size={18} aria-hidden="true" /> {t.adminPrizesCreate}
+              </button>
+            ) : undefined
+          }
+        />
       ) : (
-        <ul style={{ display: "flex", flexDirection: "column", gap: 12, listStyle: "none" }}>
-          {prizes.map((p) => {
-            const overQuantity = p.quantity !== null && (p.claimCount ?? 0) > p.quantity;
-            return (
-              <li key={p.id} className="stat-card" style={{ padding: "18px 20px" }}>
-                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between", gap: 14 }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-                      <h2 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)" }}>{p.name}</h2>
-                      {p.status === "closed" && (
-                        <span className="badge" style={{ background: "var(--bg-elevated)", color: "var(--text-muted)", border: "1px solid var(--border-subtle)" }}>
-                          {t.adminPrizesClosedBadge}
-                        </span>
-                      )}
-                      {p.onePerStudent && <span className="badge badge-blue">{t.adminPrizesOnePerStudentBadge}</span>}
-                      {p.requireCheckIn && <span className="badge badge-purple">{t.adminPrizesRequireCheckInBadge}</span>}
-                    </div>
+        <>
+          {prizes.length >= TOOLBAR_MIN_PRIZES && (
+            <Toolbar>
+              <input
+                className="input"
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t.adminPtPrzSearch}
+                aria-label={t.adminPtPrzSearch}
+              />
+              <select
+                className="input"
+                style={{ width: "auto", flex: "0 0 auto" }}
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as "all" | "open" | "closed")}
+                aria-label={t.adminPrizesStatusField}
+              >
+                <option value="all">{t.adminPtPrzFilterAll}</option>
+                <option value="open">{t.adminPrizesStatusOptionOpen}</option>
+                <option value="closed">{t.adminPrizesStatusOptionClosed}</option>
+              </select>
+            </Toolbar>
+          )}
 
-                    {/* canAward, not canManage: claimCount/awaitingPhotoCount are
-                        aggregate numbers with no student's name in them — "how
-                        many have gone out" and "how much of the booth's own work
-                        is unfinished" — so an award-only role (smo) gets this line
-                        and the รอรูป follow-up button too. The winner ROLL and the
-                        Edit button below stay canManage-only. */}
-                    {canAward && (
-                      <p style={{ marginTop: 6, fontSize: 13, color: "var(--text-secondary)" }}>
-                        {p.quantity !== null
-                          ? t.adminPrizesAwardedCountWithTarget.replace("{count}", String(p.claimCount ?? 0)).replace("{target}", String(p.quantity))
-                          : t.adminPrizesAwardedCount.replace("{count}", String(p.claimCount ?? 0))}
-                        {/* Over-quantity is a WARNING, never a block: real events
-                            over-award, and blocking at the booth makes staff stop
-                            RECORDING rather than stop awarding. */}
-                        {overQuantity && <span style={{ marginLeft: 8, fontWeight: 700, color: "var(--amber-700)" }}>{t.adminPrizesOverQuantity}</span>}
-                        {!!p.awaitingPhotoCount && (
-                          <button
-                            onClick={() => setAwaitingPhotoPrize(p)}
-                            style={{
-                              marginLeft: 8,
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 4,
-                              fontWeight: 700,
-                              color: "var(--amber-700)",
-                              background: "none",
-                              border: "none",
-                              padding: 0,
-                              cursor: "pointer",
-                              textDecoration: "underline",
-                              font: "inherit",
-                            }}
-                          >
-                            <ImageOff size={13} /> {t.adminPrizesAwaitingPhoto.replace("{count}", String(p.awaitingPhotoCount))}
+          {visible.length === 0 ? (
+            <EmptyState
+              compact
+              icon={<Search size={24} />}
+              title={t.adminPtPrzNoMatch}
+              action={
+                filtering ? (
+                  <button className="btn btn-ghost" onClick={() => { setQuery(""); setStatusFilter("all"); }}>
+                    {t.adminPtPrzClearFilters}
+                  </button>
+                ) : undefined
+              }
+            />
+          ) : (
+            <ul style={{ display: "flex", flexDirection: "column", gap: 12, listStyle: "none" }}>
+              {visible.map((p) => {
+                const overQuantity = p.quantity !== null && (p.claimCount ?? 0) > p.quantity;
+                return (
+                  <li key={p.id} className="stat-card" style={{ padding: "18px 20px" }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between", gap: 14 }}>
+                      <div style={{ minWidth: 0, flex: "1 1 260px" }}>
+                        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+                          <h2 style={{ fontSize: 16, fontWeight: 800, lineHeight: 1.4, color: "var(--text-primary)", overflowWrap: "anywhere" }}>{p.name}</h2>
+                          {p.status === "closed" ? (
+                            <StatusBadge tone="neutral" icon={<Lock size={12} />}>{t.adminPrizesClosedBadge}</StatusBadge>
+                          ) : (
+                            <StatusBadge tone="success">{t.adminPrizesStatusOptionOpen}</StatusBadge>
+                          )}
+                          {p.onePerStudent && <StatusBadge tone="info" icon={false}>{t.adminPrizesOnePerStudentBadge}</StatusBadge>}
+                          {p.requireCheckIn && <StatusBadge tone="info" icon={false}>{t.adminPrizesRequireCheckInBadge}</StatusBadge>}
+                        </div>
+
+                        {/* canAward, not canManage: claimCount/awaitingPhotoCount are
+                            aggregate numbers with no student's name in them — "how
+                            many have gone out" and "how much of the booth's own work
+                            is unfinished" — so an award-only role (smo) gets this line
+                            and the รอรูป follow-up button too. The winner ROLL and the
+                            Edit button below stay canManage-only. */}
+                        {canAward && (
+                          <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px 12px", fontSize: 14, lineHeight: 1.5, color: "var(--text-secondary)" }}>
+                            <span>
+                              {p.quantity !== null
+                                ? t.adminPrizesAwardedCountWithTarget.replace("{count}", String(p.claimCount ?? 0)).replace("{target}", String(p.quantity))
+                                : t.adminPrizesAwardedCount.replace("{count}", String(p.claimCount ?? 0))}
+                            </span>
+                            {/* Over-quantity is a WARNING, never a block: real events
+                                over-award, and blocking at the booth makes staff stop
+                                RECORDING rather than stop awarding. */}
+                            {overQuantity && <StatusBadge tone="warning">{t.adminPrizesOverQuantity}</StatusBadge>}
+                            {!!p.awaitingPhotoCount && (
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-sm"
+                                style={{ color: "var(--amber-700)" }}
+                                onClick={() => setAwaitingPhotoPrize(p)}
+                              >
+                                <ImageOff size={14} aria-hidden="true" /> {t.adminPrizesAwaitingPhoto.replace("{count}", String(p.awaitingPhotoCount))}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+                        {canManage && (
+                          <button className="btn btn-ghost" onClick={() => setEditing(p)}>
+                            <Pencil size={16} aria-hidden="true" /> {t.edit}
                           </button>
                         )}
-                      </p>
-                    )}
-                  </div>
+                        {canExport && (
+                          <>
+                            <a href={`/api/admin/prizes/${p.id}/export`} className="btn btn-ghost">
+                              <FileSpreadsheet size={16} aria-hidden="true" /> {t.adminPtPrzExportExcel}
+                            </a>
+                            <a href={`/admin/prizes/${p.id}/report`} className="btn btn-ghost">
+                              <Printer size={16} aria-hidden="true" /> {t.adminPtPrzExportPdf}
+                            </a>
+                          </>
+                        )}
+                        {canAward && p.status === "open" && (
+                          <button className="btn btn-success-solid" onClick={() => setAwarding(p)}>
+                            <QrCode size={16} aria-hidden="true" /> {t.adminPrizesAwardBtn}
+                          </button>
+                        )}
+                      </div>
+                    </div>
 
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    {canAward && p.status === "open" && (
-                      <button className="btn btn-success-solid" onClick={() => setAwarding(p)}>
-                        <QrCode size={16} /> {t.adminPrizesAwardBtn}
-                      </button>
-                    )}
-                    {canManage && (
-                      <button className="btn btn-ghost" onClick={() => setEditing(p)}>
-                        <Pencil size={16} /> {t.edit}
-                      </button>
-                    )}
-                    {canExport && (
-                      <>
-                        <a href={`/api/admin/prizes/${p.id}/export`} className="btn btn-ghost">
-                          <FileSpreadsheet size={16} /> Excel
-                        </a>
-                        <a href={`/admin/prizes/${p.id}/report`} className="btn btn-ghost">
-                          <Printer size={16} /> PDF
-                        </a>
-                      </>
-                    )}
-                    {/* Last in the row, deliberately not adjacent to Award —
-                        irreversible + cascades every claim and proof photo. */}
+                    {/* Irreversible + cascades every claim and proof photo, so it sits
+                        in its own row, away from Award, and is confirmed in a dialog. */}
                     {isSuperAdmin && (
-                      <button className="btn btn-danger" onClick={() => setDeleting(p)}>
-                        <Trash2 size={16} /> {t.adminPrizesDeleteBtn}
-                      </button>
+                      <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "flex-end" }}>
+                        <IconButton
+                          size="sm"
+                          tone="danger"
+                          label={t.adminPtPrzDeleteAria.replace("{name}", p.name)}
+                          icon={<Trash2 size={18} />}
+                          onClick={() => setDeleting(p)}
+                        />
+                      </div>
                     )}
-                  </div>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </>
       )}
 
       {awarding && (
@@ -318,6 +366,7 @@ function PrizeFormDialog({
   onSaved: () => void;
 }) {
   const { t } = useLanguage();
+  const toast = useToast();
   const isEdit = !!prize;
   const [name, setName] = useState(prize?.name ?? "");
   const [eventId, setEventId] = useState(prize?.eventId ?? "");
@@ -348,6 +397,7 @@ function PrizeFormDialog({
         }),
       });
       if (!res.ok) throw new Error();
+      toast.success((isEdit ? t.adminPtPrzUpdatedToast : t.adminPtPrzCreatedToast).replace("{name}", name.trim()));
       onSaved();
     } catch {
       setError(t.adminPrizesSaveError);
@@ -356,76 +406,53 @@ function PrizeFormDialog({
     }
   }
 
-  // Matches the modal shell used by admin/clubs, admin/majors, and the
-  // scanner result modal: portal (escapes any transformed ancestor that would
-  // otherwise clip a `position: fixed` child — see ProposeEventSection.tsx),
-  // fade-in, header/body/sticky-footer, all styled off the shared CSS var
-  // tokens so it matches the rest of admin instead of a one-off palette.
-  return createPortal(
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgb(var(--scrim-rgb) / 0.4)",
-        backdropFilter: "blur(8px)",
-        WebkitBackdropFilter: "blur(8px)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1100,
-        padding: "clamp(12px, 4vw, 24px)",
-      }}
-      onClick={() => !saving && onClose()}
-    >
-      <div
-        className="animate-fade-in-up"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "var(--bg-surface)",
-          width: "100%",
-          maxWidth: 560,
-          maxHeight: "calc(100vh - 48px)",
-          display: "flex",
-          flexDirection: "column",
-          borderRadius: "clamp(20px, 4vw, 28px)",
-          overflow: "hidden",
-          boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.2)",
-          border: "1px solid var(--border-medium)",
-        }}
-      >
-        <div style={{ padding: "22px 28px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-          <h2 style={{ fontSize: 19, fontWeight: 800, color: "var(--text-primary)" }}>{isEdit ? t.adminPrizesEditTitle : t.adminPrizesCreate}</h2>
-          <button className="btn btn-ghost" style={{ borderRadius: "50%", width: 36, height: 36, padding: 0 }} onClick={onClose} disabled={saving} aria-label={t.adminPrizesCloseLabel}>
-            <X size={16} />
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      dismissible={!saving}
+      size="md"
+      icon={<Gift size={20} />}
+      title={isEdit ? t.adminPrizesEditTitle : t.adminPrizesCreate}
+      footer={
+        <>
+          <button className="btn btn-ghost" onClick={onClose} disabled={saving}>{t.cancel}</button>
+          <button className="btn btn-primary" onClick={submit} disabled={saving || !name.trim()}>
+            {saving && <Loader2 size={16} className="animate-spin" aria-hidden="true" />}
+            {saving ? t.saving : isEdit ? t.saveChanges : t.adminPrizesSubmit}
           </button>
-        </div>
-
-        <div style={{ padding: "24px 28px", display: "flex", flexDirection: "column", gap: 18, overflowY: "auto", flex: 1 }}>
-          <div className="field">
-            <label className="label">{t.adminPrizesFieldName}</label>
+        </>
+      }
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        <Field label={t.adminPrizesFieldName.replace(/\s*\*$/, "")} required>
+          {(p) => (
             <input
+              {...p}
               className="input"
-              autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") void submit(); }}
               placeholder={t.adminPrizesFieldNamePlaceholder}
-              style={{ fontSize: 15, padding: "12px 14px" }}
             />
-          </div>
+          )}
+        </Field>
 
-          <div className="field">
-            <label className="label">{t.adminPrizesFieldEvent}</label>
-            <select className="input" value={eventId} onChange={(e) => setEventId(e.target.value)}>
+        <Field label={t.adminPrizesFieldEvent}>
+          {(p) => (
+            <select {...p} className="input" value={eventId} onChange={(e) => setEventId(e.target.value)}>
               <option value="">{t.adminPrizesFieldEventNone}</option>
               {events.map((e) => (
                 <option key={e.id} value={e.id}>{e.title}</option>
               ))}
             </select>
-          </div>
+          )}
+        </Field>
 
-          <div className="field">
-            <label className="label">{t.adminPrizesFieldQuantity}</label>
+        <Field label={t.adminPrizesFieldQuantity} hint={t.adminPrizesFieldQuantityHint}>
+          {(p) => (
             <input
+              {...p}
               className="input"
               type="number"
               min={0}
@@ -433,61 +460,51 @@ function PrizeFormDialog({
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
             />
-            <p style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.4 }}>{t.adminPrizesFieldQuantityHint}</p>
-          </div>
+          )}
+        </Field>
 
-          <p className="section-title" style={{ margin: "4px 0 -6px" }}>{t.adminPrizesSettingsSection}</p>
+        <p className="section-title" style={{ margin: "4px 0 -6px" }}>{t.adminPrizesSettingsSection}</p>
 
-          <ToggleRow
-            checked={onePerStudent}
-            onChange={setOnePerStudent}
-            title={t.adminPrizesOnePerStudentTitle}
-            hint={t.adminPrizesOnePerStudentHint}
-          />
+        <ToggleRow
+          checked={onePerStudent}
+          onChange={setOnePerStudent}
+          title={t.adminPrizesOnePerStudentTitle}
+          hint={t.adminPrizesOnePerStudentHint}
+        />
 
-          <ToggleRow
-            checked={requireCheckIn}
-            onChange={setRequireCheckIn}
-            title={t.adminPrizesRequireCheckInTitle}
-          />
+        <ToggleRow
+          checked={requireCheckIn}
+          onChange={setRequireCheckIn}
+          title={t.adminPrizesRequireCheckInTitle}
+        />
 
-          {requireCheckIn && (
-            <div className="field" style={{ marginLeft: 4, paddingLeft: 14, borderLeft: "2px solid var(--border-subtle)" }}>
-              <label className="label">{t.adminPrizesEligibilityLabel}</label>
-              <select className="input" value={eligibilityEventId} onChange={(e) => setEligibilityEventId(e.target.value)}>
+        {requireCheckIn && (
+          <Field label={t.adminPrizesEligibilityLabel} hint={t.adminPrizesEligibilityHint}>
+            {(p) => (
+              <select {...p} className="input" value={eligibilityEventId} onChange={(e) => setEligibilityEventId(e.target.value)}>
                 <option value="">{t.adminPrizesSelectEvent}</option>
                 {events.map((e) => (
                   <option key={e.id} value={e.id}>{e.title}</option>
                 ))}
               </select>
-              <p style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.4 }}>
-                {t.adminPrizesEligibilityHint}
-              </p>
-            </div>
-          )}
+            )}
+          </Field>
+        )}
 
-          {isEdit && (
-            <div className="field">
-              <label className="label">{t.adminPrizesStatusField}</label>
-              <select className="input" value={status} onChange={(e) => setStatus(e.target.value as "open" | "closed")}>
+        {isEdit && (
+          <Field label={t.adminPrizesStatusField}>
+            {(p) => (
+              <select {...p} className="input" value={status} onChange={(e) => setStatus(e.target.value as "open" | "closed")}>
                 <option value="open">{t.adminPrizesStatusOptionOpen}</option>
                 <option value="closed">{t.adminPrizesStatusOptionClosed}</option>
               </select>
-            </div>
-          )}
+            )}
+          </Field>
+        )}
 
-          {error && <p style={{ color: "var(--red-600)", fontWeight: 600, fontSize: 13 }}>{error}</p>}
-        </div>
-
-        <div style={{ padding: "18px 28px", background: "var(--bg-elevated)", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "flex-end", gap: 12, flexShrink: 0 }}>
-          <button className="btn btn-ghost" onClick={onClose} disabled={saving}>{t.cancel}</button>
-          <button className="btn btn-primary" onClick={submit} disabled={saving || !name.trim()}>
-            {saving ? t.saving : isEdit ? t.saveChanges : t.adminPrizesSubmit}
-          </button>
-        </div>
+        {error && <InlineAlert tone="error">{error}</InlineAlert>}
       </div>
-    </div>,
-    document.body,
+    </Modal>
   );
 }
 
@@ -515,22 +532,29 @@ function AwaitingPhotoDialog({
   onAttached: () => void;
 }) {
   const { t } = useLanguage();
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [claims, setClaims] = useState<AwaitingPhotoClaim[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [doneIds, setDoneIds] = useState<Set<string>>(new Set());
+  // One hidden input per source, shared by every row: the row's button records
+  // which claim the picker is for. A real <button> (not a <label> around a
+  // display:none input) keeps the control reachable by keyboard.
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const pickingForRef = useRef<AwaitingPhotoClaim | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     try {
       const res = await fetch(`/api/admin/prizes/${prizeId}/awaiting-photo`);
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || t.adminPrizesConnectionError);
       setClaims(Array.isArray(body.claims) ? body.claims : []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : t.adminPrizesConnectionError);
+      setLoadError(e instanceof Error ? e.message : t.adminPrizesConnectionError);
     } finally {
       setLoading(false);
     }
@@ -544,9 +568,8 @@ function AwaitingPhotoDialog({
     return () => clearTimeout(timer);
   }, [load]);
 
-  async function attach(claimId: string, file: File) {
-    setUploadingId(claimId);
-    setError(null);
+  async function attach(claim: AwaitingPhotoClaim, file: File) {
+    setUploadingId(claim.claimId);
     try {
       const compressed = await compressImageFile(file);
       // See PrizeAwardPanel.tsx's uploadPhoto for the full story: confirmed on
@@ -554,9 +577,7 @@ function AwaitingPhotoDialog({
       // Content-Length: 0 — this check surfaces, right on the staff's own
       // screen, whether the blob was already empty before any network call.
       if (compressed.size === 0) {
-        throw new Error(
-          "Photo data was empty before upload (0 bytes) — this looks like a camera/browser issue. Try picking an existing photo from your library instead of taking a new one.",
-        );
+        throw new Error(t.adminPtPrzPhotoEmpty);
       }
       const form = new FormData();
       // uploadFormViaXHR (src/lib/xhr-upload.ts) re-materializes every
@@ -565,77 +586,70 @@ function AwaitingPhotoDialog({
       const up = await uploadFormViaXHR("/api/forms/upload", form);
       if (!up.ok) throw new Error((up.body.error as string) || t.adminPrizesConnectionError);
 
-      const attachRes = await fetch(`/api/admin/prizes/claims/${claimId}/photo`, {
+      const attachRes = await fetch(`/api/admin/prizes/claims/${claim.claimId}/photo`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ photoKey: up.body.key }),
       });
       if (!attachRes.ok) throw new Error(t.adminPrizesConnectionError);
 
-      setDoneIds((prev) => new Set(prev).add(claimId));
+      setDoneIds((prev) => new Set(prev).add(claim.claimId));
+      toast.success(t.adminPtPrzPhotoAttachedToast.replace("{name}", claim.name));
       onAttached();
     } catch (e) {
-      setError(e instanceof Error ? e.message : t.adminPrizesConnectionError);
+      toast.error(t.adminPtPrzPhotoFailedTitle, e instanceof Error ? e.message : t.adminPrizesConnectionError);
     } finally {
       setUploadingId(null);
     }
   }
 
+  function openPicker(claim: AwaitingPhotoClaim, source: "camera" | "gallery") {
+    pickingForRef.current = claim;
+    (source === "camera" ? cameraInputRef : galleryInputRef).current?.click();
+  }
+
+  function onPicked(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    const claim = pickingForRef.current;
+    // Reset so choosing the same file again after a failure still fires onChange.
+    e.target.value = "";
+    if (f && claim) void attach(claim, f);
+  }
+
   const remaining = claims.filter((c) => !doneIds.has(c.claimId));
+  const uploading = uploadingId !== null;
 
-  return createPortal(
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgb(var(--scrim-rgb) / 0.4)",
-        backdropFilter: "blur(8px)",
-        WebkitBackdropFilter: "blur(8px)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1100,
-        padding: "clamp(12px, 4vw, 24px)",
-      }}
-      onClick={onClose}
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      dismissible={!uploading}
+      size="md"
+      icon={<ImageOff size={20} />}
+      title={t.adminPrizesAwaitingPhotoDialogTitle}
+      description={
+        <>
+          <strong>{prizeName}</strong>
+          {" — "}
+          {t.adminPtPrzAwaitingCaption}
+        </>
+      }
+      footer={<button className="btn btn-primary" onClick={onClose} disabled={uploading}>{t.adminUiClose}</button>}
     >
-      <div
-        className="animate-fade-in-up"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "var(--bg-surface)",
-          width: "100%",
-          maxWidth: 480,
-          maxHeight: "calc(100vh - 48px)",
-          display: "flex",
-          flexDirection: "column",
-          borderRadius: "clamp(20px, 4vw, 28px)",
-          overflow: "hidden",
-          boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.2)",
-          border: "1px solid var(--border-medium)",
-        }}
-      >
-        <div style={{ padding: "22px 28px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexShrink: 0, gap: 12 }}>
-          <div style={{ minWidth: 0 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>{prizeName}</p>
-            <h2 style={{ fontSize: 19, fontWeight: 800, color: "var(--text-primary)" }}>{t.adminPrizesAwaitingPhotoDialogTitle}</h2>
-          </div>
-          <button className="btn btn-ghost" style={{ borderRadius: "50%", width: 36, height: 36, padding: 0, flexShrink: 0 }} onClick={onClose} aria-label={t.adminPrizesCloseLabel}>
-            <X size={16} />
-          </button>
-        </div>
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" hidden onChange={onPicked} />
+      <input ref={galleryInputRef} type="file" accept="image/*" hidden onChange={onPicked} />
 
-        <div style={{ padding: "20px 28px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
-          {loading ? (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "32px 0", color: "var(--text-muted)", fontSize: 14 }}>
-              <Loader2 size={18} className="animate-spin" /> {t.adminPrizesLoading}
-            </div>
-          ) : remaining.length === 0 ? (
-            <p style={{ textAlign: "center", padding: "32px 0", fontSize: 14, color: "var(--text-muted)" }}>
-              {t.adminPrizesAwaitingPhotoEmpty}
-            </p>
-          ) : (
-            remaining.map((c) => (
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {loading ? (
+          <LoadingState compact label={t.adminPrizesLoading} />
+        ) : loadError ? (
+          <ErrorState compact message={loadError} onRetry={() => void load()} />
+        ) : remaining.length === 0 ? (
+          <EmptyState compact icon={<Check size={24} />} title={t.adminPrizesAwaitingPhotoEmpty} />
+        ) : (
+          remaining.map((c) => {
+            const busyRow = uploadingId === c.claimId;
+            return (
               <div
                 key={c.claimId}
                 style={{
@@ -651,77 +665,43 @@ function AwaitingPhotoDialog({
               >
                 <div style={{ minWidth: 0 }}>
                   <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", overflowWrap: "break-word" }}>{c.name}</p>
-                  <p style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                  <p style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
                     {c.studentId ?? t.adminPrizesNoStudentId}
                     {" · "}
                     {t.adminPrizesClaimedAt.replace("{date}", new Date(c.claimedAt).toLocaleString("th-TH"))}
                   </p>
                 </div>
 
-                {/* Two icon-only buttons rather than one text-labelled one: same
-                    Android OEM-picker reasoning as PrizeAwardPanel's photo card
-                    (capture="environment" is the only reliable way to force the
-                    camera open on Android). Icon-only keeps this compact row from
-                    overflowing at narrow widths; the group has one accessible
-                    label and each button its own. */}
-                <div role="group" aria-label={t.adminPrizesAwaitingPhotoAttachBtn} style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                  <label
-                    className="btn btn-primary"
-                    aria-label={t.adminPrizesPhotoCtaCamera}
-                    title={t.adminPrizesPhotoCtaCamera}
-                    style={{ width: 40, height: 40, padding: 0, justifyContent: "center", cursor: uploadingId === c.claimId ? "not-allowed" : "pointer" }}
-                  >
-                    {uploadingId === c.claimId ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      style={{ display: "none" }}
-                      disabled={uploadingId === c.claimId}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) void attach(c.claimId, f);
-                      }}
-                    />
-                  </label>
-                  <label
-                    className="btn btn-ghost"
-                    aria-label={t.adminPrizesPhotoCtaGallery}
-                    title={t.adminPrizesPhotoCtaGallery}
-                    style={{ width: 40, height: 40, padding: 0, justifyContent: "center", cursor: uploadingId === c.claimId ? "not-allowed" : "pointer" }}
-                  >
-                    <ImagePlus size={16} />
-                    <input
-                      type="file"
-                      accept="image/*"
-                      style={{ display: "none" }}
-                      disabled={uploadingId === c.claimId}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) void attach(c.claimId, f);
-                      }}
-                    />
-                  </label>
+                {/* Two icon buttons rather than one text-labelled one: Android
+                    OEM pickers only reliably open the camera with
+                    capture="environment", so camera and gallery stay separate. */}
+                <div role="group" aria-label={`${t.adminPrizesAwaitingPhotoAttachBtn}: ${c.name}`} style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <IconButton
+                    tone="accent"
+                    label={`${t.adminPrizesPhotoCtaCamera}: ${c.name}`}
+                    icon={busyRow ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
+                    disabled={uploading}
+                    onClick={() => openPicker(c, "camera")}
+                  />
+                  <IconButton
+                    label={`${t.adminPrizesPhotoCtaGallery}: ${c.name}`}
+                    icon={<ImagePlus size={18} />}
+                    disabled={uploading}
+                    onClick={() => openPicker(c, "gallery")}
+                  />
                 </div>
               </div>
-            ))
-          )}
+            );
+          })
+        )}
 
-          {!!doneIds.size && !loading && remaining.length > 0 && (
-            <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: "var(--teal-600)" }}>
-              <Check size={14} /> {t.adminPrizesPhotoAttached} ({doneIds.size})
-            </p>
-          )}
-
-          {error && <p style={{ color: "var(--red-600)", fontWeight: 600, fontSize: 13 }}>{error}</p>}
-        </div>
-
-        <div style={{ padding: "18px 28px", background: "var(--bg-elevated)", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "flex-end", flexShrink: 0 }}>
-          <button className="btn btn-ghost" onClick={onClose}>{t.cancel}</button>
-        </div>
+        {!!doneIds.size && !loading && remaining.length > 0 && (
+          <p role="status" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, color: "var(--teal-600)" }}>
+            <Check size={14} aria-hidden="true" /> {t.adminPrizesPhotoAttached} ({doneIds.size})
+          </p>
+        )}
       </div>
-    </div>,
-    document.body,
+    </Modal>
   );
 }
 
@@ -763,7 +743,7 @@ function ToggleRow({
       />
       <span style={{ minWidth: 0 }}>
         <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{title}</span>
-        {hint && <span style={{ display: "block", fontSize: 12, color: "var(--text-muted)", marginTop: 2, lineHeight: 1.4 }}>{hint}</span>}
+        {hint && <span style={{ display: "block", fontSize: 12, color: "var(--text-muted)", marginTop: 2, lineHeight: 1.5 }}>{hint}</span>}
       </span>
     </label>
   );
@@ -793,19 +773,21 @@ function DeletePrizeDialog({
   onCloseInstead: () => void;
 }) {
   const { t } = useLanguage();
+  const toast = useToast();
   const claimCount = prize.claimCount ?? 0;
   const awaitingPhotoCount = prize.awaitingPhotoCount ?? 0;
   const photoCount = Math.max(0, claimCount - awaitingPhotoCount);
   const requiresTypedConfirm = claimCount > 0;
   const [confirmText, setConfirmText] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"delete" | "close" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
 
   const canDelete = !requiresTypedConfirm || confirmText.trim() === prize.name;
 
   async function doDelete() {
     if (!canDelete || busy) return;
-    setBusy(true);
+    setBusy("delete");
     setError(null);
     try {
       const res = await fetch(`/api/admin/prizes/${prize.id}`, { method: "DELETE" });
@@ -816,17 +798,18 @@ function DeletePrizeDialog({
       // untranslated and would otherwise leak literal English into a TH/MM/CN
       // admin's UI on a race (e.g. the prize was already deleted by someone
       // else between page load and this click).
-      if (!res.ok) throw new Error(t.adminPrizesConnectionError);
+      if (!res.ok) throw new Error(t.adminPtPrzActionFailed);
+      toast.success(t.adminPtPrzDeletedToast.replace("{name}", prize.name));
       onDeleted();
     } catch (e) {
-      setError(e instanceof Error ? e.message : t.adminPrizesConnectionError);
-      setBusy(false);
+      setError(e instanceof Error ? e.message : t.adminPtPrzActionFailed);
+      setBusy(null);
     }
   }
 
   async function doCloseInstead() {
     if (busy) return;
-    setBusy(true);
+    setBusy("close");
     setError(null);
     try {
       const res = await fetch(`/api/admin/prizes/${prize.id}`, {
@@ -834,104 +817,69 @@ function DeletePrizeDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "closed" }),
       });
-      if (!res.ok) throw new Error(t.adminPrizesConnectionError);
+      if (!res.ok) throw new Error(t.adminPtPrzActionFailed);
+      toast.success(t.adminPtPrzClosedToast.replace("{name}", prize.name));
       onCloseInstead();
     } catch (e) {
-      setError(e instanceof Error ? e.message : t.adminPrizesConnectionError);
-      setBusy(false);
+      setError(e instanceof Error ? e.message : t.adminPtPrzActionFailed);
+      setBusy(null);
     }
   }
 
-  return createPortal(
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgb(var(--scrim-rgb) / 0.4)",
-        backdropFilter: "blur(8px)",
-        WebkitBackdropFilter: "blur(8px)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1100,
-        padding: "clamp(12px, 4vw, 24px)",
-      }}
-      onClick={() => !busy && onClose()}
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      dismissible={!busy}
+      size="sm"
+      icon={<AlertTriangle size={20} />}
+      title={`${t.adminPrizesDeleteTitle}: ${prize.name}`}
+      initialFocusRef={cancelRef}
+      footer={
+        <>
+          <button ref={cancelRef} className="btn btn-ghost" onClick={onClose} disabled={!!busy}>{t.cancel}</button>
+          <button className="btn adm-btn-danger-solid" onClick={doDelete} disabled={!!busy || !canDelete}>
+            {busy === "delete" ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Trash2 size={16} aria-hidden="true" />} {t.adminPrizesDeleteConfirmBtn}
+          </button>
+        </>
+      }
     >
-      <div
-        className="animate-fade-in-up"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "var(--bg-surface)",
-          width: "100%",
-          maxWidth: 480,
-          maxHeight: "calc(100vh - 48px)",
-          display: "flex",
-          flexDirection: "column",
-          borderRadius: "clamp(20px, 4vw, 28px)",
-          overflow: "hidden",
-          boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.2)",
-          border: "1px solid var(--border-medium)",
-        }}
-      >
-        <div style={{ padding: "22px 28px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexShrink: 0, gap: 12 }}>
-          <div style={{ minWidth: 0, display: "flex", alignItems: "flex-start", gap: 10 }}>
-            <AlertTriangle size={22} style={{ color: "var(--red-600)", flexShrink: 0, marginTop: 1 }} />
-            <div>
-              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>{prize.name}</p>
-              <h2 style={{ fontSize: 19, fontWeight: 800, color: "var(--text-primary)" }}>{t.adminPrizesDeleteTitle}</h2>
-            </div>
-          </div>
-          <button className="btn btn-ghost" style={{ borderRadius: "50%", width: 36, height: 36, padding: 0, flexShrink: 0 }} onClick={onClose} disabled={busy} aria-label={t.adminPrizesCloseLabel}>
-            <X size={16} />
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <p className="adm-modal-text" style={{ color: "var(--text-primary)" }}>
+          {t.adminPrizesDeleteWarning
+            .replace("{claims}", String(claimCount))
+            .replace("{photos}", String(photoCount))}
+        </p>
+        <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6 }}>
+          {t.adminPrizesDeleteNoDocsNotice}
+        </p>
+
+        <div style={{ borderRadius: 16, padding: 16, background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)" }}>
+          <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{t.adminPrizesDeleteCloseInsteadTitle}</p>
+          <p style={{ marginTop: 4, fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6 }}>{t.adminPrizesDeleteCloseInsteadHint}</p>
+          <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={doCloseInstead} disabled={!!busy}>
+            {busy === "close" && <Loader2 size={16} className="animate-spin" aria-hidden="true" />} {t.adminPrizesDeleteCloseInsteadBtn}
           </button>
         </div>
 
-        <div style={{ padding: "22px 28px", display: "flex", flexDirection: "column", gap: 16, overflowY: "auto", flex: 1 }}>
-          <p style={{ fontSize: 14, color: "var(--text-primary)", lineHeight: 1.6 }}>
-            {t.adminPrizesDeleteWarning
-              .replace("{claims}", String(claimCount))
-              .replace("{photos}", String(photoCount))}
-          </p>
-          <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.5 }}>
-            {t.adminPrizesDeleteNoDocsNotice}
-          </p>
-
-          <div style={{ borderRadius: 16, padding: 16, background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)" }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{t.adminPrizesDeleteCloseInsteadTitle}</p>
-            <p style={{ marginTop: 4, fontSize: 12.5, color: "var(--text-muted)", lineHeight: 1.5 }}>{t.adminPrizesDeleteCloseInsteadHint}</p>
-            <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={doCloseInstead} disabled={busy}>
-              {busy ? <Loader2 size={16} className="animate-spin" /> : null} {t.adminPrizesDeleteCloseInsteadBtn}
-            </button>
-          </div>
-
-          {requiresTypedConfirm && (
-            <div className="field">
-              <label className="label">
-                {t.adminPrizesDeleteTypeToConfirm.replace("{name}", prize.name)}
-              </label>
+        {requiresTypedConfirm && (
+          <Field label={t.adminPrizesDeleteTypeToConfirm.replace("{name}", prize.name)}>
+            {(p) => (
               <input
+                {...p}
                 className="input"
                 value={confirmText}
                 onChange={(e) => setConfirmText(e.target.value)}
                 placeholder={prize.name}
-                disabled={busy}
+                disabled={!!busy}
                 autoComplete="off"
               />
-            </div>
-          )}
+            )}
+          </Field>
+        )}
 
-          {error && <p style={{ color: "var(--red-600)", fontWeight: 600, fontSize: 13 }}>{error}</p>}
-        </div>
-
-        <div style={{ padding: "18px 28px", background: "var(--bg-elevated)", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "flex-end", gap: 12, flexShrink: 0 }}>
-          <button className="btn btn-ghost" onClick={onClose} disabled={busy}>{t.cancel}</button>
-          <button className="btn btn-danger" onClick={doDelete} disabled={busy || !canDelete}>
-            {busy ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />} {t.adminPrizesDeleteConfirmBtn}
-          </button>
-        </div>
+        {error && <InlineAlert tone="error">{error}</InlineAlert>}
       </div>
-    </div>,
-    document.body,
+    </Modal>
   );
 }

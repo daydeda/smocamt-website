@@ -1,12 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { MessageSquareWarning, CheckCircle2, XCircle, Loader2, Clock, UserCheck, CalendarX2 } from "lucide-react";
+import { CalendarX2, CheckCircle2, ChevronLeft, ChevronRight, Clock, UserCheck, XCircle } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { effectiveRoles } from "@/lib/access/admin-access";
 import { canonicalHouseName } from "@/lib/profile/faculties";
 import { NO_SHOW_STRIKE_THRESHOLD, RESOLVE_APPEALS_ROLES } from "@/lib/points/strikes";
+import {
+  EmptyState,
+  ErrorState,
+  Field,
+  LoadingState,
+  Modal,
+  PageHeader,
+  Panel,
+  StatusBadge,
+  TabPanel,
+  Tabs,
+  useToast,
+  type Tone,
+} from "@/components/admin/ui";
 
 type Appeal = {
   id: string;
@@ -33,8 +47,11 @@ type Filter = (typeof FILTERS)[number];
 
 const PAGE_SIZE = 10;
 
+const STATUS_TONE: Record<Appeal["status"], Tone> = { pending: "warning", approved: "success", rejected: "danger" };
+
 export function AppealsClient() {
   const { t } = useLanguage();
+  const toast = useToast();
   const { data: session } = useSession();
   // smo can view this queue (VIEW_APPEALS_ROLES) but not resolve appeals; the
   // server independently re-checks RESOLVE_APPEALS_ROLES + event ownership on
@@ -43,16 +60,17 @@ export function AppealsClient() {
   const canResolve = myRoles.some((r) => (RESOLVE_APPEALS_ROLES as readonly string[]).includes(r));
   const [appeals, setAppeals] = useState<Appeal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
   const [filter, setFilter] = useState<Filter>("pending");
   const [page, setPage] = useState(1);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [resolveModal, setResolveModal] = useState<{ appeal: Appeal; action: "approve" | "reject" } | null>(null);
   const [reason, setReason] = useState("");
 
-  const STATUS_BADGE: Record<Appeal["status"], { bg: string; color: string; label: string }> = {
-    pending: { bg: "rgb(var(--amber-500-rgb) / 0.1)", color: "var(--amber-500)", label: t.adminAppealsFilterPending },
-    approved: { bg: "rgb(var(--green-500-rgb) / 0.1)", color: "var(--green-500)", label: t.adminAppealsFilterApproved },
-    rejected: { bg: "rgb(var(--red-500-rgb) / 0.1)", color: "var(--red-500)", label: t.adminAppealsFilterRejected },
+  const STATUS_LABEL: Record<Appeal["status"], string> = {
+    pending: t.adminAppealsFilterPending,
+    approved: t.adminAppealsFilterApproved,
+    rejected: t.adminAppealsFilterRejected,
   };
 
   const FILTER_LABEL: Record<Filter, string> = {
@@ -62,31 +80,41 @@ export function AppealsClient() {
     all: t.adminAppealsFilterAll,
   };
 
-  // loading starts true (initial state) so the first fetch doesn't need a
-  // synchronous setState inside the effect (flagged by react-hooks/set-state-in-effect).
-  const load = () => {
+  // `showSpinner` is true for an explicit retry; a refresh after resolving an
+  // appeal updates the list in place without flashing the loading state.
+  const load = useCallback((showSpinner = false) => {
+    if (showSpinner) {
+      setLoading(true);
+      setFailed(false);
+    }
     fetch("/api/admin/appeals")
       .then((r) => r.json())
       .then((d) => setAppeals(Array.isArray(d.appeals) ? d.appeals : []))
-      .catch(() => {})
+      .catch(() => setFailed(true))
       .finally(() => setLoading(false));
-  };
+  }, []);
 
   useEffect(() => {
-    load();
-  }, []);
+    // Deferred so state updates happen outside the synchronous effect body.
+    const timer = setTimeout(() => load(), 0);
+    return () => clearTimeout(timer);
+  }, [load]);
 
   const openResolveModal = (appeal: Appeal, action: "approve" | "reject") => {
     setReason("");
     setResolveModal({ appeal, action });
   };
 
+  const closeResolveModal = () => {
+    if (busyId) return;
+    setResolveModal(null);
+  };
+
   const confirmResolve = async () => {
-    if (!resolveModal) return;
+    if (!resolveModal || busyId) return;
     const { appeal, action } = resolveModal;
     const note = reason.trim() || undefined;
 
-    setResolveModal(null);
     setBusyId(appeal.id);
     try {
       const res = await fetch(`/api/admin/appeals/${appeal.id}`, {
@@ -96,15 +124,20 @@ export function AppealsClient() {
       });
       if (!res.ok) {
         const d = await res.json().catch(() => null);
-        alert(d?.error || "Failed to resolve appeal");
+        toast.error(t.adminOvAppealFailed, d?.error || t.adminUiErrorBody);
         return;
       }
+      toast.success(action === "approve" ? t.adminOvAppealApproved : t.adminOvAppealRejected, appeal.user.name);
+      setResolveModal(null);
       load();
+    } catch {
+      toast.error(t.adminOvAppealFailed, t.adminUiErrorBody);
     } finally {
       setBusyId(null);
     }
   };
 
+  const countFor = (f: Filter) => (f === "all" ? appeals.length : appeals.filter((a) => a.status === f).length);
   const filtered = filter === "all" ? appeals : appeals.filter((a) => a.status === filter);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -115,210 +148,191 @@ export function AppealsClient() {
     setPage(1);
   };
 
+  const approving = resolveModal?.action === "approve";
+
   return (
     <div className="pb-20">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4" style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: "clamp(28px,5vw,42px)", fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1.3, display: "flex", alignItems: "center", gap: 12 }}>
-          <MessageSquareWarning size={32} strokeWidth={2.5} style={{ color: "var(--accent-primary)" }} />
-          {t.adminAppealsTitle}
-        </h1>
-      </div>
-
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-        {FILTERS.map((f) => (
-          <button
-            key={f}
-            onClick={() => changeFilter(f)}
-            className="btn btn-sm"
-            style={{
-              borderRadius: 10,
-              fontWeight: 700,
-              fontSize: 12,
-              background: filter === f ? "var(--accent-primary)" : "var(--bg-surface)",
-              color: filter === f ? "var(--text-on-color)" : "var(--text-secondary)",
-              border: "1px solid var(--border-subtle)",
-            }}
-          >
-            {FILTER_LABEL[f]}
-          </button>
-        ))}
-      </div>
+      <PageHeader title={t.adminAppealsTitle} description={t.adminOvAppealsDesc} />
 
       {loading ? (
-        <div style={{ display: "flex", justifyContent: "center", padding: 60 }}>
-          <div className="spinner" style={{ width: 28, height: 28 }} />
-        </div>
-      ) : filtered.length === 0 ? (
-        <div style={{ textAlign: "center", padding: 60, color: "var(--text-muted)" }}>
-          {t.adminAppealsEmptyMessage}
-        </div>
+        <LoadingState variant="skeleton" rows={4} />
+      ) : failed ? (
+        <ErrorState onRetry={() => load(true)} />
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {pageItems.map((a) => {
-            const badge = STATUS_BADGE[a.status];
-            return (
-              <div key={a.id} style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-lg)", padding: 16 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
-                  <div>
-                    <p style={{ fontWeight: 700, fontSize: 15 }}>
-                      {a.user.name}
-                      {a.user.house && <span style={{ color: a.user.house.color ?? "var(--text-muted)", fontWeight: 600, fontSize: 12 }}> · {canonicalHouseName(a.user.house)}</span>}
-                    </p>
-                    <p style={{ fontSize: 12, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 6, marginTop: 2, flexWrap: "wrap" }}>
-                      {a.user.studentId ?? "—"} · {t.adminAppealsStrikesAtAppeal} {a.noShowCountAtAppeal}/{NO_SHOW_STRIKE_THRESHOLD}
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><Clock size={11} /> {new Date(a.createdAt).toLocaleString("en-GB")}</span>
-                    </p>
-                  </div>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, padding: "5px 10px", borderRadius: 999, background: badge.bg, color: badge.color, height: "fit-content" }}>
-                    {badge.label}
+        <>
+          <Tabs
+            idBase="appeals"
+            ariaLabel={t.adminAppealsTitle}
+            value={filter}
+            onChange={changeFilter}
+            tabs={FILTERS.map((f) => ({ id: f, label: FILTER_LABEL[f], count: countFor(f) }))}
+          />
+
+          <TabPanel idBase="appeals" id={filter}>
+            {filtered.length === 0 ? (
+              <EmptyState title={t.adminAppealsEmptyMessage} description={t.adminOvAppealsEmptyDesc} />
+            ) : (
+              <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+                {pageItems.map((a) => (
+                  <li key={a.id}>
+                    <Panel>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+                        <div style={{ minWidth: 0 }}>
+                          <p style={{ fontWeight: 700, fontSize: 16, lineHeight: 1.4 }}>
+                            {a.user.name}
+                            {a.user.house && (
+                              <span style={{ color: a.user.house.color ?? "var(--text-muted)", fontWeight: 600, fontSize: 13 }}> · {canonicalHouseName(a.user.house)}</span>
+                            )}
+                          </p>
+                          <p style={{ fontSize: 13, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "2px 10px", marginTop: 2, flexWrap: "wrap" }}>
+                            <span>{a.user.studentId ?? "—"}</span>
+                            <span>{t.adminAppealsStrikesAtAppeal} {a.noShowCountAtAppeal}/{NO_SHOW_STRIKE_THRESHOLD}</span>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                              <Clock size={12} aria-hidden="true" /> {new Date(a.createdAt).toLocaleString("en-GB")}
+                            </span>
+                          </p>
+                        </div>
+                        <div style={{ height: "fit-content" }}>
+                          <StatusBadge tone={STATUS_TONE[a.status]}>{STATUS_LABEL[a.status]}</StatusBadge>
+                        </div>
+                      </div>
+
+                      {a.event && (
+                        <p style={{ fontSize: 13, color: "var(--text-secondary)", display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 10 }}>
+                          <CalendarX2 size={14} aria-hidden="true" style={{ marginTop: 3, flexShrink: 0 }} />
+                          <span style={{ overflowWrap: "anywhere" }}>
+                            {t.adminAppealsEventLabel} {a.event.title}
+                          </span>
+                        </p>
+                      )}
+
+                      <p style={{ fontSize: 14, lineHeight: 1.6, color: "var(--text-secondary)", background: "var(--bg-base)", padding: "10px 12px", borderRadius: 8, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+                        {a.message}
+                      </p>
+
+                      {a.reviewNote && (
+                        <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 8 }}>
+                          {t.appealStaffNoteLabel} {a.reviewNote}
+                        </p>
+                      )}
+
+                      {a.status !== "pending" && a.reviewer && (
+                        <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                          <UserCheck size={14} aria-hidden="true" />
+                          {t.adminAppealsReviewedByLabel} {a.reviewer.name}
+                          {a.reviewedAt && ` · ${new Date(a.reviewedAt).toLocaleString("en-GB")}`}
+                        </p>
+                      )}
+
+                      {a.status === "pending" && canResolve && (
+                        <div style={{ display: "flex", gap: 12, marginTop: 14, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                          <button
+                            type="button"
+                            onClick={() => openResolveModal(a, "reject")}
+                            disabled={busyId === a.id}
+                            className="btn btn-ghost"
+                            style={{ color: "var(--red-600)", gap: 6 }}
+                          >
+                            <XCircle size={16} aria-hidden="true" /> {t.adminAppealsRejectButton}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openResolveModal(a, "approve")}
+                            disabled={busyId === a.id}
+                            className="btn btn-primary"
+                            style={{ gap: 6 }}
+                          >
+                            <CheckCircle2 size={16} aria-hidden="true" /> {t.adminAppealsApproveButton}
+                          </button>
+                        </div>
+                      )}
+                    </Panel>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {filtered.length > PAGE_SIZE && (
+              <nav
+                aria-label={t.adminOvPagination}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16, marginTop: 20 }}
+              >
+                <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+                  {t.adminAppealsShowingRange
+                    .replace("{from}", String((currentPage - 1) * PAGE_SIZE + 1))
+                    .replace("{to}", String(Math.min(currentPage * PAGE_SIZE, filtered.length)))
+                    .replace("{total}", String(filtered.length))}
+                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <button type="button" className="btn btn-ghost" style={{ gap: 4 }} disabled={currentPage === 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                    <ChevronLeft size={16} aria-hidden="true" />
+                    {t.adminAppealsPrevious}
+                  </button>
+                  <span style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 700, whiteSpace: "nowrap" }}>
+                    {t.adminAppealsPageOf.replace("{page}", String(currentPage)).replace("{total}", String(totalPages))}
                   </span>
+                  <button type="button" className="btn btn-ghost" style={{ gap: 4 }} disabled={currentPage === totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
+                    {t.adminAppealsNext}
+                    <ChevronRight size={16} aria-hidden="true" />
+                  </button>
                 </div>
-
-                {a.event && (
-                  <p style={{ fontSize: 12, color: "var(--text-muted)", display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 10 }}>
-                    <CalendarX2 size={13} style={{ marginTop: 1, flexShrink: 0 }} />
-                    <span style={{ overflowWrap: "anywhere" }}>
-                      {t.adminAppealsEventLabel} {a.event.title}
-                    </span>
-                  </p>
-                )}
-
-                <p style={{ fontSize: 14, color: "var(--text-secondary)", background: "var(--bg-base)", padding: "10px 12px", borderRadius: 8, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
-                  {a.message}
-                </p>
-
-                {a.reviewNote && (
-                  <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 8 }}>
-                    {t.appealStaffNoteLabel} {a.reviewNote}
-                  </p>
-                )}
-
-                {a.status !== "pending" && a.reviewer && (
-                  <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8, display: "flex", alignItems: "center", gap: 5 }}>
-                    <UserCheck size={12} />
-                    {t.adminAppealsReviewedByLabel} {a.reviewer.name}
-                    {a.reviewedAt && ` · ${new Date(a.reviewedAt).toLocaleString("en-GB")}`}
-                  </p>
-                )}
-
-                {a.status === "pending" && canResolve && (
-                  <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
-                    <button
-                      onClick={() => openResolveModal(a, "reject")}
-                      disabled={busyId === a.id}
-                      className="btn btn-ghost"
-                      style={{ flex: 1, color: "var(--red-500)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}
-                    >
-                      <XCircle size={16} /> {t.adminAppealsRejectButton}
-                    </button>
-                    <button
-                      onClick={() => openResolveModal(a, "approve")}
-                      disabled={busyId === a.id}
-                      className="btn btn-primary"
-                      style={{ flex: 2, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}
-                    >
-                      {busyId === a.id ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-                      {t.adminAppealsApproveButton}
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {filtered.length > PAGE_SIZE && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16, marginTop: 20 }}>
-          <span style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 600 }}>
-            {t.adminAppealsShowingRange
-              .replace("{from}", String((currentPage - 1) * PAGE_SIZE + 1))
-              .replace("{to}", String(Math.min(currentPage * PAGE_SIZE, filtered.length)))
-              .replace("{total}", String(filtered.length))}
-          </span>
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <button
-              className="btn btn-ghost btn-sm"
-              style={{ padding: "8px 16px", borderRadius: 10, fontWeight: 700 }}
-              disabled={currentPage === 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-            >
-              {t.adminAppealsPrevious}
-            </button>
-            <span style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 800 }}>
-              {t.adminAppealsPageOf.replace("{page}", String(currentPage)).replace("{total}", String(totalPages))}
-            </span>
-            <button
-              className="btn btn-ghost btn-sm"
-              style={{ padding: "8px 16px", borderRadius: 10, fontWeight: 700 }}
-              disabled={currentPage === totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            >
-              {t.adminAppealsNext}
-            </button>
-          </div>
-        </div>
+              </nav>
+            )}
+          </TabPanel>
+        </>
       )}
 
       {resolveModal && (
-        <div
-          style={{ position: "fixed", inset: 0, background: "rgb(var(--scrim-rgb) / 0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 16 }}
-          onClick={() => setResolveModal(null)}
-        >
-          <div
-            style={{ background: "var(--bg-surface)", borderRadius: "var(--radius-lg)", padding: 24, maxWidth: 440, width: "100%", border: "1px solid var(--border-subtle)" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>
-              {resolveModal.action === "approve" ? t.adminAppealsApproveConfirmTitle : t.adminAppealsRejectModalTitle}
-            </h2>
-            <p style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 14, overflowWrap: "anywhere" }}>
-              {resolveModal.action === "approve"
-                ? t.adminAppealsApproveConfirmMessage
-                    .replace("{name}", resolveModal.appeal.user.name)
-                    .replace("{event}", resolveModal.appeal.event?.title ?? "")
-                    .replace("{before}", String(resolveModal.appeal.user.noShowCount))
-                    .replace("{after}", String(Math.max(0, resolveModal.appeal.user.noShowCount - 1)))
-                    .replaceAll("{max}", String(NO_SHOW_STRIKE_THRESHOLD))
-                : t.adminAppealsRejectModalDescription.replace("{name}", resolveModal.appeal.user.name)}
-            </p>
-            {resolveModal.action === "reject" && (
-              <textarea
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                placeholder={t.adminAppealsRejectPlaceholder}
-                maxLength={500}
-                rows={3}
-                style={{
-                  width: "100%",
-                  resize: "vertical",
-                  background: "var(--bg-base)",
-                  border: "1px solid var(--border-subtle)",
-                  borderRadius: 8,
-                  padding: "10px 12px",
-                  fontSize: 14,
-                  color: "var(--text-primary)",
-                  marginBottom: 16,
-                }}
-              />
-            )}
-            <div style={{ display: "flex", gap: 10, marginTop: resolveModal.action === "approve" ? 16 : 0 }}>
-              <button onClick={() => setResolveModal(null)} className="btn btn-ghost" style={{ flex: 1 }}>
+        <Modal
+          open
+          onClose={closeResolveModal}
+          size="sm"
+          dismissible={!busyId}
+          title={approving ? t.adminAppealsApproveConfirmTitle : t.adminAppealsRejectModalTitle}
+          description={
+            approving
+              ? t.adminAppealsApproveConfirmMessage
+                  .replace("{name}", resolveModal.appeal.user.name)
+                  .replace("{event}", resolveModal.appeal.event?.title ?? "")
+                  .replace("{before}", String(resolveModal.appeal.user.noShowCount))
+                  .replace("{after}", String(Math.max(0, resolveModal.appeal.user.noShowCount - 1)))
+                  .replaceAll("{max}", String(NO_SHOW_STRIKE_THRESHOLD))
+              : t.adminAppealsRejectModalDescription.replace("{name}", resolveModal.appeal.user.name)
+          }
+          footer={
+            <>
+              <button type="button" className="btn btn-ghost" onClick={closeResolveModal} disabled={!!busyId}>
                 {t.appealCancelButton}
               </button>
               <button
+                type="button"
+                className={approving ? "btn btn-primary" : "btn adm-btn-danger-solid"}
                 onClick={confirmResolve}
-                className="btn btn-primary"
-                style={{
-                  flex: 1,
-                  background: resolveModal.action === "reject" ? "var(--red-500)" : undefined,
-                }}
+                disabled={!!busyId}
               >
-                {t.adminAppealsConfirmButton}
+                {busyId ? t.saving : approving ? t.adminAppealsApproveButton : t.adminAppealsRejectButton}
               </button>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+        >
+          {approving ? null : (
+            <Field label={t.adminOvNoteLabel} hint={t.adminOvNoteHint}>
+              {(p) => (
+                <textarea
+                  {...p}
+                  className="input"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder={t.adminAppealsRejectPlaceholder}
+                  maxLength={500}
+                  rows={3}
+                  disabled={!!busyId}
+                  style={{ resize: "vertical" }}
+                />
+              )}
+            </Field>
+          )}
+        </Modal>
       )}
     </div>
   );

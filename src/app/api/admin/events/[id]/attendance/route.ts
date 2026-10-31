@@ -25,7 +25,7 @@ export async function GET(
     // THIN roster only (see isThinRoster below), while club_president/
     // major_president get the FULL roster (incl. medical detail, see
     // isPresidentRole below) for events they own, scoped server-side further down.
-    const isStaffRole = myRoles.some((r) => ["super_admin", "admin", "registration", "organizer"].includes(r)) || globalReg;
+    const isStaffRole = myRoles.some((r) => ["super_admin", "admin"].includes(r)) || globalReg;
     const isThinRosterRole = myRoles.some((r) => ["smo", "club_president", "major_president"].includes(r));
     // A club/major-scoped registration position (case 2/3: not staff, not global)
     // is a distinct entry path — full (non-thin) roster, but scoped to only the
@@ -38,7 +38,7 @@ export async function GET(
 
     // PDPA-sensitive medical & emergency-contact data is restricted to
     // super_admin/admin (mirrors canExportAttendance on the admin events page).
-    // registration/organizer get the roster without health info.
+    // a global registration position gets the roster without health info.
     const canViewMedical = myRoles.includes("super_admin") || myRoles.includes("admin");
     // A club/major president viewing an event THEY MANAGE (scoping enforced
     // below) gets the same medical-detail breadth as canViewMedical — by
@@ -151,7 +151,8 @@ export async function GET(
         phone: u.phone,
         role: u.role,
         roles: u.roles,
-        emergencyContacts: u.emergencyContacts,
+        // Same redaction as the president tier: relationship + phone, no contact name.
+        emergencyContacts: redactEmergencyContacts(u.emergencyContacts),
         house: u.house,
         hasMedicalInfo,
         medicalCategories,
@@ -190,7 +191,7 @@ export async function GET(
       } else {
         await AuditService.logAction({
           actorId: session.user.id!,
-          action: `Viewed Attendance List for Event ${eventLabel} (emergency contacts + medical-category signal)`,
+          action: `Viewed Attendance List for Event ${eventLabel} (emergency contacts (relationship/phone only) + medical-category signal)`,
           ipAddress: getClientIp(req),
         });
       }
@@ -205,8 +206,8 @@ export async function GET(
 
 // Removes a single student's registration/check-in rows for this event (all
 // sessions of a multi-day event, since a wrongly-registered student shouldn't
-// remain on any day). Deliberately admin/registration only — NOT organizer and
-// NOT presidents: a president removing a peer's registration is a real bias/
+// remain on any day). Deliberately admin/global-registration-position only — NOT
+// presidents: a president removing a peer's registration is a real bias/
 // conflict-of-interest risk (the "wrong club" justification is easy to fake),
 // and the audit log only catches that after the fact. allowedClubs (see
 // event-access.ts) now prevents wrong-club registration proactively, which was
@@ -218,7 +219,7 @@ export async function DELETE(
   try {
     const session = await auth();
     const myRoles = session?.user?.roles ?? (session?.user?.role ? [session.user.role] : []);
-    const isStaffRole = myRoles.some((r) => ["super_admin", "admin", "registration"].includes(r))
+    const isStaffRole = myRoles.some((r) => ["super_admin", "admin"].includes(r))
       || isGlobalRegistrationPosition(myRoles, session?.user?.smoPosition, session?.user?.anusmoPosition);
     if (!session?.user || !isStaffRole) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

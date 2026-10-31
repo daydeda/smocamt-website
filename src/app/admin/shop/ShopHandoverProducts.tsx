@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, ChevronRight, Loader2, Package, Search } from "lucide-react";
+import { AlertTriangle, ChevronRight, Package, Search } from "lucide-react";
+import { EmptyState, ErrorState, LoadingState } from "@/components/admin/ui";
 
 // Step 1 of the handover counter: choose WHICH product you're handing out
 // before scanning anyone. Shared by the /admin/shop scan dialog and the Shop
@@ -57,19 +58,19 @@ export default function HandoverProductList({ th, onPick }: { th: boolean; onPic
     return () => clearTimeout(timer);
   }, [load]);
 
-  if (loading) {
-    return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, padding: 32, color: "var(--text-muted)", fontSize: 14 }}><Loader2 size={18} className="animate-spin" />{th ? "กำลังโหลดสินค้า" : "Loading products"}</div>;
-  }
+  if (loading) return <LoadingState compact label={th ? "กำลังโหลดสินค้า" : "Loading products"} />;
   if (error) {
-    return (
-      <div style={{ textAlign: "center", padding: 24, display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-        <p style={{ fontSize: 14, fontWeight: 700 }}>{th ? "โหลดรายการสินค้าไม่สำเร็จ" : "Couldn't load products."}</p>
-        <button className="btn btn-ghost" onClick={() => { setLoading(true); void load(); }}>{th ? "ลองอีกครั้ง" : "Retry"}</button>
-      </div>
-    );
+    return <ErrorState compact title={th ? "โหลดรายการสินค้าไม่สำเร็จ" : "Couldn't load products"} onRetry={() => { setLoading(true); void load(); }} />;
   }
   if (products.length === 0) {
-    return <p style={{ fontSize: 14, color: "var(--text-muted)", textAlign: "center", padding: 24 }}>{th ? "ยังไม่มีสินค้าที่คุณดูแล" : "You don't manage any products yet."}</p>;
+    return (
+      <EmptyState
+        compact
+        icon={<Package size={24} />}
+        title={th ? "ยังไม่มีสินค้าที่คุณดูแล" : "You don't manage any products yet"}
+        description={th ? "สินค้าที่คุณเป็นเจ้าของ (ชมรม สาขา หรือผู้ขาย) จะมาแสดงที่นี่ให้เลือกส่งมอบ" : "Products owned by you, your club or your major show up here to hand out."}
+      />
+    );
   }
 
   // Two products with the same name (e.g. every club sells a "T-shirt") are the
@@ -90,12 +91,13 @@ export default function HandoverProductList({ th, onPick }: { th: boolean; onPic
       <li key={p.id}>
         <button
           onClick={() => onPick(p)}
+          type="button"
           style={{ width: "100%", minHeight: 64, display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 12, border: `1px solid ${duplicate ? "rgb(var(--amber-500-rgb) / 0.5)" : "var(--border-subtle)"}`, background: "var(--bg-surface)", cursor: "pointer", textAlign: "left", color: "inherit", fontFamily: "inherit" }}
         >
           <ProductThumb product={p} />
           <div style={{ minWidth: 0, flex: 1 }}>
             <p style={{ fontSize: 15, fontWeight: 800, overflowWrap: "anywhere" }}>{p.name}</p>
-            <p style={{ fontSize: 12.5, color: duplicate ? "var(--amber-700)" : "var(--text-muted)", fontWeight: duplicate ? 700 : 400, overflowWrap: "anywhere" }}>
+            <p style={{ fontSize: 13, color: duplicate ? "var(--amber-700)" : "var(--text-muted)", fontWeight: duplicate ? 700 : 400, overflowWrap: "anywhere" }}>
               {p.sellerName} · {baht(p.price)}{!p.isActive ? (th ? " · ปิดขายแล้ว" : " · not on sale") : ""}
             </p>
             {duplicate && (
@@ -108,7 +110,7 @@ export default function HandoverProductList({ th, onPick }: { th: boolean; onPic
             {p.waitingBuyers > 0 ? (
               <>
                 <p style={{ fontSize: 15, fontWeight: 800, color: "var(--accent-primary)" }}>{p.waitingQuantity}</p>
-                <p style={{ fontSize: 11, color: "var(--text-muted)" }}>{th ? `ชิ้น · ${p.waitingBuyers} คน` : `to hand · ${p.waitingBuyers} ${p.waitingBuyers === 1 ? "person" : "people"}`}</p>
+                <p style={{ fontSize: 12, color: "var(--text-muted)" }}>{th ? `ชิ้น · ${p.waitingBuyers} คน` : `to hand · ${p.waitingBuyers} ${p.waitingBuyers === 1 ? "person" : "people"}`}</p>
               </>
             ) : null}
           </div>
@@ -122,25 +124,28 @@ export default function HandoverProductList({ th, onPick }: { th: boolean; onPic
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {products.length > 6 && (
         <div style={{ position: "relative" }}>
-          <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
+          <Search size={16} aria-hidden="true" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none" }} />
           <input
+            type="search"
+            className="input"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            aria-label={th ? "ค้นหาสินค้าหรือผู้ขาย" : "Search product or seller"}
             placeholder={th ? "ค้นหาสินค้าหรือผู้ขาย" : "Search product or seller"}
-            style={{ width: "100%", padding: "11px 12px 11px 36px", borderRadius: 12, border: "1px solid var(--border-subtle)", fontSize: 14, fontFamily: "inherit", background: "var(--bg-base)" }}
+            style={{ padding: "11px 12px 11px 36px", borderRadius: 12 }}
           />
         </div>
       )}
       {waiting.length > 0 && (
         <section>
-          <p style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-muted)", marginBottom: 8 }}>{th ? "มีคนรอรับ" : "People waiting"}</p>
+          <h3 style={{ fontSize: 13, fontWeight: 800, color: "var(--text-secondary)", marginBottom: 8 }}>{th ? "มีคนรอรับ" : "People waiting"}</h3>
           <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>{waiting.map(row)}</ul>
         </section>
       )}
       {idle.length > 0 && (
         waiting.length > 0 && !q ? (
           <details>
-            <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 700, color: "var(--text-secondary)", padding: "6px 0" }}>
+            <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 700, color: "var(--text-secondary)", padding: "6px 0", minHeight: 44, display: "flex", alignItems: "center" }}>
               {th ? `สินค้าที่ไม่มีคนรอ (${idle.length})` : `Nothing waiting (${idle.length})`}
             </summary>
             <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>{idle.map(row)}</ul>
@@ -152,7 +157,7 @@ export default function HandoverProductList({ th, onPick }: { th: boolean; onPic
           </section>
         )
       )}
-      {matches.length === 0 && <p style={{ fontSize: 14, color: "var(--text-muted)", textAlign: "center", padding: 16 }}>{th ? "ไม่พบสินค้า" : "No matching products."}</p>}
+      {matches.length === 0 && <EmptyState compact icon={<Search size={24} />} title={th ? "ไม่พบสินค้า" : "No matching products"} description={th ? "ลองค้นหาด้วยชื่ออื่น หรือล้างช่องค้นหา" : "Try another name, or clear the search box."} />}
     </div>
   );
 }

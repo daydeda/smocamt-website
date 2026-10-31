@@ -1,232 +1,35 @@
 "use client";
 
-import { prefillContactParts, prefillNameParts, sanitizeNameInput } from "@/lib/profile/name";
-import { ContactsEditor, EMPTY_CONTACT, type EditableContact } from "./_components/ContactsEditor";
-import { useEffect, useState, useRef } from "react";
+import { prefillContactParts, prefillNameParts } from "@/lib/profile/name";
+import { EMPTY_CONTACT } from "./_components/ContactsEditor";
+import { useEffect, useState } from "react";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { useSession } from "next-auth/react";
 import { yearOfStudy } from "@/lib/access/event-access";
 import { effectiveRoles } from "@/lib/access/admin-access";
+import { RESET_STRIKES_ROLES, NO_SHOW_STRIKE_THRESHOLD } from "@/lib/points/strikes";
+import { EmptyState, ErrorState, LoadingState, PageHeader, useConfirm, useToast } from "@/components/admin/ui";
+import { Search } from "lucide-react";
 import {
-  Search, Users, ShieldAlert, Heart, Phone,
-  X, ShieldCheck, User as UserIcon,
-  Activity, GraduationCap, ChevronDown,
-  Edit2, Trash2, Check, Home, Shield,
-  BookOpen, Briefcase, Award, AlertTriangle, RotateCcw
-} from "lucide-react";
-import { NO_SHOW_STRIKE_THRESHOLD, RESET_STRIKES_ROLES } from "@/lib/points/strikes";
-import { POSITION_IDS, POSITION_I18N_KEY } from "@/lib/access/positions";
-import { alpha } from "@/lib/ui/color";
-
-type Student = {
-  id: string;
-  studentId?: string;
-  prefix?: string;
-  name: string;
-  nickname?: string;
-  major?: string;
-  // SMO/ANUSMO staff titles (src/lib/positions.ts), scoped independently — a
-  // student can hold both roles at once with a different title in each. Club
-  // titles live on club_members.position (edited in admin/clubs's Members
-  // modal) and major titles on users.majorPosition (admin/majors's Team
-  // panel) — neither is edited from this page.
-  smoPosition?: string | null;
-  anusmoPosition?: string | null;
-  email?: string;
-  phone?: string;
-  // Both email and phone are only ever present on this Student object when the
-  // requester is super_admin — see GET /api/admin/students, which strips
-  // these columns for every other role (PDPA minimization).
-  contactChannels?: string | null;
-  houseId?: string;
-  house?: { id: string; name: string; color?: string } | null;
-  profileCompleted?: boolean;
-  role?: string;
-  roles?: string[];
-  noShowCount?: number;
-  registrationBlocked?: boolean;
-  chronicDiseases?: string | null;
-  medicalHistory?: string | null;
-  drugAllergies?: string | null;
-  foodAllergies?: string | null;
-  dietaryRestrictions?: string | null;
-  faintingHistory?: boolean | null;
-  hospitalNumber?: string | null;
-  hospitalName?: string | null;
-  // Split name parts (the display `name` is rebuilt from them on save).
-  firstName?: string | null;
-  middleName?: string | null;
-  lastName?: string | null;
-  latinNameConfirmed?: boolean;
-  emergencyContacts?: EditableContact[] | null;
-  // Clubs this user presides over (club_president identity — see
-  // EventScopeService). Only fetched/shown when the club_president checkbox is
-  // checked in the edit modal.
-  clubIds?: string[];
-};
-
-type DropdownOption = {
-  value: string;
-  label: string;
-  color?: string;
-  icon?: React.ReactNode;
-};
-
-interface CustomDropdownProps {
-  value: string;
-  options: DropdownOption[];
-  onChange: (value: string) => void;
-  icon?: React.ReactNode;
-  placeholder?: string;
-  className?: string;
-}
-
-function CustomDropdown({ value, options, onChange, icon, placeholder = "Select...", className = "" }: CustomDropdownProps) {
-  const [open, setOpen] = useState(false);
-  const currentOption = options.find(o => o.value === value);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
-
-  // Check if a specific filter (not "all" or empty) is selected
-  const hasActiveFilter = value !== "all" && value !== "";
-
-  return (
-    <div className={`relative ${className}`} ref={dropdownRef}>
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className={`flex items-center justify-between w-full h-14 bg-[var(--bg-elevated)] border rounded-2xl px-4 text-base font-bold text-[var(--text-primary)] shadow-sm transition-all duration-300 cursor-pointer ${
-          open
-            ? "border-[var(--accent-primary)] shadow-[0_0_0_3px_var(--accent-glow)] bg-[var(--bg-surface)]"
-            : "border-[var(--border-subtle)] hover:border-[var(--accent-primary)]/40 hover:bg-[var(--bg-surface)] hover:shadow-md"
-        }`}
-      >
-        <div className="flex items-center gap-3">
-          {/* Left badge for category icon */}
-          {icon && (
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-300 ml-2 mr-0.5 ${
-              hasActiveFilter
-                ? "bg-[var(--accent-glow)] text-[var(--accent-primary)] shadow-[0_0_10px_rgb(var(--accent-rgb) / 0.15)]"
-                : "bg-[var(--bg-surface)] text-[var(--text-muted)] border border-[var(--border-subtle)]"
-            }`}>
-              {currentOption?.icon ? currentOption.icon : icon}
-            </div>
-          )}
-
-          {/* Option details block */}
-          <div className="flex items-center gap-2">
-            {currentOption?.color && (
-              <div style={{
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                background: currentOption.color,
-                boxShadow: `0 0 8px ${alpha(currentOption.color, 0.53)}`,
-                flexShrink: 0
-              }} />
-            )}
-            {currentOption?.icon && !icon && (
-              <span className="flex-shrink-0 text-[var(--accent-primary)]">
-                {currentOption.icon}
-              </span>
-            )}
-            <span className="text-sm font-extrabold text-[var(--text-primary)] leading-normal truncate max-w-[140px]">
-              {currentOption ? currentOption.label : placeholder}
-            </span>
-          </div>
-        </div>
-
-        <ChevronDown
-          size={16}
-          className={`text-muted transition-transform duration-300 ${open ? "text-[var(--accent-primary)]" : ""}`}
-          style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
-        />
-      </button>
-
-      {open && (
-        <div
-          className="absolute left-0 right-0 top-full mt-2 bg-[var(--bg-surface)]/95 backdrop-blur-md border border-[var(--border-medium)] rounded-none animate-fade-in-up overflow-hidden"
-          style={{
-            zIndex: 9999,
-            boxShadow: "0 16px 48px rgb(var(--shadow-rgb) / 0.14), 0 4px 16px rgb(var(--shadow-rgb) / 0.06)",
-          }}
-        >
-          <div className="flex flex-col gap-0 max-h-[280px] overflow-y-auto custom-scrollbar">
-            {options.map((opt) => {
-              const isSelected = opt.value === value;
-              
-              // Dynamic text color for selected state
-              const dynamicText = opt.color
-                ? opt.color
-                : "var(--accent-primary)";
-
-              return (
-                <button
-                  type="button"
-                  key={opt.value}
-                  onClick={() => { onChange(opt.value); setOpen(false); }}
-                  className={`group flex items-center justify-between w-full px-5 py-3.5 text-left text-sm font-semibold transition-all duration-200 cursor-pointer rounded-none hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]`}
-                  style={{
-                    color: isSelected ? dynamicText : "var(--text-secondary)",
-                  }}
-                >
-                  <div className="flex items-center gap-3 transition-transform duration-300">
-                    {/* Explicit 20px spacer to ensure absolute vertical alignment */}
-                    <div style={{ width: '20px', height: '20px' }} className="flex items-center justify-center flex-shrink-0">
-                      {opt.color ? (
-                        <div
-                          className="transition-all duration-300 group-hover:scale-125"
-                          style={{
-                            width: 10,
-                            height: 10,
-                            borderRadius: "50%",
-                            background: opt.color,
-                            boxShadow: `0 0 8px ${alpha(opt.color, 0.4)}`,
-                          }}
-                        />
-                      ) : opt.icon ? (
-                        <span className={`flex items-center justify-center transition-all duration-300 group-hover:scale-110 ${
-                          isSelected ? "" : "text-[var(--text-muted)] group-hover:text-[var(--accent-primary)]"
-                        }`}>
-                          {opt.icon}
-                        </span>
-                      ) : null}
-                    </div>
-                    <span className={`truncate transition-colors duration-200 ${
-                      isSelected ? "font-bold text-[var(--text-primary)]" : "group-hover:text-[var(--text-primary)]"
-                    }`}
-                      style={{
-                        color: isSelected ? dynamicText : undefined
-                      }}
-                    >
-                      {opt.label}
-                    </span>
-                  </div>
-                  {isSelected && <Check size={16} className="flex-shrink-0 ml-2 animate-fade-in" style={{ color: dynamicText }} />}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+  deriveEducationLevel,
+  fill,
+  ITEMS_PER_PAGE,
+  rolesOf,
+  type Club,
+  type House,
+  type Student,
+} from "./_lib/students";
+import { EMPTY_FILTERS, StudentFilters, type FilterKey, type Filters } from "./_components/StudentFilters";
+import { StudentTable } from "./_components/StudentTable";
+import { MedicalRecordModal } from "./_components/MedicalRecordModal";
+import { EditStudentModal } from "./_components/EditStudentModal";
 
 export default function AdminStudentsDirectory() {
   const { data: session } = useSession();
   const userRole = session?.user?.role || "student";
   const myRoles = effectiveRoles(session?.user?.role, session?.user?.roles);
+  const confirm = useConfirm();
+  const toast = useToast();
 
   const canViewMedicalLog = userRole === "super_admin";
   // UI-only mirror of RESET_STRIKES_ROLES (src/lib/strikes.ts) — the server
@@ -236,30 +39,23 @@ export default function AdminStudentsDirectory() {
   // admin/super_admin grant isn't their primary role still sees the buttons.
   const canEditOrDelete = myRoles.some((r) => (RESET_STRIKES_ROLES as readonly string[]).includes(r));
 
-  const { t, lang } = useLanguage();
+  const { t } = useLanguage();
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 50;
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [sensitiveData, setSensitiveData] = useState<Student | null>(null);
   const [loadingSensitive, setLoadingSensitive] = useState(false);
   const [sensitiveError, setSensitiveError] = useState<string | null>(null);
   const [resettingStrikesId, setResettingStrikesId] = useState<string | null>(null);
 
-  const [houses, setHouses] = useState<{ id: string; name: string; faculty?: string; colorGroup?: string }[]>([]);
-  const [clubs, setClubs] = useState<{ id: string; name: string; isArchived: boolean }[]>([]);
-  const [houseFilter, setHouseFilter] = useState<string>("all");
-  const [roleFilter, setRoleFilter] = useState<string>("all");
-  const [majorFilter, setMajorFilter] = useState<string>("all");
-  const [educationFilter, setEducationFilter] = useState<string>("all");
-  const [yearFilter, setYearFilter] = useState<string>("all");
-  const [positionFilter, setPositionFilter] = useState<string>("all");
+  const [houses, setHouses] = useState<House[]>([]);
+  const [clubs, setClubs] = useState<Club[]>([]);
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
-  const [updating, setUpdating] = useState(false);
-  const [editError, setEditError] = useState<string | null>(null);
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -272,22 +68,29 @@ export default function AdminStudentsDirectory() {
     // Deferred page reset on filter change, keeping setState out of the effect body.
     const timer = setTimeout(() => setCurrentPage(1), 0);
     return () => clearTimeout(timer);
-  }, [debouncedSearch, houseFilter, roleFilter, majorFilter, educationFilter, yearFilter, positionFilter]);
+  }, [debouncedSearch, filters]);
 
   const refreshData = () => {
     setLoading(true);
+    setLoadError(false);
     fetch("/api/admin/students")
       .then((r) => r.json())
-      .then((d) => { if (Array.isArray(d)) setStudents(d); })
+      .then((d) => {
+        if (Array.isArray(d)) setStudents(d);
+        else setLoadError(true);
+      })
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
 
     fetch("/api/admin/houses")
       .then((r) => r.json())
-      .then((d) => { if (Array.isArray(d)) setHouses(d); });
+      .then((d) => { if (Array.isArray(d)) setHouses(d); })
+      .catch(() => {});
 
     fetch("/api/admin/clubs")
       .then((r) => r.json())
-      .then((d) => { if (Array.isArray(d)) setClubs(d); });
+      .then((d) => { if (Array.isArray(d)) setClubs(d); })
+      .catch(() => {});
   };
 
   useEffect(() => {
@@ -297,25 +100,8 @@ export default function AdminStudentsDirectory() {
     return () => clearTimeout(timer);
   }, []);
 
-  const hasActualMedicalInfo = (user: Student) => {
-    if (!user) return false;
-    const fields = [
-      user.chronicDiseases,
-      user.medicalHistory,
-      user.drugAllergies,
-      user.foodAllergies,
-      user.dietaryRestrictions
-    ];
-    const isMeaningful = (val: string | null | undefined) => {
-      if (typeof val !== 'string') return !!val;
-      const t = val.trim();
-      return t !== "" && t !== "-";
-    };
-    return fields.some(isMeaningful) || user.faintingHistory === true;
-  };
-
   const getHouseName = (id: string, defaultName: string) => {
-    const h = houses.find(x => x.id === id);
+    const h = houses.find((x) => x.id === id);
     const cg = h?.colorGroup || id;
     return cg === "red" ? (t.houseMom || "Mom")
       : cg === "green" ? (t.houseTo || "To")
@@ -324,154 +110,65 @@ export default function AdminStudentsDirectory() {
       : defaultName;
   };
 
-  const houseOptions = [
-    { value: "all", label: t.allHouses },
-    ...houses.map(h => {
-      const cg = h.colorGroup || h.id;
-      return {
-      value: h.id,
-      label: getHouseName(h.id, h.name),
-      color: cg === "red" ? "var(--red-500)" : cg === "blue" ? "var(--blue-500)" : cg === "green" ? "var(--emerald-500)" : cg === "yellow" ? "var(--amber-500)" : "var(--accent-primary)"
-    };
-    })
-  ];
+  const filtered = students.filter((s) => {
+    const fullName = `${s.prefix || ""}${s.name || ""}`.toLowerCase();
+    const matchesSearch = fullName.includes(debouncedSearch.toLowerCase()) ||
+      s.studentId?.includes(debouncedSearch) ||
+      s.nickname?.toLowerCase().includes(debouncedSearch.toLowerCase());
 
-  const roleOptions = [
-    { value: "all", label: t.allRoles },
-    { value: "student", label: t.roleStudentPlural, icon: <GraduationCap size={16} className="text-muted" /> },
-    { value: "staff", label: t.roleStaffPlural, icon: <Briefcase size={16} className="text-[var(--teal-500)]" /> },
-    { value: "smo", label: t.roleSMOPlural, icon: <Award size={16} className="text-[var(--violet-500)]" /> },
-    { value: "anusmo", label: t.roleANUSMOPlural, icon: <Award size={16} className="text-[var(--pink-500)]" /> },
-    { value: "admin", label: t.roleAdminPlural, icon: <ShieldCheck size={16} className="text-[var(--accent-primary)]" /> },
-    { value: "super_admin", label: t.roleSuperAdminPlural, icon: <Shield size={16} className="text-[var(--red-500)]" /> },
-    { value: "registration", label: t.roleRegistrationPlural, icon: <UserIcon size={16} className="text-[var(--blue-500)]" /> },
-    { value: "organizer", label: t.roleOrganizerPlural, icon: <Award size={16} className="text-[var(--emerald-500)]" /> },
-    { value: "club_president", label: t.roleClubPresidentPlural, icon: <Award size={16} className="text-[var(--amber-500)]" /> },
-    { value: "major_president", label: t.roleMajorPresidentPlural, icon: <Award size={16} className="text-[var(--cyan-500)]" /> }
-  ];
+    const matchesHouse = filters.house === "all" || s.houseId === filters.house;
 
-  const majorOptions = [
-    { value: "all", label: t.allMajors, icon: <BookOpen size={16} className="text-muted" /> },
-    ...Array.from(
-      new Set(
-        students
-          .map(s => (s.major || "").trim())
-          .filter(m => m !== "")
-      )
-    )
-      .sort((a, b) => a.localeCompare(b))
-      .map(m => ({ value: m, label: m, icon: <BookOpen size={16} className="text-[var(--accent-primary)]" /> }))
-  ];
+    const matchesMajor = filters.major === "all" || (s.major || "").trim() === filters.major;
 
-  const deriveEducationLevel = (studentId: string | undefined): "undergrad" | "masters" | "phd" | null => {
-    if (!studentId || studentId.length < 5) return null;
-    const d = studentId.trim()[4];
-    if (d === "3") return "masters";
-    if (d === "5") return "phd";
-    return "undergrad";
-  };
+    const studentRoles = rolesOf(s);
+    const matchesRole = filters.role === "all" ||
+      studentRoles.some((r: string) => {
+        if (filters.role === "staff") return ["staff", "professor", "officer"].includes(r);
+        return r === filters.role;
+      });
 
-  const educationOptions = [
-    { value: "all", label: t.allEducationLevels },
-    { value: "undergrad", label: t.educationUndergrad },
-    { value: "masters", label: t.educationMasters },
-    { value: "phd", label: t.educationPhD },
-  ];
+    const matchesEducation = filters.education === "all" ||
+      deriveEducationLevel(s.studentId) === filters.education;
 
-  const yearOptions = [
-    { value: "all", label: t.allYears },
-    ...[1, 2, 3, 4].map(n => ({ value: String(n), label: t.yearN.replace("{n}", String(n)) })),
-    { value: "5plus", label: t.yearNPlus.replace("{n}", "5") },
-  ];
+    const matchesYear = (() => {
+      if (filters.year === "all") return true;
+      const yr = yearOfStudy(s.studentId);
+      if (filters.year === "5plus") return yr != null && yr >= 5;
+      return yr === parseInt(filters.year, 10);
+    })();
 
-  // SMO/ANUSMO staff titles (src/lib/positions.ts) — the only "position" data
-  // present on this Student object (club/major titles live elsewhere, see the
-  // comment on Student.smoPosition above). Filters on either field so a
-  // student holding the same title in just one of the two roles still matches.
-  const positionOptions = [
-    { value: "all", label: t.allPositions || "All Positions", icon: <Briefcase size={16} className="text-muted" /> },
-    ...POSITION_IDS.map(id => ({
-      value: id,
-      label: t[POSITION_I18N_KEY[id] as keyof typeof t] as string,
-      icon: <Briefcase size={16} className="text-[var(--accent-primary)]" />,
-    })),
-  ];
+    const matchesPosition = filters.position === "all" ||
+      s.smoPosition === filters.position || s.anusmoPosition === filters.position;
 
-  const editRoleOptions = [
-    { value: "student", label: t.roleStudent, icon: <GraduationCap size={16} className="text-muted" /> },
-    { value: "staff", label: t.roleStaff, icon: <Briefcase size={16} className="text-[var(--teal-500)]" /> },
-    { value: "smo", label: t.roleSMO, icon: <Award size={16} className="text-[var(--violet-500)]" /> },
-    { value: "anusmo", label: t.roleANUSMO, icon: <Award size={16} className="text-[var(--pink-500)]" /> },
-    { value: "admin", label: t.roleAdmin, icon: <ShieldCheck size={16} className="text-[var(--accent-primary)]" /> },
-    { value: "super_admin", label: t.roleSuperAdmin, icon: <Shield size={16} className="text-[var(--red-500)]" /> },
-    { value: "registration", label: t.roleRegistration, icon: <UserIcon size={16} className="text-[var(--blue-500)]" /> },
-    { value: "organizer", label: t.roleOrganizer, icon: <Award size={16} className="text-[var(--emerald-500)]" /> },
-    { value: "club_president", label: t.roleClubPresident, icon: <Award size={16} className="text-[var(--amber-500)]" /> },
-    { value: "major_president", label: t.roleMajorPresident, icon: <Award size={16} className="text-[var(--cyan-500)]" /> }
-  ];
-
-  const allowedEditRoleOptions = editRoleOptions.filter(opt => {
-    if (opt.value === "super_admin" && userRole !== "super_admin") {
-      return false;
-    }
-    return true;
+    return matchesSearch && matchesHouse && matchesRole && matchesMajor && matchesEducation && matchesYear && matchesPosition;
   });
 
-  const editHouseOptions = [
-    { value: "", label: t.unassignedLabel, icon: <X size={16} className="text-muted" /> },
-    ...houses.map(h => {
-      const cg = h.colorGroup || h.id;
-      return {
-      value: h.id,
-      label: getHouseName(h.id, h.name),
-      color: cg === "red" ? "var(--red-500)" : cg === "blue" ? "var(--blue-500)" : cg === "green" ? "var(--emerald-500)" : cg === "yellow" ? "var(--amber-500)" : "var(--accent-primary)"
-    };
-    })
-  ];
-
-  const filtered = students.filter(
-    (s) => {
-      const fullName = `${s.prefix || ""}${s.name || ""}`.toLowerCase();
-      const matchesSearch = fullName.includes(debouncedSearch.toLowerCase()) ||
-        s.studentId?.includes(debouncedSearch) ||
-        s.nickname?.toLowerCase().includes(debouncedSearch.toLowerCase());
-
-      const matchesHouse = houseFilter === "all" || s.houseId === houseFilter;
-
-      const matchesMajor = majorFilter === "all" || (s.major || "").trim() === majorFilter;
-
-      const studentRoles = s.roles || (s.role ? [s.role] : ["student"]);
-      const matchesRole = roleFilter === "all" ||
-        studentRoles.some((r: string) => {
-          if (roleFilter === "staff") return ["staff", "professor", "officer"].includes(r);
-          return r === roleFilter;
-        });
-
-      const matchesEducation = educationFilter === "all" ||
-        deriveEducationLevel(s.studentId) === educationFilter;
-
-      const matchesYear = (() => {
-        if (yearFilter === "all") return true;
-        const yr = yearOfStudy(s.studentId);
-        if (yearFilter === "5plus") return yr != null && yr >= 5;
-        return yr === parseInt(yearFilter, 10);
-      })();
-
-      const matchesPosition = positionFilter === "all" ||
-        s.smoPosition === positionFilter || s.anusmoPosition === positionFilter;
-
-      return matchesSearch && matchesHouse && matchesRole && matchesMajor && matchesEducation && matchesYear && matchesPosition;
-    }
-  );
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const paginatedStudents = filtered.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
 
-  const viewSensitive = async (id: string) => {
-    if (!confirm("⚠ CRITICAL ACCESS: Viewing medical/emergency data will be permanently logged. Continue?")) return;
+  const hasActiveFilters = search.trim() !== "" || Object.values(filters).some((v) => v !== "all");
+  const clearFilters = () => {
+    setSearch("");
+    setDebouncedSearch("");
+    setFilters(EMPTY_FILTERS);
+  };
+
+  const idOf = (s: Student) => s.studentId ?? t.adminStuNoId;
+
+  // PDPA: the audited medical read. The confirmation below MUST stay before
+  // the fetch: nothing is requested (and so nothing is logged or shown) until
+  // the admin has accepted that the access is permanently logged.
+  const viewSensitive = async (s: Student) => {
+    const accepted = await confirm({
+      title: t.adminStuMedicalConfirmTitle,
+      message: fill(t.adminStuMedicalConfirmBody, { name: s.name, id: idOf(s) }),
+      confirmLabel: t.adminStuMedicalConfirmBtn,
+      tone: "danger",
+    });
+    if (!accepted) return;
+    const id = s.id;
     setViewingId(id);
     setLoadingSensitive(true);
     setSensitiveData(null);
@@ -482,1051 +179,202 @@ export default function AdminStudentsDirectory() {
         setSensitiveData(await res.json());
       } else {
         const data = await res.json().catch(() => null);
-        setSensitiveError((data && data.error) || "Failed to load health records.");
+        setSensitiveError((data && data.error) || t.adminStuMedicalLoadFailed);
       }
     } catch (err) {
       console.error(err);
-      setSensitiveError("Failed to load health records.");
+      setSensitiveError(t.adminStuMedicalLoadFailed);
     } finally {
       setLoadingSensitive(false);
     }
   };
 
+  const closeSensitive = () => {
+    setViewingId(null);
+    setSensitiveData(null);
+    setSensitiveError(null);
+  };
+
   // Clears a student's no-show strikes/block (super_admin/admin only, see
-  // canEditOrDelete below — narrower RESET_STRIKES_ROLES enforced server-side
+  // canEditOrDelete above — narrower RESET_STRIKES_ROLES enforced server-side
   // at /api/admin/students/[id]/strikes/reset). Does not refund deducted
   // points; that penalty already stands as served.
   const resetStrikes = async (s: Student) => {
-    if (!confirm(`Reset ${s.name}'s no-show strikes (${s.noShowCount ?? 0}/3)${s.registrationBlocked ? " and unblock registration" : ""}?`)) return;
+    const accepted = await confirm({
+      title: t.adminStuResetTitle,
+      message: fill(s.registrationBlocked ? t.adminStuResetBodyBlocked : t.adminStuResetBody, {
+        name: s.name,
+        id: idOf(s),
+        count: s.noShowCount ?? 0,
+        max: NO_SHOW_STRIKE_THRESHOLD,
+      }),
+      confirmLabel: t.adminStuResetStrikes,
+    });
+    if (!accepted) return;
     setResettingStrikesId(s.id);
     try {
       const res = await fetch(`/api/admin/students/${s.id}/strikes/reset`, { method: "POST" });
-      if (res.ok) refreshData();
-      else alert("Failed to reset strikes. Check permissions.");
+      if (res.ok) {
+        toast.success(fill(t.adminStuResetDone, { name: s.name }));
+        refreshData();
+      } else {
+        toast.error(t.adminStuResetFailed, t.adminStuResetFailedBody);
+      }
     } catch {
-      alert("Failed to reset strikes.");
+      toast.error(t.adminStuResetFailed, t.adminStuResetFailedBody);
     } finally {
       setResettingStrikesId(null);
     }
   };
 
+  const deleteStudent = async (s: Student) => {
+    const accepted = await confirm({
+      title: fill(t.adminStuDeleteTitle, { name: s.name }),
+      message: s.studentId
+        ? fill(t.adminStuDeleteBody, { name: s.name, id: s.studentId })
+        : fill(t.adminStuDeleteBodyNoId, { name: s.name }),
+      confirmLabel: t.adminStuDelete,
+      tone: "danger",
+      // Irreversible: make the admin type the student ID (when there is one).
+      requireText: s.studentId || undefined,
+    });
+    if (!accepted) return;
+    try {
+      const res = await fetch(`/api/admin/users/${s.id}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success(fill(t.adminStuDeleteDone, { name: s.name }));
+        refreshData();
+      } else {
+        toast.error(fill(t.adminStuDeleteFailed, { name: s.name }), t.adminStuDeleteFailedBody);
+      }
+    } catch {
+      toast.error(fill(t.adminStuDeleteFailed, { name: s.name }), t.adminStuDeleteFailedBody);
+    }
+  };
+
+  const startEdit = (s: Student) => {
+    // Legacy rows have no name parts yet: suggest a split the admin can correct.
+    setEditingStudent({
+      ...s,
+      ...(s.firstName || s.lastName
+        ? { firstName: s.firstName || "", middleName: s.middleName || "", lastName: s.lastName || "" }
+        : prefillNameParts(s.name)),
+    });
+    // HN is medical detail: super_admin only, loaded through the audited
+    // sensitive-detail endpoint (never in the bulk list). Until it loads the
+    // fields stay hidden and the PATCH carries no HN, so nothing is blanked.
+    if (userRole === "super_admin") {
+      fetch(`/api/admin/students/${s.id}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (!d) return;
+          setEditingStudent((prev) => (prev && prev.id === s.id
+            ? {
+                ...prev,
+                hospitalNumber: d.hospitalNumber ?? "",
+                hospitalName: d.hospitalName ?? "",
+                // Same audited read: contacts load only for super_admin, as split parts.
+                emergencyContacts: [0, 1].map((k) => prefillContactParts(d.emergencyContacts?.[k] ?? EMPTY_CONTACT)),
+              }
+            : prev));
+        })
+        .catch(() => {});
+    }
+    // Pre-check the club picker with this user's current
+    // presidencies (not included in the student list fetch).
+    fetch(`/api/admin/clubs?presidentUserId=${s.id}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!Array.isArray(d)) return;
+        const clubIds = d.filter((c) => c.isPresident).map((c) => c.id);
+        setEditingStudent((prev) => (prev && prev.id === s.id ? { ...prev, clubIds } : prev));
+      });
+  };
+
+  const viewingStudent = viewingId ? students.find((x) => x.id === viewingId) : undefined;
+  const initialLoad = loading && students.length === 0;
+
   return (
     <>
-      <div className="animate-fade-in-up pb-24">
-        {/* Header Section */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6" style={{ marginBottom: 40 }}>
-          <h1 className="text-[clamp(32px,5vw,48px)] font-black tracking-tighter text-[var(--text-primary)] leading-tight">{t.adminStudentsDirectory}</h1>
-          <div className="flex items-center gap-5 bg-[var(--bg-surface)] px-7 py-4 rounded-[40px] border border-[var(--border-subtle)] shadow-xl shadow-black/5 flex-shrink-0">
-            <div className="flex-shrink-0 w-14 h-14 rounded-[20px] bg-[var(--accent-glow)] flex items-center justify-center text-[var(--accent-primary)]">
-              <Users size={26} />
-            </div>
-            <div className="flex flex-col min-w-[120px]">
-              <span style={{ fontSize: 28, fontWeight: 900, lineHeight: 1, color: "var(--text-primary)", letterSpacing: "-0.02em" }}>{filtered.length}</span>
-              <span style={{ fontSize: 10, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.15em", marginTop: 5, whiteSpace: "nowrap" }}>Active Members</span>
-            </div>
-          </div>
-        </div>
+      <div className="animate-fade-in-up">
+        <PageHeader title={t.adminStudentsDirectory} description={t.adminStuDesc} />
 
-        {/* Search Bar */}
-        <div
-          className="relative group bg-[var(--bg-surface)] p-4 rounded-[32px] border border-[var(--border-subtle)] shadow-2xl shadow-black/5"
-          style={{ marginBottom: 16 }}
-        >
-          <Search size={20} className="absolute left-9 top-1/2 -translate-y-1/2 text-muted transition-colors group-focus-within:text-[var(--accent-primary)]" />
-          <input
-            id="student-search-input"
-            className="input w-full h-14 bg-[var(--bg-elevated)] border-none rounded-2xl text-base font-medium transition-all focus:ring-2 focus:ring-[var(--accent-primary)]/20"
-            style={{ paddingLeft: 56 }}
-            type="text"
-            placeholder={t.searchPlaceholder}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
+        {initialLoad ? (
+          <LoadingState label={t.adminStuLoading} />
+        ) : loadError && students.length === 0 ? (
+          <ErrorState title={t.adminStuLoadError} message={t.adminStuLoadErrorBody} onRetry={refreshData} />
+        ) : (
+          <>
+            <StudentFilters
+              search={search}
+              onSearch={setSearch}
+              filters={filters}
+              onFilter={(key: FilterKey, value: string) => setFilters((f) => ({ ...f, [key]: value }))}
+              onClear={clearFilters}
+              students={students}
+              houses={houses}
+              getHouseName={getHouseName}
+              filteredCount={filtered.length}
+            />
 
-        {/* Filters */}
-        <div
-          className="bg-[var(--bg-surface)] p-4 rounded-[32px] border border-[var(--border-subtle)] shadow-2xl shadow-black/5 overflow-visible"
-          style={{ marginBottom: 48 }}
-        >
-          <div className="flex flex-wrap gap-4">
-            <CustomDropdown
-              className="min-w-[200px] flex-1"
-              value={houseFilter}
-              options={houseOptions}
-              onChange={setHouseFilter}
-              icon={<Home size={18} />}
-            />
-            <CustomDropdown
-              className="min-w-[200px] flex-1"
-              value={roleFilter}
-              options={roleOptions}
-              onChange={setRoleFilter}
-              icon={<Shield size={18} />}
-            />
-            <CustomDropdown
-              className="min-w-[200px] flex-1"
-              value={majorFilter}
-              options={majorOptions}
-              onChange={setMajorFilter}
-              icon={<BookOpen size={18} />}
-            />
-            <CustomDropdown
-              className="min-w-[180px] flex-1"
-              value={educationFilter}
-              options={educationOptions}
-              onChange={setEducationFilter}
-              icon={<GraduationCap size={18} />}
-            />
-            <CustomDropdown
-              className="min-w-[160px] flex-1"
-              value={yearFilter}
-              options={yearOptions}
-              onChange={setYearFilter}
-              icon={<Activity size={18} />}
-            />
-            <CustomDropdown
-              className="min-w-[200px] flex-1"
-              value={positionFilter}
-              options={positionOptions}
-              onChange={setPositionFilter}
-              icon={<Briefcase size={18} />}
-            />
-          </div>
-        </div>
-
-        {/* Data Table Container */}
-        <div
-          style={{
-            background: "var(--bg-surface)",
-            border: "1px solid var(--border-subtle)",
-            borderRadius: 40,
-            overflow: "hidden",
-            boxShadow: "0 20px 50px rgb(var(--shadow-rgb) / 0.02)"
-          }}
-        >
-          {loading ? (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 100, gap: 20 }}>
-              <div className="spinner" style={{ width: 40, height: 40, borderWidth: 3 }} />
-              <p style={{ color: "var(--text-muted)", fontWeight: 600 }}>Retrieving Student Records...</p>
-            </div>
-          ) : (
-            <>
-              <div style={{ overflowX: "auto" }}>
-              <table className="data-table" style={{ borderCollapse: "separate", borderSpacing: "0 0" }}>
-                <thead>
-                  <tr>
-                    <th style={{ padding: "24px 32px" }}>Identification</th>
-                    <th>{t.prefix}</th>
-                    <th>{t.fullName}</th>
-                    <th>Academic Info</th>
-                    <th>House Affiliation</th>
-                    <th>System Status</th>
-                    <th style={{ textAlign: "right", paddingRight: 32 }}>Security Access</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedStudents.map((s) => {
-                    const isTargetSuperAdmin = s.role === "super_admin";
-                    const canModifyThisRow = canEditOrDelete && (!isTargetSuperAdmin || userRole === "super_admin");
-                    return (
-                      <tr key={s.id} style={{ transition: "all 0.2s" }} className="student-row">
-                      <td style={{ padding: "24px 32px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                          <div style={{ width: 32, height: 32, borderRadius: 10, background: "var(--bg-elevated)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--border-subtle)" }}>
-                            <GraduationCap size={16} className="text-muted" />
-                          </div>
-                          <code style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", letterSpacing: "0.02em" }}>
-                            {s.studentId ?? "—"}
-                          </code>
-                        </div>
-                      </td>
-                      <td>
-                        <span style={{ fontWeight: 600, color: "var(--text-secondary)", fontSize: 15 }}>
-                          {s.prefix || "—"}
-                        </span>
-                      </td>
-                      <td>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
-                          <span style={{ fontWeight: 800, color: "var(--text-primary)", fontSize: 16 }}>
-                            {s.name}
-                          </span>
-                          {(() => {
-                            const studentRoles = s.roles || (s.role ? [s.role] : ["student"]);
-                            return studentRoles.map((r: string, idx: number) => {
-                              if (r === "super_admin") return (
-                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgb(var(--red-500-rgb) / 0.1)", color: "var(--red-500)", border: "1px solid rgb(var(--red-500-rgb) / 0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="Super Administrator">
-                                  <Shield size={10} /> {t.roleSuperAdmin}
-                                </span>
-                              );
-                              if (r === "admin") return (
-                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgb(var(--orange-500-rgb) / 0.1)", color: "var(--orange-500)", border: "1px solid rgb(var(--orange-500-rgb) / 0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="System Administrator">
-                                  <ShieldCheck size={10} /> {t.roleAdmin}
-                                </span>
-                              );
-                              if (r === "registration") return (
-                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgb(var(--blue-500-rgb) / 0.1)", color: "var(--blue-500)", border: "1px solid rgb(var(--blue-500-rgb) / 0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="Registration Staff">
-                                  <UserIcon size={10} /> {t.roleRegistration}
-                                </span>
-                              );
-                              if (r === "organizer") return (
-                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgb(var(--emerald-500-rgb) / 0.1)", color: "var(--emerald-500)", border: "1px solid rgb(var(--emerald-500-rgb) / 0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="Event Organizer">
-                                  <Award size={10} /> {t.roleOrganizer}
-                                </span>
-                              );
-                              if (r === "smo") return (
-                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgb(var(--violet-500-rgb) / 0.1)", color: "var(--violet-500)", border: "1px solid rgb(var(--violet-500-rgb) / 0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="Student Council (SMO)">
-                                  <Award size={10} /> {t.roleSMO}
-                                </span>
-                              );
-                              if (r === "anusmo") return (
-                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgb(var(--pink-500-rgb) / 0.1)", color: "var(--pink-500)", border: "1px solid rgb(var(--pink-500-rgb) / 0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="Junior Student Council (ANUSMO)">
-                                  <Award size={10} /> {t.roleANUSMO}
-                                </span>
-                              );
-                              if (r === "club_president") return (
-                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgb(var(--amber-500-rgb) / 0.1)", color: "var(--amber-500)", border: "1px solid rgb(var(--amber-500-rgb) / 0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="Club President">
-                                  <Award size={10} /> {t.roleClubPresident}
-                                </span>
-                              );
-                              if (r === "major_president") return (
-                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgb(var(--cyan-500-rgb) / 0.1)", color: "var(--cyan-500)", border: "1px solid rgb(var(--cyan-500-rgb) / 0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="Major President">
-                                  <Award size={10} /> {t.roleMajorPresident}
-                                </span>
-                              );
-                              if (["staff", "professor", "officer"].includes(r)) return (
-                                <span key={idx} className="badge" style={{ padding: "2px 8px", background: "rgb(var(--teal-500-rgb) / 0.1)", color: "var(--teal-500)", border: "1px solid rgb(var(--teal-500-rgb) / 0.2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="Staff">
-                                  <Briefcase size={10} /> {t.roleStaff}
-                                </span>
-                              );
-                              return null;
-                            });
-                          })()}
-                          {s.nickname && (
-                            <span className="badge" style={{ padding: "2px 8px", background: "var(--bg-elevated)", color: "var(--text-muted)", fontSize: 10, flexShrink: 0 }}>&ldquo;{s.nickname}&rdquo;</span>
-                          )}
-                          {hasActualMedicalInfo(s) && (
-                            <div style={{ color: "var(--red-500)", animation: "pulse-glow 2s infinite", display: "inline-flex", flexShrink: 0 }} title="Medical Condition">
-                              <Activity size={20} />
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--accent-primary)" }} />
-                          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-secondary)" }}>{s.major ?? "N/A"}</span>
-                        </div>
-                      </td>
-                      <td>
-                        {s.house ? (
-                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <div style={{
-                              width: 12,
-                              height: 12,
-                              borderRadius: "50%",
-                              background: s.house.color || "var(--accent-primary)",
-                              boxShadow: `0 0 10px ${alpha(s.house.color || "var(--accent-primary)", 0.27)}`
-                            }} />
-                            <span style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: 14 }}>{getHouseName(s.house.id, s.house.name)}</span>
-                          </div>
-                        ) : (
-                          <span style={{ color: "var(--text-muted)", fontStyle: "italic", fontSize: 13 }}>Unassigned</span>
-                        )}
-                      </td>
-                      <td>
-                        {s.profileCompleted ? (
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--emerald-500)" }}>
-                            <ShieldCheck size={16} />
-                            <span style={{ fontWeight: 800, fontSize: 12, textTransform: "uppercase" }}>Verified</span>
-                          </div>
-                        ) : (
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--accent-secondary)" }}>
-                            <Activity size={16} />
-                            <span style={{ fontWeight: 800, fontSize: 12, textTransform: "uppercase" }}>Pending</span>
-                          </div>
-                        )}
-                        {(s.noShowCount ?? 0) > 0 && (
-                          <div
-                            style={{ display: "flex", alignItems: "center", gap: 6, color: (s.registrationBlocked || (s.noShowCount ?? 0) >= NO_SHOW_STRIKE_THRESHOLD - 1) ? "var(--red-500)" : "var(--amber-500)", marginTop: 6 }}
-                            title={s.registrationBlocked ? "Pre-registration blocked due to repeated no-shows" : "Has recorded no-show strike(s)"}
-                          >
-                            <AlertTriangle size={14} />
-                            <span style={{ fontWeight: 800, fontSize: 11, textTransform: "uppercase" }}>
-                              No-show {s.noShowCount}/{NO_SHOW_STRIKE_THRESHOLD}{s.registrationBlocked ? " · Blocked" : ""}
-                            </span>
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ textAlign: "right", paddingRight: 32 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "flex-end" }}>
-                          {canModifyThisRow ? (
-                            <button
-                              className="btn btn-ghost"
-                              style={{ padding: 8, borderRadius: 10, color: "var(--text-secondary)" }}
-                              onClick={() => {
-                                setEditError(null);
-                                // Legacy rows have no name parts yet: suggest a split the admin can correct.
-                                setEditingStudent({
-                                  ...s,
-                                  ...(s.firstName || s.lastName
-                                    ? { firstName: s.firstName || "", middleName: s.middleName || "", lastName: s.lastName || "" }
-                                    : prefillNameParts(s.name)),
-                                });
-                                // HN is medical detail: super_admin only, loaded through the audited
-                                // sensitive-detail endpoint (never in the bulk list). Until it loads the
-                                // fields stay hidden and the PATCH carries no HN, so nothing is blanked.
-                                if (userRole === "super_admin") {
-                                  fetch(`/api/admin/students/${s.id}`)
-                                    .then((r) => (r.ok ? r.json() : null))
-                                    .then((d) => {
-                                      if (!d) return;
-                                      setEditingStudent((prev) => (prev && prev.id === s.id
-                                        ? {
-                                            ...prev,
-                                            hospitalNumber: d.hospitalNumber ?? "",
-                                            hospitalName: d.hospitalName ?? "",
-                                            // Same audited read: contacts load only for super_admin, as split parts.
-                                            emergencyContacts: [0, 1].map((k) => prefillContactParts(d.emergencyContacts?.[k] ?? EMPTY_CONTACT)),
-                                          }
-                                        : prev));
-                                    })
-                                    .catch(() => {});
-                                }
-                                // Pre-check the club picker with this user's current
-                                // presidencies (not included in the student list fetch).
-                                fetch(`/api/admin/clubs?presidentUserId=${s.id}`)
-                                  .then((r) => r.json())
-                                  .then((d) => {
-                                    if (!Array.isArray(d)) return;
-                                    const clubIds = d.filter((c) => c.isPresident).map((c) => c.id);
-                                    setEditingStudent((prev) => (prev && prev.id === s.id ? { ...prev, clubIds } : prev));
-                                  });
-                              }}
-                              title="Edit User"
-                            >
-                              <Edit2 size={16} />
-                            </button>
-                          ) : (
-                            <button
-                              className="btn btn-ghost"
-                              style={{ padding: 8, borderRadius: 10, color: "var(--text-muted)", opacity: 0.4, cursor: "not-allowed" }}
-                              disabled
-                              title="Edit User (Restricted)"
-                            >
-                              <Edit2 size={16} />
-                            </button>
-                          )}
-                          {canModifyThisRow ? (
-                            <button
-                              className="btn btn-ghost"
-                              style={{ padding: 8, borderRadius: 10, color: "var(--red-500)" }}
-                              onClick={async () => {
-                                if (confirm(`⚠ PERMANENT ACTION: Are you sure you want to delete ${s.name}? This cannot be undone.`)) {
-                                  const res = await fetch(`/api/admin/users/${s.id}`, { method: "DELETE" });
-                                  if (res.ok) refreshData();
-                                  else alert("Failed to delete user. Check permissions.");
-                                }
-                              }}
-                              title="Delete User"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          ) : (
-                            <button
-                              className="btn btn-ghost"
-                              style={{ padding: 8, borderRadius: 10, color: "var(--text-muted)", opacity: 0.4, cursor: "not-allowed" }}
-                              disabled
-                              title="Delete User (Restricted)"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          )}
-                          {canViewMedicalLog && (
-                            <>
-                              <div style={{ width: 1, height: 24, background: "var(--border-subtle)", margin: "0 4px" }} />
-                              <button
-                                id={`view-sensitive-${s.id}-btn`}
-                                className="btn btn-sm"
-                                style={{
-                                  borderRadius: 10,
-                                  background: "rgb(var(--red-500-rgb) / 0.08)",
-                                  border: "1px solid rgb(var(--red-500-rgb) / 0.15)",
-                                  fontWeight: 700,
-                                  color: "var(--red-500)",
-                                  fontSize: 12,
-                                  gap: 6
-                                }}
-                                onClick={() => viewSensitive(s.id)}
-                              >
-                                <ShieldAlert size={13} /> Medical Log
-                              </button>
-                            </>
-                          )}
-                          {canEditOrDelete && (s.noShowCount ?? 0) > 0 && (
-                            <button
-                              className="btn btn-sm"
-                              style={{
-                                borderRadius: 10,
-                                background: "rgb(var(--amber-500-rgb) / 0.08)",
-                                border: "1px solid rgb(var(--amber-500-rgb) / 0.15)",
-                                fontWeight: 700,
-                                color: "var(--amber-500)",
-                                fontSize: 12,
-                                gap: 6,
-                                opacity: resettingStrikesId === s.id ? 0.6 : 1,
-                              }}
-                              disabled={resettingStrikesId === s.id}
-                              onClick={() => resetStrikes(s)}
-                              title="Reset no-show strikes and unblock registration"
-                            >
-                              <RotateCcw size={13} /> Reset Strikes
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                    );
-                  })}
-                  {filtered.length === 0 && (
-                    <tr>
-                      <td colSpan={6} style={{ textAlign: "center", padding: 80 }}>
-                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-                          <div style={{ width: 80, height: 80, borderRadius: "50%", background: "var(--bg-elevated)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)" }}>
-                            <Search size={32} />
-                          </div>
-                          <p style={{ color: "var(--text-muted)", fontWeight: 600 }}>{search ? "No matches found for your criteria." : "Directory is currently empty."}</p>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-            {filtered.length > ITEMS_PER_PAGE && (
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "20px 32px",
-                borderTop: "1px solid var(--border-subtle)",
-                flexWrap: "wrap",
-                gap: 16,
-                background: "var(--bg-elevated)",
-                borderBottomLeftRadius: 40,
-                borderBottomRightRadius: 40
-              }}>
-                <span style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 600 }}>
-                  {lang === "th"
-                    ? `กำลังแสดง ${(currentPage - 1) * ITEMS_PER_PAGE + 1} - ${Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)} จากทั้งหมด ${filtered.length} คน`
-                    : `Showing ${(currentPage - 1) * ITEMS_PER_PAGE + 1} - ${Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)} of ${filtered.length} members`}
-                </span>
-                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                  <button
-                    className="btn btn-ghost btn-sm"
-                    style={{ padding: "8px 16px", borderRadius: 10, fontWeight: 700 }}
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                  >
-                    {lang === "th" ? "ก่อนหน้า" : "Previous"}
-                  </button>
-                  <span style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 800 }}>
-                    {lang === "th" ? `หน้า ${currentPage} จาก ${totalPages}` : `Page ${currentPage} of ${totalPages}`}
-                  </span>
-                  <button
-                    className="btn btn-ghost btn-sm"
-                    style={{ padding: "8px 16px", borderRadius: 10, fontWeight: 700 }}
-                    disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                  >
-                    {lang === "th" ? "ถัดไป" : "Next"}
-                  </button>
-                </div>
-              </div>
+            {filtered.length === 0 ? (
+              <section className="adm-panel">
+                {hasActiveFilters ? (
+                  <EmptyState
+                    icon={<Search size={24} />}
+                    title={t.adminStuEmptyNoMatchTitle}
+                    description={t.adminStuEmptyNoMatchBody}
+                    action={<button type="button" className="btn btn-ghost" onClick={clearFilters}>{t.adminStuClearFilters}</button>}
+                  />
+                ) : (
+                  <EmptyState title={t.adminStuEmptyDirectoryTitle} description={t.adminStuEmptyDirectoryBody} />
+                )}
+              </section>
+            ) : (
+              <StudentTable
+                students={paginatedStudents}
+                total={filtered.length}
+                page={currentPage}
+                onPageChange={setCurrentPage}
+                canEditOrDelete={canEditOrDelete}
+                canViewMedicalLog={canViewMedicalLog}
+                userRole={userRole}
+                resettingStrikesId={resettingStrikesId}
+                getHouseName={getHouseName}
+                onEdit={startEdit}
+                onDelete={deleteStudent}
+                onMedical={viewSensitive}
+                onResetStrikes={resetStrikes}
+              />
             )}
           </>
         )}
       </div>
-      </div>
 
-      {/* Sensitive Data Modal */}
       {viewingId && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgb(var(--scrim-rgb) / 0.4)",
-            backdropFilter: "blur(8px)",
-            WebkitBackdropFilter: "blur(8px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 9999,
-            padding: 24
-          }}
-          onClick={() => { setViewingId(null); setSensitiveData(null); setSensitiveError(null); }}
-        >
-          <div
-            className="animate-fade-in-up"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "var(--bg-surface)",
-              border: "1px solid var(--border-medium)",
-              borderRadius: 40,
-              padding: 0,
-              maxWidth: 600,
-              width: "100%",
-              maxHeight: "90vh",
-              overflow: "hidden",
-              boxShadow: "0 50px 100px rgb(var(--shadow-rgb) / 0.5)",
-              display: "flex",
-              flexDirection: "column"
-            }}
-          >
-            {/* Modal Header */}
-            <div style={{ padding: "32px 40px", borderBottom: "1px solid var(--border-subtle)", background: "linear-gradient(to bottom, var(--bg-surface), var(--bg-elevated))" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                <div>
-                  <div className="badge animate-pulse-glow" style={{ background: "var(--red-500)", color: "var(--text-on-color)", border: "none", marginBottom: 12 }}>
-                    <ShieldAlert size={12} /> SECURE ACCESS
-                  </div>
-                  <h2 style={{ fontSize: 28, fontWeight: 900, letterSpacing: "-0.04em", color: "var(--text-primary)" }}>Member Health Profile</h2>
-                </div>
-                <button
-                  className="btn btn-ghost"
-                  style={{ borderRadius: "50%", width: 44, height: 44, padding: 0, background: "var(--bg-elevated)" }}
-                  onClick={() => { setViewingId(null); setSensitiveData(null); setSensitiveError(null); }}
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              {loadingSensitive ? (
-                <div style={{ height: 20 }} />
-              ) : (
-                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                  <div style={{ width: 48, height: 48, borderRadius: 16, background: "var(--accent-glow)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-primary)" }}>
-                    <UserIcon size={24} />
-                  </div>
-                  <div>
-                    <p style={{ fontWeight: 800, fontSize: 18, color: "var(--text-primary)" }}>
-                      {sensitiveData?.prefix || ""}{sensitiveData?.name}
-                    </p>
-                    <p style={{ fontSize: 14, color: "var(--text-muted)", fontWeight: 600 }}>Member ID: {sensitiveData?.studentId}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Modal Content */}
-            <div style={{ flex: 1, overflowY: "auto", padding: "40px" }} className="custom-scrollbar">
-              {loadingSensitive ? (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 24, padding: "40px 0" }}>
-                  <div className="spinner" style={{ width: 48, height: 48, borderWidth: 3 }} />
-                  <p style={{ color: "var(--text-muted)", fontWeight: 600 }}>Decrypting health records...</p>
-                </div>
-              ) : sensitiveError ? (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "40px 0", textAlign: "center" }}>
-                  <div style={{ width: 80, height: 80, borderRadius: "50%", background: "rgb(var(--red-500-rgb) / 0.08)", border: "1px solid rgb(var(--red-500-rgb) / 0.2)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--red-500)" }}>
-                    <ShieldAlert size={36} />
-                  </div>
-                  <h3 style={{ fontSize: 20, fontWeight: 800, color: "var(--text-primary)" }}>Couldn&apos;t load health records</h3>
-                  <p style={{ color: "var(--text-muted)", fontWeight: 600, maxWidth: 360 }}>{sensitiveError}</p>
-                  <p style={{ color: "var(--text-muted)", fontSize: 12, fontWeight: 600, maxWidth: 360 }}>
-                    This does <strong>not</strong> mean the member has no medical conditions — the records simply failed to load. Please retry.
-                  </p>
-                  <button className="btn btn-primary" style={{ borderRadius: 12, padding: "10px 24px", marginTop: 4 }} onClick={() => { if (viewingId) viewSensitive(viewingId); }}>
-                    Retry
-                  </button>
-                </div>
-              ) : sensitiveData && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
-                  {/* Medical Section */}
-                  <div>
-                    <p className="section-title" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-                      <Heart size={14} style={{ color: "var(--red-500)" }} /> CLINICAL OBSERVATIONS
-                    </p>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
-                      {[
-                        ["Chronic Diseases", sensitiveData.chronicDiseases],
-                        ["Medical History", sensitiveData.medicalHistory],
-                        ["Drug Allergies", sensitiveData.drugAllergies],
-                        ["Food Allergies", sensitiveData.foodAllergies],
-                        ["Dietary Restrictions", sensitiveData.dietaryRestrictions],
-                        ["History of Fainting", sensitiveData.faintingHistory ? "YES, Report of Fainting History" : "No known history"],
-                        ["Hospital Number (HN)", sensitiveData.hospitalNumber ? `${sensitiveData.hospitalNumber}${sensitiveData.hospitalName ? ` (${sensitiveData.hospitalName})` : ""}` : null],
-                      ].map(([label, value]) => (
-                        <div key={label as string} style={{ padding: "16px 20px", background: "var(--bg-elevated)", borderRadius: 16, border: "1px solid var(--border-subtle)" }}>
-                          <p style={{ fontSize: 10, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{label}</p>
-                          <p style={{ fontSize: 15, fontWeight: 600, color: value ? "var(--text-primary)" : "var(--text-muted)" }}>
-                            {value || "No records provided"}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Emergency Contacts */}
-                  <div>
-                    <p className="section-title" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-                      <Phone size={14} style={{ color: "var(--accent-primary)" }} /> EMERGENCY CONTACT PROTOCOL
-                    </p>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                      {Array.isArray(sensitiveData.emergencyContacts) && sensitiveData.emergencyContacts.length > 0 ? (
-                        sensitiveData.emergencyContacts.map((c, i) => (
-                          <div key={i} style={{ padding: "20px", background: "var(--bg-elevated)", borderRadius: 20, border: "1px solid var(--border-subtle)" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                              <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--accent-primary)" }} />
-                              <p style={{ fontWeight: 800, fontSize: 16, color: "var(--text-primary)" }}>{c.name}{c.nickname ? ` (${c.nickname})` : ""}</p>
-                            </div>
-                            <p style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>
-                              {c.relationship.startsWith("Other:") ? c.relationship.substring(6) : c.relationship}
-                            </p>
-                            <a href={`tel:${c.phone}`} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, color: "var(--accent-primary)", fontWeight: 800, textDecoration: "none", fontSize: 16 }}>
-                              <Phone size={16} />
-                              {c.phone}
-                            </a>
-                          </div>
-                        ))
-                      ) : (
-                        <div style={{ gridColumn: "span 2", padding: 32, textAlign: "center", background: "var(--bg-elevated)", borderRadius: 20, border: "1px dashed var(--border-medium)" }}>
-                          <p style={{ color: "var(--text-muted)", fontWeight: 600 }}>No emergency contacts listed.</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Security Disclaimer */}
-                  <div style={{ padding: 20, borderRadius: 20, background: "rgb(var(--red-500-rgb) / 0.05)", border: "1px solid rgb(var(--red-500-rgb) / 0.1)", display: "flex", gap: 16, alignItems: "center" }}>
-                    <ShieldAlert size={24} style={{ color: "var(--red-500)" }} />
-                    <p style={{ fontSize: 13, color: "var(--red-500)", fontWeight: 600, lineHeight: 1.5 }}>
-                      SECURITY PROTOCOL: This session has been audited. Unauthorized disclosure of this information is strictly prohibited and subject to institutional discipline.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div style={{ padding: "24px 40px", background: "var(--bg-elevated)", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "flex-end" }}>
-              <button className="btn btn-primary" style={{ borderRadius: 12, padding: "12px 32px" }} onClick={() => { setViewingId(null); setSensitiveData(null); setSensitiveError(null); }}>Close Records</button>
-            </div>
-          </div>
-        </div>
+        <MedicalRecordModal
+          student={viewingStudent}
+          data={sensitiveData}
+          loading={loadingSensitive}
+          error={sensitiveError}
+          // Retry goes back through viewSensitive, so the logged-access confirmation is asked again.
+          onRetry={() => { if (viewingStudent) viewSensitive(viewingStudent); }}
+          onClose={closeSensitive}
+        />
       )}
 
-      {/* Edit User Modal */}
       {editingStudent && (
-        <div style={{
-          position: "fixed",
-          inset: 0,
-          background: "rgb(var(--scrim-rgb) / 0.4)",
-          backdropFilter: "blur(8px)",
-          zIndex: 1100,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "clamp(12px, 4vw, 24px)",
-          overflowY: "auto"
-        }} onClick={() => setEditingStudent(null)}>
-          <div className="animate-fade-in-up" style={{
-            background: "var(--bg-surface)",
-            width: "100%",
-            maxWidth: 500,
-            maxHeight: "90vh",
-            borderRadius: "clamp(20px, 5vw, 32px)",
-            overflow: "hidden",
-            boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.2)",
-            border: "1px solid var(--border-medium)",
-            display: "flex",
-            flexDirection: "column"
-          }} onClick={e => e.stopPropagation()}>
-            <div style={{ flexShrink: 0, padding: "clamp(20px, 5vw, 32px)", borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-elevated)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-              <h3 style={{ fontSize: "clamp(18px, 5vw, 20px)", fontWeight: 900 }}>{t.manageUser}</h3>
-              <button className="btn btn-ghost" onClick={() => setEditingStudent(null)} style={{ borderRadius: "50%", width: 40, height: 40, padding: 0, flexShrink: 0 }}><X size={20} /></button>
-            </div>
-            <div className="custom-scrollbar" style={{ flex: 1, overflowY: "auto", padding: "clamp(20px, 5vw, 32px)", display: "flex", flexDirection: "column", gap: 20 }}>
-              <div style={{ display: "flex", gap: 16, alignItems: "flex-end" }}>
-                <div style={{ width: 110, flexShrink: 0 }}>
-                  <label style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8, display: "block" }}>{t.prefix}</label>
-                  <select
-                    className="input"
-                    value={editingStudent.prefix || "นาย"}
-                    onChange={e => setEditingStudent({ ...editingStudent, prefix: e.target.value })}
-                  >
-                    <option value="นาย">{lang === "th" ? "นาย" : "Mr."}</option>
-                    <option value="นางสาว">{lang === "th" ? "น.ส." : "Ms."}</option>
-                    <option value="นาง">{lang === "th" ? "นาง" : "Mrs."}</option>
-                  </select>
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <label style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8, display: "block" }}>{t.firstName} *</label>
-                  <input
-                    className="input"
-                    value={editingStudent.firstName || ""}
-                    onChange={e => setEditingStudent({ ...editingStudent, firstName: sanitizeNameInput(e.target.value) })}
-                  />
-                </div>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8, display: "block" }}>{t.middleName}</label>
-                  <input
-                    className="input"
-                    value={editingStudent.middleName || ""}
-                    onChange={e => setEditingStudent({ ...editingStudent, middleName: sanitizeNameInput(e.target.value) })}
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8, display: "block" }}>{t.lastName} *</label>
-                  <input
-                    className="input"
-                    value={editingStudent.lastName || ""}
-                    onChange={e => setEditingStudent({ ...editingStudent, lastName: sanitizeNameInput(e.target.value) })}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8, display: "block" }}>{t.studentId}</label>
-                  <input
-                    className="input"
-                    value={editingStudent.studentId || ""}
-                    onChange={e => setEditingStudent({ ...editingStudent, studentId: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8, display: "block" }}>{t.nickname}</label>
-                  <input
-                    className="input"
-                    value={editingStudent.nickname || ""}
-                    onChange={e => setEditingStudent({ ...editingStudent, nickname: sanitizeNameInput(e.target.value) })}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16 }}>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8, display: "block" }}>{t.house}</label>
-                  <CustomDropdown
-                    value={editingStudent.houseId || ""}
-                    options={editHouseOptions}
-                    onChange={val => setEditingStudent({ ...editingStudent, houseId: val })}
-                    icon={<Home size={18} />}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 12, display: "block" }}>System Roles (Multi-select)</label>
-                <div style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))",
-                  gap: 10,
-                  padding: 12,
-                  background: "var(--bg-elevated)",
-                  borderRadius: 16,
-                  border: "1px solid var(--border-subtle)"
-                }}>
-                  {allowedEditRoleOptions.map((opt) => {
-                    const currentRoles = editingStudent.roles || (editingStudent.role ? [editingStudent.role] : ["student"]);
-                    const isChecked = currentRoles.includes(opt.value);
-                    const handleToggle = () => {
-                      if (!editingStudent) return;
-                      const updated = isChecked
-                        ? currentRoles.filter((r: string) => r !== opt.value)
-                        : [...currentRoles, opt.value];
-                      const finalRoles = updated.length > 0 ? updated : ["student"];
-                      setEditingStudent({
-                        ...editingStudent,
-                        roles: finalRoles,
-                        role: finalRoles[0] || "student",
-                        // Unchecking club_president clears their club picks too —
-                        // otherwise a stale clubIds value would still get PATCHed
-                        // and re-grant presidencies to a non-president.
-                        ...(opt.value === "club_president" && isChecked ? { clubIds: [] } : {}),
-                      });
-                    };
-
-                    return (
-                      <label
-                        key={opt.value}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          padding: "8px 12px",
-                          borderRadius: 10,
-                          cursor: "pointer",
-                          transition: "all 0.2s",
-                          background: isChecked ? "var(--bg-surface)" : "transparent",
-                          border: isChecked ? "1px solid var(--accent-primary)" : "1px solid transparent",
-                          boxShadow: isChecked ? "0 2px 8px rgb(var(--shadow-rgb) / 0.05)" : "none"
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={handleToggle}
-                          style={{
-                            accentColor: "var(--accent-primary)",
-                            cursor: "pointer"
-                          }}
-                        />
-                        <span style={{ fontSize: 13, fontWeight: 700, color: isChecked ? "var(--text-primary)" : "var(--text-secondary)" }}>
-                          {opt.label}
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {(editingStudent.roles || (editingStudent.role ? [editingStudent.role] : [])).includes("club_president") && (
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 12, display: "block" }}>
-                    Presides Over (Clubs)
-                  </label>
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
-                    gap: 10,
-                    padding: 12,
-                    background: "var(--bg-elevated)",
-                    borderRadius: 16,
-                    border: "1px solid var(--border-subtle)"
-                  }}>
-                    {clubs.filter((c) => !c.isArchived).length === 0 && (
-                      <span style={{ fontSize: 13, color: "var(--text-muted)" }}>No clubs created yet — add one under Admin &gt; Clubs.</span>
-                    )}
-                    {clubs.filter((c) => !c.isArchived).map((club) => {
-                      const currentClubIds = editingStudent.clubIds || [];
-                      const isChecked = currentClubIds.includes(club.id);
-                      const handleToggle = () => {
-                        if (!editingStudent) return;
-                        const updated = isChecked
-                          ? currentClubIds.filter((id) => id !== club.id)
-                          : [...currentClubIds, club.id];
-                        setEditingStudent({ ...editingStudent, clubIds: updated });
-                      };
-                      return (
-                        <label
-                          key={club.id}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            padding: "8px 12px",
-                            borderRadius: 10,
-                            cursor: "pointer",
-                            transition: "all 0.2s",
-                            background: isChecked ? "var(--bg-surface)" : "transparent",
-                            border: isChecked ? "1px solid var(--accent-primary)" : "1px solid transparent",
-                            boxShadow: isChecked ? "0 2px 8px rgb(var(--shadow-rgb) / 0.05)" : "none"
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={handleToggle}
-                            style={{ accentColor: "var(--accent-primary)", cursor: "pointer" }}
-                          />
-                          <span style={{ fontSize: 13, fontWeight: 700, color: isChecked ? "var(--text-primary)" : "var(--text-secondary)" }}>
-                            {club.name}
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8, display: "block" }}>{t.major}</label>
-                <input
-                  className="input"
-                  value={editingStudent.major || ""}
-                  onChange={e => setEditingStudent({ ...editingStudent, major: e.target.value })}
-                  placeholder="e.g. SE, ANI, MMIT"
-                />
-              </div>
-
-              {/* SMO/ANUSMO titles are scoped independently (src/lib/positions.ts) —
-                  a student holding both roles at once (the role checkboxes above
-                  are a multi-select, not mutually exclusive) gets one dropdown per
-                  role, each with its own title. Club titles are edited per-club in
-                  admin/clubs's Members modal; major titles in admin/majors's Team
-                  panel — neither lives on this page. */}
-              {(editingStudent.roles || (editingStudent.role ? [editingStudent.role] : [])).includes("smo") && (
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8, display: "block" }}>{t.positionSMO || "SMO Position"}</label>
-                  <CustomDropdown
-                    value={editingStudent.smoPosition || ""}
-                    options={[
-                      { value: "", label: "—", icon: <X size={16} className="text-muted" /> },
-                      ...POSITION_IDS.map(id => ({
-                        value: id,
-                        label: t[POSITION_I18N_KEY[id] as keyof typeof t] as string,
-                        icon: <Briefcase size={16} className="text-[var(--accent-primary)]" />,
-                      })),
-                    ]}
-                    onChange={val => setEditingStudent({ ...editingStudent, smoPosition: val || null })}
-                    icon={<Briefcase size={18} />}
-                  />
-                </div>
-              )}
-
-              {(editingStudent.roles || (editingStudent.role ? [editingStudent.role] : [])).includes("anusmo") && (
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8, display: "block" }}>{t.positionANUSMO || "ANUSMO Position"}</label>
-                  <CustomDropdown
-                    value={editingStudent.anusmoPosition || ""}
-                    options={[
-                      { value: "", label: "—", icon: <X size={16} className="text-muted" /> },
-                      ...POSITION_IDS.map(id => ({
-                        value: id,
-                        label: t[POSITION_I18N_KEY[id] as keyof typeof t] as string,
-                        icon: <Briefcase size={16} className="text-[var(--accent-primary)]" />,
-                      })),
-                    ]}
-                    onChange={val => setEditingStudent({ ...editingStudent, anusmoPosition: val || null })}
-                    icon={<Briefcase size={18} />}
-                  />
-                </div>
-              )}
-
-              {/* Contact info — email/phone/contactChannels are only ever
-                  present on editingStudent for a super_admin requester (the
-                  API strips them for everyone else), so this section is
-                  naturally invisible to admin/registration/organizer too. */}
-              {userRole === "super_admin" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 16, background: "var(--bg-elevated)", borderRadius: 16, border: "1px solid var(--border-subtle)" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <ShieldAlert size={14} style={{ color: "var(--red-500)" }} />
-                    <span style={{ fontSize: 11, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      {lang === "th" ? "ข้อมูลติดต่อ (Super Admin เท่านั้น)" : "Contact Info (Super Admin only)"}
-                    </span>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8, display: "block" }}>{t.email}</label>
-                    <input
-                      className="input"
-                      value={editingStudent.email || ""}
-                      disabled
-                      readOnly
-                      style={{ opacity: 0.7, cursor: "not-allowed" }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8, display: "block" }}>{t.phone}</label>
-                    <input
-                      className="input"
-                      value={editingStudent.phone || ""}
-                      onChange={e => setEditingStudent({ ...editingStudent, phone: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8, display: "block" }}>{t.contactChannels}</label>
-                    <input
-                      className="input"
-                      value={editingStudent.contactChannels || ""}
-                      onChange={e => setEditingStudent({ ...editingStudent, contactChannels: e.target.value })}
-                    />
-                  </div>
-                  {/* HN: shown only once the audited fetch above has loaded it. */}
-                  {editingStudent.hospitalNumber !== undefined && (
-                    <>
-                      <div>
-                        <label style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8, display: "block" }}>Hospital Number (HN)</label>
-                        <input
-                          className="input"
-                          maxLength={30}
-                          value={editingStudent.hospitalNumber || ""}
-                          onChange={e => setEditingStudent({ ...editingStudent, hospitalNumber: e.target.value })}
-                        />
-                      </div>
-                      {!!(editingStudent.hospitalNumber || "").trim() && (
-                        <div>
-                          <label style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8, display: "block" }}>Hospital that issued the HN *</label>
-                          <input
-                            className="input"
-                            maxLength={100}
-                            value={editingStudent.hospitalName || ""}
-                            onChange={e => setEditingStudent({ ...editingStudent, hospitalName: e.target.value })}
-                          />
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
-
-              {/* Emergency contacts: super_admin only, shown once the audited fetch above has loaded them
-                  (so a failed load never shows empty cards that would blank the real data on save). */}
-              {userRole === "super_admin" && editingStudent.emergencyContacts != null && (
-                <ContactsEditor
-                  contacts={editingStudent.emergencyContacts}
-                  onChange={(next) => setEditingStudent({ ...editingStudent, emergencyContacts: next })}
-                />
-              )}
-            </div>
-            <div style={{ flexShrink: 0, padding: "16px clamp(20px, 5vw, 32px)", background: "var(--bg-elevated)", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "flex-end", gap: 12 }}>
-              {editError && <span role="alert" style={{ marginRight: "auto", alignSelf: "center", color: "var(--red-500)", fontSize: 13, fontWeight: 600 }}>{editError}</span>}
-              <button className="btn btn-ghost" onClick={() => setEditingStudent(null)}>{t.cancel}</button>
-              <button
-                className="btn btn-primary"
-                disabled={updating || (!!(editingStudent.hospitalNumber || "").trim() && !(editingStudent.hospitalName || "").trim())}
-                onClick={async () => {
-                  setUpdating(true);
-                  setEditError(null);
-                  try {
-                    const res = await fetch(`/api/admin/users/${editingStudent.id}`, {
-                      method: "PATCH",
-                      body: JSON.stringify(editingStudent)
-                    });
-                    if (res.ok) {
-                      setEditingStudent(null);
-                      refreshData();
-                    } else {
-                      const d = await res.json().catch(() => null);
-                      const code = d?.error as string | undefined;
-                      setEditError(
-                        code === "nameInvalidChars" ? t.nameInvalidChars
-                        : code === "nameRequired" ? t.nameRequired
-                        : code === "contactInvalid" ? (lang === "th" ? "ข้อมูลผู้ติดต่อฉุกเฉินไม่ถูกต้อง (ต้องมีความสัมพันธ์ และเบอร์โทร 10 หลัก)" : "Emergency contact is invalid (needs a relationship and a 10-digit phone).")
-                        : code === "hospitalNameRequired" ? t.hospitalNameRequired
-                        : (lang === "th" ? "บันทึกไม่สำเร็จ" : "Could not save changes.")
-                      );
-                    }
-                  } catch (err) {
-                    console.error(err);
-                  } finally {
-                    setUpdating(false);
-                  }
-                }}
-              >
-                {updating ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <EditStudentModal
+          student={editingStudent}
+          setStudent={setEditingStudent}
+          houses={houses}
+          clubs={clubs}
+          userRole={userRole}
+          getHouseName={getHouseName}
+          onClose={() => setEditingStudent(null)}
+          onSaved={refreshData}
+        />
       )}
-
-      <style jsx global>{`
-        .student-row:hover {
-          background: var(--bg-glass);
-          cursor: default;
-        }
-        .student-row:hover .btn-ghost {
-          background: var(--bg-surface);
-          box-shadow: 0 4px 12px rgb(var(--shadow-rgb) / 0.05);
-        }
-        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--border-medium); border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
-      `}</style>
     </>
   );
 }

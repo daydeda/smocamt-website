@@ -57,7 +57,7 @@ export async function GET(req: Request) {
     const session = await withTimeout(auth(), READ_TIMEOUT_MS, "auth");
     const myRoles = effectiveRoles(session?.user?.role, session?.user?.roles);
     const globalReg = isGlobalRegistrationPosition(myRoles, session?.user?.smoPosition, session?.user?.anusmoPosition);
-    const isAdminRole = ["super_admin", "admin", "registration", "organizer"].includes(session?.user?.role || "") || globalReg;
+    const isAdminRole = ["super_admin", "admin"].includes(session?.user?.role || "") || globalReg;
     if (!session?.user || !isAdminRole) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -67,7 +67,7 @@ export async function GET(req: Request) {
 
     if (type === "csv") {
       // FE-11: CSV Export
-      if (!["super_admin", "admin", "registration"].includes(session.user.role || "") && !globalReg) {
+      if (!["super_admin", "admin"].includes(session.user.role || "") && !globalReg) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
       // Bulk PII export: keep a tamper-evident record of who pulled it (PDPA). Count

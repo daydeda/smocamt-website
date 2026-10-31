@@ -58,11 +58,9 @@ export const FORM_TYPE_LABELS: Record<string, string> = {
 
 // Roles an admin can assign an S (Skill) form to. Mirrors ASSIGNABLE_ROLES in
 // src/lib/form-access.ts.
-export const ASSIGNABLE_FORM_ROLES = ["organizer", "registration", "staff", "smo", "anusmo", "student"] as const;
+export const ASSIGNABLE_FORM_ROLES = ["staff", "smo", "anusmo", "student"] as const;
 
 export const ASSIGNABLE_ROLE_LABELS: Record<string, string> = {
-  organizer: "Organizer",
-  registration: "Registration",
   staff: "Staff",
   smo: "SMO",
   anusmo: "ANUSMO",

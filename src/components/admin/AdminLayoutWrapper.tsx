@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { Menu, X, User } from "lucide-react";
 import { AdminNav } from "./AdminNav";
 import { AdminCommandPalette } from "./AdminCommandPalette";
-import { LanguageProvider } from "@/lib/i18n/LanguageContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { AdminFeedbackProvider } from "./ui";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { effectiveRoles } from "@/lib/access/admin-access";
 import { buildAdminNavContext } from "@/lib/access/admin-nav-config";
@@ -26,6 +27,7 @@ export function AdminLayoutWrapper({
     anusmoPosition?: string | null;
   };
 }) {
+  const { t } = useLanguage();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const roles = effectiveRoles(user.role, user.roles);
@@ -45,6 +47,8 @@ export function AdminLayoutWrapper({
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setIsPaletteOpen((open) => !open);
+      } else if (e.key === "Escape") {
+        setIsSidebarOpen(false);
       }
     }
     window.addEventListener("keydown", onKeyDown);
@@ -52,12 +56,20 @@ export function AdminLayoutWrapper({
   }, []);
 
   return (
-    <LanguageProvider>
-      <div className="flex h-dvh bg-[var(--bg-base)] overflow-hidden relative">
+    // The root layout's LanguageProvider covers admin too. A second provider here
+    // kept its own state, so switching language in admin never reached the root
+    // `.lang-th` wrapper (Thai typography fixes) until a reload.
+    <AdminFeedbackProvider>
+      <div className="admin-shell flex h-dvh bg-[var(--bg-base)] overflow-hidden relative">
+      <SkipLink />
       {/* Mobile Header */}
       <header className="lg:hidden fixed top-0 left-0 right-0 h-16 border-b border-[var(--border-subtle)] flex items-center justify-between px-6 z-[1000] backdrop-blur-md bg-[var(--bg-surface)]">
         <button
+          type="button"
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          aria-label={isSidebarOpen ? t.adminShellCloseMenu : t.adminShellOpenMenu}
+          aria-expanded={isSidebarOpen}
+          aria-controls="admin-sidebar"
           className="rounded-xl bg-[var(--bg-elevated)] text-[var(--text-primary)] flex items-center justify-center"
           style={{ width: 44, height: 44, border: "none", touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
         >
@@ -79,7 +91,7 @@ export function AdminLayoutWrapper({
       )}
 
       {/* Sidebar */}
-      <aside className={`
+      <aside id="admin-sidebar" className={`
         sidebar fixed lg:static inset-y-0 left-0 z-[1002] 
         transition-transform duration-300 transform
         ${isSidebarOpen ? "translate-x-0 open" : "-translate-x-full"}
@@ -142,14 +154,14 @@ export function AdminLayoutWrapper({
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-[var(--text-primary)] truncate">{user.name}</p>
               <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
-                {user.role === "super_admin" ? "Super Admin" : user.role === "registration" ? "Registration" : user.role === "organizer" ? "Organizer" : user.role === "smo" ? "SMO" : user.role === "club_president" ? "Club President" : user.role === "major_president" ? "Major President" : user.role === "shop_seller" ? "Seller" : "Administrator"}
+                {user.role === "super_admin" ? "Super Admin" : user.role === "smo" ? "SMO" : user.role === "club_president" ? "Club President" : user.role === "major_president" ? "Major President" : user.role === "shop_seller" ? "Seller" : "Administrator"}
               </p>
             </div>
           </div>
         </div>
       </aside>
 
-      <main className="admin-main">
+      <main id="admin-main" className="admin-main" tabIndex={-1}>
         <div className="w-full">
           {children}
         </div>
@@ -166,20 +178,20 @@ export function AdminLayoutWrapper({
           padding-left: 16px;
           padding-right: 16px;
           padding-bottom: 32px;
-          padding-top: 112px;
+          padding-top: 88px;
         }
         @media (min-width: 640px) {
           .admin-main {
             padding-left: 24px;
             padding-right: 24px;
-            padding-top: 128px;
+            padding-top: 96px;
           }
         }
         @media (min-width: 1024px) {
           .admin-main {
             padding-left: 40px;
             padding-right: 40px;
-            padding-top: 80px;
+            padding-top: 40px;
             padding-bottom: 48px;
           }
         }
@@ -187,8 +199,11 @@ export function AdminLayoutWrapper({
           .admin-main {
             padding-left: 56px;
             padding-right: 56px;
-            padding-top: 96px;
+            padding-top: 48px;
           }
+        }
+        .admin-main:focus {
+          outline: none;
         }
         @media (max-width: 1023px) {
           .sidebar {
@@ -203,6 +218,16 @@ export function AdminLayoutWrapper({
         }
       `}</style>
       </div>
-    </LanguageProvider>
+    </AdminFeedbackProvider>
+  );
+}
+
+// Lets keyboard users jump past the sidebar (WCAG 2.4.1). Hidden until focused.
+function SkipLink() {
+  const { t } = useLanguage();
+  return (
+    <a href="#admin-main" className="adm-skip-link">
+      {t.adminUiSkipToContent}
+    </a>
   );
 }

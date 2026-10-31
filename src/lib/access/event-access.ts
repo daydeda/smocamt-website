@@ -10,8 +10,11 @@
 // attendance bypass — that is event-specific and stays in /api/events. Calendar
 // entries have no attendance concept.
 
-// Admin roles bypass all role/major/audience restrictions.
-const ADMIN_ROLES = ["super_admin", "admin", "registration", "organizer"];
+import { isGlobalRegistrationPosition } from "@/lib/access/admin-access";
+
+// Admin roles bypass all role/major/audience restrictions. A GLOBAL registration
+// position (smo/anusmo + "registration", see buildViewer) bypasses them too.
+const ADMIN_ROLES = ["super_admin", "admin"];
 
 export interface EligibilityItem {
   allowedRoles?: string[] | null;
@@ -158,9 +161,14 @@ export function buildViewer(opts: {
   major: string | null | undefined;
   /** Club UUIDs the user belongs to (any club_members role) — see ClubsService.getMemberClubIds. */
   clubIds?: string[] | null;
+  /** users.smoPosition / anusmoPosition — a global "registration" position bypasses audience limits like an admin role. */
+  smoPosition?: string | null;
+  anusmoPosition?: string | null;
 }): Viewer {
   const userRoles = opts.roles && opts.roles.length ? opts.roles : ["student"];
-  const isAdminRole = userRoles.some((r) => ADMIN_ROLES.includes(r));
+  const isAdminRole =
+    userRoles.some((r) => ADMIN_ROLES.includes(r)) ||
+    isGlobalRegistrationPosition(userRoles, opts.smoPosition, opts.anusmoPosition);
   // Normalize staff aliases (professor, officer → staff) to match allowedRoles.
   const effectiveRoles = userRoles.map((r) =>
     ["professor", "officer"].includes(r) ? "staff" : r

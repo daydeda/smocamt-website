@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 
-const MANAGING_ROLES = ["super_admin", "admin", "registration", "organizer"];
+const MANAGING_ROLES = ["super_admin", "admin"];
 
 const entryUpdateSchema = z.object({
   title: z.string().min(1).optional(),

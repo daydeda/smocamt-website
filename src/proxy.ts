@@ -131,15 +131,6 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL(SCANNER_HREF, req.url));
   }
 
-  // Organizer cannot access students list. Gate on the role SET (like the rest of
-  // this proxy) so it can't desync from ROLE_PRIORITY: redirect only when the user
-  // is an organizer with no higher students-capable role. Restrictive-only; the
-  // students API remains the real gate.
-  const organizerOnly = roles.includes("organizer") && !roles.some((r) => ["super_admin", "admin", "registration"].includes(r));
-  if (pathname.startsWith("/admin/students") && organizerOnly) {
-    return NextResponse.redirect(new URL("/admin/dashboard", req.url));
-  }
-
   return NextResponse.next();
 }
 

@@ -33,6 +33,8 @@ export async function GET() {
           roles: session!.user!.roles || [session!.user!.role || "student"],
           studentId: session!.user!.studentId,
           major: me?.major,
+          smoPosition: session!.user!.smoPosition,
+          anusmoPosition: session!.user!.anusmoPosition,
         });
     // Welfare is decided off the DB roles (fresh), not the session token. A guest
     // has no roles, so never gets welfare prices.

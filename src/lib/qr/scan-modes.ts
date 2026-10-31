@@ -5,7 +5,6 @@ import {
   SCANNER_HREF,
   canAwardPrizes,
   canEnterAdminAny,
-  canManagePropertyTags,
   isScannerOnlyAllowedPath,
   isScannerOnlyAny,
 } from "@/lib/access/admin-access";
@@ -18,6 +17,9 @@ export interface ScanModeInput {
   shopManager: boolean;
   /** Any staff position (club/major/smo/anusmo) — grants confined admin entry. */
   hasStaffPosition?: boolean;
+  /** users.smoPosition / anusmoPosition — a global "registration" position scans like the retired registration role. */
+  smoPosition?: string | null;
+  anusmoPosition?: string | null;
 }
 
 /**
@@ -33,15 +35,7 @@ export function availableScanModes(input: ScanModeInput): ScanModeId[] {
     (!isScannerOnlyAny(input.roles, input.hasStaffPosition) ||
       isScannerOnlyAllowedPath(SCANNER_HREF, input.roles, input.hasStaffPosition));
   if (canReachScanner) modes.push("checkin");
-  if (canAwardPrizes(input.roles)) modes.push("prize");
+  if (canAwardPrizes(input.roles, input.smoPosition, input.anusmoPosition)) modes.push("prize");
   if (input.shopManager) modes.push("shop");
   return modes;
-}
-
-/**
- * Staff who manage property tags assign owners when they scan one; everyone
- * else (students, presidents, sellers) just sees the owner pop-up.
- */
-export function scansTagAsStaff(roles: string[]): boolean {
-  return canManagePropertyTags(roles);
 }

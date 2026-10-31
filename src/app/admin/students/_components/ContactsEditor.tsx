@@ -1,7 +1,10 @@
 "use client";
 
-import { ShieldAlert } from "lucide-react";
+import { useId } from "react";
+import { Phone } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { Panel } from "@/components/admin/ui";
+import { fill } from "../_lib/students";
 import { ContactNameFields } from "@/components/profile/ContactNameFields";
 import { formatPhone, phoneDigits } from "@/lib/profile/phone";
 
@@ -35,6 +38,7 @@ export function ContactsEditor({
   onChange: (next: EditableContact[]) => void;
 }) {
   const { t } = useLanguage();
+  const uid = useId();
   const slots = [0, 1].map((i) => contacts[i] ?? EMPTY_CONTACT);
   const update = (i: number, next: EditableContact) => {
     const copy = [0, 1].map((k) => contacts[k] ?? EMPTY_CONTACT);
@@ -43,18 +47,15 @@ export function ContactsEditor({
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 16, background: "var(--bg-elevated)", borderRadius: 16, border: "1px solid var(--border-subtle)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <ShieldAlert size={14} style={{ color: "var(--red-500)" }} />
-        <span style={{ fontSize: 11, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-          {t.emergencyContacts} (Super Admin only)
-        </span>
-      </div>
+    <Panel title={t.emergencyContacts} description={t.adminStuSuperAdminOnly} icon={<Phone size={16} />}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {slots.map((c, i) => {
         const isCustom = c.relationship.startsWith("Other:") || !KNOWN.includes(c.relationship);
         return (
           <div key={i} style={{ display: "flex", flexDirection: "column", gap: 12, paddingTop: i === 1 ? 12 : 0, borderTop: i === 1 ? "1px dashed var(--border-subtle)" : undefined }}>
-            <span style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)" }}>#{i + 1}{i === 1 ? " (optional)" : ""}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-secondary)" }}>
+              {fill(t.adminStuContactSlot, { n: i + 1 })}{i === 1 ? ` (${t.adminStuOptional})` : ""}
+            </span>
             <ContactNameFields
               value={c}
               onChange={(next) => update(i, { ...c, ...next })}
@@ -63,8 +64,9 @@ export function ContactsEditor({
             />
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="field flex-1" style={{ minWidth: 0 }}>
-                <label className="label">{t.relationship}</label>
+                <label className="label" htmlFor={`${uid}-rel-${i}`}>{t.relationship}</label>
                 <select
+                  id={`${uid}-rel-${i}`}
                   className="input"
                   value={isCustom && c.relationship ? "Other" : c.relationship}
                   onChange={(e) => update(i, { ...c, relationship: e.target.value === "Other" ? "Other:" : e.target.value })}
@@ -88,8 +90,9 @@ export function ContactsEditor({
                 )}
               </div>
               <div className="field flex-1" style={{ minWidth: 0 }}>
-                <label className="label">{t.phone}</label>
+                <label className="label" htmlFor={`${uid}-tel-${i}`}>{t.phone}</label>
                 <input
+                  id={`${uid}-tel-${i}`}
                   className="input"
                   inputMode="tel"
                   placeholder="081-xxx-xxxx"
@@ -101,6 +104,7 @@ export function ContactsEditor({
           </div>
         );
       })}
-    </div>
+      </div>
+    </Panel>
   );
 }

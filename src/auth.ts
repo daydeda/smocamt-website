@@ -9,6 +9,7 @@ import { eq, and, isNotNull } from "drizzle-orm"
 import { AuditService } from "@/modules/audit/audit.service"
 import { isSiteMoved } from "@/lib/ui/site-moved"
 import { isRemoteDatabase } from "@/db/guard"
+import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access"
 
 // Fail fast at runtime if AUTH_URL is missing in production: with trustHost:true an
 // unset AUTH_URL lets Auth.js derive the OAuth callback host from the request Host
@@ -38,10 +39,12 @@ const SUPER_ADMIN_EMAILS = (process.env.SUPER_ADMIN_EMAILS ?? "")
   .split(",")
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean);
-const ROLE_PRIORITY = ["super_admin", "admin", "registration", "organizer", "smo", "anusmo", "club_president", "major_president", "shop_seller", "staff", "professor", "officer", "student"];
+const ROLE_PRIORITY = ["super_admin", "admin", "smo", "anusmo", "club_president", "major_president", "shop_seller", "staff", "professor", "officer", "student"];
 // Sign-ins by these roles are audit-logged. Students are deliberately NOT
 // logged — hundreds of sign-ins a day would just flood the audit table.
-const AUDITED_SIGNIN_ROLES = ["super_admin", "admin", "registration", "organizer"];
+// A global registration position (smo/anusmo) is audited too: it took over the
+// retired registration role's breadth, so it keeps that role's sign-in trail.
+const AUDITED_SIGNIN_ROLES = ["super_admin", "admin"];
 // How often the session is re-hydrated from the DB to pick up role/profile/house
 // changes made elsewhere (e.g. an admin assigning a role). This refresh lives in
 // the `jwt` callback so the timestamp PERSISTS to the cookie — meaning it runs at
@@ -138,8 +141,11 @@ async function applyDbUserToToken(token: Record<string, unknown>, dbUser: DbUser
 
   const currentEmail = (dbUser.email || "").toLowerCase();
   if (SUPER_ADMIN_EMAILS.includes(currentEmail)) {
+    // Add super_admin, but keep any other role the account holds (smo,
+    // major_president, ...): an official account can also run an SMO
+    // position or a major.
     token.role = "super_admin";
-    token.roles = ["super_admin"];
+    token.roles = Array.from(new Set(["super_admin", ...userRoles]));
   }
 }
 
@@ -280,8 +286,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       // Auto-promote official emails to super_admin (FE-04)
       if (SUPER_ADMIN_EMAILS.includes(email.toLowerCase())) {
+        // Promote without wiping: extra roles granted in the admin panel
+        // (smo, major_president, ...) survive every sign-in.
+        const current = await db.query.users.findFirst({
+          where: eq(users.email, email),
+          columns: { roles: true },
+        });
+        const keep = ((current?.roles as string[] | null) ?? []).filter((r) => r !== "student");
         await db.update(users)
-          .set({ role: "super_admin", roles: ["super_admin"] })
+          .set({ role: "super_admin", roles: Array.from(new Set(["super_admin", ...keep])) })
           .where(eq(users.email, email));
       }
 
@@ -461,11 +474,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!user?.id) return;
         const dbUser = await db.query.users.findFirst({
           where: eq(users.id, user.id),
-          columns: { name: true, role: true, roles: true },
+          columns: { name: true, role: true, roles: true, smoPosition: true, anusmoPosition: true },
         });
         if (!dbUser) return;
         const primaryRole = getPrimaryRole(dbUser.roles as string[] | null, dbUser.role);
-        if (!AUDITED_SIGNIN_ROLES.includes(primaryRole)) return;
+        const globalReg = isGlobalRegistrationPosition(
+          effectiveRoles(dbUser.role, dbUser.roles as string[] | null),
+          dbUser.smoPosition,
+          dbUser.anusmoPosition,
+        );
+        if (!AUDITED_SIGNIN_ROLES.includes(primaryRole) && !globalReg) return;
 
         let ipAddress = "unknown";
         try {

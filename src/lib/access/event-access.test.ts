@@ -50,8 +50,22 @@ describe("event student year eligibility", () => {
     }
   });
 
-  it.each(["super_admin", "admin", "registration", "organizer"])("preserves the %s year bypass", (role) => {
+  it.each(["super_admin", "admin"])("preserves the %s year bypass", (role) => {
     expect(isEligibleFor({ allowedYears: [2, 3] }, viewer(null, [role]))).toBe(true);
+  });
+
+  it("keeps the year bypass for a GLOBAL registration position, and only for it", () => {
+    const asViewer = (roles: string[], smoPosition?: string | null, anusmoPosition?: string | null) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(now);
+      return buildViewer({ studentId: null, roles, major: "SE", smoPosition, anusmoPosition });
+    };
+    expect(isEligibleFor({ allowedYears: [2, 3] }, asViewer(["smo"], "registration"))).toBe(true);
+    // The ANUSMO registration desk is check-in only: no audience bypass.
+    expect(isEligibleFor({ allowedYears: [2, 3] }, asViewer(["anusmo"], null, "registration"))).toBe(false);
+    expect(isEligibleFor({ allowedYears: [2, 3] }, asViewer(["smo"]))).toBe(false);
+    expect(isEligibleFor({ allowedYears: [2, 3] }, asViewer(["smo"], "finance"))).toBe(false);
+    expect(isEligibleFor({ allowedYears: [2, 3] }, viewer(null, ["registration"]))).toBe(false);
   });
 
   it("still applies the other audience restrictions", () => {

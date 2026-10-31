@@ -25,22 +25,21 @@ export function useEventFormBuilder({ eventId, eventTitle, onClose, onChanged }:
   const myRoles = session?.user?.roles ?? (session?.user?.role ? [session.user.role] : []);
 
   // A global registration POSITION (smo/anusmo + smoPosition/anusmoPosition ===
-  // "registration") gets the same staff-tier breadth the "registration" ROLE
-  // has — mirrors admin/events/page.tsx's globalRegPosition. Without this, a
+  // "registration") gets the staff-tier breadth the retired "registration" ROLE
+  // had — mirrors admin/events/page.tsx's globalRegPosition. Without this, a
   // holder of this global title saw the page's "Create Form" button (that page
   // DOES account for it) but this modal — which re-derives its own permissions
   // independently — would still open read-only.
   const globalRegPosition = isGlobalRegistrationPosition(myRoles, session?.user?.smoPosition, session?.user?.anusmoPosition);
 
   const isAttendanceOnly = !globalRegPosition && !myRoles.some((r) =>
-    ["super_admin", "admin", "registration", "organizer"].includes(r)
+    ["super_admin", "admin"].includes(r)
   );
 
   const isPresidentRole = myRoles.some((r) => ["club_president", "major_president"].includes(r));
 
   // A "registration" TITLE (src/lib/positions.ts) held in a club or major, or
-  // (via globalRegPosition above) as smo/anusmo — distinct from the
-  // "registration" ROLE — also gets full form management, scoped server-side to
+  // (via globalRegPosition above) as smo/anusmo — also gets full form management, scoped server-side to
   // their own club/major's events (EventScopeService.hasRegistrationScope /
   // gateEventForms's isPositionScoped). Mirrors admin/events/page.tsx's
   // hasRegistrationTitle exactly.
@@ -268,7 +267,7 @@ export function useEventFormBuilder({ eventId, eventTitle, onClose, onChanged }:
       }
     } catch (e) {
       console.error(e);
-      setFormBuilderError(lang === "th" ? "ไม่สามารถโหลดเครื่องมือสร้างฟอร์มได้ กรุณาลองใหม่อีกครั้ง" : "Couldn't load the form builder. Please try again.");
+      setFormBuilderError(t.adminEvfErrLoad);
     } finally {
       setFormLoading(false);
     }
@@ -343,11 +342,11 @@ export function useEventFormBuilder({ eventId, eventTitle, onClose, onChanged }:
     // "Closes at" is required: it's the trigger that closes the form and
     // auto-awards the points, so a form without it would never resolve.
     if (!formClosesAt) {
-      setFormBuilderError('Please set a "Closes at" time — it is required so the form can automatically close and award points.');
+      setFormBuilderError(t.adminEvfErrCloseRequired);
       return;
     }
     if (formOpensAt && new Date(formClosesAt) <= new Date(formOpensAt)) {
-      setFormBuilderError('"Closes at" must be after "Opens at".');
+      setFormBuilderError(t.adminEvfErrCloseAfterOpen);
       return;
     }
 
@@ -399,7 +398,7 @@ export function useEventFormBuilder({ eventId, eventTitle, onClose, onChanged }:
       });
       if (res.ok) {
         const saved = await res.json();
-        setFormBuilderSuccess("Evaluation form saved successfully!");
+        setFormBuilderSuccess(t.adminEvfSaved);
         // Just persisted — current builder state is now the saved baseline, so
         // there are no unsaved edits (also covers the new-form path, where
         // refreshAllForms can't yet match by the not-yet-set activeFormId).
@@ -415,11 +414,11 @@ export function useEventFormBuilder({ eventId, eventTitle, onClose, onChanged }:
         onChanged?.();
       } else {
         const d = await res.json();
-        setFormBuilderError("Failed to save: " + (d.error || "Unknown error"));
+        setFormBuilderError(t.adminEvfErrSave + ": " + (d.error || t.adminEvfErrUnknown));
       }
     } catch (e) {
       console.error(e);
-      setFormBuilderError("Failed to save evaluation form.");
+      setFormBuilderError(t.adminEvfErrSave);
     } finally {
       setFormSaving(false);
     }
@@ -441,15 +440,15 @@ export function useEventFormBuilder({ eventId, eventTitle, onClose, onChanged }:
           setActiveFormId(null);
           setShowNewFormPicker(true);
         }
-        setFormBuilderSuccess("Form deleted.");
+        setFormBuilderSuccess(t.adminEvfDeleted);
         onChanged?.();
       } else {
         const d = await res.json();
-        setFormBuilderError("Failed to delete: " + (d.error || "Unknown error"));
+        setFormBuilderError(t.adminEvfErrDelete + ": " + (d.error || t.adminEvfErrUnknown));
       }
     } catch (e) {
       console.error(e);
-      setFormBuilderError("Failed to delete form.");
+      setFormBuilderError(t.adminEvfErrDelete);
     }
   };
 
@@ -469,17 +468,17 @@ export function useEventFormBuilder({ eventId, eventTitle, onClose, onChanged }:
       });
       const d = await res.json().catch(() => null);
       if (!res.ok) {
-        setFormBuilderError("Failed to update review status: " + ((d && d.error) || "Unknown error"));
+        setFormBuilderError(t.adminEvfErrReview + ": " + ((d && d.error) || t.adminEvfErrUnknown));
         return;
       }
       setFormReviewStatus(d.form.reviewStatus);
       setFormReviewNote(d.form.reviewNote);
       await refreshAllForms();
       onChanged?.();
-      setFormBuilderSuccess(action === "approve" ? "Form approved." : "Changes requested.");
+      setFormBuilderSuccess(action === "approve" ? t.adminEvfApproved : t.adminEvfChangesRequested);
     } catch (e) {
       console.error(e);
-      setFormBuilderError("Failed to update review status.");
+      setFormBuilderError(t.adminEvfErrReview);
     } finally {
       setFormReviewSaving(false);
     }

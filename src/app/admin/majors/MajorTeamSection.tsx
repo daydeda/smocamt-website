@@ -4,7 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { NON_SMO_POSITION_IDS, POSITION_I18N_KEY } from "@/lib/access/positions";
 import { canonicalHouseName } from "@/lib/profile/faculties";
-import { Download, Users, HeartPulse, ChevronDown, ChevronUp, Plus } from "lucide-react";
+import { EmptyState, ErrorState, Field, InlineAlert, LoadingState, Panel, useToast } from "@/components/admin/ui";
+import { MedicalDetailPanel, type MemberMedical } from "../_roster/MedicalDetailPanel";
+import { RosterList, type RosterRow } from "../_roster/RosterList";
+import { Download, Plus, Users } from "lucide-react";
 
 type MajorTeamMember = {
   id: string;
@@ -26,18 +29,7 @@ type MajorTeamMember = {
 // that specific student being viewed (see MajorsService.getMajorMemberMedical).
 // Emergency contacts are pre-redacted server-side to relationship + phone
 // only (no contact name).
-type MajorTeamMemberMedical = {
-  chronicDiseases: string | null;
-  medicalHistory: string | null;
-  drugAllergies: string | null;
-  foodAllergies: string | null;
-  dietaryRestrictions: string | null;
-  faintingHistory: boolean | null;
-  emergencyMedication: string | null;
-  hospitalNumber: string | null;
-  hospitalName: string | null;
-  emergencyContacts: { relationship: string; phone: string }[];
-};
+type MajorTeamMemberMedical = MemberMedical;
 
 // major_president-only "Team" panel — the major analogue of admin/clubs's
 // Members modal. Majors have no roster table to add/remove from (membership
@@ -53,6 +45,7 @@ type MajorTeamMemberMedical = {
 // api/admin/majors/[code]/members/route.ts).
 export function MajorTeamSection({ major }: { major: string }) {
   const { t } = useLanguage();
+  const toast = useToast();
   const [members, setMembers] = useState<MajorTeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -83,12 +76,12 @@ export function MajorTeamSection({ major }: { major: string }) {
       .then(async (r) => {
         if (!r.ok) {
           const data = await r.json().catch(() => null);
-          throw new Error((data && data.error) || "Failed to load team");
+          throw new Error((data && data.error) || t.adminCmLoadTeamFailed);
         }
         return r.json();
       })
       .then((data) => setMembers(data))
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load team"))
+      .catch((err) => setError(err instanceof Error ? err.message : t.adminCmLoadTeamFailed))
       .finally(() => setLoading(false));
   };
 
@@ -105,12 +98,12 @@ export function MajorTeamSection({ major }: { major: string }) {
       .then(async (r) => {
         if (!r.ok) {
           const data = await r.json().catch(() => null);
-          throw new Error((data && data.error) || "Failed to load medical detail");
+          throw new Error((data && data.error) || t.adminCmMedicalLoadFailed);
         }
         return r.json();
       })
       .then((data) => setMedicalById((prev) => ({ ...prev, [m.id]: data })))
-      .catch((err) => setMedicalError(err instanceof Error ? err.message : "Failed to load medical detail"))
+      .catch((err) => setMedicalError(err instanceof Error ? err.message : t.adminCmMedicalLoadFailed))
       .finally(() => setLoadingMedicalId((id) => (id === m.id ? null : id)));
   };
 
@@ -144,8 +137,7 @@ export function MajorTeamSection({ major }: { major: string }) {
     a.remove();
   };
 
-  const updatePosition = async (userId: string, position: string | null) => {
-    setError(null);
+  const updatePosition = async (userId: string, position: string | null): Promise<boolean> => {
     try {
       const res = await fetch(`/api/admin/majors/${major}/members`, {
         method: "PATCH",
@@ -154,11 +146,14 @@ export function MajorTeamSection({ major }: { major: string }) {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error((data && data.error) || "Failed to update position");
+        throw new Error((data && data.error) || t.adminCmPositionFailed);
       }
       loadMembers();
+      toast.success(t.adminCmPositionSaved);
+      return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update position");
+      toast.error(t.adminCmPositionFailed, err instanceof Error ? err.message : undefined);
+      return false;
     }
   };
 
@@ -193,243 +188,169 @@ export function MajorTeamSection({ major }: { major: string }) {
   const addTeamMember = async (userId: string, position: string) => {
     setAddingUserId(userId);
     try {
-      await updatePosition(userId, position);
-      setAddSearch("");
-      setAddPositionDraft((prev) => {
-        const next = { ...prev };
-        delete next[userId];
-        return next;
-      });
+      const ok = await updatePosition(userId, position);
+      if (ok) {
+        setAddSearch("");
+        setAddPositionDraft((prev) => {
+          const next = { ...prev };
+          delete next[userId];
+          return next;
+        });
+      }
     } finally {
       setAddingUserId(null);
     }
   };
 
+  const displayName = (m: MajorTeamMember) => `${m.name || t.adminCmUnnamed}${m.nickname ? ` (${m.nickname})` : ""}`;
+
+  const rosterRows: RosterRow[] = teamMembers.map((m) => ({
+    key: m.id,
+    userId: m.id,
+    name: displayName(m),
+    studentId: m.studentId,
+    // Full roster detail — the members GET route already scopes this to
+    // super_admin/admin or the major's own president, so every row reaching
+    // this client is already authorized to see it (MajorsService.getMajorMembers).
+    meta: m.house?.name ? [canonicalHouseName(m.house)] : [],
+    contacts: [m.phone, m.contactChannels].filter((x): x is string => !!x),
+    isPresident: m.isPresident,
+    position: m.position,
+  }));
+
   return (
-    <div
-      style={{
-        background: "var(--bg-surface)",
-        border: "1px solid var(--border-subtle)",
-        borderRadius: 24,
-        padding: 24,
-        marginBottom: 32,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Users size={20} style={{ color: "var(--text-muted)" }} />
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>
-            {t.myTeam || "My Team"}
-          </h2>
-        </div>
-        {members.length > 0 && (
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={exportMembersXlsx}
-            title="Export the full roster (identity, contact, house, position, medical & emergency contact) to Excel (.xlsx) — this export is audit-logged"
-          >
-            <Download size={14} />
-            Export
-          </button>
-        )}
-      </div>
-
-      {loading ? (
-        <div style={{ display: "flex", justifyContent: "center", padding: 40 }}>
-          <div className="spinner" style={{ width: 28, height: 28, borderWidth: 3 }} />
-        </div>
-      ) : error ? (
-        <p style={{ color: "var(--red-500)", fontWeight: 600, fontSize: 13 }}>{error}</p>
-      ) : (
-        <>
-          {/* Add-to-team search — scoped to `members`, which is already this
-              president's own major only (see the component-level comment).
-              Only students without a position yet are offered as candidates. */}
-          <div style={{ marginBottom: 16 }}>
-            <input
-              className="input"
-              placeholder={t.addTeamMemberSearchPlaceholder || "Search your major's students by name, nickname, or student ID to add…"}
-              value={addSearch}
-              onChange={(e) => setAddSearch(e.target.value)}
-            />
-            {addQuery && (
-              <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
-                {addCandidates.length === 0 ? (
-                  <p style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600, padding: "4px 2px" }}>
-                    {t.addTeamMemberNoResults || "No matching students found in your major."}
-                  </p>
-                ) : (
-                  addCandidates.map((c) => {
-                    const draft = addPositionDraft[c.id] || "";
-                    return (
-                      <div
-                        key={c.id}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: 8,
-                          padding: "8px 10px",
-                          borderRadius: 10,
-                          background: "var(--bg-elevated)",
-                        }}
-                      >
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text-primary)" }}>
-                            {c.name || "Unnamed"}{c.nickname ? ` (${c.nickname})` : ""}
-                          </div>
-                          {c.studentId && <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{c.studentId}</div>}
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                          <select
-                            className="input"
-                            style={{ width: 150, fontSize: 12, padding: "4px 8px" }}
-                            value={draft}
-                            onChange={(e) => setAddPositionDraft((prev) => ({ ...prev, [c.id]: e.target.value }))}
-                          >
-                            <option value="">—</option>
-                            {NON_SMO_POSITION_IDS.map((id) => (
-                              <option key={id} value={id}>{t[POSITION_I18N_KEY[id] as keyof typeof t]}</option>
-                            ))}
-                          </select>
-                          <button
-                            className="btn btn-ghost btn-sm"
-                            disabled={!draft || addingUserId === c.id}
-                            onClick={() => addTeamMember(c.id, draft)}
-                          >
-                            {addingUserId === c.id ? <div className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> : <Plus size={12} />}
-                            Add
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })
+    <div style={{ marginBottom: 24 }}>
+      <Panel
+        title={t.myTeam || "My Team"}
+        icon={<Users size={20} />}
+        description={t.adminCmTeamDesc}
+        actions={
+          members.length > 0 ? (
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={exportMembersXlsx}
+              title={t.adminCmExportHint}
+            >
+              <Download size={14} aria-hidden="true" />
+              {t.adminCmExport}
+            </button>
+          ) : undefined
+        }
+      >
+        {loading ? (
+          <LoadingState compact label={t.adminCmLoadingTeam} />
+        ) : error ? (
+          <ErrorState compact title={t.adminCmLoadTeamFailed} message={error} onRetry={loadMembers} />
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            {/* Add-to-team search — scoped to `members`, which is already this
+                president's own major only (see the component-level comment).
+                Only students without a position yet are offered as candidates. */}
+            <div>
+              <Field label={t.adminCmAddTeamLabel} hint={t.adminCmAddTeamHint}>
+                {(p) => (
+                  <input
+                    {...p}
+                    className="input"
+                    type="search"
+                    autoComplete="off"
+                    placeholder={t.addTeamMemberSearchPlaceholder || "Search your major's students by name, nickname, or student ID to add…"}
+                    value={addSearch}
+                    onChange={(e) => setAddSearch(e.target.value)}
+                  />
                 )}
-              </div>
-            )}
-          </div>
-
-          {teamMembers.length === 0 ? (
-            <p style={{ color: "var(--text-muted)", fontWeight: 600, fontSize: 13 }}>
-              {members.length === 0
-                ? (t.noTeamMembers || "No students in your major yet.")
-                : (t.noTeamMembersYet || "No team members yet — search below to add one.")}
-            </p>
-          ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {teamMembers.map((m) => {
-            const isExpanded = expandedMemberId === m.id;
-            const medical = medicalById[m.id];
-            const isLoadingMedical = loadingMedicalId === m.id;
-            const hasMedicalDetail = !!(
-              medical && (medical.chronicDiseases || medical.medicalHistory || medical.drugAllergies || medical.foodAllergies ||
-              medical.dietaryRestrictions || medical.faintingHistory || medical.emergencyMedication || medical.hospitalNumber || medical.emergencyContacts.length > 0)
-            );
-            return (
-            <div key={m.id} style={{ borderRadius: 12, background: "var(--bg-elevated)", overflow: "hidden" }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  padding: "10px 12px",
-                  cursor: "pointer",
-                }}
-                onClick={() => toggleMemberExpand(m)}
-              >
-                <div style={{ minWidth: 0, display: "flex", alignItems: "flex-start", gap: 6 }}>
-                  {isExpanded ? <ChevronUp size={14} style={{ marginTop: 3, flexShrink: 0, color: "var(--text-muted)" }} /> : <ChevronDown size={14} style={{ marginTop: 3, flexShrink: 0, color: "var(--text-muted)" }} />}
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-primary)" }}>
-                      {m.name || "Unnamed"}{m.nickname ? ` (${m.nickname})` : ""}
-                    </div>
-                    {m.studentId && (
-                      <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
-                        {m.studentId}
-                      </div>
-                    )}
-                    {/* Full roster detail — the members GET route already scopes this
-                        to super_admin/admin or the major's own president, so every
-                        row reaching this client is already authorized to see it (see
-                        MajorsService.getMajorMembers). */}
-                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, display: "flex", flexWrap: "wrap", gap: 8 }}>
-                      {m.house?.name && <span>{canonicalHouseName(m.house)}</span>}
-                      {m.phone && <span>{m.phone}</span>}
-                      {m.contactChannels && <span>{m.contactChannels}</span>}
-                    </div>
-                  </div>
-                </div>
-                <div onClick={(e) => e.stopPropagation()}>
-                  {m.isPresident ? (
-                    // Locked: the major_president's position is always "President"
-                    // (MajorsService.setMemberPosition/the users PATCH route keep
-                    // users.majorPosition in sync server-side) — no editable control
-                    // is ever rendered here, for anyone, including super_admin.
-                    <span className="badge badge-blue" style={{ flexShrink: 0 }}>President</span>
+              </Field>
+              {addQuery && (
+                <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+                  {addCandidates.length === 0 ? (
+                    <p style={{ fontSize: 13, color: "var(--text-muted)", padding: "4px 2px" }}>
+                      {t.addTeamMemberNoResults || "No matching students found in your major."}
+                    </p>
                   ) : (
-                    <select
-                      className="input"
-                      style={{ width: 160, fontSize: 12, padding: "4px 8px", flexShrink: 0 }}
-                      value={m.position || ""}
-                      onChange={(e) => updatePosition(m.id, e.target.value || null)}
-                    >
-                      <option value="">—</option>
-                      {NON_SMO_POSITION_IDS.map((id) => (
-                        <option key={id} value={id}>{t[POSITION_I18N_KEY[id] as keyof typeof t]}</option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-              </div>
-              {/* Medical & Emergency — collapsed by default, one member at a time.
-                  Unlike the rest of the row, this data is fetched (and audit-logged
-                  as THIS student being viewed) on first expand, not bundled into the
-                  roster load — see toggleMemberExpand. Emergency contacts are
-                  pre-redacted server-side to relationship + phone only (no contact
-                  name). */}
-              {isExpanded && (
-                <div style={{ padding: "0 12px 12px 32px", borderTop: "1px solid var(--border-subtle)", paddingTop: 10 }}>
-                  {isLoadingMedical ? (
-                    <div style={{ display: "flex", justifyContent: "center", padding: 10 }}>
-                      <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
-                    </div>
-                  ) : !medical ? (
-                    <p style={{ fontSize: 12, color: "var(--red-500)" }}>{medicalError || "Failed to load medical detail."}</p>
-                  ) : !hasMedicalDetail ? (
-                    <p style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>No medical info on file.</p>
-                  ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 800, color: "var(--red-500)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>
-                        <HeartPulse size={13} /> Medical & Emergency
-                      </div>
-                      {medical.chronicDiseases && <p style={{ fontSize: 12 }}><b>Chronic:</b> {medical.chronicDiseases}</p>}
-                      {medical.medicalHistory && <p style={{ fontSize: 12 }}><b>History:</b> {medical.medicalHistory}</p>}
-                      {medical.drugAllergies && <p style={{ fontSize: 12, color: "var(--red-500)" }}><b>Drug allergies:</b> {medical.drugAllergies}</p>}
-                      {medical.foodAllergies && <p style={{ fontSize: 12, color: "var(--red-500)" }}><b>Food allergies:</b> {medical.foodAllergies}</p>}
-                      {medical.dietaryRestrictions && <p style={{ fontSize: 12 }}><b>Dietary:</b> {medical.dietaryRestrictions}</p>}
-                      {medical.faintingHistory && <p style={{ fontSize: 12, color: "var(--red-500)" }}>History of fainting</p>}
-                      {medical.emergencyMedication && <p style={{ fontSize: 12, color: "var(--red-500)" }}><b>Emergency medication:</b> {medical.emergencyMedication}</p>}
-                      {medical.hospitalNumber && <p style={{ fontSize: 12 }}><b>HN:</b> {medical.hospitalNumber}{medical.hospitalName ? ` (${medical.hospitalName})` : ""}</p>}
-                      {medical.emergencyContacts.length > 0 && (
-                        <p style={{ fontSize: 12 }}>
-                          <b>Emergency contact:</b>{" "}
-                          {medical.emergencyContacts.map((c, i) => (
-                            <span key={i}>{i > 0 ? "; " : ""}{c.relationship}: {c.phone}</span>
-                          ))}
-                        </p>
-                      )}
-                    </div>
+                    addCandidates.map((c) => {
+                      const draft = addPositionDraft[c.id] || "";
+                      return (
+                        <div
+                          key={c.id}
+                          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", padding: "8px 12px", borderRadius: 12, background: "var(--bg-elevated)" }}
+                        >
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, fontSize: 14, color: "var(--text-primary)" }}>{displayName(c)}</div>
+                            {c.studentId && <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{c.studentId}</div>}
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                            <select
+                              className="input"
+                              aria-label={t.adminCmPositionFor.replace("{name}", displayName(c))}
+                              style={{ width: 180, fontSize: 13 }}
+                              value={draft}
+                              onChange={(e) => setAddPositionDraft((prev) => ({ ...prev, [c.id]: e.target.value }))}
+                            >
+                              <option value="">{t.adminCmPickPosition}</option>
+                              {NON_SMO_POSITION_IDS.map((id) => (
+                                <option key={id} value={id}>{t[POSITION_I18N_KEY[id] as keyof typeof t]}</option>
+                              ))}
+                            </select>
+                            <button
+                              className="btn btn-ghost btn-sm"
+                              disabled={!draft || addingUserId === c.id}
+                              onClick={() => addTeamMember(c.id, draft)}
+                              aria-label={t.adminCmAddNamed.replace("{name}", displayName(c))}
+                            >
+                              {addingUserId === c.id ? <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : <Plus size={14} aria-hidden="true" />}
+                              {t.adminCmAdd}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
                   )}
                 </div>
               )}
             </div>
-            );
-          })}
-        </div>
-          )}
-        </>
-      )}
+
+            {teamMembers.length === 0 ? (
+              <EmptyState
+                compact
+                icon={<Users size={24} />}
+                title={members.length === 0 ? t.adminCmNoStudentsTitle : t.adminCmNoTeamTitle}
+                description={members.length === 0 ? t.adminCmNoStudentsBody : t.adminCmNoTeamBody}
+              />
+            ) : (
+              <div>
+                <p role="status" style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 10 }}>
+                  {teamMembers.length === 1 ? t.adminCmTeamCountOne : t.adminCmTeamCountMany.replace("{n}", String(teamMembers.length))}
+                </p>
+                <div style={{ marginBottom: 12 }}>
+                  <InlineAlert tone="info">{t.adminCmExportHint}</InlineAlert>
+                </div>
+                <RosterList
+                  rows={rosterRows}
+                  tableLabel={t.adminCmTeamTableLabel}
+                  editablePosition
+                  onPositionChange={(row, position) => { void updatePosition(row.userId, position); }}
+                  canExpandMedical
+                  expandedKey={expandedMemberId}
+                  onToggleExpand={(row) => {
+                    const m = members.find((x) => x.id === row.key);
+                    if (m) toggleMemberExpand(m);
+                  }}
+                  renderMedical={(row) => (
+                    // Collapsed by default, one member at a time. Fetched (and
+                    // audit-logged as THIS student being viewed) on first expand,
+                    // not bundled into the roster load — see toggleMemberExpand.
+                    <MedicalDetailPanel
+                      medical={medicalById[row.userId]}
+                      loading={loadingMedicalId === row.userId}
+                      error={medicalError}
+                    />
+                  )}
+                />
+              </div>
+            )}
+          </div>
+        )}
+      </Panel>
     </div>
   );
 }

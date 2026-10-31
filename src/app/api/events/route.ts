@@ -94,6 +94,8 @@ export async function GET() {
       studentId: session.user.studentId,
       major: me?.major,
       clubIds,
+      smoPosition: session.user.smoPosition,
+      anusmoPosition: session.user.anusmoPosition,
     });
 
     // Fetch the user's attendance up front: a student who has an attendance row

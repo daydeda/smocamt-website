@@ -3,6 +3,7 @@ import {
   canAwardPrizes,
   canManagePrizes,
   canExportPrizeReport,
+  isGlobalRegistrationPosition,
   effectiveRoles,
 } from "@/lib/access/admin-access";
 import { EventScopeService, type PresidentScope } from "@/modules/events/event-scope.service";
@@ -35,14 +36,15 @@ export interface PrizeAccess {
   scope: PresidentScope | null;
 }
 
-const UNSCOPED_ROLES = ["super_admin", "admin", "registration", "organizer"];
+const UNSCOPED_ROLES = ["super_admin", "admin"];
 
 export async function resolvePrizeAccess(): Promise<PrizeAccess | null> {
   const session = await auth();
   if (!session?.user?.id) return null;
 
   const roles = effectiveRoles(session.user.role, session.user.roles);
-  if (!canAwardPrizes(roles) && !canManagePrizes(roles)) return null;
+  const { smoPosition, anusmoPosition } = session.user;
+  if (!canAwardPrizes(roles, smoPosition, anusmoPosition) && !canManagePrizes(roles, smoPosition, anusmoPosition)) return null;
 
   // smo is unscoped-but-award-only: it staffs whichever prize table it is sent
   // to and owns no events, so scoping it by ownership would leave it with
@@ -52,7 +54,12 @@ export async function resolvePrizeAccess(): Promise<PrizeAccess | null> {
   // table just because they also run a club (the same bug class as
   // isEventUnscopedStaff in admin-access.ts, applied to prizes instead of
   // events).
-  const unscoped = roles.some((r) => UNSCOPED_ROLES.includes(r)) || roles.includes("smo");
+  // A GLOBAL registration position (smo/anusmo) is unscoped too, like the
+  // retired registration role it replaces.
+  const unscoped =
+    roles.some((r) => UNSCOPED_ROLES.includes(r)) ||
+    roles.includes("smo") ||
+    isGlobalRegistrationPosition(roles, smoPosition, anusmoPosition);
 
   const scope = unscoped
     ? null
@@ -61,9 +68,9 @@ export async function resolvePrizeAccess(): Promise<PrizeAccess | null> {
   return {
     userId: session.user.id,
     roles,
-    canAward: canAwardPrizes(roles),
-    canManage: canManagePrizes(roles),
-    canExport: canExportPrizeReport(roles),
+    canAward: canAwardPrizes(roles, smoPosition, anusmoPosition),
+    canManage: canManagePrizes(roles, smoPosition, anusmoPosition),
+    canExport: canExportPrizeReport(roles, smoPosition, anusmoPosition),
     isSuperAdmin: roles.includes("super_admin"),
     scope,
   };

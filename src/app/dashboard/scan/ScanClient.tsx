@@ -6,33 +6,28 @@ import { QrCode } from "lucide-react";
 import { StudentNav } from "@/components/layout/StudentNav";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import type { ScanModeId } from "@/lib/qr/scan-modes";
-import ScannerPrizeTab from "@/app/admin/scanner/ScannerPrizeTab";
 import ScannerShopTab from "@/app/admin/scanner/ScannerShopTab";
 
-// These two open a camera dialog on first render (createPortal into
-// document.body), so they must never be server-rendered.
+// These open a camera on mount, so they must never be server-rendered.
 const TagScanDialog = dynamic(() => import("../items/TagScanDialog"), { ssr: false });
-// The full admin check-in screen, embedded (title + tab row hidden). Browser-only:
-// it touches the camera and window on mount.
+// The staff scanner shared with /admin/scanner (same tabs: Check-in, Scan
+// Score, Prize, Shop, Tags — each shown only to roles allowed to use it).
+// Embedded = this page supplies the title; everything else is identical.
 const ScannerScreen = dynamic(() => import("@/app/admin/scanner/ScannerScreen"), { ssr: false });
-const ScannerPropertyTab = dynamic(() => import("@/app/admin/scanner/ScannerPropertyTab"), { ssr: false });
 
-// The staff modes reuse the exact panels the admin scanner mounts (same
-// components, same /api/admin routes and role checks) — only one is mounted at
-// a time because each runs its own camera. Check-in embeds the admin scanner
-// screen itself (ScannerScreen, embedded) rather than a copy, so its medical
-// warnings, walk-in rules and evidence photos can't drift.
-export default function ScanClient({ modes, staffTag }: { modes: ScanModeId[]; staffTag: boolean }) {
+// Three audiences:
+// - staff who can reach the admin scanner (checkin mode): the shared ScannerScreen,
+//   opening on Check-in so nobody is dropped into tag scanning;
+// - a seller-only account (no check-in, confined to /admin/shop): Tag + Shop;
+// - everyone else: the owner lookup for a property tag, nothing more.
+export default function ScanClient({ modes }: { modes: ScanModeId[] }) {
   const { t } = useLanguage();
   const [mode, setMode] = useState<ScanModeId>("tag");
   const [studentCameraOpen, setStudentCameraOpen] = useState(true);
+  const staffScanner = modes.includes("checkin");
+  const otherModes = modes.filter((m) => m === "tag" || m === "shop");
 
-  const label: Record<ScanModeId, string> = {
-    tag: t.scanModeTag,
-    checkin: t.scanModeCheckin,
-    prize: t.scanModePrize,
-    shop: t.scanModeShop,
-  };
+  const label: Partial<Record<ScanModeId, string>> = { tag: t.scanModeTag, shop: t.scanModeShop };
 
   return (
     <div style={{ background: "var(--bg-base)", minHeight: "100vh" }}>
@@ -44,47 +39,47 @@ export default function ScanClient({ modes, staffTag }: { modes: ScanModeId[]; s
           <p style={{ color: "var(--text-secondary)", fontSize: 16, fontWeight: 500 }}>{t.scanPageSubtitle}</p>
         </div>
 
-        {modes.length > 1 && (
-          <div role="group" style={{ display: "inline-flex", maxWidth: "100%", overflowX: "auto", background: "var(--bg-elevated)", padding: 4, borderRadius: 12, border: "1px solid var(--border-subtle)", marginBottom: 24 }}>
-            {modes.map((m) => (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                aria-pressed={mode === m}
-                style={{
-                  padding: "8px 14px",
-                  borderRadius: 10,
-                  fontSize: 14,
-                  fontWeight: 700,
-                  whiteSpace: "nowrap",
-                  border: "none",
-                  cursor: "pointer",
-                  background: mode === m ? "var(--bg-surface)" : "transparent",
-                  color: mode === m ? "var(--text-primary)" : "var(--text-muted)",
-                  boxShadow: mode === m ? "0 4px 12px rgb(var(--shadow-rgb) / 0.05)" : "none",
-                }}
-              >
-                {label[m]}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {mode === "tag" && staffTag && <ScannerPropertyTab />}
-
-        {mode === "tag" && !staffTag && (
+        {staffScanner ? (
+          <ScannerScreen embedded />
+        ) : (
           <>
-            <button className="btn btn-primary btn-lg" onClick={() => setStudentCameraOpen(true)}>
-              <QrCode size={18} /> {t.itemsScanBtn}
-            </button>
-            {studentCameraOpen && <TagScanDialog onClose={() => setStudentCameraOpen(false)} />}
+            {otherModes.length > 1 && (
+              <div role="group" style={{ display: "inline-flex", maxWidth: "100%", overflowX: "auto", background: "var(--bg-elevated)", padding: 4, borderRadius: 12, border: "1px solid var(--border-subtle)", marginBottom: 24 }}>
+                {otherModes.map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setMode(m)}
+                    aria-pressed={mode === m}
+                    style={{
+                      padding: "8px 14px",
+                      borderRadius: 10,
+                      fontSize: 14,
+                      fontWeight: 700,
+                      whiteSpace: "nowrap",
+                      border: "none",
+                      cursor: "pointer",
+                      background: mode === m ? "var(--bg-surface)" : "transparent",
+                      color: mode === m ? "var(--text-primary)" : "var(--text-muted)",
+                      boxShadow: mode === m ? "0 4px 12px rgb(var(--shadow-rgb) / 0.05)" : "none",
+                    }}
+                  >
+                    {label[m]}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {mode === "tag" && (
+              <>
+                <button className="btn btn-primary btn-lg" onClick={() => setStudentCameraOpen(true)}>
+                  <QrCode size={18} /> {t.itemsScanBtn}
+                </button>
+                {studentCameraOpen && <TagScanDialog onClose={() => setStudentCameraOpen(false)} />}
+              </>
+            )}
+            {mode === "shop" && <ScannerShopTab />}
           </>
         )}
-
-        {mode === "checkin" && <ScannerScreen embedded />}
-
-        {mode === "prize" && <ScannerPrizeTab eventId="" eventTitle={null} />}
-        {mode === "shop" && <ScannerShopTab />}
       </main>
     </div>
   );

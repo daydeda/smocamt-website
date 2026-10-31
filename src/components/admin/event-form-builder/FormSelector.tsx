@@ -1,54 +1,55 @@
 "use client";
 
-import { Lock } from "lucide-react";
+import { Lock, Plus } from "lucide-react";
 import { FORM_TYPE_LABELS, FORM_TYPE_COLORS } from "./form-builder-model";
 import type { EventFormBuilderCtx } from "./useEventFormBuilder";
 
 export function FormSelector({ ctx }: { ctx: EventFormBuilderCtx }) {
   const { activeFormId, allEventForms, canManageForms, loadFormIntoEditor, setActiveFormId, setShowNewFormPicker, t } = ctx;
+  if (allEventForms.length === 0 && !canManageForms) return null;
   return (
-    <div style={{ padding: "12px clamp(12px,4vw,32px)", borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-elevated)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", flexShrink: 0 }}>
-              {allEventForms.map((f) => {
-                const c = FORM_TYPE_COLORS[f.formType] || FORM_TYPE_COLORS["K_post"];
-                const isActive = f.id === activeFormId;
-                return (
-                  <button
-                    key={f.id}
-                    type="button"
-                    onClick={() => { setShowNewFormPicker(false); loadFormIntoEditor(f); }}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 6,
-                      padding: "6px 14px", borderRadius: 99, fontSize: 12, fontWeight: 800,
-                      cursor: "pointer", transition: "all 0.15s",
-                      background: isActive ? c.bg : "var(--bg-surface)",
-                      color: isActive ? c.text : "var(--text-secondary)",
-                      border: isActive ? `1.5px solid ${c.border}` : "1.5px solid var(--border-subtle)",
-                      boxShadow: isActive ? `0 0 0 2px ${c.border}` : "none",
-                    }}
-                  >
-                    <span style={{ fontSize: 9, fontWeight: 900, background: c.bg, color: c.text, padding: "1px 5px", borderRadius: 4 }}>
-                      {FORM_TYPE_LABELS[f.formType] || f.formType}
-                    </span>
-                    <span style={{ maxWidth: 200, whiteSpace: "normal", overflowWrap: "break-word", wordBreak: "break-word", textAlign: "left", lineHeight: 1.3 }}>{f.title}</span>
-                    {f.isAwarded && <Lock size={10} style={{ flexShrink: 0 }} />}
-                    {!f.isActive && !f.isAwarded && <span style={{ fontSize: 10, opacity: 0.6 }}>●</span>}
-                  </button>
-                );
-              })}
-              {canManageForms && (
-              <button
-                type="button"
-                onClick={() => { setShowNewFormPicker(true); setActiveFormId(null); }}
-                style={{
-                  display: "flex", alignItems: "center", gap: 4,
-                  padding: "6px 14px", borderRadius: 99, fontSize: 12, fontWeight: 800,
-                  cursor: "pointer", background: "transparent",
-                  color: "var(--accent-primary)", border: "1.5px dashed var(--accent-primary)",
-                }}
-              >
-                {t.fbAddForm || "+ Add Form"}
-              </button>
-              )}
-            </div>
+    <div role="group" aria-label={t.adminEvfFormsOfEvent} className="flex flex-wrap items-center gap-2 pb-3">
+      {allEventForms.map((f) => {
+        const c = FORM_TYPE_COLORS[f.formType] || FORM_TYPE_COLORS["K_post"];
+        const isActive = f.id === activeFormId;
+        return (
+          <button
+            key={f.id}
+            type="button"
+            aria-pressed={isActive}
+            onClick={() => { setShowNewFormPicker(false); loadFormIntoEditor(f); }}
+            className="flex min-h-11 items-center gap-2 rounded-full px-3 py-1.5"
+            style={{
+              fontSize: 13, fontWeight: 700, cursor: "pointer",
+              background: isActive ? c.bg : "var(--bg-surface)",
+              color: isActive ? c.text : "var(--text-secondary)",
+              border: isActive ? `2px solid ${c.border}` : "1px solid var(--border-subtle)",
+            }}
+          >
+            <span style={{ fontSize: 12, fontWeight: 700, background: c.bg, color: c.text, padding: "0 6px", borderRadius: 6 }}>
+              {FORM_TYPE_LABELS[f.formType] || f.formType}
+            </span>
+            <span style={{ maxWidth: 220, textAlign: "left", lineHeight: 1.4, overflowWrap: "anywhere" }}>{f.title}</span>
+            {f.isAwarded && (
+              <span className="inline-flex items-center gap-1" style={{ fontSize: 12 }}>
+                <Lock size={12} aria-hidden="true" />{t.adminEvfFormAwarded}
+              </span>
+            )}
+            {!f.isActive && !f.isAwarded && <span style={{ fontSize: 12 }}>{t.adminEvfFormInactive}</span>}
+          </button>
+        );
+      })}
+      {canManageForms && (
+        <button
+          type="button"
+          onClick={() => { setShowNewFormPicker(true); setActiveFormId(null); }}
+          className="flex min-h-11 items-center gap-1.5 rounded-full px-4 py-1.5"
+          style={{ fontSize: 13, fontWeight: 700, cursor: "pointer", background: "transparent", color: "var(--accent-primary)", border: "1.5px dashed var(--accent-primary)" }}
+        >
+          <Plus size={14} aria-hidden="true" />
+          {t.adminEvfAddForm}
+        </button>
+      )}
+    </div>
   );
 }

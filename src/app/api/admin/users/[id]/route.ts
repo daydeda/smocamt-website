@@ -15,8 +15,6 @@ import { effectiveRoles } from "@/lib/access/admin-access";
 const ROLE_PRIORITY = [
   "super_admin",
   "admin",
-  "registration",
-  "organizer",
   "smo",
   "anusmo",
   "club_president",
@@ -84,7 +82,7 @@ export async function PATCH(
 
     // Contact info (phone/contactChannels) is only ever writable by
     // super_admin, mirroring the read-side gate in GET /api/admin/students —
-    // a crafted request from an admin/registration actor must not be able to
+    // a crafted request from an admin actor must not be able to
     // smuggle these fields in even though the route otherwise allows admin.
     const isSuperAdminActor = effectiveRoles(session.user.role, session.user.roles).includes("super_admin");
     // phone is unique-but-nullable in the schema — normalize "" to null so

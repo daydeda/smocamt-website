@@ -9,8 +9,8 @@ const createClubSchema = z.object({
 });
 
 // GET /api/admin/clubs — List clubs (optional ?includeArchived=true, default false).
-// Read-only, so gated more broadly than write: super_admin/admin/registration/
-// organizer — the staff roles that can enter the admin area and need to pick a
+// Read-only, so gated more broadly than write: super_admin/admin and a global
+// registration position — the staff that can enter the admin area and need to pick a
 // club (event-form owner picker, role-assignment club picker), but NOT students.
 // club_president may also call this, but only ever sees the club(s) they preside
 // over — same privacy boundary as club/major event scoping (see EventScopeService)
@@ -23,10 +23,10 @@ export async function GET(req: Request) {
     const session = await auth();
     const role = session?.user?.role || "";
     const myRoles = effectiveRoles(session?.user?.role, session?.user?.roles);
-    const isAdminRole = ["super_admin", "admin", "registration", "organizer"].includes(role)
+    const isAdminRole = ["super_admin", "admin"].includes(role)
       || isGlobalRegistrationPosition(myRoles, session?.user?.smoPosition, session?.user?.anusmoPosition);
     // Gate on the full role SET, not just the primary role: club_president ranks
-    // below smo/anusmo/organizer/registration/admin in ROLE_PRIORITY (src/auth.ts),
+    // below smo/anusmo/admin in ROLE_PRIORITY (src/auth.ts),
     // so a user who is BOTH e.g. smo and club_president has session.user.role
     // resolve to "smo" — checking the singular role here would silently lock a
     // real club president out of their own scoped view. Mirrors how proxy.ts and
@@ -48,7 +48,7 @@ export async function GET(req: Request) {
     // Own-club scoping only applies to a club_president with NO admin-tier role
     // (e.g. plain club_president, or smo+club_president — see isClubPresident's
     // comment above). A user who holds an admin-tier role AND club_president
-    // (e.g. admin+club_president, registration+club_president) must get the
+    // (e.g. admin+club_president, or club_president + a global registration position) must get the
     // full list like any other admin-tier caller — otherwise that broader role
     // gets silently downgraded to "only your own club" just because
     // club_president also happens to be in their roles[].

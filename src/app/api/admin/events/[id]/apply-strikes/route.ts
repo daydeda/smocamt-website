@@ -33,12 +33,12 @@ async function loadEventAndGate(eventId: string, session: Session | null) {
 
   // Club/major presidents, and a club/major-scoped registration position, may
   // only strike no-shows for events they OWN (mirrors the scoping in
-  // api/admin/events/[id]/attendance). Staff (incl. registration) and a GLOBAL
+  // api/admin/events/[id]/attendance). Staff (admin/super_admin) and a GLOBAL
   // registration position (smo/anusmo + position="registration") are unscoped;
   // bare smo/anusmo (without the position) never reaches here (excluded from
   // APPLY_STRIKES_ROLES above).
   const presidentTags = myRoles.filter((r) => ["club_president", "major_president"].includes(r));
-  const isUnscopedStaff = myRoles.some((r) => ["super_admin", "admin", "organizer", "registration"].includes(r))
+  const isUnscopedStaff = myRoles.some((r) => ["super_admin", "admin"].includes(r))
     || isGlobalRegistrationPosition(myRoles, smoPosition, anusmoPosition);
   if (!isUnscopedStaff) {
     const access = await EventScopeService.resolveEventAccess({

@@ -51,7 +51,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: "Appeal not found" }, { status: 404 });
     }
 
-    const isStaff = myRoles.some((r) => ["super_admin", "admin", "registration"].includes(r));
+    // A GLOBAL registration position (regScope.global) is unscoped staff, like admin.
+    const isStaff = myRoles.some((r) => ["super_admin", "admin"].includes(r)) || regScope.global;
     const presidentTags = myRoles.filter((r) => ["club_president", "major_president"].includes(r));
     const hasPresidentTag = presidentTags.length > 0;
     if (!isStaff && (hasPresidentTag || hasRegistrationAccess)) {

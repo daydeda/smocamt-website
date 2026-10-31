@@ -1,17 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { effectiveRoles } from "@/lib/access/admin-access";
-import { NON_SMO_POSITION_IDS, POSITION_I18N_KEY } from "@/lib/access/positions";
 import { canonicalHouseName } from "@/lib/profile/faculties";
 import { ProposeEventSection } from "../_propose-event/ProposeEventSection";
+import { MedicalDetailPanel, type MemberMedical } from "../_roster/MedicalDetailPanel";
+import { RosterList, type RosterRow } from "../_roster/RosterList";
 import { EventFeedbackFormsShortcut } from "@/components/admin/EventFeedbackFormsShortcut";
 import {
-  Building2, Plus, Pencil, Archive, ArchiveRestore, X, Users, Eye,
-  Trash2, AlertCircle, Check, Download, HeartPulse, ChevronDown, ChevronUp,
-} from "lucide-react";
+  EmptyState,
+  ErrorState,
+  Field,
+  IconButton,
+  InlineAlert,
+  LoadingState,
+  Modal,
+  PageHeader,
+  StatusBadge,
+  TableScroll,
+  Toolbar,
+  useConfirm,
+  useToast,
+} from "@/components/admin/ui";
+import { Archive, ArchiveRestore, Building2, Download, Pencil, Plus, Search, Trash2, Users } from "lucide-react";
 
 type Club = {
   id: string;
@@ -43,18 +56,7 @@ type ClubMember = {
 // specific student being viewed (see ClubsService.getClubMemberMedical).
 // Emergency contacts are pre-redacted server-side to relationship + phone
 // only (no contact name).
-type ClubMemberMedical = {
-  chronicDiseases: string | null;
-  medicalHistory: string | null;
-  drugAllergies: string | null;
-  foodAllergies: string | null;
-  dietaryRestrictions: string | null;
-  faintingHistory: boolean | null;
-  emergencyMedication: string | null;
-  hospitalNumber: string | null;
-  hospitalName: string | null;
-  emergencyContacts: { relationship: string; phone: string }[];
-};
+type ClubMemberMedical = MemberMedical;
 
 type StudentOption = {
   id: string;
@@ -62,9 +64,15 @@ type StudentOption = {
   studentId: string | null;
 };
 
+// Roster filter only appears once the list is long enough to need it.
+const ROSTER_FILTER_MIN = 8;
+const CLUB_SEARCH_MIN = 6;
+
 export default function ClubsPage() {
   const { data: session } = useSession();
   const { t } = useLanguage();
+  const toast = useToast();
+  const confirm = useConfirm();
   // All role checks below use the FULL role set (not just the singular primary
   // role) — a user holding club_president alongside a higher-priority role (e.g.
   // admin, registration, smo) would otherwise silently miss gates keyed on their
@@ -91,7 +99,7 @@ export default function ClubsPage() {
   // "Include archived clubs" is a staff-triage control (dead/renamed clubs) —
   // irrelevant noise for a club_president, who only ever sees their own club(s)
   // anyway. Shown only to roles that actually manage the club roster at large.
-  const canFilterArchived = userRoles.some((r) => ["admin", "super_admin", "smo", "registration"].includes(r));
+  const canFilterArchived = userRoles.some((r) => ["admin", "super_admin", "smo"].includes(r));
   // Members-modal edit actions (add/remove a plain member) — staff can manage
   // any club, club_president only their own. The server independently
   // re-verifies club_president ownership on every request; this flag is UI-only.
@@ -101,6 +109,7 @@ export default function ClubsPage() {
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
   const [includeArchived, setIncludeArchived] = useState(false);
+  const [clubQuery, setClubQuery] = useState("");
 
   // Create/rename modal. `editingId === "new"` means the create flow;
   // otherwise it holds the id of the club being renamed.
@@ -111,7 +120,6 @@ export default function ClubsPage() {
 
   const [archivingId, setArchivingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<Club | null>(null);
 
   // Members modal — super_admin/admin only (gated at the API too, see
   // /api/admin/clubs/[id]/members). Each club's roster is only ever fetched
@@ -121,6 +129,7 @@ export default function ClubsPage() {
   const [members, setMembers] = useState<ClubMember[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [membersError, setMembersError] = useState<string | null>(null);
+  const [rosterFilter, setRosterFilter] = useState("");
   // Which member's Medical & Emergency panel is expanded — one at a time, and
   // collapsed by default. Unlike the rest of the row, this data is NOT in
   // `members` — it's fetched (and audit-logged) per member, on first expand,
@@ -149,12 +158,12 @@ export default function ClubsPage() {
       .then(async (r) => {
         if (!r.ok) {
           const data = await r.json().catch(() => null);
-          throw new Error((data && data.error) || "Failed to load members");
+          throw new Error((data && data.error) || t.adminCmLoadMembersFailed);
         }
         return r.json();
       })
       .then((d) => { if (Array.isArray(d)) setMembers(d); })
-      .catch((err) => setMembersError(err instanceof Error ? err.message : "Failed to load members"))
+      .catch((err) => setMembersError(err instanceof Error ? err.message : t.adminCmLoadMembersFailed))
       .finally(() => setLoadingMembers(false));
   };
 
@@ -178,6 +187,7 @@ export default function ClubsPage() {
     setMemberSearch("");
     setSearchResults([]);
     setAddMemberError(null);
+    setRosterFilter("");
     setExpandedMemberId(null);
     setMedicalByUserId({});
     setLoadingMedicalUserId(null);
@@ -199,12 +209,12 @@ export default function ClubsPage() {
       .then(async (r) => {
         if (!r.ok) {
           const data = await r.json().catch(() => null);
-          throw new Error((data && data.error) || "Failed to load medical detail");
+          throw new Error((data && data.error) || t.adminCmMedicalLoadFailed);
         }
         return r.json();
       })
       .then((data) => setMedicalByUserId((prev) => ({ ...prev, [m.userId]: data })))
-      .catch((err) => setMedicalError(err instanceof Error ? err.message : "Failed to load medical detail"))
+      .catch((err) => setMedicalError(err instanceof Error ? err.message : t.adminCmMedicalLoadFailed))
       .finally(() => setLoadingMedicalUserId((id) => (id === m.userId ? null : id)));
   };
 
@@ -229,8 +239,9 @@ export default function ClubsPage() {
     return () => clearTimeout(timer);
   }, [memberSearch, viewingMembers, canManageMembers]);
 
-  const addMember = async (userId: string) => {
+  const addMember = async (student: StudentOption) => {
     if (!viewingMembers) return;
+    const userId = student.id;
     setAddingUserId(userId);
     setAddMemberError(null);
     try {
@@ -241,21 +252,30 @@ export default function ClubsPage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error((data && data.error) || "Failed to add member");
+        throw new Error((data && data.error) || t.adminCmAddMemberFailed);
       }
       setMemberSearch("");
       setSearchResults([]);
       loadMembers(viewingMembers.id);
       refresh();
+      toast.success(t.adminCmMemberAdded.replace("{name}", student.name).replace("{club}", viewingMembers.name));
     } catch (err) {
-      setAddMemberError(err instanceof Error ? err.message : "Failed to add member");
+      setAddMemberError(err instanceof Error ? err.message : t.adminCmAddMemberFailed);
     } finally {
       setAddingUserId(null);
     }
   };
 
-  const removeMember = async (userId: string) => {
+  const removeMember = async (m: ClubMember, displayName: string) => {
     if (!viewingMembers) return;
+    const ok = await confirm({
+      title: t.adminCmRemoveMemberTitle.replace("{name}", displayName).replace("{club}", viewingMembers.name),
+      message: t.adminCmRemoveMemberBody,
+      confirmLabel: t.adminCmRemoveMemberConfirm,
+      tone: "danger",
+    });
+    if (!ok) return;
+    const userId = m.userId;
     setRemovingUserId(userId);
     try {
       const res = await fetch(`/api/admin/clubs/${viewingMembers.id}/members`, {
@@ -265,12 +285,13 @@ export default function ClubsPage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error((data && data.error) || "Failed to remove member");
+        throw new Error((data && data.error) || t.adminCmRemoveMemberFailed);
       }
       loadMembers(viewingMembers.id);
       refresh();
+      toast.success(t.adminCmMemberRemoved.replace("{name}", displayName));
     } catch (err) {
-      setMembersError(err instanceof Error ? err.message : "Failed to remove member");
+      toast.error(t.adminCmRemoveMemberFailed, err instanceof Error ? err.message : undefined);
     } finally {
       setRemovingUserId(null);
     }
@@ -278,7 +299,6 @@ export default function ClubsPage() {
 
   const updateMemberPosition = async (userId: string, position: string | null) => {
     if (!viewingMembers) return;
-    setMembersError(null);
     try {
       const res = await fetch(`/api/admin/clubs/${viewingMembers.id}/members`, {
         method: "PATCH",
@@ -287,11 +307,12 @@ export default function ClubsPage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error((data && data.error) || "Failed to update position");
+        throw new Error((data && data.error) || t.adminCmPositionFailed);
       }
       loadMembers(viewingMembers.id);
+      toast.success(t.adminCmPositionSaved);
     } catch (err) {
-      setMembersError(err instanceof Error ? err.message : "Failed to update position");
+      toast.error(t.adminCmPositionFailed, err instanceof Error ? err.message : undefined);
     }
   };
 
@@ -302,12 +323,12 @@ export default function ClubsPage() {
       .then(async (r) => {
         if (!r.ok) {
           const data = await r.json().catch(() => null);
-          throw new Error((data && data.error) || "Failed to load clubs");
+          throw new Error((data && data.error) || t.adminCmLoadClubsFailed);
         }
         return r.json();
       })
       .then((d) => { if (Array.isArray(d)) setClubs(d); })
-      .catch((err) => setListError(err instanceof Error ? err.message : "Failed to load clubs"))
+      .catch((err) => setListError(err instanceof Error ? err.message : t.adminCmLoadClubsFailed))
       .finally(() => setLoading(false));
   };
 
@@ -345,7 +366,7 @@ export default function ClubsPage() {
   const submitModal = async () => {
     const name = nameDraft.trim();
     if (!name) {
-      setFormError("Name is required");
+      setFormError(t.adminCmNameRequired);
       return;
     }
     setSaving(true);
@@ -359,13 +380,14 @@ export default function ClubsPage() {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
-        throw new Error((data && data.error) || "Failed to save club");
+        throw new Error((data && data.error) || t.adminCmSaveClubFailed);
       }
       setEditingId(null);
       setNameDraft("");
       refresh();
+      toast.success((isCreate ? t.adminCmClubCreated : t.adminCmClubRenamed).replace("{name}", name));
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Failed to save club");
+      setFormError(err instanceof Error ? err.message : t.adminCmSaveClubFailed);
     } finally {
       setSaving(false);
     }
@@ -381,11 +403,12 @@ export default function ClubsPage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error((data && data.error) || "Failed to update club");
+        throw new Error((data && data.error) || t.adminCmUpdateClubFailed);
       }
       refresh();
+      toast.success((club.isArchived ? t.adminCmClubUnarchived : t.adminCmClubArchived).replace("{name}", club.name));
     } catch (err) {
-      setListError(err instanceof Error ? err.message : "Failed to update club");
+      toast.error(t.adminCmUpdateClubFailed, err instanceof Error ? err.message : undefined);
     } finally {
       setArchivingId(null);
     }
@@ -395,288 +418,332 @@ export default function ClubsPage() {
   // (see DELETE /api/admin/clubs/[id]). The server also detaches this club's id
   // from any event's ownerClubIds before deleting it, so no event is left
   // pointing at a club that no longer exists.
-  const confirmAndDelete = async () => {
-    if (!confirmDelete) return;
-    const club = confirmDelete;
-    setConfirmDelete(null);
+  const askDelete = async (club: Club) => {
+    const ok = await confirm({
+      title: t.adminCmDeleteTitle.replace("{name}", club.name),
+      message:
+        club.memberCount > 0
+          ? t.adminCmDeleteBodyWithMembers.replace("{n}", String(club.memberCount))
+          : t.adminCmDeleteBody,
+      confirmLabel: t.adminCmDeleteConfirm,
+      tone: "danger",
+    });
+    if (!ok) return;
     setDeletingId(club.id);
     try {
       const res = await fetch(`/api/admin/clubs/${club.id}`, { method: "DELETE" });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error((data && data.error) || "Failed to delete club");
+        throw new Error((data && data.error) || t.adminCmDeleteClubFailed);
       }
       refresh();
+      toast.success(t.adminCmClubDeleted.replace("{name}", club.name));
     } catch (err) {
-      setListError(err instanceof Error ? err.message : "Failed to delete club");
+      toast.error(t.adminCmDeleteClubFailed, err instanceof Error ? err.message : undefined);
     } finally {
       setDeletingId(null);
     }
   };
 
+  const memberCountText = (n: number) => (n === 1 ? t.adminCmMembersOne : t.adminCmMembersMany.replace("{n}", String(n)));
+  const presidentCountText = (n: number) => (n === 1 ? t.adminCmPresidentsOne : t.adminCmPresidentsMany.replace("{n}", String(n)));
+
+  const showActions = canManage || isClubPresident || isClubStaffViewer;
+
+  const shownClubs = useMemo(() => {
+    const q = clubQuery.trim().toLowerCase();
+    return q ? clubs.filter((c) => c.name.toLowerCase().includes(q)) : clubs;
+  }, [clubs, clubQuery]);
+
+  const memberDisplayName = (m: ClubMember) => `${m.userName || t.adminCmUnnamed}${m.nickname ? ` (${m.nickname})` : ""}`;
+
+  const shownMembers = useMemo(() => {
+    const q = rosterFilter.trim().toLowerCase();
+    if (!q) return members;
+    return members.filter(
+      (m) => (m.userName || "").toLowerCase().includes(q) || (m.nickname || "").toLowerCase().includes(q) || (m.studentId || "").toLowerCase().includes(q),
+    );
+  }, [members, rosterFilter]);
+
+  const rosterRows: RosterRow[] = shownMembers.map((m) => ({
+    key: m.id,
+    userId: m.userId,
+    name: memberDisplayName(m),
+    studentId: m.studentId,
+    // Roster detail — the members GET route scopes this to super_admin/admin or
+    // the club's own president (full shape, incl. phone/contactChannels) or, for
+    // a non-president staff-position holder, a limited shape with
+    // phone/contactChannels simply omitted (ClubsService.getClubMembers vs
+    // getClubMembersLimited) — so every row reaching this client already carries
+    // only what its viewer is authorized to see.
+    meta: [m.major, m.house?.name ? canonicalHouseName(m.house) : null].filter((x): x is string => !!x),
+    contacts: [m.phone, m.contactChannels].filter((x): x is string => !!x),
+    isPresident: m.role === "president",
+    position: m.position,
+  }));
+
+  // Medical & Emergency expand is gated to exactly the same set the server
+  // allows into GET .../members/[memberId]/medical (admin/club_president —
+  // canManageMembers happens to equal that set exactly). An isClubStaffViewer
+  // never gets a toggle here, so they never fire a fetch the server would
+  // reject anyway.
+  const canExpandMedical = canManageMembers;
+
+  const activeEditing = editingId !== null;
+  const searchQuery = memberSearch.trim();
+
   return (
     <>
       <div className="animate-fade-in-up pb-24">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6" style={{ marginBottom: 40 }}>
-          <h1 className="text-[clamp(32px,5vw,48px)] font-black tracking-tighter text-[var(--text-primary)] leading-tight">
-            {t.manageClubs || "Clubs"}
-          </h1>
-          {canManage && (
-            <button className="btn btn-primary" onClick={openCreate}>
-              <Plus size={18} />
-              New Club
-            </button>
-          )}
-        </div>
-
-        {/* Controls */}
-        {canFilterArchived && (
-          <div
-            className="bg-[var(--bg-surface)] p-4 rounded-[32px] border border-[var(--border-subtle)] shadow-2xl shadow-black/5"
-            style={{ marginBottom: 24, display: "flex", alignItems: "center", gap: 12 }}
-          >
-            <div
-              role="checkbox"
-              aria-checked={includeArchived}
-              tabIndex={0}
-              onClick={() => setIncludeArchived((v) => !v)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  setIncludeArchived((v) => !v);
-                }
-              }}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "8px 14px",
-                borderRadius: 12,
-                cursor: "pointer",
-                userSelect: "none",
-                transition: "all 0.2s",
-                background: includeArchived ? "var(--bg-elevated)" : "transparent",
-                border: `1px solid ${includeArchived ? "var(--accent-primary)" : "var(--border-subtle)"}`,
-              }}
-            >
-              <div style={{
-                width: 20,
-                height: 20,
-                borderRadius: 6,
-                background: includeArchived ? "var(--accent-primary)" : "transparent",
-                border: `2px solid ${includeArchived ? "var(--accent-primary)" : "var(--border-medium)"}`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-                transition: "all 0.15s",
-              }}>
-                {includeArchived && <Check size={13} color="white" strokeWidth={3} />}
-              </div>
-              <span style={{ fontWeight: 700, fontSize: 14, color: includeArchived ? "var(--text-primary)" : "var(--text-secondary)" }}>
-                Include archived clubs
-              </span>
-            </div>
-          </div>
-        )}
+        <PageHeader
+          title={t.manageClubs || "Clubs"}
+          description={canManage ? t.adminCmClubsDescAdmin : t.adminCmClubsDescPresident}
+          actions={
+            canManage ? (
+              <button className="btn btn-primary" onClick={openCreate}>
+                <Plus size={18} aria-hidden="true" />
+                {t.adminCmNewClub}
+              </button>
+            ) : undefined
+          }
+        />
 
         {isClubPresident && <EventFeedbackFormsShortcut clubs={clubs} scope="club" />}
         {isClubPresident && <ProposeEventSection scope={{ kind: "club", clubs }} />}
 
-        {listError && (
-          <div
-            style={{
-              padding: "16px 20px",
-              borderRadius: 16,
-              background: "rgb(var(--red-500-rgb) / 0.08)",
-              border: "1px solid rgb(var(--red-500-rgb) / 0.2)",
-              color: "var(--red-500)",
-              fontWeight: 600,
-              marginBottom: 24,
-            }}
-          >
-            {listError}
-          </div>
-        )}
-
-        {/* Table */}
-        <div
-          style={{
-            background: "var(--bg-surface)",
-            border: "1px solid var(--border-subtle)",
-            borderRadius: 40,
-            overflow: "hidden",
-            boxShadow: "0 20px 50px rgb(var(--shadow-rgb) / 0.02)",
-          }}
-        >
-          {loading ? (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 100, gap: 20 }}>
-              <div className="spinner" style={{ width: 40, height: 40, borderWidth: 3 }} />
-              <p style={{ color: "var(--text-muted)", fontWeight: 600 }}>Loading clubs…</p>
-            </div>
-          ) : clubs.length === 0 ? (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 100, gap: 16 }}>
-              <Building2 size={40} style={{ color: "var(--text-muted)" }} />
-              <p style={{ color: "var(--text-muted)", fontWeight: 600 }}>
-                {canManage ? "No clubs yet." : "You don't have a club assigned yet — contact an admin."}
-              </p>
-            </div>
-          ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table className="data-table" style={{ borderCollapse: "separate", borderSpacing: "0 0" }}>
-                <thead>
-                  <tr>
-                    <th style={{ padding: "24px 32px" }}>Name</th>
-                    <th>Members</th>
-                    <th>Status</th>
-                    <th>Created</th>
-                    {(canManage || isClubPresident || isClubStaffViewer) && <th style={{ textAlign: "right", paddingRight: 32 }}>Actions</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {clubs.map((club) => (
-                    <tr key={club.id}>
-                      <td style={{ padding: "16px 32px", fontWeight: 700, color: "var(--text-primary)" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <Building2 size={16} style={{ color: "var(--accent-primary)", flexShrink: 0 }} />
-                          {club.name}
-                        </div>
-                      </td>
-                      <td>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--text-secondary)", fontWeight: 600 }}>
-                          <Users size={14} style={{ color: "var(--text-muted)" }} />
-                          {club.memberCount} member{club.memberCount === 1 ? "" : "s"}
-                          {club.presidentCount > 0 && (
-                            <span className="badge badge-blue" style={{ marginLeft: 6 }}>
-                              {club.presidentCount} president{club.presidentCount === 1 ? "" : "s"}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        {club.isArchived ? (
-                          <span className="badge badge-yellow">Archived</span>
-                        ) : (
-                          <span className="badge badge-green">Active</span>
-                        )}
-                      </td>
-                      <td style={{ color: "var(--text-muted)", fontWeight: 500 }}>
-                        {new Date(club.createdAt).toLocaleDateString()}
-                      </td>
-                      {(canManage || isClubPresident || isClubStaffViewer) && (
-                        <td style={{ textAlign: "right", paddingRight: 32 }}>
-                          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-                            <button className="btn btn-ghost btn-sm" onClick={() => openMembers(club)}>
-                              <Eye size={14} />
-                              Members
-                            </button>
-                            {canManage && (
-                              <>
-                                <button className="btn btn-ghost btn-sm" onClick={() => openRename(club)}>
-                                  <Pencil size={14} />
-                                  Rename
-                                </button>
-                                <button
-                                  className="btn btn-ghost btn-sm"
-                                  disabled={archivingId === club.id}
-                                  onClick={() => toggleArchived(club)}
-                                >
-                                  {club.isArchived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
-                                  {club.isArchived ? "Unarchive" : "Archive"}
-                                </button>
-                                <button
-                                  className="btn btn-ghost btn-sm"
-                                  style={{ color: "var(--red-500)" }}
-                                  disabled={deletingId === club.id}
-                                  onClick={() => setConfirmDelete(club)}
-                                >
-                                  {deletingId === club.id ? <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : <Trash2 size={14} />}
-                                  Delete
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Create / Rename Modal */}
-      {editingId && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgb(var(--scrim-rgb) / 0.4)",
-            backdropFilter: "blur(8px)",
-            WebkitBackdropFilter: "blur(8px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1100,
-            padding: "clamp(12px, 4vw, 24px)",
-          }}
-          onClick={closeModal}
-        >
-          <div
-            className="animate-fade-in-up"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "var(--bg-surface)",
-              width: "100%",
-              maxWidth: 440,
-              borderRadius: "clamp(20px, 5vw, 32px)",
-              overflow: "hidden",
-              boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.2)",
-              border: "1px solid var(--border-medium)",
-            }}
-          >
-            <div style={{ padding: "28px 32px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h2 style={{ fontSize: 20, fontWeight: 800, color: "var(--text-primary)" }}>
-                {editingId === "new" ? "New Club" : "Rename Club"}
-              </h2>
-              <button className="btn btn-ghost" style={{ borderRadius: "50%", width: 36, height: 36, padding: 0 }} onClick={closeModal}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <div style={{ padding: 32, display: "flex", flexDirection: "column", gap: 12 }}>
-              <div className="field">
-                <label className="label">Club Name</label>
+        {(canFilterArchived || clubs.length > CLUB_SEARCH_MIN) && (
+          <Toolbar>
+            {clubs.length > CLUB_SEARCH_MIN && (
+              <div className="adm-search" style={{ position: "relative" }}>
+                <Search size={16} aria-hidden="true" style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none" }} />
                 <input
                   className="input"
-                  autoFocus
-                  value={nameDraft}
-                  onChange={(e) => setNameDraft(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") submitModal(); }}
-                  placeholder="e.g. Coding Club"
+                  type="search"
+                  aria-label={t.adminCmSearchClubs}
+                  placeholder={t.adminCmSearchClubs}
+                  value={clubQuery}
+                  onChange={(e) => setClubQuery(e.target.value)}
+                  style={{ paddingLeft: 40 }}
                 />
               </div>
-              {formError && (
-                <p style={{ color: "var(--red-500)", fontWeight: 600, fontSize: 13 }}>{formError}</p>
-              )}
+            )}
+            {canFilterArchived && (
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer", fontSize: 14, color: "var(--text-secondary)" }}>
+                <input
+                  type="checkbox"
+                  checked={includeArchived}
+                  onChange={(e) => setIncludeArchived(e.target.checked)}
+                  style={{ width: 20, height: 20, accentColor: "var(--accent-primary)" }}
+                />
+                {t.adminCmIncludeArchived}
+              </label>
+            )}
+            {!loading && !listError && clubs.length > 0 && (
+              <span role="status" style={{ fontSize: 13, color: "var(--text-muted)", marginLeft: "auto" }}>
+                {clubQuery.trim()
+                  ? t.adminCmClubsShownOf.replace("{shown}", String(shownClubs.length)).replace("{total}", String(clubs.length))
+                  : t.adminCmClubsCount.replace("{n}", String(clubs.length))}
+              </span>
+            )}
+          </Toolbar>
+        )}
+
+        {/* List */}
+        {listError ? (
+          <ErrorState title={t.adminCmLoadClubsFailed} message={listError} onRetry={refresh} />
+        ) : loading && clubs.length === 0 ? (
+          <LoadingState variant="skeleton" rows={4} label={t.adminCmLoadingClubs} />
+        ) : clubs.length === 0 ? (
+          <EmptyState
+            icon={<Building2 size={24} />}
+            title={canManage ? t.adminCmNoClubsTitle : t.adminCmNoClubAssignedTitle}
+            description={canManage ? t.adminCmNoClubsBody : t.adminCmNoClubAssignedBody}
+            action={
+              canManage ? (
+                <button className="btn btn-primary" onClick={openCreate}>
+                  <Plus size={18} aria-hidden="true" />
+                  {t.adminCmNewClub}
+                </button>
+              ) : undefined
+            }
+          />
+        ) : shownClubs.length === 0 ? (
+          <EmptyState
+            icon={<Search size={24} />}
+            title={t.adminCmNoMatchTitle}
+            description={t.adminCmNoMatchBody}
+            action={<button className="btn btn-ghost" onClick={() => setClubQuery("")}>{t.adminCmClearSearch}</button>}
+          />
+        ) : (
+          <>
+            {/* Laptop / tablet */}
+            <div className="hidden sm:block" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 20, overflow: "hidden" }}>
+              <TableScroll label={t.manageClubs}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th scope="col" style={{ textTransform: "none", letterSpacing: 0, fontSize: 12 }}>{t.adminCmColName}</th>
+                      <th scope="col" style={{ textTransform: "none", letterSpacing: 0, fontSize: 12 }}>{t.adminCmColMembers}</th>
+                      <th scope="col" style={{ textTransform: "none", letterSpacing: 0, fontSize: 12 }}>{t.adminCmColStatus}</th>
+                      <th scope="col" style={{ textTransform: "none", letterSpacing: 0, fontSize: 12 }}>{t.adminCmColCreated}</th>
+                      {showActions && <th scope="col" style={{ textTransform: "none", letterSpacing: 0, fontSize: 12, textAlign: "right" }}>{t.adminCmColActions}</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {shownClubs.map((club) => {
+                      const selected = viewingMembers?.id === club.id;
+                      return (
+                        <tr key={club.id} aria-current={selected ? "true" : undefined} style={selected ? { background: "var(--accent-glow)" } : undefined}>
+                          <td style={{ fontWeight: 700, color: "var(--text-primary)" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              <Building2 size={16} aria-hidden="true" style={{ color: "var(--accent-primary)", flexShrink: 0 }} />
+                              {club.name}
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                              <span>{memberCountText(club.memberCount)}</span>
+                              {club.presidentCount > 0 && <StatusBadge tone="info" icon={false}>{presidentCountText(club.presidentCount)}</StatusBadge>}
+                            </div>
+                          </td>
+                          <td>
+                            {club.isArchived ? (
+                              <StatusBadge tone="warning" icon={<Archive size={12} />}>{t.adminCmArchived}</StatusBadge>
+                            ) : (
+                              <StatusBadge tone="success">{t.adminCmActive}</StatusBadge>
+                            )}
+                          </td>
+                          <td style={{ color: "var(--text-muted)" }}>{new Date(club.createdAt).toLocaleDateString()}</td>
+                          {showActions && (
+                            <td>
+                              <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 6 }}>
+                                <button className="btn btn-ghost btn-sm" onClick={() => openMembers(club)}>
+                                  <Users size={14} aria-hidden="true" />
+                                  {t.adminCmMembersButton}
+                                </button>
+                                {canManage && (
+                                  <>
+                                    <IconButton size="sm" label={t.adminCmRenameClubLabel.replace("{name}", club.name)} icon={<Pencil size={16} />} onClick={() => openRename(club)} />
+                                    <IconButton
+                                      size="sm"
+                                      label={(club.isArchived ? t.adminCmUnarchiveClubLabel : t.adminCmArchiveClubLabel).replace("{name}", club.name)}
+                                      icon={archivingId === club.id ? <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} /> : club.isArchived ? <ArchiveRestore size={16} /> : <Archive size={16} />}
+                                      disabled={archivingId === club.id}
+                                      onClick={() => toggleArchived(club)}
+                                    />
+                                    <span aria-hidden="true" style={{ width: 1, height: 24, background: "var(--border-subtle)", margin: "0 6px" }} />
+                                    <IconButton
+                                      size="sm"
+                                      tone="danger"
+                                      label={t.adminCmDeleteClubLabel.replace("{name}", club.name)}
+                                      icon={deletingId === club.id ? <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} /> : <Trash2 size={16} />}
+                                      disabled={deletingId === club.id}
+                                      onClick={() => askDelete(club)}
+                                    />
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </TableScroll>
             </div>
 
-            <div style={{ padding: "20px 32px", background: "var(--bg-elevated)", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "flex-end", gap: 12 }}>
-              <button className="btn btn-ghost" onClick={closeModal} disabled={saving}>
-                Cancel
-              </button>
-              <button className="btn btn-primary" onClick={submitModal} disabled={saving}>
-                {saving ? "Saving…" : editingId === "new" ? "Create" : "Save"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            {/* Phones: cards */}
+            <ul className="flex flex-col gap-2.5 sm:hidden" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+              {shownClubs.map((club) => (
+                <li key={club.id} style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                      <Building2 size={18} aria-hidden="true" style={{ color: "var(--accent-primary)", flexShrink: 0 }} />
+                      <span style={{ fontWeight: 700, fontSize: 16, color: "var(--text-primary)", overflowWrap: "anywhere" }}>{club.name}</span>
+                    </div>
+                    {club.isArchived ? (
+                      <StatusBadge tone="warning" icon={<Archive size={12} />}>{t.adminCmArchived}</StatusBadge>
+                    ) : (
+                      <StatusBadge tone="success">{t.adminCmActive}</StatusBadge>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 13, color: "var(--text-secondary)", display: "flex", flexWrap: "wrap", gap: "4px 12px" }}>
+                    <span>{memberCountText(club.memberCount)}</span>
+                    {club.presidentCount > 0 && <span>{presidentCountText(club.presidentCount)}</span>}
+                    <span style={{ color: "var(--text-muted)" }}>{t.adminCmColCreated}: {new Date(club.createdAt).toLocaleDateString()}</span>
+                  </div>
+                  {showActions && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <button className="btn btn-primary" onClick={() => openMembers(club)}>
+                        <Users size={16} aria-hidden="true" />
+                        {t.adminCmMembersButton}
+                      </button>
+                      {canManage && (
+                        <>
+                          <IconButton label={t.adminCmRenameClubLabel.replace("{name}", club.name)} icon={<Pencil size={18} />} onClick={() => openRename(club)} />
+                          <IconButton
+                            label={(club.isArchived ? t.adminCmUnarchiveClubLabel : t.adminCmArchiveClubLabel).replace("{name}", club.name)}
+                            icon={archivingId === club.id ? <div className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }} /> : club.isArchived ? <ArchiveRestore size={18} /> : <Archive size={18} />}
+                            disabled={archivingId === club.id}
+                            onClick={() => toggleArchived(club)}
+                          />
+                          <span style={{ marginLeft: "auto" }}>
+                            <IconButton
+                              tone="danger"
+                              label={t.adminCmDeleteClubLabel.replace("{name}", club.name)}
+                              icon={deletingId === club.id ? <div className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }} /> : <Trash2 size={18} />}
+                              disabled={deletingId === club.id}
+                              onClick={() => askDelete(club)}
+                            />
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
 
-      {/* Members Modal — one club's roster at a time. super_admin/admin can open
+      {/* Create / Rename */}
+      <Modal
+        open={activeEditing}
+        onClose={closeModal}
+        size="sm"
+        dismissible={!saving}
+        icon={<Building2 size={20} />}
+        title={editingId === "new" ? t.adminCmNewClub : t.adminCmRenameClub}
+        footer={
+          <>
+            <button type="button" className="btn btn-ghost" onClick={closeModal} disabled={saving}>
+              {t.adminUiCancel}
+            </button>
+            <button type="submit" form="club-name-form" className="btn btn-primary" disabled={saving}>
+              {saving ? t.adminCmSaving : editingId === "new" ? t.adminCmCreate : t.adminCmSave}
+            </button>
+          </>
+        }
+      >
+        <form id="club-name-form" onSubmit={(e) => { e.preventDefault(); submitModal(); }}>
+          <Field label={t.adminCmClubName} required hint={t.adminCmClubNameHint} error={formError}>
+            {(p) => (
+              <input
+                {...p}
+                className="input"
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                placeholder={t.adminCmClubNamePlaceholder}
+                autoComplete="off"
+              />
+            )}
+          </Field>
+        </form>
+      </Modal>
+
+      {/* Members modal — one club's roster at a time. super_admin/admin can open
           any club; a club_president can open only their own (the list API already
           scopes `clubs` to just their club(s), and the members API re-verifies
           server-side against club_members — see /api/admin/clubs/[id]/members —
@@ -685,64 +752,21 @@ export default function ClubsPage() {
           their own club too, but the members API returns a limited shape for them
           (no phone/contactChannels) and the medical/export/manage routes reject
           them outright regardless of what this client renders. */}
-      {viewingMembers && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgb(var(--scrim-rgb) / 0.4)",
-            backdropFilter: "blur(8px)",
-            WebkitBackdropFilter: "blur(8px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1100,
-            padding: "clamp(12px, 4vw, 24px)",
-          }}
-          onClick={() => setViewingMembers(null)}
-        >
-          <div
-            className="animate-fade-in-up"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "var(--bg-surface)",
-              width: "100%",
-              maxWidth: 480,
-              maxHeight: "80vh",
-              display: "flex",
-              flexDirection: "column",
-              borderRadius: "clamp(20px, 5vw, 32px)",
-              overflow: "hidden",
-              boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.2)",
-              border: "1px solid var(--border-medium)",
-            }}
-          >
-            <div style={{ padding: "28px 32px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-              <div>
-                <h2 style={{ fontSize: 20, fontWeight: 800, color: "var(--text-primary)" }}>
-                  {viewingMembers.name}
-                </h2>
-                <p style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 600, marginTop: 2 }}>
-                  {members.length} member{members.length === 1 ? "" : "s"}
-                </p>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                {canManageMembers && members.length > 0 && (
-                  <button
-                    className="btn btn-ghost btn-sm"
-                    onClick={exportMembersXlsx}
-                    title="Export the full roster (identity, contact, house, position, medical & emergency contact) to Excel (.xlsx) — this export is audit-logged"
-                  >
-                    <Download size={14} />
-                    Export
-                  </button>
-                )}
-                <button className="btn btn-ghost" style={{ borderRadius: "50%", width: 36, height: 36, padding: 0 }} onClick={() => setViewingMembers(null)}>
-                  <X size={18} />
-                </button>
-              </div>
-            </div>
-
+      <Modal
+        open={!!viewingMembers}
+        onClose={() => setViewingMembers(null)}
+        size="xl"
+        icon={<Building2 size={20} />}
+        title={viewingMembers?.name ?? ""}
+        description={t.adminCmRosterDesc.replace("{n}", String(members.length))}
+        footer={
+          <button type="button" className="btn btn-primary" onClick={() => setViewingMembers(null)}>
+            {t.adminUiClose}
+          </button>
+        }
+      >
+        {viewingMembers && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             {/* Add-member picker — canManageMembers (staff, or club_president for
                 their own club). Search is scoped server-side to THIS club (see
                 GET .../members/search) — a club_president never gets the full
@@ -751,297 +775,148 @@ export default function ClubsPage() {
                 can never drift from the user's system role (see
                 ClubsService.addClubMember). */}
             {canManageMembers && (
-              <div style={{ padding: "16px 20px 0", flexShrink: 0 }}>
-                <input
-                  className="input"
-                  placeholder="Search students by name or student ID to add…"
-                  value={memberSearch}
-                  onChange={(e) => setMemberSearch(e.target.value)}
-                />
-                {memberSearch.trim() && (
-                  <div style={{ marginTop: 8, maxHeight: 180, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
+              <div>
+                <Field label={t.adminCmAddMemberLabel} hint={t.adminCmAddMemberHint} error={addMemberError}>
+                  {(p) => (
+                    <input
+                      {...p}
+                      className="input"
+                      type="search"
+                      autoComplete="off"
+                      placeholder={t.adminCmAddMemberPlaceholder}
+                      value={memberSearch}
+                      onChange={(e) => setMemberSearch(e.target.value)}
+                    />
+                  )}
+                </Field>
+                {searchQuery && (
+                  <div style={{ marginTop: 8, maxHeight: 220, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
                     {searching ? (
-                      <div style={{ display: "flex", justifyContent: "center", padding: 12 }}>
-                        <div className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }} />
-                      </div>
+                      <LoadingState compact label={t.adminCmSearching} />
                     ) : (
-                      searchResults
-                        .filter((s) => !members.some((m) => m.userId === s.id))
-                        .map((s) => (
+                      (() => {
+                        const results = searchResults.filter((s) => !members.some((m) => m.userId === s.id));
+                        if (results.length === 0) {
+                          return searchQuery.length < 2 ? null : (
+                            <p style={{ fontSize: 13, color: "var(--text-muted)", padding: "6px 2px" }}>{t.adminCmNoStudentMatch}</p>
+                          );
+                        }
+                        return results.map((s) => (
                           <div
                             key={s.id}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              padding: "8px 10px",
-                              borderRadius: 10,
-                              background: "var(--bg-elevated)",
-                            }}
+                            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 12px", borderRadius: 12, background: "var(--bg-elevated)" }}
                           >
-                            <div>
-                              <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text-primary)" }}>{s.name}</div>
-                              {s.studentId && <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{s.studentId}</div>}
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontWeight: 600, fontSize: 14, color: "var(--text-primary)" }}>{s.name}</div>
+                              {s.studentId && <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{s.studentId}</div>}
                             </div>
-                            <button
-                              className="btn btn-ghost btn-sm"
-                              disabled={addingUserId === s.id}
-                              onClick={() => addMember(s.id)}
-                            >
-                              {addingUserId === s.id ? <div className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> : <Plus size={12} />}
-                              Add
+                            <button className="btn btn-ghost btn-sm" disabled={addingUserId === s.id} onClick={() => addMember(s)} aria-label={t.adminCmAddNamed.replace("{name}", s.name)}>
+                              {addingUserId === s.id ? <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : <Plus size={14} aria-hidden="true" />}
+                              {t.adminCmAdd}
                             </button>
                           </div>
-                        ))
+                        ));
+                      })()
                     )}
                   </div>
-                )}
-                {addMemberError && (
-                  <p style={{ color: "var(--red-500)", fontWeight: 600, fontSize: 12, marginTop: 6 }}>{addMemberError}</p>
                 )}
               </div>
             )}
 
-            <div style={{ padding: "12px 20px", overflowY: "auto", flex: 1 }}>
-              {loadingMembers ? (
-                <div style={{ display: "flex", justifyContent: "center", padding: 40 }}>
-                  <div className="spinner" style={{ width: 28, height: 28, borderWidth: 3 }} />
-                </div>
-              ) : membersError ? (
-                <p style={{ color: "var(--red-500)", fontWeight: 600, fontSize: 13, padding: "12px 12px" }}>{membersError}</p>
-              ) : members.length === 0 ? (
-                <p style={{ color: "var(--text-muted)", fontWeight: 600, fontSize: 13, padding: "12px 12px" }}>
-                  {canManageMembers
-                    ? "No members yet — search above to add one, or assign a club_president from the Students page."
-                    : "No members yet — assign a club_president to this club from the Students page."}
-                </p>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {members.map((m) => {
-                    const isExpanded = expandedMemberId === m.id;
-                    const medical = medicalByUserId[m.userId];
-                    const isLoadingMedical = loadingMedicalUserId === m.userId;
-                    const hasMedicalDetail = !!(
-                      medical && (medical.chronicDiseases || medical.medicalHistory || medical.drugAllergies || medical.foodAllergies ||
-                      medical.dietaryRestrictions || medical.faintingHistory || medical.emergencyMedication || medical.hospitalNumber || medical.emergencyContacts.length > 0)
-                    );
-                    // Medical & Emergency expand is gated to exactly the same set the
-                    // server allows into GET .../members/[memberId]/medical
-                    // (admin/club_president — canManageMembers happens to equal that
-                    // set exactly). An isClubStaffViewer never gets a clickable
-                    // chevron here, so they never fire a fetch the server would
-                    // reject anyway.
-                    const canExpandMedical = canManageMembers;
-                    return (
-                    <div key={m.id} style={{ borderRadius: 12, background: "var(--bg-elevated)", overflow: "hidden" }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "flex-start",
-                          justifyContent: "space-between",
-                          gap: 12,
-                          padding: "10px 12px",
-                          cursor: canExpandMedical ? "pointer" : "default",
-                        }}
-                        onClick={canExpandMedical ? () => toggleMemberExpand(m) : undefined}
+            {loadingMembers ? (
+              <LoadingState variant="skeleton" rows={3} label={t.adminCmLoadingMembers} />
+            ) : membersError ? (
+              <ErrorState title={t.adminCmLoadMembersFailed} message={membersError} onRetry={() => loadMembers(viewingMembers.id)} compact />
+            ) : members.length === 0 ? (
+              <EmptyState
+                icon={<Users size={24} />}
+                compact
+                title={t.adminCmNoMembersTitle}
+                description={canManageMembers ? t.adminCmNoMembersManage : t.adminCmNoMembersView}
+              />
+            ) : (
+              <div>
+                {(members.length > ROSTER_FILTER_MIN || (canManageMembers && members.length > 0)) && (
+                  <Toolbar>
+                    {members.length > ROSTER_FILTER_MIN && (
+                      <input
+                        className="input"
+                        type="search"
+                        aria-label={t.adminCmFilterRoster}
+                        placeholder={t.adminCmFilterRoster}
+                        value={rosterFilter}
+                        onChange={(e) => setRosterFilter(e.target.value)}
+                      />
+                    )}
+                    <span role="status" style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                      {rosterFilter.trim()
+                        ? t.adminCmMembersShownOf.replace("{shown}", String(shownMembers.length)).replace("{total}", String(members.length))
+                        : memberCountText(members.length)}
+                    </span>
+                    {canManageMembers && (
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        style={{ marginLeft: "auto" }}
+                        onClick={exportMembersXlsx}
+                        title={t.adminCmExportHint}
                       >
-                        <div style={{ minWidth: 0, display: "flex", alignItems: "flex-start", gap: 6 }}>
-                          {canExpandMedical && (isExpanded ? <ChevronUp size={14} style={{ marginTop: 3, flexShrink: 0, color: "var(--text-muted)" }} /> : <ChevronDown size={14} style={{ marginTop: 3, flexShrink: 0, color: "var(--text-muted)" }} />)}
-                          <div>
-                            <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-primary)" }}>
-                              {m.userName || "Unnamed"}{m.nickname ? ` (${m.nickname})` : ""}
-                            </div>
-                            {m.studentId && (
-                              <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
-                                {m.studentId}
-                              </div>
-                            )}
-                            {/* Roster detail — the members GET route scopes this to
-                                super_admin/admin or the club's own president (full
-                                shape, incl. phone/contactChannels) or, for a
-                                non-president staff-position holder, a limited shape
-                                with phone/contactChannels simply omitted (see
-                                ClubsService.getClubMembers vs getClubMembersLimited) —
-                                so every row reaching this client already carries only
-                                what its viewer is authorized to see. */}
-                            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, display: "flex", flexWrap: "wrap", gap: 8 }}>
-                              {m.major && <span>{m.major}</span>}
-                              {m.house?.name && <span>{canonicalHouseName(m.house)}</span>}
-                              {m.phone && <span>{m.phone}</span>}
-                              {m.contactChannels && <span>{m.contactChannels}</span>}
-                            </div>
-                          </div>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-                          {m.role === "president" ? (
-                            // Locked: a club president's position is always "President"
-                            // (ClubsService.setMemberPosition/applyClubPresidencies keep
-                            // that club_members row's position in sync server-side) — no
-                            // editable control is ever rendered here, for anyone,
-                            // including super_admin.
-                            <span className="badge badge-blue">President</span>
-                          ) : canManageMembers ? (
-                            <select
-                              className="input"
-                              style={{ width: 160, fontSize: 12, padding: "4px 8px" }}
-                              value={m.position || ""}
-                              onChange={(e) => updateMemberPosition(m.userId, e.target.value || null)}
-                            >
-                              <option value="">—</option>
-                              {NON_SMO_POSITION_IDS.map((id) => (
-                                <option key={id} value={id}>{t[POSITION_I18N_KEY[id] as keyof typeof t]}</option>
-                              ))}
-                            </select>
-                          ) : (
-                            m.position && (
-                              <span className="badge">{t[POSITION_I18N_KEY[m.position as keyof typeof POSITION_I18N_KEY] as keyof typeof t]}</span>
-                            )
-                          )}
-                          {canManageMembers && m.role !== "president" && (
-                            <button
-                              className="btn btn-ghost btn-sm"
-                              style={{ color: "var(--red-500)", padding: "4px 8px" }}
-                              disabled={removingUserId === m.userId}
-                              onClick={() => removeMember(m.userId)}
-                              title="Remove from club"
-                            >
-                              {removingUserId === m.userId ? <div className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> : <X size={14} />}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      {/* Medical & Emergency — collapsed by default, one member at a
-                          time. Unlike the rest of the row, this data is fetched (and
-                          audit-logged as THIS member being viewed) on first expand, not
-                          bundled into the roster load — see toggleMemberExpand. Emergency
-                          contacts are pre-redacted server-side to relationship + phone
-                          only (no contact name). */}
-                      {isExpanded && (
-                        <div style={{ padding: "0 12px 12px 32px", borderTop: "1px solid var(--border-subtle)", marginTop: 0, paddingTop: 10 }}>
-                          {isLoadingMedical ? (
-                            <div style={{ display: "flex", justifyContent: "center", padding: 10 }}>
-                              <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
-                            </div>
-                          ) : !medical ? (
-                            <p style={{ fontSize: 12, color: "var(--red-500)" }}>{medicalError || "Failed to load medical detail."}</p>
-                          ) : !hasMedicalDetail ? (
-                            <p style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>No medical info on file.</p>
-                          ) : (
-                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 800, color: "var(--red-500)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>
-                                <HeartPulse size={13} /> Medical & Emergency
-                              </div>
-                              {medical.chronicDiseases && <p style={{ fontSize: 12 }}><b>Chronic:</b> {medical.chronicDiseases}</p>}
-                              {medical.medicalHistory && <p style={{ fontSize: 12 }}><b>History:</b> {medical.medicalHistory}</p>}
-                              {medical.drugAllergies && <p style={{ fontSize: 12, color: "var(--red-500)" }}><b>Drug allergies:</b> {medical.drugAllergies}</p>}
-                              {medical.foodAllergies && <p style={{ fontSize: 12, color: "var(--red-500)" }}><b>Food allergies:</b> {medical.foodAllergies}</p>}
-                              {medical.dietaryRestrictions && <p style={{ fontSize: 12 }}><b>Dietary:</b> {medical.dietaryRestrictions}</p>}
-                              {medical.faintingHistory && <p style={{ fontSize: 12, color: "var(--red-500)" }}>History of fainting</p>}
-                              {medical.emergencyMedication && <p style={{ fontSize: 12, color: "var(--red-500)" }}><b>Emergency medication:</b> {medical.emergencyMedication}</p>}
-                              {medical.hospitalNumber && <p style={{ fontSize: 12 }}><b>HN:</b> {medical.hospitalNumber}{medical.hospitalName ? ` (${medical.hospitalName})` : ""}</p>}
-                              {medical.emergencyContacts.length > 0 && (
-                                <p style={{ fontSize: 12 }}>
-                                  <b>Emergency contact:</b>{" "}
-                                  {medical.emergencyContacts.map((c, i) => (
-                                    <span key={i}>{i > 0 ? "; " : ""}{c.relationship}: {c.phone}</span>
-                                  ))}
-                                </p>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                        <Download size={14} aria-hidden="true" />
+                        {t.adminCmExport}
+                      </button>
+                    )}
+                  </Toolbar>
+                )}
+                {canManageMembers && (
+                  <div style={{ marginBottom: 12 }}>
+                    <InlineAlert tone="info">{t.adminCmExportHint}</InlineAlert>
+                  </div>
+                )}
+                {shownMembers.length === 0 ? (
+                  <EmptyState
+                    compact
+                    icon={<Search size={24} />}
+                    title={t.adminCmNoMatchTitle}
+                    description={t.adminCmNoMatchBody}
+                    action={<button className="btn btn-ghost" onClick={() => setRosterFilter("")}>{t.adminCmClearSearch}</button>}
+                  />
+                ) : (
+                  <RosterList
+                    rows={rosterRows}
+                    tableLabel={t.adminCmRosterTableLabel.replace("{club}", viewingMembers.name)}
+                    editablePosition={canManageMembers}
+                    onPositionChange={(row, position) => updateMemberPosition(row.userId, position)}
+                    onRemove={
+                      canManageMembers
+                        ? (row) => {
+                            const m = members.find((x) => x.id === row.key);
+                            if (m) removeMember(m, row.name);
+                          }
+                        : undefined
+                    }
+                    removingUserId={removingUserId}
+                    canExpandMedical={canExpandMedical}
+                    expandedKey={expandedMemberId}
+                    onToggleExpand={(row) => {
+                      const m = members.find((x) => x.id === row.key);
+                      if (m) toggleMemberExpand(m);
+                    }}
+                    renderMedical={(row) => (
+                      // Collapsed by default, one member at a time. Fetched (and
+                      // audit-logged as THIS member being viewed) on first expand,
+                      // never bundled into the roster load — see toggleMemberExpand.
+                      <MedicalDetailPanel
+                        medical={medicalByUserId[row.userId]}
+                        loading={loadingMedicalUserId === row.userId}
+                        error={medicalError}
+                      />
+                    )}
+                  />
+                )}
+              </div>
+            )}
           </div>
-        </div>
-      )}
-
-      {/* Delete confirmation — danger style, matches admin/events. Permanent:
-          the club and all its club_members rows are gone; any event still
-          citing it as an owner is detached server-side (see DELETE route). */}
-      {confirmDelete && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgb(var(--scrim-rgb) / 0.6)",
-            backdropFilter: "blur(12px)",
-            zIndex: 2400,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 24,
-          }}
-          onClick={() => setConfirmDelete(null)}
-        >
-          <div
-            className="animate-fade-in-up"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "var(--bg-surface)",
-              width: "90%",
-              maxWidth: 440,
-              borderRadius: 28,
-              padding: 32,
-              textAlign: "center",
-              boxShadow: "0 30px 60px rgb(var(--shadow-rgb) / 0.3)",
-              border: "1px solid var(--border-medium)",
-            }}
-          >
-            <div style={{
-              width: 56,
-              height: 56,
-              borderRadius: "50%",
-              background: "rgb(var(--red-500-rgb) / 0.1)",
-              color: "var(--red-500)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              margin: "0 auto 20px",
-            }}>
-              <AlertCircle size={28} />
-            </div>
-            <h4 style={{ fontSize: 20, fontWeight: 900, color: "var(--text-primary)", marginBottom: 12 }}>
-              Delete &ldquo;{confirmDelete.name}&rdquo;?
-            </h4>
-            <p style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6, marginBottom: 28 }}>
-              This permanently removes the club{confirmDelete.memberCount > 0 ? ` and its ${confirmDelete.memberCount} member${confirmDelete.memberCount === 1 ? "" : "s"}` : ""}.
-              Any event that had this club assigned as an owner will need a new club assigned. This cannot be undone — consider Archive instead if you just want to hide it.
-            </p>
-            <div style={{ display: "flex", gap: 16 }}>
-              <button
-                className="btn btn-ghost"
-                style={{ flex: 1, height: 46, borderRadius: 12, fontSize: 14, fontWeight: 700 }}
-                onClick={() => setConfirmDelete(null)}
-              >
-                Cancel
-              </button>
-              <button
-                className="btn"
-                style={{
-                  flex: 1,
-                  height: 46,
-                  borderRadius: 12,
-                  fontSize: 14,
-                  fontWeight: 800,
-                  background: "linear-gradient(135deg, var(--red-500) 0%, var(--red-600) 100%)",
-                  color: "var(--text-on-color)",
-                  border: "none",
-                  boxShadow: "0 4px 14px rgb(var(--red-500-rgb) / 0.3)",
-                }}
-                onClick={confirmAndDelete}
-              >
-                Delete Club
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        )}
+      </Modal>
     </>
   );
 }

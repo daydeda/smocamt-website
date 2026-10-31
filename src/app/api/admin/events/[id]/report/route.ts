@@ -18,7 +18,7 @@ export async function GET(
     const myRoles = session?.user?.roles ?? (session?.user?.role ? [session.user.role] : []);
     const smoPosition = session?.user?.smoPosition;
     const anusmoPosition = session?.user?.anusmoPosition;
-    const isRoleAdmin = myRoles.some((r) => ["super_admin", "admin", "registration", "organizer", "smo", "club_president", "major_president"].includes(r));
+    const isRoleAdmin = myRoles.some((r) => ["super_admin", "admin", "smo", "club_president", "major_president"].includes(r));
     const isAdminRole = isRoleAdmin || (!!session?.user?.id
       && (await EventScopeService.hasRegistrationScope(session.user.id, myRoles, smoPosition, anusmoPosition)));
     if (!session?.user || !isAdminRole) {

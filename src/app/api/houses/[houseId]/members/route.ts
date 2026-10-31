@@ -29,7 +29,7 @@ export async function GET(
     // assigned at first check-in now, so a freshly-assigned student's token can be
     // stale. The URL is guessable, so this guard is what enforces "own house only".
     const viewer = await HousesService.getUserHouseId(session.user.id);
-    const isAdmin = ["super_admin", "admin", "registration", "organizer"].includes(session.user.role || "")
+    const isAdmin = ["super_admin", "admin"].includes(session.user.role || "")
       || isGlobalRegistrationPosition(effectiveRoles(session.user.role, session.user.roles), session.user.smoPosition, session.user.anusmoPosition);
     if (!isAdmin && colorGroupOfHouseId(viewer?.houseId) !== colorGroup) {
       return NextResponse.json(

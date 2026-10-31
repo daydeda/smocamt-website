@@ -18,10 +18,10 @@ export type ScanStatus = "success" | "success_walk_in" | "success_checkout" | "p
 
 // "prize" is not a scan mode of THIS camera: it swaps the page body for
 // ScannerPrizeTab, whose PrizeAwardPanel runs its own camera (see selectMode).
-export type ScanMode = "checkin" | "score" | "prize" | "shop" | "property";
+export type ScanMode = "checkin" | "score" | "prize" | "shop" | "property" | "lookup";
 // Tabs that run their own camera (a dialog with its own html5-qrcode), so this
 // page's scanner must be stopped while they're open.
-export const ownsCamera = (m: ScanMode) => m === "prize" || m === "shop" || m === "property";
+export const ownsCamera = (m: ScanMode) => m === "prize" || m === "shop" || m === "property" || m === "lookup";
 
 export type ScanResult = {
   status: ScanStatus;

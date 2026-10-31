@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ClipboardList, Calendar, ListChecks } from "lucide-react";
+import { Calendar, ChevronRight, ClipboardList } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { EmptyState, ErrorState, LoadingState, PageHeader, Panel, StatusBadge } from "@/components/admin/ui";
 
 type PendingForm = {
   id: string;
@@ -23,6 +24,28 @@ type PendingEvent = {
   updatedAt: string;
 };
 
+/** A row that deep-links to the thing needing review. */
+function ReviewRow({ href, title, subtitle, pendingLabel }: { href: string; title: string; subtitle: string; pendingLabel: string }) {
+  return (
+    <li>
+      <Link
+        href={href}
+        className="adm-stat adm-stat-link"
+        style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, padding: 16, minHeight: 64 }}
+      >
+        <span style={{ minWidth: 0 }}>
+          <span style={{ display: "block", fontWeight: 700, fontSize: 14, overflowWrap: "anywhere" }}>{title}</span>
+          <span style={{ display: "block", fontSize: 13, color: "var(--text-muted)", marginTop: 2, overflowWrap: "anywhere" }}>{subtitle}</span>
+        </span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          <StatusBadge tone="warning">{pendingLabel}</StatusBadge>
+          <ChevronRight size={18} aria-hidden="true" style={{ color: "var(--text-muted)" }} />
+        </span>
+      </Link>
+    </li>
+  );
+}
+
 // Aggregate dashboard so staff don't have to open each event individually and
 // notice a review banner — see GET /api/admin/reviews. Each row deep-links
 // straight to the thing that needs reviewing: a form row opens the Feedback
@@ -30,117 +53,83 @@ type PendingEvent = {
 // presidents use, see admin/events/page.tsx), an event row opens the plain
 // event editor (?edit=<eventId>).
 export function PendingReviewsClient() {
-  const { lang } = useLanguage();
+  const { t } = useLanguage();
   const [pendingForms, setPendingForms] = useState<PendingForm[]>([]);
   const [pendingEvents, setPendingEvents] = useState<PendingEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
+    setFailed(false);
     fetch("/api/admin/reviews")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (!d) return;
+        if (!d) {
+          setFailed(true);
+          return;
+        }
         setPendingForms(Array.isArray(d.forms) ? d.forms : []);
         setPendingEvents(Array.isArray(d.events) ? d.events : []);
       })
-      .catch(() => {})
+      .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    // Deferred so the loading flag flips outside the synchronous effect body.
+    const timer = setTimeout(load, 0);
+    return () => clearTimeout(timer);
+  }, [load]);
+
+  const count = (n: number) => <StatusBadge tone={n > 0 ? "warning" : "neutral"} icon={false}>{n}</StatusBadge>;
+
   return (
     <div className="pb-20">
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: "clamp(28px,5vw,42px)", fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1.3, display: "flex", alignItems: "center", gap: 12 }}>
-          <ListChecks size={32} strokeWidth={2.5} style={{ color: "var(--accent-primary)" }} />
-          {lang === "th" ? "รอตรวจสอบ" : lang === "cn" ? "待审核" : lang === "mm" ? "စစ်ဆေးရန် စောင့်ဆိုင်းနေသည်" : "Pending Reviews"}
-        </h1>
-        <p style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 6 }}>
-          {lang === "th"
-            ? "แบบประเมินและรายละเอียดกิจกรรมที่ประธานชมรม/สาขาแก้ไข รอการตรวจสอบจากทีมงาน"
-            : lang === "cn"
-            ? "社团/专业会长编辑的反馈表单和活动详情，等待工作人员审核。"
-            : lang === "mm"
-            ? "ကလပ်/အထူးပြုဌာန ပ္ဂူပ္ပါယ်များ ပြင်ဆင်ခဲ့သည့် အကဲဖြတ်ပုံစံနှင့် ပွဲအသေးစိတ်များ ဝန်ထမ်း စစ်ဆေးရန် စောင့်ဆိုင်းနေသည်။"
-            : "Feedback forms and event detail edits from club/major presidents, awaiting staff review."}
-        </p>
-      </div>
+      <PageHeader title={t.adminOvRevTitle} description={t.adminOvRevDesc} />
 
       {loading ? (
-        <div style={{ display: "flex", justifyContent: "center", padding: 60 }}>
-          <div className="spinner" style={{ width: 28, height: 28 }} />
-        </div>
+        <LoadingState variant="skeleton" rows={4} />
+      ) : failed ? (
+        <ErrorState onRetry={load} />
       ) : (
-        <>
-          <section style={{ marginBottom: 32 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 800, display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-              <ClipboardList size={18} style={{ color: "var(--indigo-500)" }} />
-              {lang === "th" ? "แบบประเมินที่รอตรวจสอบ" : lang === "cn" ? "待审核反馈表单" : lang === "mm" ? "စောင့်ဆိုင်းနေသော အကဲဖြတ်ပုံစံများ" : "Pending Feedback Forms"}
-              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)" }}>({pendingForms.length})</span>
-            </h2>
+        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          <Panel title={t.adminOvRevFormsTitle} icon={<ClipboardList size={18} />} actions={count(pendingForms.length)}>
             {pendingForms.length === 0 ? (
-              <p style={{ color: "var(--text-muted)", fontSize: 13, fontWeight: 600 }}>
-                {lang === "th" ? "ไม่มีแบบประเมินที่รอตรวจสอบ" : lang === "cn" ? "没有待审核的表单。" : lang === "mm" ? "စစ်ဆေးရန် စောင့်ဆိုင်းနေသော ဖောင် မရှိပါ။" : "Nothing pending."}
-              </p>
+              <EmptyState compact title={t.adminOvRevFormsEmpty} description={t.adminOvRevEmptyDesc} />
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 10 }}>
                 {pendingForms.map((f) => (
-                  <Link
+                  <ReviewRow
                     key={f.id}
                     href={`/admin/events?openForm=${f.eventId}`}
-                    style={{
-                      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
-                      background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-lg)",
-                      padding: 16, textDecoration: "none", color: "inherit",
-                    }}
-                  >
-                    <div style={{ minWidth: 0 }}>
-                      <p style={{ fontWeight: 700, fontSize: 14 }}>{f.title}</p>
-                      <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{f.eventTitle}</p>
-                    </div>
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 999, background: "rgb(var(--amber-500-rgb) / 0.1)", color: "var(--amber-500)", flexShrink: 0 }}>
-                      {lang === "th" ? "รอตรวจสอบ" : lang === "cn" ? "待审核" : lang === "mm" ? "စောင့်ဆိုင်းနေသည်" : "Pending"}
-                    </span>
-                  </Link>
+                    title={f.title}
+                    subtitle={f.eventTitle ?? ""}
+                    pendingLabel={t.adminProposalsFilterPending}
+                  />
                 ))}
-              </div>
+              </ul>
             )}
-          </section>
+          </Panel>
 
-          <section>
-            <h2 style={{ fontSize: 16, fontWeight: 800, display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-              <Calendar size={18} style={{ color: "var(--accent-primary)" }} />
-              {lang === "th" ? "รายละเอียดกิจกรรมที่รอตรวจสอบ" : lang === "cn" ? "待审核活动详情" : lang === "mm" ? "စောင့်ဆိုင်းနေသော ပွဲအသေးစိတ်များ" : "Pending Event Detail Changes"}
-              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)" }}>({pendingEvents.length})</span>
-            </h2>
+          <Panel title={t.adminOvRevEventsTitle} icon={<Calendar size={18} />} actions={count(pendingEvents.length)}>
             {pendingEvents.length === 0 ? (
-              <p style={{ color: "var(--text-muted)", fontSize: 13, fontWeight: 600 }}>
-                {lang === "th" ? "ไม่มีรายละเอียดกิจกรรมที่รอตรวจสอบ" : lang === "cn" ? "没有待审核的活动详情。" : lang === "mm" ? "စစ်ဆေးရန် စောင့်ဆိုင်းနေသော ပွဲအသေးစိတ် မရှိပါ။" : "Nothing pending."}
-              </p>
+              <EmptyState compact title={t.adminOvRevEventsEmpty} description={t.adminOvRevEmptyDesc} />
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 10 }}>
                 {pendingEvents.map((e) => (
-                  <Link
+                  <ReviewRow
                     key={e.id}
                     href={`/admin/events?edit=${e.id}`}
-                    style={{
-                      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
-                      background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-lg)",
-                      padding: 16, textDecoration: "none", color: "inherit",
-                    }}
-                  >
-                    <div style={{ minWidth: 0 }}>
-                      <p style={{ fontWeight: 700, fontSize: 14 }}>{e.title}</p>
-                      <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{new Date(e.startTime).toLocaleDateString()}</p>
-                    </div>
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 999, background: "rgb(var(--amber-500-rgb) / 0.1)", color: "var(--amber-500)", flexShrink: 0 }}>
-                      {lang === "th" ? "รอตรวจสอบ" : lang === "cn" ? "待审核" : lang === "mm" ? "စောင့်ဆိုင်းနေသည်" : "Pending"}
-                    </span>
-                  </Link>
+                    title={e.title}
+                    subtitle={new Date(e.startTime).toLocaleDateString()}
+                    pendingLabel={t.adminProposalsFilterPending}
+                  />
                 ))}
-              </div>
+              </ul>
             )}
-          </section>
-        </>
+          </Panel>
+        </div>
       )}
     </div>
   );

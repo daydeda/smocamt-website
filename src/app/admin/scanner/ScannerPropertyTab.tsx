@@ -14,7 +14,9 @@ import PropertyTagPanel from "../property-tags/PropertyTagPanel";
 // tab is active — the panel runs its own html5-qrcode instance.
 export default function ScannerPropertyTab() {
   const { t } = useLanguage();
-  const [open, setOpen] = useState(true);
+  // Closed until the user taps the button: switching to this tab must not
+  // grab the camera by itself.
+  const [open, setOpen] = useState(false);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 720 }}>
@@ -23,7 +25,7 @@ export default function ScannerPropertyTab() {
           <Tag size={20} style={{ color: "var(--accent-primary)", flexShrink: 0 }} />
           {t.scannerPropertyHint}
         </p>
-        <Link href="/admin/property-tags" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, color: "var(--accent-primary)" }}>
+        <Link href="/admin/property-tags" style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, fontSize: 14, fontWeight: 700, color: "var(--accent-primary)" }}>
           {t.scannerPropertyManageLink} <ArrowRight size={14} />
         </Link>
       </div>

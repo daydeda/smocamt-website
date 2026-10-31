@@ -176,8 +176,6 @@ onClick={() => setIsLauncherOpen(true)}
 {user ? (
   user.role === "super_admin" ? t.roleSuperAdmin :
   user.role === "admin" ? t.roleAdmin :
-  user.role === "registration" ? t.roleRegistration :
-  user.role === "organizer" ? t.roleOrganizer :
   user.role === "staff" ? t.roleStaff :
   (user.studentId || t.roleStudent)
 ) : (
@@ -622,8 +620,6 @@ return (
 {user ? (
   user.role === "super_admin" ? t.roleSuperAdmin :
   user.role === "admin" ? t.roleAdmin :
-  user.role === "registration" ? t.roleRegistration :
-  user.role === "organizer" ? t.roleOrganizer :
   user.role === "staff" ? t.roleStaff :
   (user.studentId || t.roleStudent)
 ) : (

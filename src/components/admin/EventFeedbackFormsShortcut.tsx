@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ClipboardList, Calendar, AlertCircle, CheckCircle2, Clock, FileQuestion } from "lucide-react";
+import { InlineAlert, LoadingState, Panel, StatusBadge, type Tone } from "@/components/admin/ui";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { EventFormBuilderModal } from "./EventFormBuilderModal";
 
@@ -44,7 +45,7 @@ interface EventFeedbackFormsShortcutProps {
 // re-checks ownership server-side on every form write — this component
 // doesn't need to know or trust anything beyond "this is one of my events."
 export function EventFeedbackFormsShortcut({ clubs, scope }: EventFeedbackFormsShortcutProps) {
-  const { lang, t } = useLanguage();
+  const { t } = useLanguage();
   const [events, setEvents] = useState<EventOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [formStatus, setFormStatus] = useState<Record<string, FormStatusEntry>>({});
@@ -107,110 +108,73 @@ export function EventFeedbackFormsShortcut({ clubs, scope }: EventFeedbackFormsS
     return null;
   };
 
-  const STATUS_STYLES: Record<FormStatus, { bg: string; color: string; label: string }> = {
-    none: {
-      bg: "var(--bg-surface)", color: "var(--text-muted)",
-      label: lang === "th" ? "ยังไม่มีแบบฟอร์ม" : lang === "cn" ? "尚无表单" : lang === "mm" ? "ဖောင်မရှိသေးပါ" : "No form yet",
-    },
-    pending: {
-      bg: "rgb(var(--amber-500-rgb) / 0.12)", color: "var(--amber-500)",
-      label: lang === "th" ? "กำลังรอตรวจสอบ" : lang === "cn" ? "等待审核" : lang === "mm" ? "ပြန်လည်စစ်ဆေးဆဲ" : "Awaiting review",
-    },
-    changes: {
-      bg: "rgb(var(--red-500-rgb) / 0.12)", color: "var(--red-500)",
-      label: lang === "th" ? "ขอให้แก้ไข" : lang === "cn" ? "需要修改" : lang === "mm" ? "ပြင်ဆင်ရန် တောင်းဆိုထား" : "Changes requested",
-    },
-    approved: {
-      bg: "rgb(var(--emerald-500-rgb) / 0.12)", color: "var(--emerald-500)",
-      label: lang === "th" ? "อนุมัติแล้ว" : lang === "cn" ? "已批准" : lang === "mm" ? "ခွင့်ပြုပြီး" : "Approved",
-    },
+  const STATUS_TONE: Record<FormStatus, { tone: Tone; label: string; icon: React.ReactNode }> = {
+    none: { tone: "neutral", label: t.adminEvfStatusNone, icon: <FileQuestion size={12} /> },
+    pending: { tone: "warning", label: t.adminEvfStatusPending, icon: <Clock size={12} /> },
+    changes: { tone: "danger", label: t.adminEvfStatusChanges, icon: <AlertCircle size={12} /> },
+    approved: { tone: "success", label: t.adminEvfStatusApproved, icon: <CheckCircle2 size={12} /> },
   };
 
   if (!loading && events.length === 0) return null;
 
   return (
     <>
-      <div
-        className="bg-[var(--bg-surface)] border border-[var(--border-subtle)]"
-        style={{ borderRadius: 32, padding: 24, marginBottom: 24 }}
-      >
-        <h2 style={{ fontSize: 18, fontWeight: 800, display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-          <ClipboardList size={20} style={{ color: "var(--indigo-500)" }} />
-          {scope === "club"
-            ? (lang === "th" ? "แบบประเมินกิจกรรมของชมรมคุณ" : lang === "cn" ? "你的社团活动反馈表单" : lang === "mm" ? "သင့်ကလပ်ပွဲအတွက် အကဲဖြတ်ပုံစံ" : "Your Club Events' Feedback Forms")
-            : (lang === "th" ? "แบบประเมินกิจกรรมของสาขาคุณ" : lang === "cn" ? "你的专业活动反馈表单" : lang === "mm" ? "သင့်ဌာနပွဲအတွက် အကဲဖြတ်ပုံစံ" : "Your Major Events' Feedback Forms")}
-        </h2>
-
-        {loading ? (
-          <div style={{ display: "flex", justifyContent: "center", padding: 24 }}>
-            <div className="spinner" style={{ width: 24, height: 24 }} />
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {events.map((evt) => {
-              const st = formStatus[evt.id] || { status: "none" as const, note: null };
-              const style = STATUS_STYLES[st.status];
-              const owner = ownerLabel(evt);
-              return (
-                <div key={evt.id} style={{ background: "var(--bg-elevated)", borderRadius: 16, padding: "12px 16px" }}>
-                  <button
-                    type="button"
-                    onClick={() => setOpenEvent({ id: evt.id, title: evt.title })}
-                    style={{
-                      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
-                      width: "100%", background: "transparent", border: "none", padding: 0, cursor: "pointer", textAlign: "left",
-                    }}
-                  >
-                    <div style={{ minWidth: 0 }}>
-                      <p style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{evt.title}</p>
-                      <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
-                        <Calendar size={11} /> {new Date(evt.startTime).toLocaleDateString()}
-                        {owner && (
-                          <span style={{ background: "var(--bg-surface)", borderRadius: 999, padding: "1px 8px", fontWeight: 700 }}>
-                            {owner}
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                    <span
-                      style={{
-                        flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 5,
-                        fontSize: 11, fontWeight: 800, padding: "5px 12px", borderRadius: 999,
-                        background: style.bg, color: style.color,
-                      }}
+      <div style={{ marginBottom: 24 }}>
+        <Panel
+          title={scope === "club" ? t.adminEvfShortcutClubTitle : t.adminEvfShortcutMajorTitle}
+          description={t.adminEvfShortcutDesc}
+          icon={<ClipboardList size={18} />}
+        >
+          {loading ? (
+            <LoadingState compact />
+          ) : (
+            <ul className="m-0 flex list-none flex-col gap-2 p-0">
+              {events.map((evt) => {
+                const st = formStatus[evt.id] || { status: "none" as const, note: null };
+                const style = STATUS_TONE[st.status];
+                const owner = ownerLabel(evt);
+                return (
+                  <li key={evt.id} className="rounded-2xl" style={{ background: "var(--bg-elevated)" }}>
+                    <button
+                      type="button"
+                      onClick={() => setOpenEvent({ id: evt.id, title: evt.title })}
+                      className="flex min-h-14 w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left"
+                      style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--text-primary)" }}
                     >
-                      {st.status === "changes" ? <AlertCircle size={12} /> : st.status === "approved" ? <CheckCircle2 size={12} /> : st.status === "pending" ? <Clock size={12} /> : <FileQuestion size={12} />}
-                      {style.label}
-                    </span>
-                  </button>
+                      <span className="min-w-0">
+                        <span className="block" style={{ fontWeight: 700, fontSize: 14, overflowWrap: "anywhere" }}>{evt.title}</span>
+                        <span className="adm-field-hint mt-0.5 flex flex-wrap items-center gap-2">
+                          <span className="inline-flex items-center gap-1">
+                            <Calendar size={12} aria-hidden="true" /> {new Date(evt.startTime).toLocaleDateString()}
+                          </span>
+                          {owner && (
+                            <span style={{ background: "var(--bg-surface)", borderRadius: 999, padding: "0 8px", fontWeight: 600 }}>
+                              {owner}
+                            </span>
+                          )}
+                        </span>
+                      </span>
+                      <span className="shrink-0">
+                        <StatusBadge tone={style.tone} icon={style.icon}>{style.label}</StatusBadge>
+                      </span>
+                    </button>
 
-                  {/* Highlight the staff note when changes were requested — same
-                      red-callout pattern as the rejected-proposal note in
-                      ProposeEventSection.tsx, so it reads consistently across
-                      this page. Clicking the row above re-opens the same form
-                      for editing, which is the "resubmit" action (saving
-                      clears reviewNote and re-queues it for review — see
-                      PATCH /api/admin/events/[id]/form). */}
-                  {st.status === "changes" && st.note && (
-                    <div style={{
-                      display: "flex", alignItems: "flex-start", gap: 8, marginTop: 8,
-                      background: "rgb(var(--red-500-rgb) / 0.08)", border: "1px solid rgb(var(--red-500-rgb) / 0.2)",
-                      borderRadius: 12, padding: "8px 12px",
-                    }}>
-                      <AlertCircle size={14} style={{ color: "var(--red-500)", flexShrink: 0, marginTop: 1 }} />
-                      <div>
-                        <p style={{ fontSize: 10.5, fontWeight: 800, color: "var(--red-500)", textTransform: "uppercase", letterSpacing: "0.03em" }}>
-                          {t.fbReviewNoteLabel || "Note from staff"}
-                        </p>
-                        <p style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 2, lineHeight: 1.4 }}>{st.note}</p>
+                    {/* Highlight the staff note when changes were requested.
+                        Clicking the row above re-opens the same form for
+                        editing, which is the "resubmit" action (saving clears
+                        reviewNote and re-queues it for review — see
+                        PATCH /api/admin/events/[id]/form). */}
+                    {st.status === "changes" && st.note && (
+                      <div className="px-4 pb-3">
+                        <InlineAlert tone="error" title={t.fbReviewNoteLabel}>{st.note}</InlineAlert>
                       </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Panel>
       </div>
 
       {openEvent && (

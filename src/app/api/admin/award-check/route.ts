@@ -19,7 +19,7 @@ export const maxDuration = 15;
  */
 export async function GET() {
   const session = await auth();
-  const isAdminRole = ["super_admin", "admin", "registration", "organizer"].includes(
+  const isAdminRole = ["super_admin", "admin"].includes(
     session?.user?.role || ""
   ) || isGlobalRegistrationPosition(effectiveRoles(session?.user?.role, session?.user?.roles), session?.user?.smoPosition, session?.user?.anusmoPosition);
   if (!session?.user || !isAdminRole) {

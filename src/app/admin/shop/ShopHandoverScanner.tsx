@@ -5,6 +5,7 @@ import type { Html5Qrcode } from "html5-qrcode";
 import { QR_SCANNER_CONSTRUCTOR_CONFIG, QR_SCANNER_START_CONFIG } from "@/lib/qr/qr-scanner-config";
 import viewfinderStyles from "@/components/admin/QrViewfinder.module.css";
 import { AlertTriangle, CheckCircle2, Clock, Loader2, ScanLine, Store, Truck, Undo2, X } from "lucide-react";
+import { Modal, useConfirm } from "@/components/admin/ui";
 import HandoverProductList, { ProductThumb, type HandoverProduct } from "./ShopHandoverProducts";
 
 // The handover counter: choose the PRODUCT → scan the buyer's Digital ID → see
@@ -23,7 +24,8 @@ import HandoverProductList, { ProductThumb, type HandoverProduct } from "./ShopH
 //  - After a handover the same QR is ignored for a few seconds, so the buyer
 //    still holding their phone up doesn't reopen their own result, and the
 //    success screen has an Undo for an honest mistake.
-//  - Tapping outside the dialog never throws away a scanned result.
+//  - Closing (X, Escape or a tap outside) while a scanned result is waiting
+//    asks first, so the result is never thrown away by accident.
 // Camera lifecycle follows PrizeAwardPanel: the camera runs only while the
 // viewfinder is on screen, and every stop is chained so a restart never races
 // the previous stream's teardown.
@@ -71,6 +73,7 @@ export default function ShopHandoverScanner({ th, product: initialProduct = null
   const [handed, setHanded] = useState<{ buyer: ScanPreview["buyer"]; lines: Line[] } | null>(null);
   const [undone, setUndone] = useState(false);
 
+  const confirmDialog = useConfirm();
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const mountedRef = useRef(true);
   const stopPromiseRef = useRef<Promise<void>>(Promise.resolve());
@@ -255,8 +258,24 @@ export default function ShopHandoverScanner({ th, product: initialProduct = null
     setProduct(null);
   };
 
-  // Tapping outside only closes while nothing is on screen that would be lost.
-  const safeToDismiss = !busy && !preview && !handed;
+  // A scanned result that still has items to hand over is unsaved work: ask
+  // before closing over it (an accidental tap outside the sheet is easy).
+  const requestClose = async () => {
+    if (busy) return;
+    if (preview && preview.toHand.length > 0) {
+      const ok = await confirmDialog({
+        title: th ? "ปิดโดยยังไม่ส่งมอบ?" : "Close without handing over?",
+        message: th
+          ? `ผลสแกนของ ${buyerLabel(preview.buyer)} จะหายไป และยังไม่มีการบันทึกการส่งมอบ`
+          : `${buyerLabel(preview.buyer)}'s scan result will be discarded and nothing is recorded as handed over.`,
+        confirmLabel: th ? "ปิดเลย" : "Close anyway",
+        cancelLabel: th ? "กลับไปส่งมอบ" : "Keep it open",
+        tone: "danger",
+      });
+      if (!ok) return;
+    }
+    onClose();
+  };
 
   const buyerLabel = (b: ScanPreview["buyer"]) => `${b.name}${b.nickname ? ` (${b.nickname})` : ""}`;
   const selectedLines = preview ? preview.toHand.filter((l) => selected.has(l.itemId)) : [];
@@ -273,211 +292,209 @@ export default function ShopHandoverScanner({ th, product: initialProduct = null
   };
   const when = (d: string | null) => (d ? new Date(d).toLocaleString(th ? "th-TH" : "en-GB", { dateStyle: "medium", timeStyle: "short" }) : "");
 
-  const alertBox = (bg: string, color: string): React.CSSProperties => ({ fontSize: 13, color, background: bg, padding: "10px 12px", borderRadius: 10, display: "flex", flexDirection: "column", gap: 3 });
+  const alertBox = (bg: string, color: string): React.CSSProperties => ({ fontSize: 14, color, background: bg, padding: "10px 12px", borderRadius: 10, display: "flex", flexDirection: "column", gap: 3 });
   const lineText = (l: Line) => `${l.productName}${variantOf(l) ? ` · ${variantOf(l)}` : ""} ×${l.quantity}`;
 
   return (
-    <div onClick={safeToDismiss ? onClose : undefined} style={{ position: "fixed", inset: 0, zIndex: 2500, background: "rgb(var(--scrim-rgb) / 0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg-surface)", borderRadius: 20, width: "100%", maxWidth: 480, maxHeight: "calc(100dvh - 24px)", border: "1px solid var(--border-subtle)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "12px 16px", borderBottom: "1px solid var(--border-subtle)" }}>
-          <p style={{ fontWeight: 800, fontSize: 16, display: "inline-flex", alignItems: "center", gap: 8 }}>
-            <ScanLine size={18} style={{ color: "var(--accent-primary)" }} />
-            {th ? "ส่งมอบสินค้า" : "Hand over items"}
-          </p>
-          <button onClick={onClose} disabled={busy} className="btn btn-ghost" style={{ width: 44, height: 44, padding: 0, borderRadius: "50%" }} aria-label={th ? "ปิด" : "Close"}><X size={20} /></button>
-        </div>
-
-        {/* The product this counter is handing out — pinned on every step. */}
-        {product && (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: "var(--bg-base)", borderBottom: "1px solid var(--border-subtle)" }}>
-            <ProductThumb product={product} size={40} />
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{th ? "กำลังส่งมอบ" : "Handing out"}</p>
-              <p style={{ fontSize: 14, fontWeight: 800, overflowWrap: "anywhere" }}>{product.name}</p>
-              <p style={{ fontSize: 12, color: "var(--text-muted)", overflowWrap: "anywhere" }}>{product.sellerName} · ฿{product.price.toLocaleString()}</p>
-            </div>
-            <button onClick={changeProduct} disabled={busy} className="btn btn-ghost" style={{ fontSize: 13, padding: "8px 12px", minHeight: 40, flexShrink: 0 }}>
-              {th ? "เปลี่ยน" : "Change"}
-            </button>
-          </div>
-        )}
-
-        <div style={{ padding: 16, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, minHeight: 0 }}>
-          {!product && (
-            <>
-              <p style={{ fontSize: 14, fontWeight: 700 }}>{th ? "1. เลือกสินค้าที่กำลังจะส่งมอบ" : "1. Choose the product you're handing out"}</p>
-              <HandoverProductList th={th} onPick={(p) => { next(); setProduct(p); }} />
-            </>
-          )}
-
-          {cameraActive && (
-            <>
-              <div className={viewfinderStyles.viewfinder}>
-                <div id={READER_ID} className={viewfinderStyles.reader} />
-                <div className={viewfinderStyles.scanGuide} aria-hidden="true" />
-              </div>
-              <p style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center" }}>
-                {th ? "2. ให้ผู้ซื้อเปิด Digital ID แล้วส่องกล้องไปที่ QR" : "2. Ask the buyer to open their Digital ID and point the camera at the QR."}
-              </p>
-              {cameraError && <p style={{ fontSize: 13, color: "var(--amber-700)", background: "rgb(var(--amber-500-rgb) / 0.1)", padding: "10px 12px", borderRadius: 10 }}>{cameraError}</p>}
-            </>
-          )}
-
-          {busy && !preview && !handed && product && (
-            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, padding: 40, color: "var(--text-muted)" }}><Loader2 size={24} className="animate-spin" />{th ? "กำลังตรวจสอบ" : "Checking"}</div>
-          )}
-
-          {error && !preview && !handed && (
-            <>
-              <p style={{ fontSize: 14, color: "var(--red-600)", background: "rgb(var(--red-500-rgb) / 0.08)", padding: "10px 12px", borderRadius: 10, display: "flex", gap: 6 }}>
-                <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 2 }} />{error}
-              </p>
-              <button onClick={next} className="btn btn-primary" style={{ minHeight: 48 }}>{th ? "สแกนใหม่" : "Scan again"}</button>
-            </>
-          )}
-
-          {handed && (
-            undone ? (
-              <p style={{ fontSize: 15, fontWeight: 700, color: "var(--text-secondary)", background: "var(--bg-base)", border: "1px solid var(--border-subtle)", padding: "14px 12px", borderRadius: 10, display: "flex", alignItems: "center", gap: 8 }}>
-                <Undo2 size={20} />{th ? `ยกเลิกแล้ว ${buyerLabel(handed.buyer)} ยังไม่ได้รับสินค้า` : `Undone. ${buyerLabel(handed.buyer)} is back to "not received".`}
-              </p>
-            ) : (
-              <div style={{ background: "rgb(var(--green-600-rgb) / 0.1)", border: "1px solid rgb(var(--green-600-rgb) / 0.3)", padding: "16px 14px", borderRadius: 12, display: "flex", flexDirection: "column", gap: 6 }}>
-                <p style={{ fontSize: 16, fontWeight: 800, color: "var(--green-700)", display: "flex", alignItems: "center", gap: 8 }}>
-                  <CheckCircle2 size={22} />{th ? "ส่งมอบแล้ว" : "Handed over"}
-                </p>
-                <p style={{ fontSize: 15, fontWeight: 700 }}>{buyerLabel(handed.buyer)}</p>
-                <p style={{ fontSize: 14 }}>{handed.lines[0]?.productName}: <strong>{summary(handed.lines)}</strong></p>
-              </div>
-            )
-          )}
-          {handed && error && <p style={{ fontSize: 13, color: "var(--red-600)" }}>{error}</p>}
-
-          {preview && (
-            <>
-              <div>
-                <p style={{ fontWeight: 800, fontSize: 18, overflowWrap: "anywhere" }}>{buyerLabel(preview.buyer)}</p>
-                {preview.buyer.studentId && <p style={{ fontSize: 14, color: "var(--text-muted)" }}>{preview.buyer.studentId}</p>}
-              </div>
-
-              {/* Nothing to give: say so FIRST, above the reasons, so a quick
-                  glance can't miss it. */}
-              {preview.toHand.length === 0 && (
-                <p style={{ fontSize: 16, fontWeight: 800, color: "var(--red-700)", background: "rgb(var(--red-500-rgb) / 0.1)", border: "2px solid rgb(var(--red-500-rgb) / 0.35)", padding: "14px 12px", borderRadius: 10, display: "flex", alignItems: "center", gap: 8 }}>
-                  <X size={20} style={{ flexShrink: 0 }} />
-                  {th ? "ไม่ต้องส่งมอบสินค้านี้ให้คนนี้" : "Don't hand over. Nothing of this product is due to this person."}
-                </p>
-              )}
-
-              {preview.done.length > 0 && (
-                <div style={alertBox("rgb(var(--amber-500-rgb) / 0.14)", "var(--amber-800)")}>
-                  <p style={{ fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }}><AlertTriangle size={15} />{th ? "คนนี้รับสินค้านี้ไปแล้ว" : "Already received this product"}</p>
-                  {preview.done.map((l) => (
-                    <p key={l.itemId} style={{ overflowWrap: "anywhere" }}>
-                      {lineText(l)} · {when(l.handedAt)}{l.handedByName ? ` · ${l.handedByName}` : ""}
-                    </p>
-                  ))}
-                </div>
-              )}
-
-              {preview.unpaid.length > 0 && (
-                <div style={alertBox("rgb(var(--red-500-rgb) / 0.1)", "var(--red-700)")}>
-                  <p style={{ fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }}><Clock size={15} />{th ? "ยังไม่ได้ตรวจสลิป ห้ามส่งมอบ" : "Payment not checked yet. Don't hand over."}</p>
-                  {preview.unpaid.map((l) => <p key={l.itemId} style={{ overflowWrap: "anywhere" }}>{lineText(l)}</p>)}
-                </div>
-              )}
-
-              {preview.mailed.length > 0 && (
-                <div style={alertBox("rgb(var(--blue-500-rgb) / 0.1)", "var(--blue-700)")}>
-                  <p style={{ fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }}><Truck size={15} />{th ? "ส่งทางไปรษณีย์แล้ว ไม่ต้องส่งมอบที่นี่" : "Sent by mail. Don't hand over here."}</p>
-                  {preview.mailed.map((l) => <p key={l.itemId} style={{ overflowWrap: "anywhere" }}>{lineText(l)}</p>)}
-                </div>
-              )}
-
-              {preview.toHand.length === 0 ? null : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <p style={{ fontSize: 13, fontWeight: 700 }}>{th ? "หยิบให้ตรงตามนี้" : "Hand over exactly this"}</p>
-                  {preview.toHand.map((l) => {
-                    const on = selected.has(l.itemId);
-                    const v = variantOf(l);
-                    return (
-                      <label key={l.itemId} style={{ display: "flex", gap: 12, alignItems: "center", padding: "12px 12px", borderRadius: 12, cursor: "pointer", border: `2px solid ${on ? "var(--accent-primary)" : "var(--border-subtle)"}`, background: on ? "var(--bg-base)" : "transparent", minHeight: 64 }}>
-                        <input
-                          type="checkbox"
-                          checked={on}
-                          onChange={() => setSelected((s) => {
-                            const n = new Set(s);
-                            if (n.has(l.itemId)) n.delete(l.itemId); else n.add(l.itemId);
-                            return n;
-                          })}
-                          style={{ width: 22, height: 22, flexShrink: 0 }}
-                        />
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-                            <span style={{ fontSize: 20, fontWeight: 900, padding: "2px 10px", borderRadius: 8, background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)", overflowWrap: "anywhere" }}>
-                              {v ?? (th ? "แบบปกติ" : "Standard")}
-                            </span>
-                            <span style={{ fontSize: 20, fontWeight: 900, color: l.quantity > 1 ? "var(--accent-primary)" : "inherit" }}>×{l.quantity}</span>
-                          </div>
-                          {l.customValues && l.customValues.length > 0 && (
-                            <p style={{ fontSize: 14, fontWeight: 700, color: "var(--accent-primary)", marginTop: 4, overflowWrap: "anywhere" }}>{l.customValues.map((cv) => `${cv.label}: ${cv.value}`).join(" · ")}</p>
-                          )}
-                          <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4, display: "inline-flex", alignItems: "center", gap: 5 }}>
-                            {l.fulfillment === "delivery" ? <Truck size={12} /> : <Store size={12} />}
-                            {l.fulfillment === "delivery" ? (th ? "ส่งในมหาวิทยาลัย" : "On-campus delivery") : (th ? "รับเอง" : "Self-pickup")}
-                            {l.orderCreatedAt ? ` · ${th ? "สั่ง" : "ordered"} ${when(l.orderCreatedAt)}` : ""}
-                          </p>
-                        </div>
-                      </label>
-                    );
-                  })}
-                  <input
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    maxLength={500}
-                    placeholder={th ? "หมายเหตุ (ไม่บังคับ) เช่น เพื่อนมารับแทน" : "Note (optional), e.g. collected by a friend"}
-                    style={{ width: "100%", padding: "11px 12px", borderRadius: 10, border: "1px solid var(--border-subtle)", fontSize: 14, fontFamily: "inherit", background: "var(--bg-base)" }}
-                  />
-                </div>
-              )}
-
-              {preview.otherWaiting.length > 0 && (
-                <div style={{ fontSize: 13, color: "var(--text-muted)", border: "1px dashed var(--border-subtle)", padding: "10px 12px", borderRadius: 10 }}>
-                  <p style={{ fontWeight: 700 }}>{th ? "ยังรอรับสินค้าอื่นด้วย (ไม่ใช่ที่จุดนี้)" : "Also waiting for other products (not this counter)"}</p>
-                  {preview.otherWaiting.map((l) => <p key={l.itemId} style={{ overflowWrap: "anywhere" }}>{lineText(l)}</p>)}
-                </div>
-              )}
-
-              {error && <p style={{ fontSize: 13, color: "var(--red-600)" }}>{error}</p>}
-            </>
-          )}
-        </div>
-
-        {preview && (
-          <div style={{ borderTop: "1px solid var(--border-subtle)", padding: "12px 16px", display: "flex", gap: 10 }}>
-            <button onClick={next} disabled={busy} className="btn btn-ghost" style={{ flex: 1, minHeight: 52 }}>{preview.toHand.length ? (th ? "ยกเลิก" : "Cancel") : (th ? "สแกนคนถัดไป" : "Scan next")}</button>
+    <Modal
+      open
+      onClose={requestClose}
+      dismissible={!busy}
+      size="md"
+      icon={<ScanLine size={20} />}
+      title={th ? "ส่งมอบสินค้า" : "Hand over items"}
+      footer={
+        preview ? (
+          <>
+            <button onClick={next} disabled={busy} className="btn btn-ghost" style={{ minHeight: 52 }}>{preview.toHand.length ? (th ? "ยกเลิก" : "Cancel") : (th ? "สแกนคนถัดไป" : "Scan next")}</button>
             {preview.toHand.length > 0 && (
-              <button onClick={confirm} disabled={busy || selected.size === 0} className="btn btn-success-solid" style={{ flex: 2, minHeight: 52, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, fontWeight: 800 }}>
-                {busy ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={18} />}
+              <button onClick={confirm} disabled={busy || selected.size === 0} className="btn btn-success-solid" style={{ minHeight: 56, fontSize: 16, fontWeight: 800, flex: "1 1 220px" }}>
+                {busy ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : <CheckCircle2 size={20} aria-hidden="true" />}
                 {selected.size === 0
                   ? (th ? "เลือกอย่างน้อย 1 รายการ" : "Tick at least one")
                   : (th ? `ส่งมอบ ${selectedQty} ชิ้น` : `Hand over ${selectedQty} item${selectedQty === 1 ? "" : "s"}`)}
               </button>
             )}
+          </>
+        ) : handed ? (
+          <>
+            {!undone && (
+              <button onClick={undo} disabled={busy} className="btn btn-ghost" style={{ minHeight: 52 }}>
+                {busy ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Undo2 size={16} aria-hidden="true" />}{th ? "ยกเลิก (กดผิด)" : "Undo"}
+              </button>
+            )}
+            <button onClick={next} disabled={busy} className="btn btn-primary" style={{ minHeight: 56, fontSize: 16, fontWeight: 800, flex: "1 1 220px" }}>{th ? "สแกนคนถัดไป" : "Scan next person"}</button>
+          </>
+        ) : undefined
+      }
+    >
+      {/* The product this counter is handing out — pinned on every step. */}
+      {product && (
+        <div style={{ position: "sticky", top: 0, zIndex: 1, margin: "0 -4px 12px", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "var(--bg-base)", border: "1px solid var(--border-subtle)", borderRadius: 12 }}>
+          <ProductThumb product={product} size={40} />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)" }}>{th ? "กำลังส่งมอบ" : "Handing out"}</p>
+            <p style={{ fontSize: 15, fontWeight: 800, overflowWrap: "anywhere" }}>{product.name}</p>
+            <p style={{ fontSize: 13, color: "var(--text-muted)", overflowWrap: "anywhere" }}>{product.sellerName} · ฿{product.price.toLocaleString()}</p>
           </div>
+          <button onClick={changeProduct} disabled={busy} className="btn btn-ghost" style={{ fontSize: 13, padding: "8px 12px", flexShrink: 0 }}>
+            {th ? "เปลี่ยน" : "Change"}
+          </button>
+        </div>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {!product && (
+          <>
+            <p style={{ fontSize: 15, fontWeight: 700 }}>{th ? "1. เลือกสินค้าที่กำลังจะส่งมอบ" : "1. Choose the product you're handing out"}</p>
+            <HandoverProductList th={th} onPick={(p) => { next(); setProduct(p); }} />
+          </>
+        )}
+
+        {cameraActive && (
+          <>
+            <div className={viewfinderStyles.viewfinder}>
+              <div id={READER_ID} className={viewfinderStyles.reader} />
+              <div className={viewfinderStyles.scanGuide} aria-hidden="true" />
+            </div>
+            <p style={{ fontSize: 14, color: "var(--text-secondary)", textAlign: "center", lineHeight: 1.6 }}>
+              {th ? "2. ให้ผู้ซื้อเปิด Digital ID แล้วส่องกล้องไปที่ QR" : "2. Ask the buyer to open their Digital ID and point the camera at the QR."}
+            </p>
+            {cameraError && <p role="alert" style={{ fontSize: 14, color: "var(--amber-700)", background: "rgb(var(--amber-500-rgb) / 0.1)", padding: "10px 12px", borderRadius: 10 }}>{cameraError}</p>}
+          </>
+        )}
+
+        {busy && !preview && !handed && product && (
+          <div role="status" style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, padding: 40, color: "var(--text-secondary)", fontSize: 16 }}><Loader2 size={24} className="animate-spin" aria-hidden="true" />{th ? "กำลังตรวจสอบ" : "Checking"}</div>
+        )}
+
+        {error && !preview && !handed && (
+          <>
+            <p role="alert" style={{ fontSize: 16, fontWeight: 700, color: "var(--red-600)", background: "rgb(var(--red-500-rgb) / 0.08)", padding: "12px 14px", borderRadius: 10, display: "flex", gap: 8 }}>
+              <AlertTriangle size={20} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />{error}
+            </p>
+            <button onClick={next} className="btn btn-primary" style={{ minHeight: 56, fontSize: 16 }}>{th ? "สแกนใหม่" : "Scan again"}</button>
+          </>
         )}
 
         {handed && (
-          <div style={{ borderTop: "1px solid var(--border-subtle)", padding: "12px 16px", display: "flex", gap: 10 }}>
-            {!undone && (
-              <button onClick={undo} disabled={busy} className="btn btn-ghost" style={{ flex: 1, minHeight: 52, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                {busy ? <Loader2 size={16} className="animate-spin" /> : <Undo2 size={16} />}{th ? "ยกเลิก (กดผิด)" : "Undo"}
-              </button>
+          undone ? (
+            <p role="status" style={{ fontSize: 16, fontWeight: 700, color: "var(--text-secondary)", background: "var(--bg-base)", border: "1px solid var(--border-subtle)", padding: "16px 14px", borderRadius: 10, display: "flex", alignItems: "center", gap: 8 }}>
+              <Undo2 size={22} aria-hidden="true" />{th ? `ยกเลิกแล้ว ${buyerLabel(handed.buyer)} ยังไม่ได้รับสินค้า` : `Undone. ${buyerLabel(handed.buyer)} is back to "not received".`}
+            </p>
+          ) : (
+            <div role="status" style={{ background: "rgb(var(--green-600-rgb) / 0.1)", border: "2px solid rgb(var(--green-600-rgb) / 0.35)", padding: "20px 16px", borderRadius: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+              <p style={{ fontSize: 22, fontWeight: 900, color: "var(--green-700)", display: "flex", alignItems: "center", gap: 10 }}>
+                <CheckCircle2 size={30} aria-hidden="true" />{th ? "ส่งมอบแล้ว" : "Handed over"}
+              </p>
+              <p style={{ fontSize: 18, fontWeight: 800, overflowWrap: "anywhere" }}>{buyerLabel(handed.buyer)}</p>
+              <p style={{ fontSize: 16, overflowWrap: "anywhere" }}>{handed.lines[0]?.productName}: <strong>{summary(handed.lines)}</strong></p>
+            </div>
+          )
+        )}
+        {handed && error && <p role="alert" style={{ fontSize: 14, color: "var(--red-600)" }}>{error}</p>}
+
+        {preview && (
+          <>
+            <div>
+              <p style={{ fontWeight: 900, fontSize: 22, lineHeight: 1.35, overflowWrap: "anywhere" }}>{buyerLabel(preview.buyer)}</p>
+              {preview.buyer.studentId && <p style={{ fontSize: 16, color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>{preview.buyer.studentId}</p>}
+            </div>
+
+            {/* Nothing to give: say so FIRST, above the reasons, so a quick
+                glance can't miss it. */}
+            {preview.toHand.length === 0 && (
+              <p role="alert" style={{ fontSize: 18, fontWeight: 900, color: "var(--red-700)", background: "rgb(var(--red-500-rgb) / 0.1)", border: "2px solid rgb(var(--red-500-rgb) / 0.35)", padding: "16px 14px", borderRadius: 12, display: "flex", alignItems: "center", gap: 10 }}>
+                <X size={24} aria-hidden="true" style={{ flexShrink: 0 }} />
+                {th ? "ไม่ต้องส่งมอบสินค้านี้ให้คนนี้" : "Don't hand over. Nothing of this product is due to this person."}
+              </p>
             )}
-            <button onClick={next} disabled={busy} className="btn btn-primary" style={{ flex: 2, minHeight: 52, fontWeight: 800 }}>{th ? "สแกนคนถัดไป" : "Scan next person"}</button>
-          </div>
+
+            {preview.done.length > 0 && (
+              <div style={alertBox("rgb(var(--amber-500-rgb) / 0.14)", "var(--amber-800)")}>
+                <p style={{ fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }}><AlertTriangle size={16} aria-hidden="true" />{th ? "คนนี้รับสินค้านี้ไปแล้ว" : "Already received this product"}</p>
+                {preview.done.map((l) => (
+                  <p key={l.itemId} style={{ overflowWrap: "anywhere" }}>
+                    {lineText(l)} · {when(l.handedAt)}{l.handedByName ? ` · ${l.handedByName}` : ""}
+                  </p>
+                ))}
+              </div>
+            )}
+
+            {preview.unpaid.length > 0 && (
+              <div style={alertBox("rgb(var(--red-500-rgb) / 0.1)", "var(--red-700)")}>
+                <p style={{ fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }}><Clock size={16} aria-hidden="true" />{th ? "ยังไม่ได้ตรวจสลิป ห้ามส่งมอบ" : "Payment not checked yet. Don't hand over."}</p>
+                {preview.unpaid.map((l) => <p key={l.itemId} style={{ overflowWrap: "anywhere" }}>{lineText(l)}</p>)}
+              </div>
+            )}
+
+            {preview.mailed.length > 0 && (
+              <div style={alertBox("rgb(var(--blue-500-rgb) / 0.1)", "var(--blue-700)")}>
+                <p style={{ fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }}><Truck size={16} aria-hidden="true" />{th ? "ส่งทางไปรษณีย์แล้ว ไม่ต้องส่งมอบที่นี่" : "Sent by mail. Don't hand over here."}</p>
+                {preview.mailed.map((l) => <p key={l.itemId} style={{ overflowWrap: "anywhere" }}>{lineText(l)}</p>)}
+              </div>
+            )}
+
+            {preview.toHand.length === 0 ? null : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <p style={{ fontSize: 14, fontWeight: 700 }}>{th ? "หยิบให้ตรงตามนี้" : "Hand over exactly this"}</p>
+                {preview.toHand.map((l) => {
+                  const on = selected.has(l.itemId);
+                  const v = variantOf(l);
+                  return (
+                    <label key={l.itemId} style={{ display: "flex", gap: 12, alignItems: "center", padding: "12px 12px", borderRadius: 12, cursor: "pointer", border: `2px solid ${on ? "var(--accent-primary)" : "var(--border-subtle)"}`, background: on ? "var(--bg-base)" : "transparent", minHeight: 64 }}>
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        onChange={() => setSelected((s) => {
+                          const n = new Set(s);
+                          if (n.has(l.itemId)) n.delete(l.itemId); else n.add(l.itemId);
+                          return n;
+                        })}
+                        style={{ width: 24, height: 24, flexShrink: 0 }}
+                      />
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                          <span style={{ fontSize: 22, fontWeight: 900, padding: "2px 10px", borderRadius: 8, background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)", overflowWrap: "anywhere" }}>
+                            {v ?? (th ? "แบบปกติ" : "Standard")}
+                          </span>
+                          <span style={{ fontSize: 22, fontWeight: 900, color: l.quantity > 1 ? "var(--accent-primary)" : "inherit" }}>×{l.quantity}</span>
+                        </div>
+                        {l.customValues && l.customValues.length > 0 && (
+                          <p style={{ fontSize: 15, fontWeight: 700, color: "var(--accent-primary)", marginTop: 4, overflowWrap: "anywhere" }}>{l.customValues.map((cv) => `${cv.label}: ${cv.value}`).join(" · ")}</p>
+                        )}
+                        <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4, display: "inline-flex", alignItems: "center", gap: 5 }}>
+                          {l.fulfillment === "delivery" ? <Truck size={13} aria-hidden="true" /> : <Store size={13} aria-hidden="true" />}
+                          {l.fulfillment === "delivery" ? (th ? "ส่งในมหาวิทยาลัย" : "On-campus delivery") : (th ? "รับเอง" : "Self-pickup")}
+                          {l.orderCreatedAt ? ` · ${th ? "สั่ง" : "ordered"} ${when(l.orderCreatedAt)}` : ""}
+                        </p>
+                      </div>
+                    </label>
+                  );
+                })}
+                <input
+                  className="input"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  maxLength={500}
+                  aria-label={th ? "หมายเหตุ (ไม่บังคับ)" : "Note (optional)"}
+                  placeholder={th ? "หมายเหตุ (ไม่บังคับ) เช่น เพื่อนมารับแทน" : "Note (optional), e.g. collected by a friend"}
+                  style={{ padding: "12px 12px", borderRadius: 10 }}
+                />
+              </div>
+            )}
+
+            {preview.otherWaiting.length > 0 && (
+              <div style={{ fontSize: 14, color: "var(--text-muted)", border: "1px dashed var(--border-subtle)", padding: "10px 12px", borderRadius: 10 }}>
+                <p style={{ fontWeight: 700 }}>{th ? "ยังรอรับสินค้าอื่นด้วย (ไม่ใช่ที่จุดนี้)" : "Also waiting for other products (not this counter)"}</p>
+                {preview.otherWaiting.map((l) => <p key={l.itemId} style={{ overflowWrap: "anywhere" }}>{lineText(l)}</p>)}
+              </div>
+            )}
+
+            {error && <p role="alert" style={{ fontSize: 14, color: "var(--red-600)" }}>{error}</p>}
+          </>
         )}
       </div>
-    </div>
+    </Modal>
   );
 }

@@ -28,8 +28,8 @@ declare module "next-auth" {
       hasClubPosition: boolean;
       // True iff the user holds the "registration" TITLE (src/lib/positions.ts)
       // in at least one club (club_members.position — never on the session
-      // itself, hence this precomputed flag). Distinct from the "registration"
-      // ROLE and from the smo/anusmo-global case (already covered by
+      // itself, hence this precomputed flag). Distinct from the smo/anusmo-global
+      // case (already covered by
       // smoPosition/anusmoPosition + isGlobalRegistrationPosition) and the
       // major case (already covered by majorPosition) — neither of those needs
       // this field. Lets client pages grant the same event-scoped

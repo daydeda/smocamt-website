@@ -3,8 +3,21 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, Loader2, PackageOpen, Plus, QrCode, Tag, Trash2 } from "lucide-react";
+import { ChevronRight, Loader2, PackageOpen, Plus, QrCode, Search, Tag, Trash2 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
+import {
+  PageHeader,
+  Toolbar,
+  Modal,
+  Field,
+  IconButton,
+  StatusBadge,
+  LoadingState,
+  EmptyState,
+  ErrorState,
+  useConfirm,
+  useToast,
+} from "@/components/admin/ui";
 import PropertyTagPanel from "./PropertyTagPanel";
 
 // /admin/property-tags — the list of tag groups ("Bag for Trekking", …).
@@ -22,6 +35,8 @@ interface GroupRow {
 export default function PropertyTagsClient() {
   const { t } = useLanguage();
   const router = useRouter();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [groups, setGroups] = useState<GroupRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -31,9 +46,8 @@ export default function PropertyTagsClient() {
   const [saving, setSaving] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -56,8 +70,15 @@ export default function PropertyTagsClient() {
     return () => clearTimeout(timer);
   }, [load]);
 
+  function closeCreate() {
+    if (saving) return;
+    setCreating(false);
+    setName("");
+    setDescription("");
+  }
+
   async function create() {
-    if (!name.trim()) return;
+    if (!name.trim() || saving) return;
     setSaving(true);
     try {
       const res = await fetch("/api/admin/property-tags", {
@@ -67,156 +88,186 @@ export default function PropertyTagsClient() {
       });
       if (!res.ok) throw new Error();
       const { id } = await res.json();
+      toast.success(t.adminPtUiGroupCreated.replace("{name}", name.trim()));
       router.push(`/admin/property-tags/${id}`);
     } catch {
       setSaving(false);
-      setError(true);
+      toast.error(t.adminPtUiCreateFailed);
     }
   }
 
   async function deleteGroup(g: GroupRow) {
-    setDeleting(true);
-    setDeleteNotice(null);
+    const ok = await confirm({
+      title: `${t.adminPtDelete}: ${g.name}`,
+      message: t.adminPtDeleteConfirm.replace("{name}", g.name).replace("{total}", String(g.total)),
+      confirmLabel: t.adminPtDelete,
+      tone: "danger",
+    });
+    if (!ok) return;
+    setDeletingId(g.id);
     try {
       const res = await fetch(`/api/admin/property-tags/${g.id}`, { method: "DELETE" });
       if (res.status === 409) {
         const data = await res.json().catch(() => ({}));
-        setDeleteNotice(t.adminPtDeleteBlocked.replace("{n}", String(data.assigned ?? g.assigned)));
+        toast.error(
+          t.adminPtUiDeleteBlockedTitle,
+          t.adminPtDeleteBlocked.replace("{n}", String(data.assigned ?? g.assigned)),
+        );
         return;
       }
       if (!res.ok && res.status !== 404) throw new Error();
-      setConfirmDelete(null);
+      toast.success(t.adminPtUiGroupDeleted.replace("{name}", g.name));
       await load();
     } catch {
-      setDeleteNotice(t.adminPtError);
+      toast.error(t.adminPtUiDeleteFailed);
     } finally {
-      setDeleting(false);
+      setDeletingId(null);
     }
   }
 
-  const visible = groups.filter((g) => showArchived || g.status === "open");
+  const q = query.trim().toLowerCase();
+  const visible = groups.filter(
+    (g) => (showArchived || g.status === "open") && (!q || g.name.toLowerCase().includes(q) || (g.description ?? "").toLowerCase().includes(q)),
+  );
   const archivedCount = groups.filter((g) => g.status === "archived").length;
 
   return (
     <div className="pb-20">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4" style={{ marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: "clamp(28px,5vw,42px)", fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1.3, display: "flex", alignItems: "center", gap: 12 }}>
-            <Tag size={32} strokeWidth={2.5} style={{ color: "var(--accent-primary)" }} />
-            {t.adminPropertyTags}
-          </h1>
-          <p style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 6 }}>{t.adminPtSubtitle}</p>
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-          <button className="btn btn-ghost" onClick={() => setScanning(true)}>
-            <QrCode size={18} /> {t.adminPtScanAssign}
-          </button>
-          <button className="btn btn-primary" onClick={() => setCreating((v) => !v)}>
-            <Plus size={18} /> {t.adminPtNewGroup}
-          </button>
-        </div>
-      </div>
-
-      {creating && (
-        <div className="stat-card" style={{ padding: 20, marginBottom: 20, display: "flex", flexDirection: "column", gap: 14, maxWidth: 560 }}>
-          <div className="field">
-            <label className="label" htmlFor="pt-group-name">{t.adminPtGroupName}</label>
-            <input
-              id="pt-group-name"
-              className="input"
-              value={name}
-              maxLength={200}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={t.adminPtGroupNamePlaceholder}
-              autoFocus
-            />
-          </div>
-          <div className="field">
-            <label className="label" htmlFor="pt-group-desc">{t.adminPtGroupDescription}</label>
-            <textarea id="pt-group-desc" className="input" rows={2} maxLength={2000} value={description} onChange={(e) => setDescription(e.target.value)} />
-          </div>
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-            <button className="btn btn-ghost" onClick={() => setCreating(false)} disabled={saving}>{t.adminPtCancel}</button>
-            <button className="btn btn-primary" onClick={() => void create()} disabled={saving || !name.trim()}>
-              {saving ? <Loader2 size={16} className="animate-spin" /> : t.adminPtCreate}
+      <PageHeader
+        title={t.adminPropertyTags}
+        description={t.adminPtSubtitle}
+        actions={
+          <>
+            <button className="btn btn-ghost" onClick={() => setScanning(true)}>
+              <QrCode size={18} aria-hidden="true" /> {t.adminPtScanAssign}
             </button>
-          </div>
-        </div>
-      )}
+            <button className="btn btn-primary" onClick={() => setCreating(true)}>
+              <Plus size={18} aria-hidden="true" /> {t.adminPtNewGroup}
+            </button>
+          </>
+        }
+      />
 
       {loading ? (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "48px 0", color: "var(--text-muted)", fontSize: 14 }}>
-          <Loader2 size={18} className="animate-spin" /> {t.adminPtLoading}
-        </div>
+        <LoadingState variant="skeleton" rows={3} label={t.adminPtLoading} />
       ) : error && groups.length === 0 ? (
-        <div className="stat-card" style={{ textAlign: "center", padding: "40px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-          <p style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)" }}>{t.adminPtLoadError}</p>
-          <button className="btn btn-ghost" onClick={() => { setLoading(true); void load(); }}>{t.adminPtRetry}</button>
-        </div>
-      ) : visible.length === 0 ? (
-        <div className="stat-card" style={{ textAlign: "center", padding: "56px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-          <PackageOpen size={40} style={{ color: "var(--text-muted)" }} />
-          <p style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)" }}>{t.adminPtEmptyGroups}</p>
-        </div>
+        <ErrorState message={t.adminPtLoadError} onRetry={() => { setLoading(true); void load(); }} />
+      ) : groups.length === 0 ? (
+        <EmptyState
+          icon={<PackageOpen size={24} />}
+          title={t.adminPtUiEmptyTitle}
+          description={t.adminPtUiEmptyHint}
+          action={
+            <button className="btn btn-primary" onClick={() => setCreating(true)}>
+              <Plus size={18} aria-hidden="true" /> {t.adminPtNewGroup}
+            </button>
+          }
+        />
       ) : (
-        <ul style={{ display: "flex", flexDirection: "column", gap: 12, listStyle: "none" }}>
-          {visible.map((g) => (
-            <li key={g.id}>
-              <div style={{ display: "flex", alignItems: "stretch", gap: 8 }}>
-              <Link
-                href={`/admin/property-tags/${g.id}`}
-                className="stat-card"
-                style={{ padding: "16px 18px", display: "flex", alignItems: "center", gap: 12, textDecoration: "none", flex: 1, minWidth: 0 }}
-              >
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-                    <h2 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", overflowWrap: "anywhere" }}>{g.name}</h2>
-                    {g.status === "archived" && <span className="badge badge-yellow">{t.adminPtArchived}</span>}
-                  </div>
-                  {g.description && (
-                    <p style={{ marginTop: 4, fontSize: 13, color: "var(--text-secondary)", overflowWrap: "anywhere" }}>{g.description}</p>
-                  )}
-                  <p style={{ marginTop: 6, fontSize: 13, fontWeight: 600, color: "var(--text-muted)" }}>
-                    {t.adminPtAssignedCount.replace("{assigned}", String(g.assigned)).replace("{total}", String(g.total))}
-                  </p>
-                </div>
-                <ChevronRight size={18} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
-              </Link>
-              <button
-                className="btn btn-ghost"
-                onClick={() => { setDeleteNotice(null); setConfirmDelete(confirmDelete === g.id ? null : g.id); }}
-                aria-label={`${t.adminPtDelete}: ${g.name}`}
-                title={t.adminPtDelete}
-                style={{ color: "var(--red-600)", flexShrink: 0 }}
-              >
-                <Trash2 size={18} />
-              </button>
-              </div>
-              {confirmDelete === g.id && (
-                <div style={{ marginTop: 8, borderRadius: 16, padding: 16, background: "rgb(var(--red-500-rgb) / 0.08)", border: "1px solid rgb(var(--red-500-rgb) / 0.3)", display: "flex", flexDirection: "column", gap: 12 }}>
-                  <p style={{ fontSize: 14.5, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.5 }}>
-                    {t.adminPtDeleteConfirm.replace("{name}", g.name).replace("{total}", String(g.total))}
-                  </p>
-                  {deleteNotice && <p role="alert" style={{ fontSize: 13.5, fontWeight: 700, color: "var(--red-600)" }}>{deleteNotice}</p>}
-                  <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-                    <button className="btn btn-ghost" onClick={() => setConfirmDelete(null)} disabled={deleting}>{t.adminPtCancel}</button>
-                    <button className="btn btn-danger" onClick={() => void deleteGroup(g)} disabled={deleting}>
-                      {deleting ? <Loader2 size={16} className="animate-spin" /> : t.adminPtDeleteBtn}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
+        <>
+          <Toolbar>
+            <div style={{ position: "relative", flex: "1 1 220px", maxWidth: 360 }}>
+              <Search size={16} aria-hidden="true" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
+              <input
+                className="input"
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t.adminPtUiSearchGroups}
+                aria-label={t.adminPtUiSearchGroups}
+                style={{ paddingLeft: 36 }}
+              />
+            </div>
+            {archivedCount > 0 && (
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 8, minHeight: 44, fontSize: 14, color: "var(--text-secondary)", cursor: "pointer" }}>
+                <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} style={{ width: 18, height: 18 }} />
+                {t.adminPtShowArchived} ({archivedCount})
+              </label>
+            )}
+          </Toolbar>
+
+          {visible.length === 0 ? (
+            <EmptyState
+              compact
+              icon={<Search size={24} />}
+              title={t.adminPtNoMatch}
+              description={!q && archivedCount > 0 ? t.adminPtUiOnlyArchived : undefined}
+            />
+          ) : (
+            <ul style={{ display: "flex", flexDirection: "column", gap: 12, listStyle: "none" }}>
+              {visible.map((g) => (
+                <li key={g.id} style={{ display: "flex", alignItems: "stretch", gap: 8 }}>
+                  <Link
+                    href={`/admin/property-tags/${g.id}`}
+                    className="stat-card"
+                    style={{ padding: "16px 18px", display: "flex", alignItems: "center", gap: 12, textDecoration: "none", flex: 1, minWidth: 0 }}
+                  >
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+                        <h2 style={{ fontSize: 16, fontWeight: 800, lineHeight: 1.4, color: "var(--text-primary)", overflowWrap: "anywhere" }}>{g.name}</h2>
+                        {g.status === "archived" && <StatusBadge tone="warning" icon={false}>{t.adminPtArchived}</StatusBadge>}
+                        {g.status === "open" && g.total > 0 && g.assigned === g.total && <StatusBadge tone="success">{t.adminPtUiAllAssigned}</StatusBadge>}
+                      </div>
+                      {g.description && (
+                        <p style={{ marginTop: 4, fontSize: 14, lineHeight: 1.5, color: "var(--text-secondary)", overflowWrap: "anywhere" }}>{g.description}</p>
+                      )}
+                      <p style={{ marginTop: 6, fontSize: 13, fontWeight: 600, color: "var(--text-muted)" }}>
+                        {t.adminPtAssignedCount.replace("{assigned}", String(g.assigned)).replace("{total}", String(g.total))}
+                      </p>
+                    </div>
+                    <ChevronRight size={18} aria-hidden="true" style={{ color: "var(--text-muted)", flexShrink: 0 }} />
+                  </Link>
+                  <IconButton
+                    tone="danger"
+                    label={`${t.adminPtDelete}: ${g.name}`}
+                    icon={deletingId === g.id ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
+                    disabled={deletingId !== null}
+                    onClick={() => void deleteGroup(g)}
+                    style={{ alignSelf: "center" }}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
 
-      {archivedCount > 0 && (
-        <label style={{ display: "inline-flex", alignItems: "center", gap: 8, marginTop: 16, fontSize: 13.5, color: "var(--text-secondary)", cursor: "pointer" }}>
-          <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
-          {t.adminPtShowArchived} ({archivedCount})
-        </label>
-      )}
+      <Modal
+        open={creating}
+        onClose={closeCreate}
+        dismissible={!saving}
+        size="md"
+        icon={<Tag size={20} />}
+        title={t.adminPtNewGroup}
+        footer={
+          <>
+            <button className="btn btn-ghost" onClick={closeCreate} disabled={saving}>{t.adminPtCancel}</button>
+            <button className="btn btn-primary" onClick={() => void create()} disabled={saving || !name.trim()}>
+              {saving && <Loader2 size={16} className="animate-spin" aria-hidden="true" />}
+              {t.adminPtCreate}
+            </button>
+          </>
+        }
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <Field label={t.adminPtGroupName} required>
+            {(p) => (
+              <input
+                {...p}
+                className="input"
+                value={name}
+                maxLength={200}
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void create(); }}
+                placeholder={t.adminPtGroupNamePlaceholder}
+              />
+            )}
+          </Field>
+          <Field label={t.adminPtGroupDescription}>
+            {(p) => <textarea {...p} className="input" rows={3} maxLength={2000} value={description} onChange={(e) => setDescription(e.target.value)} />}
+          </Field>
+        </div>
+      </Modal>
 
       {scanning && <PropertyTagPanel onChanged={load} onClose={() => setScanning(false)} />}
     </div>

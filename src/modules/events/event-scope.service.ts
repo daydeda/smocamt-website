@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { clubMembers, users } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
+import { isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 
 export type PresidentScope = {
   clubIds: string[];
@@ -62,12 +63,13 @@ export class EventScopeService {
   }
 
   /**
-   * Resolves scope for a "registration" title holder (see CLAUDE.md / the
-   * registration-role-retirement plan), now scoped per-context rather than a
+   * Resolves scope for a "registration" title holder (the
+   * global case replaces the retired registration role), now scoped per-context rather than a
    * single global users.position:
-   *   - smoPosition/anusmoPosition === "registration" (and the matching
-   *     smo/anusmo role held) -> global (scope.global = true). These two come
-   *     from the session (no extra query needed).
+   *   - smoPosition === "registration" with the smo role -> global
+   *     (scope.global = true), from the session (no extra query needed).
+   *     anusmo + "registration" is check-in only (canCheckInEveryEvent), so
+   *     it resolves to no scope here.
    *   - club_members rows with position="registration" -> scoped to
    *     specifically THOSE club(s)' events only (not every club the user
    *     happens to belong to — a "registration" title in Club A no longer
@@ -84,9 +86,8 @@ export class EventScopeService {
     smoPosition: string | null | undefined,
     anusmoPosition: string | null | undefined,
   ): Promise<{ global: boolean } & PresidentScope> {
-    const isGlobal =
-      (roles.includes("smo") && smoPosition === "registration") ||
-      (roles.includes("anusmo") && anusmoPosition === "registration");
+    // The ANUSMO registration desk is check-in only (canCheckInEveryEvent), not global.
+    const isGlobal = isGlobalRegistrationPosition(roles, smoPosition, anusmoPosition);
     if (isGlobal) return { global: true, clubIds: [], majors: [] };
 
     const memberships = await db.query.clubMembers.findMany({
@@ -125,8 +126,8 @@ export class EventScopeService {
    * Combined access resolver for event-scoped routes, replacing the
    * duplicated "isUnscopedStaff / getPresidentScope" boilerplate at each call
    * site. `isUnscopedStaff` and `hasPresidentTag` stay each route's own
-   * existing role-array checks (still include "registration" in Phase 1, so
-   * this is a strict superset of today's behavior — nothing regresses).
+   * existing role-array checks; a global registration position resolves to
+   * unscoped here even when the caller passes isUnscopedStaff = false.
    */
   static async resolveEventAccess(params: {
     userId: string;

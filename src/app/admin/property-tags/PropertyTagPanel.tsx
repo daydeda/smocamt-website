@@ -1,15 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import type { Html5Qrcode } from "html5-qrcode";
 import { AlertTriangle, Check, Loader2, ScanLine, Tag, UserMinus, UserPlus, X } from "lucide-react";
+import { IconButton, InlineAlert, Modal, useConfirm } from "@/components/admin/ui";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { normalizeTagCode } from "@/lib/property-tags/property-tag";
 import { QR_SCANNER_CONSTRUCTOR_CONFIG, QR_SCANNER_START_CONFIG } from "@/lib/qr/qr-scanner-config";
-// Same dialog shell as the prize booth, so staff get one visual language for
-// "a camera dialog that resolves something and asks to confirm".
-import styles from "../prizes/PrizeAwardPanel.module.css";
 import viewfinderStyles from "@/components/admin/QrViewfinder.module.css";
 
 // Scan a property tag → see whether it's empty or whose it is → assign,
@@ -59,6 +56,8 @@ export default function PropertyTagPanel({
   onClose: () => void;
 }) {
   const { t } = useLanguage();
+  const confirm = useConfirm();
+  const bodyRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<View>(initialCode ? "tag" : "scan");
   const [tag, setTag] = useState<StaffTag | null>(null);
   const [notice, setNotice] = useState<{ tone: "error" | "ok"; text: string } | null>(null);
@@ -69,7 +68,6 @@ export default function PropertyTagPanel({
   const [results, setResults] = useState<SearchHit[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [preview, setPreview] = useState<{ student: Owner; warnings: Warnings } | null>(null);
-  const [confirmUnassign, setConfirmUnassign] = useState(false);
   // A student whose Digital ID was scanned before the tag; consumed by the next tag.
   const [heldStudent, setHeldStudent] = useState<Owner | null>(null);
 
@@ -125,7 +123,6 @@ export default function PropertyTagPanel({
         setResults(null);
         setQuery("");
         setPreview(null);
-        setConfirmUnassign(false);
         setView("tag");
         if ("vibrate" in navigator) navigator.vibrate(80);
         if (held) {
@@ -360,6 +357,19 @@ export default function PropertyTagPanel({
     }
   }
 
+  // Removing an owner is destructive for whoever holds the tag, so ask first,
+  // naming the tag and the person.
+  async function requestUnassign() {
+    if (!tag?.owner || busy) return;
+    const ok = await confirm({
+      title: `${t.adminPtUnassign}: ${tag.label}`,
+      message: t.adminPtUnassignConfirm.replace("{name}", tag.owner.name),
+      confirmLabel: t.adminPtUnassign,
+      tone: "danger",
+    });
+    if (ok) void doUnassign();
+  }
+
   async function doUnassign() {
     if (!tag?.owner) return;
     setBusy(true);
@@ -379,7 +389,6 @@ export default function PropertyTagPanel({
     } finally {
       if (mountedRef.current) {
         setBusy(false);
-        setConfirmUnassign(false);
       }
     }
   }
@@ -392,28 +401,17 @@ export default function PropertyTagPanel({
     setResults(null);
     setQuery("");
     setNotice(null);
-    setConfirmUnassign(false);
     setView("scan");
   }
 
   const noticeBox = notice && (
-    <p
-      role={notice.tone === "error" ? "alert" : "status"}
-      style={{
-        borderRadius: 12,
-        padding: "10px 14px",
-        fontSize: 13.5,
-        fontWeight: 700,
-        lineHeight: 1.5,
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        background: notice.tone === "error" ? "rgb(var(--red-500-rgb) / 0.1)" : "rgb(var(--green-500-rgb) / 0.12)",
-        color: notice.tone === "error" ? "var(--red-600)" : "var(--teal-600)",
-      }}
-    >
-      {notice.tone === "error" ? <AlertTriangle size={16} /> : <Check size={16} />} {notice.text}
-    </p>
+    <div role={notice.tone === "ok" ? "status" : undefined}>
+      <InlineAlert tone={notice.tone === "error" ? "error" : "success"}>
+        <span style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700 }}>
+          {notice.tone === "error" ? <AlertTriangle size={16} aria-hidden="true" style={{ flexShrink: 0 }} /> : <Check size={16} aria-hidden="true" style={{ flexShrink: 0 }} />} {notice.text}
+        </span>
+      </InlineAlert>
+    </div>
   );
 
   const tagHeader = tag && (
@@ -430,7 +428,7 @@ export default function PropertyTagPanel({
 
   const resultsList = shownResults && (
     shownResults.length === 0 ? (
-      <p style={{ fontSize: 13.5, color: "var(--text-muted)" }}>{searching ? t.adminPtChecking : t.adminPtNoResults}</p>
+      <p role="status" style={{ fontSize: 14, color: "var(--text-muted)" }}>{searching ? t.adminPtChecking : t.adminPtNoResults}</p>
     ) : (
       <ul style={{ display: "flex", flexDirection: "column", gap: 4, listStyle: "none" }}>
         {shownResults.map((hit) => (
@@ -438,7 +436,7 @@ export default function PropertyTagPanel({
             <button
               onClick={() => chooseStudent(hit)}
               disabled={busy}
-              style={{ width: "100%", textAlign: "left", padding: "10px 12px", borderRadius: 12, border: "1px solid var(--border-subtle)", background: "var(--bg-surface)", cursor: "pointer" }}
+              style={{ width: "100%", minHeight: 44, textAlign: "left", padding: "10px 12px", borderRadius: 12, border: "1px solid var(--border-subtle)", background: "var(--bg-surface)", cursor: "pointer" }}
             >
               <span style={{ display: "block", fontSize: 14.5, fontWeight: 700, color: "var(--text-primary)", overflowWrap: "anywhere" }}>{hit.name}</span>
               <span style={{ display: "block", fontSize: 12.5, color: "var(--text-muted)" }}>
@@ -460,23 +458,48 @@ export default function PropertyTagPanel({
     </>
   );
 
-  return createPortal(
-    <div className={styles.backdrop} onClick={onClose}>
-      <div
-        className={`${styles.dialog} animate-fade-in-up`}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="property-tag-title"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className={styles.header}>
-          <h2 id="property-tag-title" style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>{t.adminPtAssignTitle}</h2>
-          <button className={`btn btn-ghost ${styles.closeButton}`} onClick={onClose} aria-label={t.adminPtClose}>
-            <X size={16} />
-          </button>
-        </div>
+  // Footer actions per step, pinned to the bottom of the sheet (thumb reach).
+  let footer: React.ReactNode = null;
+  if (view === "student") {
+    footer = (
+      <button className="btn btn-ghost btn-lg" onClick={() => { setNotice(null); setView("tag"); }}>{t.adminPtBack}</button>
+    );
+  } else if (view === "tag" && tag) {
+    footer = (
+      <button className="btn btn-ghost btn-lg" onClick={scanNext}>{t.adminPtNextTag}</button>
+    );
+  } else if (view === "preview" && tag && preview) {
+    footer = (
+      <>
+        <button className="btn btn-ghost btn-lg" onClick={() => { setPreview(null); setView("tag"); }} disabled={busy}>
+          {t.adminPtBack}
+        </button>
+        <button className="btn btn-success-solid btn-lg" onClick={() => void confirmAssign()} disabled={busy}>
+          {busy ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : <Check size={18} aria-hidden="true" />} {t.adminPtConfirm}
+        </button>
+      </>
+    );
+  } else if (view === "done" && tag) {
+    footer = (
+      <button className="btn btn-primary btn-lg" onClick={scanNext}>{t.adminPtNextTag}</button>
+    );
+  }
 
-        <div className={styles.content}>
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      dismissible={!busy}
+      size="sm"
+      icon={<Tag size={20} />}
+      title={t.adminPtAssignTitle}
+      initialFocusRef={bodyRef}
+      footer={footer}
+    >
+      {/* The body wrapper takes the initial focus (tabIndex -1): the first real
+          control on the scan step is the search box, and focusing that on a
+          phone would raise the keyboard over the camera. */}
+      <div ref={bodyRef} tabIndex={-1} style={{ display: "flex", flexDirection: "column", gap: 16, outline: "none" }}>
           {view === "scan" && (
             <>
               <div className={viewfinderStyles.viewfinder}>
@@ -487,31 +510,25 @@ export default function PropertyTagPanel({
                 <div style={{ borderRadius: 16, padding: "12px 14px", background: "rgb(var(--green-500-rgb) / 0.08)", border: "1px solid rgb(var(--green-500-rgb) / 0.3)", display: "flex", alignItems: "center", gap: 10 }}>
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <p style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)", overflowWrap: "anywhere" }}>{heldStudent.name}</p>
-                    <p style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>
+                    <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>
                       {[heldStudent.studentId, heldStudent.nickname, heldStudent.major].filter(Boolean).join(" · ")}
                     </p>
                     <p style={{ marginTop: 4, fontSize: 13, fontWeight: 700, color: "var(--teal-600)" }}>{t.adminPtScanTagNext}</p>
                   </div>
-                  <button className="btn btn-ghost" onClick={clearHeldStudent} aria-label={t.adminPtClearStudent}>
-                    <X size={16} />
-                  </button>
+                  <IconButton label={t.adminPtClearStudent} icon={<X size={18} />} onClick={clearHeldStudent} />
                 </div>
               ) : (
-                <p style={{ fontSize: 13.5, color: "var(--text-secondary)", textAlign: "center" }}>{t.adminPtScanHint}</p>
+                <p style={{ fontSize: 14, color: "var(--text-secondary)", textAlign: "center", lineHeight: 1.6 }}>{t.adminPtScanHint}</p>
               )}
               {busy && (
-                <p role="status" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 13.5, fontWeight: 700, color: "var(--text-secondary)" }}>
-                  <Loader2 size={16} className="animate-spin" /> {t.adminPtChecking}
+                <p role="status" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 14, fontWeight: 700, color: "var(--text-secondary)" }}>
+                  <Loader2 size={16} className="animate-spin" aria-hidden="true" /> {t.adminPtChecking}
                 </p>
               )}
-              {cameraError && (
-                <p style={{ borderRadius: 12, padding: "10px 14px", fontSize: 12.5, background: "rgb(var(--amber-500-rgb) / 0.1)", color: "var(--amber-700)", lineHeight: 1.5 }}>
-                  {cameraError}
-                </p>
-              )}
+              {cameraError && <InlineAlert tone="warning">{cameraError}</InlineAlert>}
               {noticeBox}
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <label htmlFor="property-search" style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-muted)" }}>
+                <label htmlFor="property-search" className="adm-field-label">
                   {t.adminPtSearchOrCode}
                 </label>
                 <div style={{ position: "relative" }}>
@@ -526,11 +543,11 @@ export default function PropertyTagPanel({
                     spellCheck={false}
                     style={{ width: "100%", paddingRight: 40 }}
                   />
-                  {searching && <Loader2 size={16} className="animate-spin" style={{ position: "absolute", right: 14, top: 14, color: "var(--text-muted)" }} />}
+                  {searching && <Loader2 size={16} className="animate-spin" aria-hidden="true" style={{ position: "absolute", right: 14, top: 14, color: "var(--text-muted)" }} />}
                 </div>
                 {tagLike && (
                   <button className="btn btn-ghost" style={{ justifyContent: "flex-start" }} disabled={busy} onClick={() => void lookup(query)}>
-                    <Tag size={16} /> {t.adminPtOpenTag.replace("{code}", tagLike)}
+                    <Tag size={16} aria-hidden="true" /> {t.adminPtOpenTag.replace("{code}", tagLike)}
                   </button>
                 )}
                 {resultsList}
@@ -545,20 +562,15 @@ export default function PropertyTagPanel({
                 <div id="property-qr-reader" className={viewfinderStyles.reader} />
                 <div className={viewfinderStyles.scanGuide} aria-hidden="true" />
               </div>
-              <p style={{ fontSize: 13.5, color: "var(--text-secondary)", textAlign: "center" }}>{t.adminPtScanStudentHint}</p>
-              {cameraError && (
-                <p style={{ borderRadius: 12, padding: "10px 14px", fontSize: 12.5, background: "rgb(var(--amber-500-rgb) / 0.1)", color: "var(--amber-700)", lineHeight: 1.5 }}>
-                  {cameraError}
-                </p>
-              )}
+              <p style={{ fontSize: 14, color: "var(--text-secondary)", textAlign: "center", lineHeight: 1.6 }}>{t.adminPtScanStudentHint}</p>
+              {cameraError && <InlineAlert tone="warning">{cameraError}</InlineAlert>}
               {noticeBox}
-              <button className="btn btn-ghost btn-full" onClick={() => { setNotice(null); setView("tag"); }}>{t.adminPtBack}</button>
             </>
           )}
 
           {view === "tag" && !tag && (
-            <p style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "32px 0", color: "var(--text-muted)" }}>
-              <Loader2 size={16} className="animate-spin" /> {t.adminPtChecking}
+            <p role="status" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "32px 0", color: "var(--text-muted)" }}>
+              <Loader2 size={16} className="animate-spin" aria-hidden="true" /> {t.adminPtChecking}
             </p>
           )}
 
@@ -566,51 +578,32 @@ export default function PropertyTagPanel({
             <>
               {tagHeader}
               {tag.groupStatus === "archived" && (
-                <p style={{ fontSize: 12.5, color: "var(--amber-700)" }}>{t.adminPtGroupArchivedNote}</p>
+                <InlineAlert tone="warning">{t.adminPtGroupArchivedNote}</InlineAlert>
               )}
               {noticeBox}
               {tag.owner ? (
                 <div style={{ borderRadius: 16, padding: 16, background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)" }}>
-                  <p style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 6 }}>{t.adminPtOwner}</p>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-muted)", marginBottom: 6 }}>{t.adminPtOwner}</p>
                   {ownerLine(tag.owner)}
                 </div>
               ) : (
-                <div style={{ borderRadius: 16, padding: 16, border: "2px dashed var(--border-medium)", color: "var(--text-secondary)", fontWeight: 700, fontSize: 14.5 }}>
+                <div style={{ borderRadius: 16, padding: 16, border: "2px dashed var(--border-medium)", color: "var(--text-secondary)", fontWeight: 700, fontSize: 15 }}>
                   {t.adminPtTagEmpty}
                 </div>
               )}
 
-              {tag.owner && !picking && !confirmUnassign && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                  <button className="btn btn-primary btn-lg" style={{ flex: "1 1 160px" }} onClick={() => setPicking(true)}>
-                    <UserPlus size={18} /> {t.adminPtReassign}
-                  </button>
-                  <button className="btn btn-ghost btn-lg" style={{ flex: "1 1 160px", color: "var(--red-600)" }} onClick={() => setConfirmUnassign(true)}>
-                    <UserMinus size={18} /> {t.adminPtUnassign}
-                  </button>
-                </div>
-              )}
-
-              {tag.owner && confirmUnassign && (
-                <div style={{ borderRadius: 16, padding: 16, background: "rgb(var(--red-500-rgb) / 0.08)", border: "1px solid rgb(var(--red-500-rgb) / 0.3)", display: "flex", flexDirection: "column", gap: 12 }}>
-                  <p style={{ fontSize: 14.5, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.5 }}>
-                    {t.adminPtUnassignConfirm.replace("{name}", tag.owner.name)}
-                  </p>
-                  <div style={{ display: "flex", gap: 10 }}>
-                    <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setConfirmUnassign(false)} disabled={busy}>{t.adminPtCancel}</button>
-                    <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => void doUnassign()} disabled={busy}>
-                      {busy ? <Loader2 size={16} className="animate-spin" /> : t.adminPtUnassign}
-                    </button>
-                  </div>
-                </div>
+              {tag.owner && !picking && (
+                <button className="btn btn-primary btn-lg btn-full" onClick={() => setPicking(true)}>
+                  <UserPlus size={18} aria-hidden="true" /> {t.adminPtReassign}
+                </button>
               )}
 
               {picking && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   <button className="btn btn-primary btn-lg btn-full" onClick={() => { setNotice(null); setView("student"); }}>
-                    <ScanLine size={18} /> {t.adminPtScanDigitalId}
+                    <ScanLine size={18} aria-hidden="true" /> {t.adminPtScanDigitalId}
                   </button>
-                  <p style={{ fontSize: 12.5, color: "var(--text-muted)", textAlign: "center" }}>{t.adminPtOrSearch}</p>
+                  <p style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center" }}>{t.adminPtOrSearch}</p>
                   <div style={{ position: "relative" }}>
                     <input
                       className="input"
@@ -622,7 +615,7 @@ export default function PropertyTagPanel({
                       autoComplete="off"
                       style={{ width: "100%", paddingRight: 40 }}
                     />
-                    {searching && <Loader2 size={16} className="animate-spin" style={{ position: "absolute", right: 14, top: 14, color: "var(--text-muted)" }} />}
+                    {searching && <Loader2 size={16} className="animate-spin" aria-hidden="true" style={{ position: "absolute", right: 14, top: 14, color: "var(--text-muted)" }} />}
                   </div>
                   {resultsList}
                   {tag.owner && (
@@ -631,7 +624,15 @@ export default function PropertyTagPanel({
                 </div>
               )}
 
-              <button className="btn btn-ghost btn-full" onClick={scanNext}>{t.adminPtNextTag}</button>
+              {/* Destructive and rare, so it sits apart from the change-owner
+                  action, below a divider, and asks before it acts. */}
+              {tag.owner && !picking && (
+                <div style={{ marginTop: 4, paddingTop: 14, borderTop: "1px solid var(--border-subtle)" }}>
+                  <button className="btn btn-ghost btn-full" style={{ color: "var(--red-600)" }} onClick={() => void requestUnassign()} disabled={busy}>
+                    {busy ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : <UserMinus size={18} aria-hidden="true" />} {t.adminPtUnassign}
+                  </button>
+                </div>
+              )}
             </>
           )}
 
@@ -639,22 +640,22 @@ export default function PropertyTagPanel({
             <>
               {tagHeader}
               <div style={{ borderRadius: 16, padding: 16, background: "rgb(var(--green-500-rgb) / 0.08)", border: "1px solid rgb(var(--green-500-rgb) / 0.3)" }}>
-                <p style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 6 }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 6 }}>
                   {tag.owner ? t.adminPtReassignFrom.replace("{name}", tag.owner.name) : t.adminPtAssignTo}
                 </p>
                 {ownerLine(preview.student)}
               </div>
               {(preview.warnings.alreadyOwnsInGroup.length > 0 || preview.warnings.seriesRoleMismatch) && (
-                <div style={{ borderRadius: 14, padding: "12px 14px", background: "rgb(var(--amber-500-rgb) / 0.12)", color: "var(--amber-700)", fontSize: 13.5, fontWeight: 600, lineHeight: 1.5, display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ borderRadius: 14, padding: "12px 14px", background: "rgb(var(--amber-500-rgb) / 0.12)", color: "var(--amber-700)", fontSize: 14, fontWeight: 600, lineHeight: 1.5, display: "flex", flexDirection: "column", gap: 6 }}>
                   {preview.warnings.alreadyOwnsInGroup.length > 0 && (
                     <p style={{ display: "flex", gap: 8 }}>
-                      <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+                      <AlertTriangle size={16} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
                       {t.adminPtWarnAlreadyOwns.replace("{labels}", preview.warnings.alreadyOwnsInGroup.join(", "))}
                     </p>
                   )}
                   {preview.warnings.seriesRoleMismatch && (
                     <p style={{ display: "flex", gap: 8 }}>
-                      <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+                      <AlertTriangle size={16} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
                       {t.adminPtWarnSeries
                         .replace("{series}", tag.label.split("-")[0])
                         .replace("{role}", roleName(preview.warnings.seriesRoleMismatch))}
@@ -663,14 +664,6 @@ export default function PropertyTagPanel({
                 </div>
               )}
               {noticeBox}
-              <div style={{ display: "flex", gap: 10 }}>
-                <button className="btn btn-ghost btn-lg" style={{ flex: 1 }} onClick={() => { setPreview(null); setView("tag"); }} disabled={busy}>
-                  {t.adminPtBack}
-                </button>
-                <button className="btn btn-success-solid btn-lg" style={{ flex: 1 }} onClick={() => void confirmAssign()} disabled={busy}>
-                  {busy ? <Loader2 size={18} className="animate-spin" /> : t.adminPtConfirm}
-                </button>
-              </div>
             </>
           )}
 
@@ -683,12 +676,9 @@ export default function PropertyTagPanel({
                   {ownerLine(tag.owner)}
                 </div>
               )}
-              <button className="btn btn-primary btn-lg btn-full" onClick={scanNext}>{t.adminPtNextTag}</button>
             </>
           )}
-        </div>
       </div>
-    </div>,
-    document.body,
+    </Modal>
   );
 }

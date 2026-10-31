@@ -1788,6 +1788,97 @@ async function migrate() {
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS events_short_slug_unique ON events (short_slug)`;
   console.log("  ✅ events.short_slug + unique index (custom public link name)");
 
+  // 110. Retire the `registration` and `organizer` ROLES. The registration desk is now
+  // `smo` + smo_position = 'registration' (the global registration position); `organizer`
+  // has no replacement. Converts in place and rewrites only users.role / users.roles /
+  // users.smo_position — no rows or columns are deleted. Idempotent: once converted every
+  // WHERE below matches nothing, so a re-run is a no-op.
+  // Report first so the operator can see exactly who is converted.
+  const retiringRoles = await sql`
+    SELECT email, role, roles, smo_position
+    FROM users
+    WHERE role IN ('registration', 'organizer')
+       OR COALESCE(roles, '[]'::jsonb) ? 'registration'
+       OR COALESCE(roles, '[]'::jsonb) ? 'organizer'
+    ORDER BY email
+  `;
+  for (const u of retiringRoles) {
+    console.log(`  ↪ retiring role: ${u.email} role=${u.role} roles=${JSON.stringify(u.roles)} smo_position=${u.smo_position ?? "null"}`);
+  }
+  // A user holds ONE smo position. Someone who is ALREADY smo keeps their live position
+  // (and loses the registration desk breadth) — needs manual review.
+  const positionConflicts = await sql`
+    SELECT email, smo_position
+    FROM users
+    WHERE (role = 'registration' OR COALESCE(roles, '[]'::jsonb) ? 'registration')
+      AND (role = 'smo' OR COALESCE(roles, '[]'::jsonb) ? 'smo')
+      AND smo_position IS NOT NULL
+      AND smo_position <> 'registration'
+    ORDER BY email
+  `;
+  for (const u of positionConflicts) {
+    console.warn(`  ⚠️  ${u.email} held the registration role but is already smo with smo_position='${u.smo_position}': kept as is, review manually`);
+  }
+  // Someone who was NOT smo may still carry a leftover smo_position (e.g. 'finance' from an
+  // old stint). Granting the smo role would silently re-activate it, so it is replaced with
+  // 'registration'. Logged here (and in the report above) so the old value is on record.
+  const dormantPositions = await sql`
+    SELECT email, smo_position
+    FROM users
+    WHERE (role = 'registration' OR COALESCE(roles, '[]'::jsonb) ? 'registration')
+      AND NOT (role = 'smo' OR COALESCE(roles, '[]'::jsonb) ? 'smo')
+      AND smo_position IS NOT NULL
+      AND smo_position <> 'registration'
+    ORDER BY email
+  `;
+  for (const u of dormantPositions) {
+    console.warn(`  ⚠️  ${u.email}: dormant smo_position='${u.smo_position}' replaced with 'registration' (was not smo)`);
+  }
+  // registration -> smo role + 'registration' position. An existing smo keeps their
+  // position; anyone else gets 'registration' (see dormantPositions above).
+  await sql`
+    UPDATE users
+    SET roles = (
+          SELECT COALESCE(jsonb_agg(DISTINCT r), '["student"]'::jsonb)
+          FROM jsonb_array_elements_text(COALESCE(roles, '[]'::jsonb) || '["smo"]'::jsonb) AS r
+          WHERE r NOT IN ('registration', 'organizer')
+        ),
+        smo_position = CASE
+          WHEN role = 'smo' OR COALESCE(roles, '[]'::jsonb) ? 'smo' THEN COALESCE(smo_position, 'registration')
+          ELSE 'registration'
+        END
+    WHERE role = 'registration' OR COALESCE(roles, '[]'::jsonb) ? 'registration'
+  `;
+  // organizer -> dropped, no replacement.
+  await sql`
+    UPDATE users
+    SET roles = (
+          SELECT COALESCE(jsonb_agg(DISTINCT r), '["student"]'::jsonb)
+          FROM jsonb_array_elements_text(COALESCE(roles, '[]'::jsonb)) AS r
+          WHERE r NOT IN ('registration', 'organizer')
+        )
+    WHERE role = 'organizer' OR COALESCE(roles, '[]'::jsonb) ? 'organizer'
+  `;
+  // Re-derive the primary role column for anyone still on a retired value: the highest
+  // remaining role in the same order as getPrimaryRole (src/auth.ts ROLE_PRIORITY).
+  await sql`
+    UPDATE users
+    SET role = COALESCE(
+      (
+        SELECT p.role_name
+        FROM unnest(ARRAY['super_admin', 'admin', 'smo', 'anusmo', 'club_president', 'major_president',
+                          'shop_seller', 'staff', 'professor', 'officer', 'student'])
+             WITH ORDINALITY AS p(role_name, ord)
+        WHERE COALESCE(users.roles, '[]'::jsonb) ? p.role_name
+        ORDER BY p.ord
+        LIMIT 1
+      ),
+      'student'
+    )
+    WHERE role IN ('registration', 'organizer')
+  `;
+  console.log(`  ✅ retired registration/organizer roles (${retiringRoles.length} user(s) converted, ${dormantPositions.length} dormant position(s) replaced, ${positionConflicts.length} need review)`);
+
   console.log("✅ Migration complete!");
   await sql.end();
   process.exit(0);

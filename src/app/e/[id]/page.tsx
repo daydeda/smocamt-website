@@ -35,6 +35,8 @@ async function loadEvent(ref: string) {
         studentId: session.user.studentId,
         major: (await UsersService.getMajorById(session.user.id))?.major,
         clubIds: await ClubsService.getMemberClubIds(session.user.id),
+        smoPosition: session.user.smoPosition,
+        anusmoPosition: session.user.anusmoPosition,
       })
     : undefined;
   const signedIn = Boolean(viewer);

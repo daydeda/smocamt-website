@@ -2,9 +2,25 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Archive, ArchiveRestore, ArrowLeft, Loader2, Pencil, Printer, QrCode, Search, Tag } from "lucide-react";
+import { Archive, ArchiveRestore, Circle, Loader2, Pencil, Printer, QrCode, Search, Tag } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { formatTagLabel, MAX_TAGS_PER_BATCH, normalizeSeries } from "@/lib/property-tags/property-tag";
+import {
+  PageHeader,
+  Panel,
+  Toolbar,
+  TableScroll,
+  Tabs,
+  TabPanel,
+  Modal,
+  Field,
+  StatusBadge,
+  LoadingState,
+  EmptyState,
+  ErrorState,
+  useToast,
+  type TabItem,
+} from "@/components/admin/ui";
 import PropertyTagPanel from "../PropertyTagPanel";
 
 // /admin/property-tags/[id] — one group: generate tags, see who owns which,
@@ -36,6 +52,7 @@ const TZ = "Asia/Bangkok";
 
 export default function PropertyTagGroupClient({ groupId }: { groupId: string }) {
   const { t, lang } = useLanguage();
+  const toast = useToast();
   const [group, setGroup] = useState<Group | null>(null);
   const [tags, setTags] = useState<TagRow[]>([]);
   const [seriesMax, setSeriesMax] = useState<Record<string, number>>({});
@@ -44,7 +61,6 @@ export default function PropertyTagGroupClient({ groupId }: { groupId: string })
   const [series, setSeries] = useState("STU");
   const [count, setCount] = useState("50");
   const [generating, setGenerating] = useState(false);
-  const [genMessage, setGenMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
@@ -90,7 +106,6 @@ export default function PropertyTagGroupClient({ groupId }: { groupId: string })
   async function generate() {
     if (!normalizedSeries || !countValid) return;
     setGenerating(true);
-    setGenMessage(null);
     try {
       const res = await fetch(`/api/admin/property-tags/${groupId}/tags`, {
         method: "POST",
@@ -99,10 +114,10 @@ export default function PropertyTagGroupClient({ groupId }: { groupId: string })
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
-      setGenMessage({ tone: "ok", text: t.adminPtGenerated.replace("{first}", data.first).replace("{last}", data.last) });
+      toast.success(t.adminPtGenerated.replace("{first}", data.first).replace("{last}", data.last));
       await load();
     } catch {
-      setGenMessage({ tone: "error", text: t.adminPtError });
+      toast.error(t.adminPtError);
     } finally {
       setGenerating(false);
     }
@@ -118,12 +133,21 @@ export default function PropertyTagGroupClient({ groupId }: { groupId: string })
       });
       if (!res.ok) throw new Error();
       setEditing(false);
+      toast.success(t.adminPtUiGroupSaved);
       await load();
     } catch {
-      setGenMessage({ tone: "error", text: t.adminPtError });
+      toast.error(t.adminPtError);
     } finally {
       setSavingGroup(false);
     }
+  }
+
+  // Archiving only hides the group from the default list and is undone by
+  // Restore, so it needs a result toast but no confirmation.
+  async function toggleArchive() {
+    if (!group) return;
+    const next = group.status === "open" ? "archived" : "open";
+    await patchGroup({ status: next });
   }
 
   const seriesInGroup = useMemo(() => [...new Set(tags.map((tg) => tg.series))], [tags]);
@@ -151,203 +175,195 @@ export default function PropertyTagGroupClient({ groupId }: { groupId: string })
     new Date(d).toLocaleDateString(lang === "th" ? "th-TH" : "en-GB", { timeZone: TZ, day: "numeric", month: "short", year: "numeric" });
 
   if (loading) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "48px 0", color: "var(--text-muted)", fontSize: 14 }}>
-        <Loader2 size={18} className="animate-spin" /> {t.adminPtLoading}
-      </div>
-    );
+    return <LoadingState variant="skeleton" rows={4} label={t.adminPtLoading} />;
   }
 
   if (error || !group) {
-    return (
-      <div className="stat-card" style={{ textAlign: "center", padding: "40px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-        <p style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)" }}>{t.adminPtLoadError}</p>
-        <button className="btn btn-ghost" onClick={() => { setLoading(true); void load(); }}>{t.adminPtRetry}</button>
-      </div>
-    );
+    return <ErrorState message={t.adminPtLoadError} onRetry={() => { setLoading(true); void load(); }} />;
   }
+
+  const filterTabs: TabItem<Filter>[] = [
+    { id: "all", label: t.adminPtFilterAll, count: tags.length },
+    { id: "assigned", label: t.adminPtFilterAssigned, count: assignedCount },
+    { id: "empty", label: t.adminPtFilterEmpty, count: tags.length - assignedCount },
+  ];
 
   return (
     <div className="pb-20" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <Link href="/admin/property-tags" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13.5, fontWeight: 700, color: "var(--accent-primary)", alignSelf: "flex-start" }}>
-        <ArrowLeft size={16} /> {t.adminPtBackToGroups}
-      </Link>
-
-      {/* Header */}
-      {editing ? (
-        <div className="stat-card" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14, maxWidth: 560 }}>
-          <div className="field">
-            <label className="label" htmlFor="pt-edit-name">{t.adminPtGroupName}</label>
-            <input id="pt-edit-name" className="input" value={editName} maxLength={200} onChange={(e) => setEditName(e.target.value)} />
-          </div>
-          <div className="field">
-            <label className="label" htmlFor="pt-edit-desc">{t.adminPtGroupDescription}</label>
-            <textarea id="pt-edit-desc" className="input" rows={2} maxLength={2000} value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />
-          </div>
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-            <button className="btn btn-ghost" onClick={() => setEditing(false)} disabled={savingGroup}>{t.adminPtCancel}</button>
-            <button
-              className="btn btn-primary"
-              disabled={savingGroup || !editName.trim()}
-              onClick={() => void patchGroup({ name: editName.trim(), description: editDescription.trim() || null })}
-            >
-              {savingGroup ? <Loader2 size={16} className="animate-spin" /> : t.adminPtSave}
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-          <div style={{ minWidth: 0 }}>
-            <h1 style={{ fontSize: "clamp(26px,4.5vw,38px)", fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1.3, display: "flex", alignItems: "center", gap: 12, overflowWrap: "anywhere" }}>
-              <Tag size={30} strokeWidth={2.5} style={{ color: "var(--accent-primary)", flexShrink: 0 }} />
-              {group.name}
-              {group.status === "archived" && <span className="badge badge-yellow">{t.adminPtArchived}</span>}
-            </h1>
-            {group.description && <p style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 6, overflowWrap: "anywhere" }}>{group.description}</p>}
-            <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-muted)", marginTop: 6 }}>
+      <PageHeader
+        back={{ href: "/admin/property-tags", label: t.adminPtBackToGroups }}
+        title={group.name}
+        meta={group.status === "archived" ? <StatusBadge tone="warning" icon={false}>{t.adminPtArchived}</StatusBadge> : undefined}
+        description={
+          <>
+            {group.description && <span style={{ display: "block", overflowWrap: "anywhere" }}>{group.description}</span>}
+            <span style={{ display: "block", fontWeight: 600, color: "var(--text-muted)" }}>
               {t.adminPtAssignedCount.replace("{assigned}", String(assignedCount)).replace("{total}", String(tags.length))}
-            </p>
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            <button className="btn btn-ghost btn-sm" onClick={() => { setEditName(group.name); setEditDescription(group.description ?? ""); setEditing(true); }}>
-              <Pencil size={15} /> {t.adminPtEdit}
+            </span>
+          </>
+        }
+        actions={
+          <>
+            <button className="btn btn-ghost" onClick={() => setScanning(true)}>
+              <QrCode size={18} aria-hidden="true" /> {t.adminPtScanAssign}
             </button>
-            <button
-              className="btn btn-ghost btn-sm"
-              disabled={savingGroup}
-              onClick={() => void patchGroup({ status: group.status === "open" ? "archived" : "open" })}
-            >
-              {group.status === "open" ? <Archive size={15} /> : <ArchiveRestore size={15} />}
-              {group.status === "open" ? t.adminPtArchive : t.adminPtUnarchive}
-            </button>
-          </div>
-        </div>
-      )}
+            {tags.length === 0 ? (
+              <button className="btn btn-primary" disabled>
+                <Printer size={18} aria-hidden="true" /> {t.adminPtPrint}
+              </button>
+            ) : (
+              <Link href={`/admin/property-tags/${groupId}/print`} className="btn btn-primary">
+                <Printer size={18} aria-hidden="true" /> {t.adminPtPrint}
+              </Link>
+            )}
+          </>
+        }
+      />
 
-      {/* Generate */}
-      <section className="stat-card" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)" }}>{t.adminPtGenerateTitle}</h2>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
-          <div className="field" style={{ flex: "1 1 140px", maxWidth: 200 }}>
-            <label className="label" htmlFor="pt-series">{t.adminPtSeries}</label>
-            <input
-              id="pt-series"
-              className="input"
-              value={series}
-              maxLength={8}
-              onChange={(e) => setSeries(e.target.value.toUpperCase())}
-              list="pt-series-options"
-              autoCapitalize="characters"
-              style={{ fontFamily: "ui-monospace, monospace", letterSpacing: "0.06em" }}
-            />
-            <datalist id="pt-series-options">
-              {Object.keys(seriesMax).map((s) => <option key={s} value={s} />)}
-            </datalist>
-          </div>
-          <div className="field" style={{ flex: "1 1 120px", maxWidth: 160 }}>
-            <label className="label" htmlFor="pt-count">{t.adminPtCount}</label>
-            <input id="pt-count" className="input" type="number" inputMode="numeric" min={1} max={MAX_TAGS_PER_BATCH} value={count} onChange={(e) => setCount(e.target.value)} />
-          </div>
-          <button className="btn btn-primary" onClick={() => void generate()} disabled={generating || !normalizedSeries || !countValid}>
-            {generating ? <><Loader2 size={16} className="animate-spin" /> {t.adminPtGenerating}</> : t.adminPtGenerateBtn}
-          </button>
-        </div>
-        <p style={{ fontSize: 12.5, color: "var(--text-muted)", lineHeight: 1.5 }}>
-          {normalizedSeries
-            ? t.adminPtNextSerial.replace("{label}", formatTagLabel(normalizedSeries, (seriesMax[normalizedSeries] ?? 0) + 1))
-            : t.adminPtInvalidSeries}
-          {" · "}
-          {countValid ? t.adminPtSeriesHint : t.adminPtInvalidCount.replace("{max}", String(MAX_TAGS_PER_BATCH))}
-        </p>
-        {genMessage && (
-          <p role="status" style={{ fontSize: 13.5, fontWeight: 700, color: genMessage.tone === "ok" ? "var(--teal-600)" : "var(--red-600)" }}>{genMessage.text}</p>
-        )}
-      </section>
-
-      {/* Actions */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-        <Link href={`/admin/property-tags/${groupId}/print`} className="btn btn-primary" aria-disabled={tags.length === 0} style={tags.length === 0 ? { pointerEvents: "none", opacity: 0.5 } : undefined}>
-          <Printer size={18} /> {t.adminPtPrint}
-        </Link>
-        <button className="btn btn-ghost" onClick={() => setScanning(true)}>
-          <QrCode size={18} /> {t.adminPtScanAssign}
+      {/* Rarely used, so kept out of the header's action row. */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={() => { setEditName(group.name); setEditDescription(group.description ?? ""); setEditing(true); }}
+        >
+          <Pencil size={15} aria-hidden="true" /> {t.adminPtEdit}
+        </button>
+        <button
+          className="btn btn-ghost btn-sm"
+          disabled={savingGroup}
+          onClick={() => void toggleArchive()}
+        >
+          {group.status === "open" ? <Archive size={15} aria-hidden="true" /> : <ArchiveRestore size={15} aria-hidden="true" />}
+          {group.status === "open" ? t.adminPtArchive : t.adminPtUnarchive}
         </button>
       </div>
 
+      {/* Generate */}
+      <Panel title={t.adminPtGenerateTitle}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
+            <div style={{ flex: "1 1 140px", maxWidth: 200 }}>
+            <Field label={t.adminPtSeries}>
+              {(p) => (
+                <>
+                  <input
+                    {...p}
+                    className="input"
+                    value={series}
+                    maxLength={8}
+                    onChange={(e) => setSeries(e.target.value.toUpperCase())}
+                    list="pt-series-options"
+                    autoCapitalize="characters"
+                    style={{ fontFamily: "ui-monospace, monospace", letterSpacing: "0.06em" }}
+                  />
+                  <datalist id="pt-series-options">
+                    {Object.keys(seriesMax).map((s) => <option key={s} value={s} />)}
+                  </datalist>
+                </>
+              )}
+            </Field>
+            </div>
+            <div style={{ flex: "1 1 120px", maxWidth: 160 }}>
+            <Field label={t.adminPtCount}>
+              {(p) => <input {...p} className="input" type="number" inputMode="numeric" min={1} max={MAX_TAGS_PER_BATCH} value={count} onChange={(e) => setCount(e.target.value)} />}
+            </Field>
+            </div>
+            <button className="btn btn-primary" onClick={() => void generate()} disabled={generating || !normalizedSeries || !countValid}>
+              {generating ? <><Loader2 size={16} className="animate-spin" aria-hidden="true" /> {t.adminPtGenerating}</> : t.adminPtGenerateBtn}
+            </button>
+          </div>
+          <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6 }}>
+            {normalizedSeries
+              ? t.adminPtNextSerial.replace("{label}", formatTagLabel(normalizedSeries, (seriesMax[normalizedSeries] ?? 0) + 1))
+              : t.adminPtInvalidSeries}
+            {" · "}
+            {countValid ? t.adminPtSeriesHint : t.adminPtInvalidCount.replace("{max}", String(MAX_TAGS_PER_BATCH))}
+          </p>
+        </div>
+      </Panel>
+
       {/* Tag list */}
       {tags.length === 0 ? (
-        <p className="stat-card" style={{ padding: "32px 20px", textAlign: "center", fontSize: 14, color: "var(--text-muted)" }}>{t.adminPtNoTags}</p>
+        <EmptyState icon={<Tag size={24} />} title={t.adminPtNoTags} />
       ) : (
         <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
-            <div role="group" style={{ display: "flex", background: "var(--bg-elevated)", padding: 4, borderRadius: 12, border: "1px solid var(--border-subtle)" }}>
-              {(["all", "assigned", "empty"] as const).map((f) => (
-                <button
-                  key={f}
-                  onClick={() => { setFilter(f); setPage(0); }}
-                  aria-pressed={filter === f}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 9,
-                    fontSize: 13,
-                    fontWeight: 700,
-                    border: "none",
-                    cursor: "pointer",
-                    background: filter === f ? "var(--bg-surface)" : "transparent",
-                    color: filter === f ? "var(--text-primary)" : "var(--text-muted)",
-                  }}
-                >
-                  {f === "all" ? t.adminPtFilterAll : f === "assigned" ? t.adminPtFilterAssigned : t.adminPtFilterEmpty}
-                </button>
-              ))}
-            </div>
+          <Toolbar>
+            <Tabs
+              tabs={filterTabs}
+              value={filter}
+              onChange={(f) => { setFilter(f); setPage(0); }}
+              ariaLabel={t.adminPtFilterAll}
+              idBase="pt-filter"
+            />
             <div style={{ position: "relative", flex: "1 1 220px", maxWidth: 360 }}>
-              <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
-              <input className="input" value={query} onChange={(e) => { setQuery(e.target.value); setPage(0); }} placeholder={t.adminPtSearchTags} aria-label={t.adminPtSearchTags} style={{ paddingLeft: 36 }} />
+              <Search size={16} aria-hidden="true" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
+              <input className="input" type="search" value={query} onChange={(e) => { setQuery(e.target.value); setPage(0); }} placeholder={t.adminPtSearchTags} aria-label={t.adminPtSearchTags} style={{ paddingLeft: 36 }} />
             </div>
             {seriesInGroup.length > 1 && (
-              <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>{seriesInGroup.join(" · ")}</span>
+              <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{seriesInGroup.join(" · ")}</span>
             )}
-          </div>
+          </Toolbar>
 
-          {visible.length === 0 ? (
-            <p style={{ fontSize: 14, color: "var(--text-muted)", padding: "16px 0" }}>{t.adminPtNoMatch}</p>
-          ) : (
-            <ul className="stat-card" style={{ listStyle: "none", padding: 0, overflow: "hidden" }}>
-              {pageRows.map((tg, i) => (
-                <li
-                  key={tg.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: "12px 16px",
-                    borderTop: i === 0 ? "none" : "1px solid var(--border-subtle)",
-                  }}
-                >
-                  <div style={{ width: 96, flexShrink: 0 }}>
-                    <p style={{ fontSize: 14.5, fontWeight: 800, color: "var(--text-primary)" }}>{tg.label}</p>
-                    <p style={{ fontSize: 11.5, color: "var(--text-muted)", fontFamily: "ui-monospace, monospace" }}>{tg.code}</p>
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    {tg.ownerId ? (
-                      <>
-                        <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", overflowWrap: "anywhere" }}>{tg.ownerName}</p>
-                        <p style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
-                          {[tg.ownerStudentId, tg.ownerMajor, tg.assignedAt ? fmtDate(tg.assignedAt) : null].filter(Boolean).join(" · ")}
-                        </p>
-                      </>
-                    ) : (
-                      <span className="badge badge-blue">{t.adminPtEmptyTag}</span>
-                    )}
-                  </div>
-                  <button className="btn btn-ghost btn-sm" onClick={() => setManaging(tg.code)} style={{ flexShrink: 0 }}>
-                    {t.adminPtManage}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+          <TabPanel idBase="pt-filter" id={filter}>
+            {visible.length === 0 ? (
+              <EmptyState compact icon={<Search size={24} />} title={t.adminPtNoMatch} />
+            ) : (
+              <div className="stat-card" style={{ padding: 0, overflow: "hidden" }}>
+                <TableScroll label={group.name}>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>{t.adminPtColTag}</th>
+                        <th>{t.adminPtColOwner}</th>
+                        <th>{t.adminPtUiColStatus}</th>
+                        <th>{t.adminPtColAssignedAt}</th>
+                        <th><span className="sr-only">{t.adminPtManage}</span></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pageRows.map((tg) => (
+                        <tr key={tg.id}>
+                          <td>
+                            <p style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)" }}>{tg.label}</p>
+                            <p style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "ui-monospace, monospace" }}>{tg.code}</p>
+                          </td>
+                          <td>
+                            {tg.ownerId ? (
+                              <>
+                                <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", overflowWrap: "anywhere" }}>{tg.ownerName}</p>
+                                <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                                  {[tg.ownerStudentId, tg.ownerMajor].filter(Boolean).join(" · ")}
+                                </p>
+                              </>
+                            ) : (
+                              <span style={{ color: "var(--text-muted)" }}>—</span>
+                            )}
+                          </td>
+                          <td>
+                            {tg.ownerId ? (
+                              <StatusBadge tone="success">{t.adminPtFilterAssigned}</StatusBadge>
+                            ) : (
+                              <StatusBadge tone="neutral" icon={<Circle size={12} />}>{t.adminPtEmptyTag}</StatusBadge>
+                            )}
+                          </td>
+                          <td style={{ whiteSpace: "nowrap" }}>{tg.assignedAt ? fmtDate(tg.assignedAt) : "—"}</td>
+                          <td style={{ textAlign: "right" }}>
+                            <button
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => setManaging(tg.code)}
+                              aria-label={`${t.adminPtManage}: ${tg.label}`}
+                            >
+                              {t.adminPtManage}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </TableScroll>
+              </div>
+            )}
+          </TabPanel>
 
           {visible.length > 0 && (
             <nav aria-label={t.adminPtPageSize} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
@@ -357,14 +373,14 @@ export default function PropertyTagGroupClient({ groupId }: { groupId: string })
                   .replace("{to}", String(Math.min(pageStart + pageSize, visible.length)))
                   .replace("{total}", String(visible.length))}
               </span>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <label htmlFor="pt-page-size" style={{ fontSize: 12.5, color: "var(--text-muted)" }}>{t.adminPtPageSize}</label>
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+                <label htmlFor="pt-page-size" style={{ fontSize: 13, color: "var(--text-muted)" }}>{t.adminPtPageSize}</label>
                 <select
                   id="pt-page-size"
                   className="input"
                   value={pageSize}
                   onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }}
-                  style={{ width: "auto", padding: "6px 10px" }}
+                  style={{ width: "auto", padding: "6px 36px 6px 10px" }}
                 >
                   {[25, 50, 100, 200].map((n) => <option key={n} value={n}>{n}</option>)}
                 </select>
@@ -376,6 +392,37 @@ export default function PropertyTagGroupClient({ groupId }: { groupId: string })
           )}
         </section>
       )}
+
+      <Modal
+        open={editing}
+        onClose={() => setEditing(false)}
+        dismissible={!savingGroup}
+        size="md"
+        icon={<Pencil size={20} />}
+        title={t.adminPtEdit}
+        footer={
+          <>
+            <button className="btn btn-ghost" onClick={() => setEditing(false)} disabled={savingGroup}>{t.adminPtCancel}</button>
+            <button
+              className="btn btn-primary"
+              disabled={savingGroup || !editName.trim()}
+              onClick={() => void patchGroup({ name: editName.trim(), description: editDescription.trim() || null })}
+            >
+              {savingGroup && <Loader2 size={16} className="animate-spin" aria-hidden="true" />}
+              {t.adminPtSave}
+            </button>
+          </>
+        }
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <Field label={t.adminPtGroupName} required>
+            {(p) => <input {...p} className="input" value={editName} maxLength={200} onChange={(e) => setEditName(e.target.value)} />}
+          </Field>
+          <Field label={t.adminPtGroupDescription}>
+            {(p) => <textarea {...p} className="input" rows={3} maxLength={2000} value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />}
+          </Field>
+        </div>
+      </Modal>
 
       {managing && (
         <PropertyTagPanel key={managing} initialCode={managing} onChanged={load} onClose={() => setManaging(null)} />

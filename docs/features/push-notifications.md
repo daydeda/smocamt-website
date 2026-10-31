@@ -307,7 +307,7 @@ predicates already gating each admin surface.
 
 | Trigger | Hook | Audience | Scoped? | Status |
 |---|---|---|---|---|
-| New event proposal submitted | `POST /api/admin/event-proposals` | `REVIEW_PROPOSAL_ROLES` (`super_admin, admin, registration, organizer`) + smo/anusmo holding the **global** `registration` position | **No** — deliberately global; club/major presidents are never reviewers here (existing comment in that file says so explicitly) | **Implemented** |
+| New event proposal submitted | `POST /api/admin/event-proposals` | `REVIEW_PROPOSAL_ROLES` (`super_admin, admin`) + smo holding the **global** `registration` position (the `anusmo` registration desk is check-in only) | **No** — deliberately global; club/major presidents are never reviewers here (existing comment in that file says so explicitly) | **Implemented** |
 | New shop\_seller application | `POST /api/shop/seller` | `isShopAdmin` (`super_admin`/`admin`/SMO-finance) | No | **Implemented** |
 | New complaint / new submitter message | `FeedbackService.createComplaint` / `postSubmitterMessage` | `isFeedbackManagerAny` (`super_admin`/`admin` only) | No | **Implemented** (added alongside the existing `feedback-notify.ts` email, not replacing it) |
 | New no-show appeal submitted | `POST /api/appeals` | `VIEW_APPEALS_ROLES` globally for the unscoped roles, **narrowed to `EventScopeService`-matching president(s)** for `club_president`/`major_president` via the appeal's event `ownerClubIds`/`ownerMajors` | **Yes** | **Implemented** |

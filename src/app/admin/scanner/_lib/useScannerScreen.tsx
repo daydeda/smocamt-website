@@ -13,6 +13,9 @@ import { QR_SCANNER_CONSTRUCTOR_CONFIG, QR_SCANNER_START_CONFIG } from "@/lib/qr
 import { isShopManager } from "@/lib/shop/shop-auth";
 import { type ScanStatus, type ScanMode, ownsCamera, type ScanResult, type Event, pickCurrentSessionId, isEventLive, startsLaterToday, pruneAndCheckScannerCooldown, markScannerCooldown, SCANNER_SETTLED_STATUSES } from "../_components/scanner-parts";
 
+// Wall-clock helper kept at module level (called from an event handler, never during render).
+const nowMs = () => Date.now();
+
 // State, effects and handlers for ScannerScreen.tsx. Moved out of the page
 // component so its JSX can be split into section components that read from
 // this hook's result (passed down as `ctx`).
@@ -29,14 +32,14 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
 
   // Prize tab: same predicate as /admin/prizes (includes smo and presidents —
   // presidents only get prizes for events they own, scoped server-side).
-  const canPrize = canAwardPrizes(roles);
+  const canPrize = canAwardPrizes(roles, session?.user?.smoPosition, session?.user?.anusmoPosition);
 
   // Shop tab: same gate as /admin/shop (shop admins, SMO Finance, presidents,
   // sellers). Every handover route re-checks scope server-side.
   const canShop = isShopManager(session ?? null);
 
   // Tags tab: same gate as /admin/property-tags; the APIs re-check it.
-  const canProperty = canManagePropertyTags(roles);
+  const canProperty = canManagePropertyTags(roles, session?.user?.smoPosition, session?.user?.anusmoPosition);
 
   // "Go live now" moves the event's start time, so it's offered only to roles
   // that may edit an event directly. POST .../go-live re-checks this server-side.
@@ -76,6 +79,19 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
   const [manualSearch, setManualSearch] = useState("");
 
   const [manualResults, setManualResults] = useState<{ id: string; name: string; studentId: string }[]>([]);
+
+  // UI feedback for the manual lookup: lets the screen say "Searching…", "No
+  // student matches" or "Search failed" instead of showing nothing.
+  const [manualStatus, setManualStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
+
+  // Inline validation message for the score field (replaces a native alert()).
+  const [scoreError, setScoreError] = useState<string | null>(null);
+
+  // True while the live count could not be refreshed (offline / server error).
+  const [countError, setCountError] = useState(false);
+
+  // Summary of the last settled scan, shown under the camera as system status.
+  const [lastScan, setLastScan] = useState<{ title: string; name: string | null; studentId: string | null; tone: "success" | "info" | "warning" | "danger"; at: number } | null>(null);
 
   const [checkingIn, setCheckingIn] = useState<string | null>(null);
 
@@ -198,7 +214,7 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
 
   // Fetch events for the selector. Runs once on mount, so loadingEvents/eventsError
   // are intentionally left at their initial values (true/null) rather than reset here.
-  useEffect(() => {
+  const loadEvents = () => {
     fetch("/api/admin/events")
       .then(async (r) => {
         if (!r.ok) {
@@ -231,7 +247,18 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
           setLoadingEvents(false);
         }
       });
+  };
+
+  useEffect(() => {
+    loadEvents();
   }, []);
+
+  // Retry button on the "couldn't load events" state: same request, no page reload.
+  const retryLoadEvents = () => {
+    setEventsError(null);
+    setLoadingEvents(true);
+    loadEvents();
+  };
 
   // Live check-in count for the selected event + day. Hits the lightweight /count
   // endpoint (no roster, no PII, no audit log) so it's cheap to call repeatedly.
@@ -248,10 +275,14 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
         const data = await res.json();
         if (isMountedRef.current && typeof data.checkedIn === "number") {
           setCheckedInCount(data.checkedIn);
+          setCountError(false);
         }
+      } else if (isMountedRef.current) {
+        setCountError(true);
       }
     } catch {
       // Best-effort: the poller retries on the next tick.
+      if (isMountedRef.current && !signal?.aborted) setCountError(true);
     }
   };
 
@@ -303,8 +334,8 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
       if (isMountedRef.current) {
         setScannerError(
           typeof window !== "undefined" && window.isSecureContext === false
-            ? "Camera blocked: open this site over its https:// address (or localhost). The browser disables the camera on non-secure connections."
-            : "This browser/device does not expose a camera API."
+            ? t.adminScnCamInsecure
+            : t.adminScnCamUnsupported
         );
         setIsScanning(false);
       }
@@ -409,15 +440,15 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
     } catch (err) {
       console.error("Scanner start error:", err);
       const errorObj = err as Error;
-      let msg = errorObj?.message || "Could not start camera. Please check permissions.";
+      let msg = errorObj?.message || t.adminScnCamGeneric;
       // The browser caches the camera permission per-origin and will NOT
       // re-prompt once denied — tell the admin how to re-enable it manually.
       if (errorObj?.name === "NotAllowedError" || /permission|denied/i.test(msg)) {
-        msg = "Camera permission is blocked. The browser won't ask again on its own — tap the camera/lock icon in the address bar, set Camera to \"Allow\", then press refresh.";
+        msg = t.adminScnCamBlocked;
       } else if (errorObj?.name === "NotFoundError" || errorObj?.name === "OverconstrainedError") {
-        msg = "No camera was found on this device.";
+        msg = t.adminScnCamNone;
       } else if (errorObj?.name === "NotReadableError") {
-        msg = "The camera is already in use by another app. Close it and press refresh.";
+        msg = t.adminScnCamBusy;
       }
       if (isMountedRef.current && currentSessionId === scanSessionIdRef.current) {
         setScannerError(msg);
@@ -530,6 +561,20 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
   }, [isScanning]);
 
   const closeModal = () => {
+    // Remember the outcome of a settled scan for the "Last scan" status line.
+    // Pending / lookup states are not outcomes (the staff cancelled), so skip them.
+    if (scanResult && cfg && !["pending_confirmation", "pending_checkout", "found"].includes(scanResult.status)) {
+      const st = scanResult.status;
+      setLastScan({
+        title: cfg.title,
+        name: scanResult.student?.name ?? null,
+        studentId: scanResult.student?.studentId ?? null,
+        tone: st === "success" || st === "success_walk_in" || st === "success_checkout" ? "success"
+          : st === "already_checked_in" || st === "already_checked_out" ? "info"
+          : st === "walk_ins_disabled" || st === "quota_full" ? "warning" : "danger",
+        at: nowMs(),
+      });
+    }
     setShowModal(false);
     setTimeout(() => {
       if (isMountedRef.current) {
@@ -546,6 +591,7 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
         setMedsCheckOption(null);
         setScoreInput("");
         setScoreSign(1);
+        setScoreError(null);
         // A checkout photo not yet confirmed is an orphaned upload — reclaim it
         // (best-effort, mirrors the same cleanup pattern used for form-file
         // "file" answers abandoned mid-form).
@@ -694,9 +740,10 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
     // Input holds the magnitude (always positive); scoreSign decides award vs deduct.
     const magnitude = parseInt(scoreInput);
     if (isNaN(magnitude) || magnitude <= 0) {
-      alert(t.invalidScoreAlert);
+      setScoreError(t.invalidScoreAlert);
       return;
     }
+    setScoreError(null);
     const val = magnitude * scoreSign;
 
     setSubmittingScore(true);
@@ -749,18 +796,24 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
     // Bump the sequence on every keystroke so a slower, older response can never
     // overwrite the results of a newer query.
     const seq = ++manualSearchSeqRef.current;
-    if (q.length < 2) { setManualResults([]); return; }
+    if (q.length < 2) { setManualResults([]); setManualStatus("idle"); return; }
+    setManualStatus("loading");
     // Debounce so we fire one request after typing settles, not per keystroke.
     manualSearchTimerRef.current = setTimeout(async () => {
       try {
         const res = await fetch(`/api/admin/scan?q=${encodeURIComponent(q)}`);
-        if (!res.ok) return;
+        if (!res.ok) {
+          if (isMountedRef.current && seq === manualSearchSeqRef.current) setManualStatus("error");
+          return;
+        }
         const data = await res.json();
         if (isMountedRef.current && seq === manualSearchSeqRef.current) {
           setManualResults(Array.isArray(data) ? data : []);
+          setManualStatus("done");
         }
       } catch (err) {
         console.error("Manual search error:", err);
+        if (isMountedRef.current && seq === manualSearchSeqRef.current) setManualStatus("error");
       }
     }, 250);
   };
@@ -780,9 +833,15 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
         setShowModal(true);
         setManualResults([]);
         setManualSearch("");
+        setManualStatus("idle");
       }
     } catch (err) {
       console.error("Manual checkin error:", err);
+      // Tell the staff the tap did not go through, instead of failing silently.
+      if (isMountedRef.current) {
+        setScanResult({ status: "error", error: "Connection error" });
+        setShowModal(true);
+      }
     } finally {
       if (isMountedRef.current) {
         setCheckingIn(null);
@@ -832,12 +891,13 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
       desc: lang === "th" ? "แนบรูปหลักฐานเพื่อยืนยันเช็คเอาท์" : lang === "cn" ? "附上证据照片以确认签退" : lang === "mm" ? "checkout အတည်ပြုရန် သက်သေပုံ ပူးတွဲပါ" : "Attach a proof photo to confirm check-out",
       bg: "rgb(var(--amber-500-rgb) / 0.1)"
     },
+    // Informational (blue), not an error: the student is already counted.
     already_checked_in: { 
-      color: "var(--red-500)", 
+      color: "var(--blue-500)", 
       icon: RefreshCcw, 
       title: t.scanAlreadyCheckedIn, 
       desc: t.scanAlreadyCheckedIn,
-      bg: "rgb(var(--red-500-rgb) / 0.1)"
+      bg: "rgb(var(--blue-500-rgb) / 0.1)"
     },
     already_checked_out: {
       color: "var(--blue-500)",
@@ -1031,6 +1091,12 @@ export function useScannerScreen({ embedded = false }: { embedded?: boolean }) {
     setManualSearch,
     manualResults,
     setManualResults,
+    manualStatus,
+    scoreError,
+    setScoreError,
+    countError,
+    lastScan,
+    retryLoadEvents,
     checkingIn,
     setCheckingIn,
     isConfirming,

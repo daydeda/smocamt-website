@@ -6,23 +6,28 @@ import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { effectiveRoles } from "@/lib/access/admin-access";
 import { ProposeEventSection } from "../_propose-event/ProposeEventSection";
 import { MajorTeamSection } from "./MajorTeamSection";
+import { ALL_MAJORS } from "../events/_lib/event-model";
 import { EventFeedbackFormsShortcut } from "@/components/admin/EventFeedbackFormsShortcut";
+import { EmptyState, Field, LoadingState, PageHeader, StatusBadge, Toolbar } from "@/components/admin/ui";
 import { GraduationCap } from "lucide-react";
 
-// major_president-only page — the major analogue of /admin/clubs's
-// ProposeEventSection. A major has no roster/rename/archive/delete concept
-// the way a club does (majors are a fixed code set, not a managed entity), so
-// unlike ClubsPage this is a thin page: just the propose-event section, scoped
-// to the signed-in president's OWN users.major. `major` isn't on the NextAuth
-// session (see src/types/next-auth.d.ts), so it's fetched from GET /api/profile
-// (self-access to one's own record — no cross-user PDPA exposure).
+// Majors page. Two audiences:
+// - a major_president sees THEIR OWN users.major: team roster + propose-event.
+//   `major` isn't on the NextAuth session (see src/types/next-auth.d.ts), so
+//   it's fetched from GET /api/profile (self-access to one's own record).
+// - super_admin/admin (like /admin/clubs) may pick any major to see its team.
+//   They create events directly, so the propose section stays president-only.
+// The member/medical/export APIs under /api/admin/majors/[code] already gate
+// this server-side (admin roles, or a president for their own major).
 export default function MajorsPage() {
   const { data: session } = useSession();
   const { t } = useLanguage();
   const userRoles = effectiveRoles(session?.user?.role, session?.user?.roles);
   const isMajorPresident = userRoles.includes("major_president");
+  const isAdmin = userRoles.some((r) => r === "super_admin" || r === "admin");
 
-  const [major, setMajor] = useState<string | null>(null);
+  const [ownMajor, setOwnMajor] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -36,52 +41,62 @@ export default function MajorsPage() {
       }
       fetch("/api/profile")
         .then((r) => (r.ok ? r.json() : null))
-        .then((d) => setMajor(d?.major || null))
-        .catch(() => setMajor(null))
+        .then((d) => setOwnMajor(d?.major || null))
+        .catch(() => setOwnMajor(null))
         .finally(() => setLoading(false));
     }, 0);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMajorPresident]);
 
+  // A president starts on their own major; an admin starts on the first one.
+  const major = picked ?? (isMajorPresident && ownMajor ? ownMajor : isAdmin ? ALL_MAJORS[0] : null);
+  const presidingHere = isMajorPresident && !!ownMajor && major === ownMajor;
+
   return (
     <div className="animate-fade-in-up pb-24">
-      <div style={{ marginBottom: 40 }}>
-        <h1 className="text-[clamp(32px,5vw,48px)] font-black tracking-tighter text-[var(--text-primary)] leading-tight">
-          {t.manageMajors || "My Major"}
-        </h1>
-      </div>
+      <PageHeader
+        title={t.manageMajors || "My Major"}
+        description={isAdmin ? t.adminCmMajorsDescAdmin : t.adminCmMajorsDesc}
+        meta={
+          !loading && presidingHere && major ? (
+            <StatusBadge tone="accent" icon={<GraduationCap size={12} />}>
+              {t.adminCmYourMajor.replace("{major}", major)}
+            </StatusBadge>
+          ) : undefined
+        }
+      />
 
       {loading ? (
-        <div style={{ display: "flex", justifyContent: "center", padding: 100 }}>
-          <div className="spinner" style={{ width: 40, height: 40, borderWidth: 3 }} />
-        </div>
-      ) : isMajorPresident && major ? (
+        <LoadingState label={t.adminCmLoadingMajor} />
+      ) : major && (isAdmin || presidingHere) ? (
         <>
-          <EventFeedbackFormsShortcut scope="major" />
-          <MajorTeamSection major={major} />
-          <ProposeEventSection scope={{ kind: "major", major }} />
+          {isAdmin && (
+            <Toolbar>
+              <div style={{ width: "100%", maxWidth: 240 }}>
+              <Field label={t.adminCmPickMajor}>
+                {(p) => (
+                  <select {...p} className="input" value={major} onChange={(e) => setPicked(e.target.value)}>
+                    {ALL_MAJORS.map((m) => (
+                      <option key={m} value={m}>{m}{m === ownMajor ? ` (${t.adminCmYourMajorShort})` : ""}</option>
+                    ))}
+                  </select>
+                )}
+              </Field>
+              </div>
+            </Toolbar>
+          )}
+          {presidingHere && <EventFeedbackFormsShortcut scope="major" />}
+          {/* key: reset the roster state when the admin switches major. */}
+          <MajorTeamSection key={major} major={major} />
+          {presidingHere && <ProposeEventSection scope={{ kind: "major", major }} />}
         </>
       ) : (
-        <div
-          style={{
-            background: "var(--bg-surface)",
-            border: "1px solid var(--border-subtle)",
-            borderRadius: 40,
-            padding: 100,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 16,
-          }}
-        >
-          <GraduationCap size={40} style={{ color: "var(--text-muted)" }} />
-          <p style={{ color: "var(--text-muted)", fontWeight: 600, textAlign: "center" }}>
-            {isMajorPresident
-              ? "Your account has no major set yet — contact an admin."
-              : "You haven't been assigned as a major president yet — contact an admin."}
-          </p>
-        </div>
+        <EmptyState
+          icon={<GraduationCap size={24} />}
+          title={isMajorPresident ? t.adminCmNoMajorTitle : t.adminCmNotMajorPresidentTitle}
+          description={isMajorPresident ? t.adminCmNoMajorBody : t.adminCmNotMajorPresidentBody}
+        />
       )}
     </div>
   );

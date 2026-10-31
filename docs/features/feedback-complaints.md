@@ -234,7 +234,7 @@ form. It is **off by default**, and nothing about anyone who leaves it off chang
     `GET /api/feedback/track/[code]` is public-by-design at the route level.
 - **`admin-access.ts`** — add `/admin/feedback` to entry roles. Recommend
   **super_admin/admin only** in v1, deliberately *not* extending to
-  registration/organizer/smo/president roles the way most admin areas do:
+  registration-desk/smo/president roles the way most admin areas do:
   those roles can themselves be the *subject* of a Staff Conduct or Harassment
   complaint, so widening visibility here directly undermines §5's guarantee in
   a way it doesn't for, say, the shop or event modules. Revisit only per

@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState, useSyncExternalStore } from "react";
-import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
-import { AlertTriangle, ArrowLeft, Download, Loader2 } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
+import { PageHeader, Panel, Field, InlineAlert, useToast } from "@/components/admin/ui";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { buildTagSheetPdf } from "@/lib/property-tags/property-tag-pdf";
 import {
@@ -40,6 +40,7 @@ function looksLocal(origin: string) {
 
 export default function PrintSheet({ groupId, groupName, tags }: { groupId: string; groupName: string; tags: PrintTag[] }) {
   const { t } = useLanguage();
+  const toast = useToast();
   const origin = useOrigin();
   const [perPage, setPerPage] = useState(24);
   const [onlyEmpty, setOnlyEmpty] = useState(true);
@@ -85,6 +86,7 @@ export default function PrintSheet({ groupId, groupName, tags }: { groupId: stri
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      toast.success(t.adminPtUiPdfReady);
     } catch {
       setPdfError(true);
     } finally {
@@ -100,54 +102,66 @@ export default function PrintSheet({ groupId, groupName, tags }: { groupId: stri
       <style>{PRINT_CSS}</style>
 
       <div className="pt-toolbar no-print">
-        <Link href={`/admin/property-tags/${groupId}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13.5, fontWeight: 700, color: "var(--accent-primary)" }}>
-          <ArrowLeft size={16} /> {groupName}
-        </Link>
-        <h1 style={{ fontSize: 24, fontWeight: 900, color: "var(--text-primary)" }}>{t.adminPtPrintTitle}</h1>
+        <PageHeader
+          back={{ href: `/admin/property-tags/${groupId}`, label: groupName }}
+          title={t.adminPtPrintTitle}
+          description={t.adminPtPrintHint}
+          actions={
+            <button className="btn btn-primary" onClick={() => void downloadPdf()} disabled={selected.length === 0 || !origin || building}>
+              {building ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : <Download size={18} aria-hidden="true" />} {building ? t.adminPtPdfBuilding : t.adminPtDownloadPdf}
+            </button>
+          }
+        />
 
-        <div className="pt-controls">
-          <div className="field">
-            <label className="label" htmlFor="pt-per-page">{t.adminPtPerPage}</label>
-            <input
-              id="pt-per-page"
-              className="input"
-              type="number"
-              inputMode="numeric"
-              min={1}
-              max={MAX_TAGS_PER_PAGE}
-              value={perPage}
-              list="pt-per-page-presets"
-              onChange={(e) => setPerPage(Math.max(1, Math.min(MAX_TAGS_PER_PAGE, Number(e.target.value) || 1)))}
-            />
-            <datalist id="pt-per-page-presets">
-              {PER_PAGE_PRESETS.map((n) => <option key={n} value={n} />)}
-            </datalist>
-          </div>
-          {seriesList.length > 1 && (
-            <div className="field">
-              <label className="label" htmlFor="pt-series-filter">{t.adminPtSeries}</label>
-              <select id="pt-series-filter" className="input" value={series} onChange={(e) => setSeries(e.target.value)}>
-                <option value="">{t.adminPtPrintSeriesAll}</option>
-                {seriesList.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+        <Panel title={t.adminPtUiWhichTags}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div className="pt-controls">
+              <Field label={t.adminPtPerPage}>
+                {(p) => (
+                  <>
+                    <input
+                      {...p}
+                      className="input"
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      max={MAX_TAGS_PER_PAGE}
+                      value={perPage}
+                      list="pt-per-page-presets"
+                      onChange={(e) => setPerPage(Math.max(1, Math.min(MAX_TAGS_PER_PAGE, Number(e.target.value) || 1)))}
+                    />
+                    <datalist id="pt-per-page-presets">
+                      {PER_PAGE_PRESETS.map((n) => <option key={n} value={n} />)}
+                    </datalist>
+                  </>
+                )}
+              </Field>
+              {seriesList.length > 1 && (
+                <Field label={t.adminPtSeries}>
+                  {(p) => (
+                    <select {...p} className="input" value={series} onChange={(e) => setSeries(e.target.value)}>
+                      <option value="">{t.adminPtPrintSeriesAll}</option>
+                      {seriesList.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  )}
+                </Field>
+              )}
+              <Field label={t.adminPtRangeFrom}>
+                {(p) => <input {...p} className="input" type="number" inputMode="numeric" min={1} value={from} onChange={(e) => setFrom(e.target.value)} />}
+              </Field>
+              <Field label={t.adminPtRangeTo}>
+                {(p) => <input {...p} className="input" type="number" inputMode="numeric" min={1} value={to} onChange={(e) => setTo(e.target.value)} />}
+              </Field>
             </div>
-          )}
-          <div className="field">
-            <label className="label" htmlFor="pt-from">{t.adminPtRangeFrom}</label>
-            <input id="pt-from" className="input" type="number" inputMode="numeric" min={1} value={from} onChange={(e) => setFrom(e.target.value)} />
-          </div>
-          <div className="field">
-            <label className="label" htmlFor="pt-to">{t.adminPtRangeTo}</label>
-            <input id="pt-to" className="input" type="number" inputMode="numeric" min={1} value={to} onChange={(e) => setTo(e.target.value)} />
-          </div>
-        </div>
 
-        <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 14, color: "var(--text-secondary)", cursor: "pointer" }}>
-          <input type="checkbox" checked={onlyEmpty} onChange={(e) => setOnlyEmpty(e.target.checked)} />
-          {t.adminPtPrintOnlyEmpty}
-        </label>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 8, minHeight: 44, fontSize: 14, color: "var(--text-secondary)", cursor: "pointer" }}>
+              <input type="checkbox" checked={onlyEmpty} onChange={(e) => setOnlyEmpty(e.target.checked)} style={{ width: 18, height: 18 }} />
+              {t.adminPtPrintOnlyEmpty}
+            </label>
+          </div>
+        </Panel>
 
-        <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>
+        <p role="status" style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.6, color: "var(--text-primary)" }}>
           {t.adminPtPrintSummary
             .replace("{count}", String(selected.length))
             .replace("{pages}", String(pages.length))
@@ -155,17 +169,10 @@ export default function PrintSheet({ groupId, groupName, tags }: { groupId: stri
             .replace("{rows}", String(grid.rows))
             .replace("{size}", qr.toFixed(0))}
         </p>
-        {tooSmall && <Warning text={t.adminPtPrintSmallWarning} />}
-        {origin && looksLocal(origin) && <Warning text={t.adminPtPrintOriginWarning.replace("{origin}", origin)} />}
-        <p style={{ fontSize: 12.5, color: "var(--text-muted)" }}>{t.adminPtPrintHint}</p>
-
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-          <button className="btn btn-primary" onClick={() => void downloadPdf()} disabled={selected.length === 0 || !origin || building}>
-            {building ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />} {building ? t.adminPtPdfBuilding : t.adminPtDownloadPdf}
-          </button>
-        </div>
-        {pdfError && <Warning text={t.adminPtPdfError} />}
-        {selected.length === 0 && <p style={{ fontSize: 14, color: "var(--text-muted)" }}>{t.adminPtNoMatch}</p>}
+        {tooSmall && <InlineAlert tone="warning">{t.adminPtPrintSmallWarning}</InlineAlert>}
+        {origin && looksLocal(origin) && <InlineAlert tone="warning">{t.adminPtPrintOriginWarning.replace("{origin}", origin)}</InlineAlert>}
+        {pdfError && <InlineAlert tone="error">{t.adminPtPdfError}</InlineAlert>}
+        {selected.length === 0 && <InlineAlert tone="info">{t.adminPtNoMatch}</InlineAlert>}
       </div>
 
       {origin && (
@@ -196,14 +203,6 @@ export default function PrintSheet({ groupId, groupName, tags }: { groupId: stri
         </div>
       )}
     </div>
-  );
-}
-
-function Warning({ text }: { text: string }) {
-  return (
-    <p style={{ display: "flex", gap: 8, alignItems: "flex-start", borderRadius: 12, padding: "10px 14px", fontSize: 13, fontWeight: 600, lineHeight: 1.5, background: "rgb(var(--amber-500-rgb) / 0.12)", color: "var(--amber-700)" }}>
-      <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 2 }} /> {text}
-    </p>
   );
 }
 

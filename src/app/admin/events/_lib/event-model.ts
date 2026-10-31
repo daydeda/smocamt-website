@@ -228,8 +228,8 @@ export interface AdminAttendance {
 // Role priority (mirrors ROLE_PRIORITY in src/auth.ts). A person's "primary"
 // role is the highest-priority role they hold; "student" is the lowest, so an
 // attendee counts as a regular student only when they hold no elevated role
-// (smo, anusmo, registration, organizer, staff, office, etc.).
-export const ROLE_PRIORITY = ["super_admin", "admin", "registration", "organizer", "smo", "anusmo", "club_president", "major_president", "staff", "professor", "officer", "student"];
+// (smo, anusmo, staff, office, etc.).
+export const ROLE_PRIORITY = ["super_admin", "admin", "smo", "anusmo", "club_president", "major_president", "staff", "professor", "officer", "student"];
 
 export const isRegularStudent = (user: AdminStudent | null | undefined): boolean => {
   if (!user) return false;
@@ -246,8 +246,6 @@ export const isRegularStudent = (user: AdminStudent | null | undefined): boolean
 export const PRIMARY_ROLE_LABELS: Record<string, string> = {
   super_admin: "Super Admin",
   admin: "Admin",
-  registration: "Registration",
-  organizer: "Organizer",
   smo: "SMO",
   anusmo: "ANUSMO",
   club_president: "Club President",

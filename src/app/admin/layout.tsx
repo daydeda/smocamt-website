@@ -1,8 +1,5 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { User } from "lucide-react";
-import { AdminNav } from "@/components/admin/AdminNav";
-import { LanguageProvider } from "@/lib/i18n/LanguageContext";
 import { AdminLayoutWrapper } from "@/components/admin/AdminLayoutWrapper";
 import { canEnterAdminAny, effectiveRoles } from "@/lib/access/admin-access";
 

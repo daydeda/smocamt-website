@@ -29,6 +29,8 @@ export async function GET() {
       studentId: session.user.studentId,
       major: me?.major,
       clubIds,
+      smoPosition: session.user.smoPosition,
+      anusmoPosition: session.user.anusmoPosition,
     });
 
     const items = await getCalendarItemsForViewer(viewer, session.user.id!);

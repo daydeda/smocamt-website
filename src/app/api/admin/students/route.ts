@@ -13,18 +13,17 @@ export async function GET() {
       ? effectiveRoles(session.user.role, session.user.roles)
       : [];
     // Mirror canEditRestrictedFields on the admin events page (the only current
-    // caller of this bulk directory): organizer and a global registration
-    // position (smo/anusmo holding smoPosition/anusmoPosition === "registration")
-    // can also open the Event Staff picker there, but were previously 401'd here
-    // — their request silently fell back to an empty list, which is what made
-    // an unregistered staff assignee render as "Unknown / No ID" (the picker had
-    // no directory entry to resolve the id against).
+    // caller of this bulk directory): a global registration position
+    // (smo holding smoPosition === "registration") can
+    // also open the Event Staff picker there. A 401 here silently falls back to
+    // an empty list, which makes an unregistered staff assignee render as
+    // "Unknown / No ID" (the picker has no directory entry to resolve the id against).
     const globalReg = session?.user
       ? isGlobalRegistrationPosition(myRoles, session.user.smoPosition, session.user.anusmoPosition)
       : false;
     if (
       !session?.user ||
-      !(myRoles.some((r) => ["super_admin", "admin", "registration", "organizer"].includes(r)) || globalReg)
+      !(myRoles.some((r) => ["super_admin", "admin"].includes(r)) || globalReg)
     ) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

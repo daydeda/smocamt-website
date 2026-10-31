@@ -113,7 +113,7 @@ export async function PUT(
     // extended to event edits here — editing runs through a president-only
     // pending-review/allowlist flow below that would need its own design work
     // to safely extend; only a GLOBAL registration position (case 1) gets full
-    // edit parity with the "registration" role.
+    // edit parity with the retired registration role.
     const isAdminRole = canEditEventDirectly(myRoles, session?.user?.smoPosition, session?.user?.anusmoPosition);
     const isPresidentRole = myRoles.some((r) => ["club_president", "major_president"].includes(r));
     if (!session?.user || (!isAdminRole && !isPresidentRole)) {
@@ -227,7 +227,7 @@ export async function DELETE(
 ) {
   try {
     const session = await auth();
-    const isAdminRole = ["super_admin", "admin", "registration", "organizer"].includes(session?.user?.role || "")
+    const isAdminRole = ["super_admin", "admin"].includes(session?.user?.role || "")
       || isGlobalRegistrationPosition(effectiveRoles(session?.user?.role, session?.user?.roles), session?.user?.smoPosition, session?.user?.anusmoPosition);
     if (!session?.user || !isAdminRole) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

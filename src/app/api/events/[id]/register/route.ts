@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { NextResponse, after } from "next/server";
 import { getFormAvailability } from "@/lib/access/form-access";
 import { isEligibleForEventYear, yearOfStudy } from "@/lib/access/event-access";
+import { effectiveRoles, isGlobalRegistrationPosition } from "@/lib/access/admin-access";
 import { ClubsService } from "@/modules/clubs/clubs.service";
 import { EventsService } from "@/modules/events/events.service";
 import { EventRegistrationService, NO_SESSIONS_MESSAGE, QUOTA_FULL } from "@/modules/events/event-registration.service";
@@ -125,12 +126,16 @@ export async function POST(
     // POST directly to a role-restricted event they can't see). null/[] = open to
     // all; admin-type roles always pass.
     const userRole = session.user.role || "student";
-    const adminRoles = ["super_admin", "admin", "registration", "organizer"];
+    const adminRoles = ["super_admin", "admin"];
+    // A GLOBAL registration position (smo/anusmo) bypasses audience limits like an
+    // admin role (same rule as buildViewer in event-access.ts).
+    const isAdminRole = adminRoles.includes(userRole)
+      || isGlobalRegistrationPosition(effectiveRoles(session.user.role, session.user.roles), session.user.smoPosition, session.user.anusmoPosition);
     const allowedRoles = event.allowedRoles;
     if (
       Array.isArray(allowedRoles) &&
       allowedRoles.length > 0 &&
-      !adminRoles.includes(userRole) &&
+      !isAdminRole &&
       !allowedRoles.includes(userRole)
     ) {
       return NextResponse.json({ error: "You are not eligible to register for this event" }, { status: 403 });
@@ -143,7 +148,7 @@ export async function POST(
     if (
       Array.isArray(allowedMajors) &&
       allowedMajors.length > 0 &&
-      !adminRoles.includes(userRole) &&
+      !isAdminRole &&
       !(profile.major && allowedMajors.includes(profile.major))
     ) {
       return NextResponse.json({ error: "You are not eligible to register for this event" }, { status: 403 });
@@ -156,7 +161,7 @@ export async function POST(
     if (
       Array.isArray(allowedClubs) &&
       allowedClubs.length > 0 &&
-      !adminRoles.includes(userRole)
+      !isAdminRole
     ) {
       const myClubIds = await ClubsService.getMemberClubIds(userId);
       const inAllowedClub = myClubIds.some((id) => allowedClubs.includes(id));
@@ -168,7 +173,7 @@ export async function POST(
     // Walk-ins-only events accept no pre-registration at all — staff (and
     // event staff themselves, who register to WORK the event) still register
     // normally, everyone else must be scanned in as a walk-in on the day.
-    if (event.walkInsOnly && !isEventStaff && !adminRoles.includes(userRole)) {
+    if (event.walkInsOnly && !isEventStaff && !isAdminRole) {
       return NextResponse.json(
         { error: "This event only accepts walk-in check-ins — there is no pre-registration. Just show up and get scanned in." },
         { status: 403 }
@@ -176,7 +181,7 @@ export async function POST(
     }
 
     // An ended event takes no sign-ups or waitlist joins, whatever the window says.
-    if (new Date() > new Date(event.endTime) && !isEventStaff && !adminRoles.includes(userRole)) {
+    if (new Date() > new Date(event.endTime) && !isEventStaff && !isAdminRole) {
       return NextResponse.json({ error: "This event has already ended" }, { status: 403 });
     }
 
@@ -216,7 +221,7 @@ export async function POST(
     }
 
     // Match the year restriction used by event and calendar visibility.
-    if (!adminRoles.includes(userRole) && !isEligibleForEventYear(event, yearOfStudy(studentId))) {
+    if (!isAdminRole && !isEligibleForEventYear(event, yearOfStudy(studentId))) {
       return NextResponse.json({ error: "This event is restricted to selected student years" }, { status: 403 });
     }
 

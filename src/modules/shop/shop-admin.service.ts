@@ -11,7 +11,7 @@ import type { productSchema } from "@/lib/shop/shop-product-schema";
 type ProductInput = z.infer<typeof productSchema>;
 
 const ROLE_PRIORITY = [
-  "super_admin", "admin", "registration", "organizer", "smo", "anusmo",
+  "super_admin", "admin", "smo", "anusmo",
   "club_president", "major_president", "shop_seller", "staff", "professor",
   "officer", "student",
 ];

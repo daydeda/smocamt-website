@@ -1,60 +1,81 @@
 "use client";
 
-import { Search, ArrowRight, ShieldCheck, Users } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, Search, ShieldCheck } from "lucide-react";
+import { Field, Panel } from "@/components/admin/ui";
 import type { ScannerScreenCtx } from "../_lib/useScannerScreen";
 
+// Manual lookup: the fallback when a QR won't scan or the camera is unusable.
+// Student ID is the default (numeric keypad on phones); Name switches to the
+// normal keyboard. Both feed the same search.
 export function ScannerSideColumn({ ctx }: { ctx: ScannerScreenCtx }) {
-  const { checkedInCount, checkingIn, handleManualSearch, lang, manualCheckIn, manualResults, manualSearch, scanMode, t } = ctx;
+  const { checkingIn, handleManualSearch, manualCheckIn, manualResults, manualSearch, manualStatus, scanMode, t } = ctx;
+  const [by, setBy] = useState<"id" | "name">("id");
+
+  const options = [
+    { id: "id" as const, label: t.adminScnByStudentId },
+    { id: "name" as const, label: t.adminScnByName },
+  ];
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          {/* Live check-in count — updates as students are scanned in, no reload. */}
-          <div className="stat-card" style={{ padding: 32 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <Users size={20} color="var(--accent-primary)" />
-                <h3 style={{ fontSize: 18, fontWeight: 800 }}>
-                  {lang === "th" ? "เช็คอินแล้ว" : lang === "cn" ? "已签到" : lang === "mm" ? "ချက်အင်ပြီးသူ" : "Checked In"}
-                </h3>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span className="animate-pulse" style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--emerald-500)" }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                  {lang === "th" ? "สด" : lang === "cn" ? "实时" : lang === "mm" ? "တိုက်ရိုက်" : "Live"}
-                </span>
-              </div>
-            </div>
-            <p style={{ fontSize: 48, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1.1, marginTop: 12, letterSpacing: "-0.03em" }}>
-              {checkedInCount ?? "—"}
-            </p>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <Panel
+        title={scanMode === "score" ? t.adminScnManualScoreTitle : t.adminScnManualTitle}
+        icon={<Search size={18} />}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div role="group" aria-label={t.adminScnSearchBy} style={{ display: "flex", gap: 8 }}>
+            {options.map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                aria-pressed={by === o.id}
+                onClick={() => setBy(o.id)}
+                className={`btn ${by === o.id ? "btn-primary" : "btn-ghost"}`}
+                style={{ flex: 1, minHeight: 44 }}
+              >
+                {o.label}
+              </button>
+            ))}
           </div>
 
-          <div className="stat-card" style={{ padding: 32 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-              <Search size={20} color="var(--accent-primary)" />
-              <h3 style={{ fontSize: 18, fontWeight: 800 }}>
-                {scanMode === "score"
-                  ? (lang === "th" ? "ค้นหาเพื่อมอบคะแนน" : lang === "cn" ? "搜索学生以给分" : lang === "mm" ? "အမှတ်ပေးရန် ရှာဖွေခြင်း" : "Manual Score Search")
-                  : t.manualCheckinTitle}
-              </h3>
-            </div>
-
-            <div style={{ position: "relative" }}>
+          <Field label={by === "id" ? t.adminScnManualIdLabel : t.adminScnManualNameLabel} hint={t.adminScnManualHint}>
+            {(p) => (
               <input
+                {...p}
+                data-scanner-manual=""
                 className="input"
-                placeholder={scanMode === "score"
-                  ? (lang === "th" ? "ค้นหาชื่อหรือรหัสนักศึกษาเพื่อมอบคะแนน..." : lang === "cn" ? "搜索学生姓名或学号以给分..." : lang === "mm" ? "အမှတ်ပေးရန် ကျောင်းသားအမည်/ID ရှာပါ..." : "Search student to give score...")
-                  : t.manualSearchPlaceholder}
-                style={{ paddingLeft: 12 }}
+                type="search"
+                inputMode={by === "id" ? "numeric" : "text"}
+                enterKeyHint="search"
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+                style={{ minHeight: 48, fontSize: 18 }}
                 value={manualSearch}
                 onChange={(e) => handleManualSearch(e.target.value)}
               />
-            </div>
+            )}
+          </Field>
 
-            {manualResults.length > 0 && (
-              <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-                {manualResults.map((s) => (
+          <div aria-live="polite">
+            {manualStatus === "loading" && (
+              <p style={{ fontSize: 14, color: "var(--text-secondary)" }}>{t.adminScnSearching}</p>
+            )}
+            {manualStatus === "error" && (
+              <p role="alert" style={{ fontSize: 14, fontWeight: 700, color: "var(--red-600)" }}>{t.adminScnSearchFailed}</p>
+            )}
+            {manualStatus === "done" && manualResults.length === 0 && (
+              <p style={{ fontSize: 14, color: "var(--text-secondary)" }}>{t.adminScnNoMatch.replace("{q}", manualSearch)}</p>
+            )}
+          </div>
+
+          {manualResults.length > 0 && (
+            <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+              {manualResults.map((s) => (
+                <li key={s.id}>
                   <button
-                    key={s.id}
+                    type="button"
                     onClick={() => manualCheckIn(s.id)}
                     disabled={checkingIn === s.id}
                     style={{
@@ -68,28 +89,33 @@ export function ScannerSideColumn({ ctx }: { ctx: ScannerScreenCtx }) {
                       display: "flex",
                       justifyContent: "space-between",
                       alignItems: "center",
-                      transition: "all 0.2s",
-                      cursor: "pointer"
+                      gap: 12,
+                      cursor: checkingIn === s.id ? "wait" : "pointer",
+                      opacity: checkingIn === s.id ? 0.6 : 1,
+                      font: "inherit",
+                      color: "var(--text-primary)",
                     }}
                   >
-                    <div>
-                      <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{s.name}</p>
-                      <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{s.studentId}</p>
-                    </div>
-                    <ArrowRight size={18} color="var(--accent-primary)" />
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ display: "block", fontSize: 16, fontWeight: 700, lineHeight: 1.4, overflowWrap: "anywhere" }}>{s.name}</span>
+                      <span style={{ display: "block", fontSize: 14, color: "var(--text-secondary)", marginTop: 2 }}>{s.studentId}</span>
+                    </span>
+                    <ArrowRight size={20} aria-hidden="true" color="var(--accent-primary)" style={{ flexShrink: 0 }} />
                   </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="stat-card" style={{ padding: 32, background: "linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-elevated) 100%)" }}>
-             <ShieldCheck size={40} style={{ marginBottom: 16, opacity: 0.2 }} />
-             <p style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 700 }}>{t.immutableLogsBadge.replace("🔒 ", "").toUpperCase()}</p>
-             <p style={{ fontSize: 15, color: "var(--text-primary)", marginTop: 8, lineHeight: 1.6 }}>
-               {t.auditAlertText}
-             </p>
-          </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
+      </Panel>
+
+      {/* Reassurance for staff and students: every scan is logged. */}
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "0 4px" }}>
+        <ShieldCheck size={20} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2, color: "var(--text-muted)" }} />
+        <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6 }}>
+          <b>{t.immutableLogsBadge.replace("🔒 ", "")}</b> {t.auditAlertText}
+        </p>
+      </div>
+    </div>
   );
 }

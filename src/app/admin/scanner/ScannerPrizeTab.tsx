@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Gift, QrCode, Loader2, PackageOpen, ImageOff, ArrowRight } from "lucide-react";
+import { Gift, QrCode, PackageOpen, ImageOff, ArrowRight } from "lucide-react";
+import { EmptyState, ErrorState, LoadingState } from "@/components/admin/ui";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import PrizeAwardPanel from "../prizes/PrizeAwardPanel";
 
@@ -101,30 +102,25 @@ export default function ScannerPrizeTab({ eventId, eventTitle }: { eventId: stri
           <Gift size={20} style={{ color: "var(--accent-primary)", flexShrink: 0 }} />
           {t.scannerPrizeHint}
         </p>
-        <Link href="/admin/prizes" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, color: "var(--accent-primary)" }}>
+        <Link href="/admin/prizes" style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, fontSize: 14, fontWeight: 700, color: "var(--accent-primary)" }}>
           {t.scannerPrizeManageLink} <ArrowRight size={14} />
         </Link>
       </div>
 
       {loading ? (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "48px 0", color: "var(--text-muted)", fontSize: 14 }}>
-          <Loader2 size={18} className="animate-spin" /> {t.adminPrizesLoading}
-        </div>
+        <LoadingState label={t.adminPrizesLoading} />
       ) : error ? (
-        <div className="stat-card" style={{ textAlign: "center", padding: "40px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-          <p style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)" }}>{t.scannerPrizeLoadError}</p>
-          <button className="btn btn-ghost" onClick={() => { setLoading(true); void load(); }}>{t.scannerPrizeRetry}</button>
-        </div>
+        <ErrorState
+          title={t.scannerPrizeLoadError}
+          onRetry={() => { setLoading(true); void load(); }}
+        />
       ) : open.length === 0 ? (
-        <div className="stat-card" style={{ textAlign: "center", padding: "56px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-          <PackageOpen size={40} style={{ color: "var(--text-muted)" }} />
-          <p style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)" }}>{t.scannerPrizeNoOpen}</p>
-        </div>
+        <EmptyState icon={<PackageOpen size={24} />} title={t.scannerPrizeNoOpen} />
       ) : (
         <>
           {forEvent.length > 0 && (
             <section>
-              <h2 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-muted)", marginBottom: 10, overflowWrap: "break-word" }}>
+              <h2 style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.5, color: "var(--text-secondary)", marginBottom: 10, overflowWrap: "break-word" }}>
                 {t.scannerPrizeThisEvent.replace("{event}", eventTitle ?? "")}
               </h2>
               <ul style={{ display: "flex", flexDirection: "column", gap: 12, listStyle: "none" }}>{forEvent.map(renderPrize)}</ul>
@@ -132,7 +128,7 @@ export default function ScannerPrizeTab({ eventId, eventTitle }: { eventId: stri
           )}
           {other.length > 0 && (
             <section>
-              <h2 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-muted)" }}>
+              <h2 style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.5, color: "var(--text-secondary)" }}>
                 {t.scannerPrizeOther}
               </h2>
               <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2, marginBottom: 10 }}>{t.scannerPrizeOtherHint}</p>

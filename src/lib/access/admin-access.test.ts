@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   ADMIN_ENTRY_ROLES,
+  canCheckInEveryEvent,
+  canEnterAdminAny,
+  isAnusmoRegistration,
   SCANNER_ONLY_ROLES,
   SCORING_ROLES,
   SCANNER_HREF,
@@ -19,6 +22,14 @@ import {
   isShopFinancePosition,
   isEventUnscopedStaff,
   canEditEventDirectly,
+  canGiveIndividualScoreAny,
+  isScannerOnlyAny,
+  isGlobalRegistrationPosition,
+  EVENT_UNSCOPED_ROLES,
+  EVENT_DIRECT_EDIT_ROLES,
+  PRIZE_MANAGE_ROLES,
+  PROPERTY_TAG_ROLES,
+  PRIZE_AWARD_ROLES,
 } from "@/lib/access/admin-access";
 
 // Every role the live model defines (users.role / users.roles[]), per CLAUDE.md +
@@ -29,8 +40,6 @@ const ALL_ROLES = [
   "student",
   "smo",
   "anusmo",
-  "registration",
-  "organizer",
   "admin",
   "super_admin",
   "club_president",
@@ -114,8 +123,6 @@ describe("isScannerOnlyRole", () => {
   it("full admin roles are NOT scanner-only", () => {
     expect(isScannerOnlyRole("admin")).toBe(false);
     expect(isScannerOnlyRole("super_admin")).toBe(false);
-    expect(isScannerOnlyRole("registration")).toBe(false);
-    expect(isScannerOnlyRole("organizer")).toBe(false);
   });
 
   for (const role of NON_ROLES) {
@@ -140,8 +147,6 @@ describe("canGiveIndividualScore", () => {
 
   it("smo and the full admin roles may score", () => {
     expect(canGiveIndividualScore("smo")).toBe(true);
-    expect(canGiveIndividualScore("registration")).toBe(true);
-    expect(canGiveIndividualScore("organizer")).toBe(true);
     expect(canGiveIndividualScore("admin")).toBe(true);
     expect(canGiveIndividualScore("super_admin")).toBe(true);
   });
@@ -162,7 +167,7 @@ describe("adminLandingHref", () => {
   });
 
   it("full admin roles land on the dashboard", () => {
-    for (const role of ["admin", "super_admin", "registration", "organizer"]) {
+    for (const role of ["admin", "super_admin"]) {
       expect(adminLandingHref(role)).toBe("/admin/dashboard");
     }
   });
@@ -249,7 +254,7 @@ describe("prize claim predicates", () => {
   });
 
   it("lets the full admin roles do everything", () => {
-    for (const role of ["super_admin", "admin", "organizer"]) {
+    for (const role of ["super_admin", "admin"]) {
       expect(canAwardPrizes([role])).toBe(true);
       expect(canManagePrizes([role])).toBe(true);
       expect(canExportPrizeReport([role])).toBe(true);
@@ -316,14 +321,17 @@ describe("isEventUnscopedStaff", () => {
   });
 
   it("treats every staff role as unscoped", () => {
-    for (const role of ["super_admin", "admin", "registration", "organizer"]) {
+    for (const role of ["super_admin", "admin", "smo"]) {
       expect(isEventUnscopedStaff([role])).toBe(true);
     }
   });
 
-  it("treats a GLOBAL registration position (smo/anusmo) as unscoped", () => {
+  it("treats a GLOBAL registration position (smo) as unscoped", () => {
     expect(isEventUnscopedStaff(["smo"], "registration")).toBe(true);
-    expect(isEventUnscopedStaff(["anusmo"], undefined, "registration")).toBe(true);
+  });
+
+  it("does NOT treat the ANUSMO registration desk as unscoped (check-in only)", () => {
+    expect(isEventUnscopedStaff(["anusmo"], undefined, "registration")).toBe(false);
   });
 
   it("does NOT treat an unrelated staff position as unscoped", () => {
@@ -340,14 +348,14 @@ describe("isEventUnscopedStaff", () => {
 
 describe("canEditEventDirectly", () => {
   it("allows the roles that write an event's live columns", () => {
-    for (const role of ["super_admin", "admin", "registration", "organizer"]) {
+    for (const role of ["super_admin", "admin"]) {
       expect(canEditEventDirectly([role])).toBe(true);
     }
   });
 
   it("allows a GLOBAL registration position", () => {
     expect(canEditEventDirectly(["smo"], "registration")).toBe(true);
-    expect(canEditEventDirectly(["anusmo"], null, "registration")).toBe(true);
+    expect(canEditEventDirectly(["anusmo"], null, "registration")).toBe(false);
   });
 
   it("denies plain smo, presidents, sellers and students", () => {
@@ -363,8 +371,8 @@ describe("canEditEventDirectly", () => {
 });
 
 describe("canManagePropertyTags", () => {
-  it("allows super_admin, admin, registration, organizer and smo", () => {
-    for (const r of ["super_admin", "admin", "registration", "organizer", "smo"]) {
+  it("allows super_admin, admin and smo", () => {
+    for (const r of ["super_admin", "admin", "smo"]) {
       expect(canManagePropertyTags([r])).toBe(true);
     }
   });
@@ -373,5 +381,110 @@ describe("canManagePropertyTags", () => {
     for (const r of ["student", "anusmo", "club_president", "major_president", "shop_seller"]) {
       expect(canManagePropertyTags([r])).toBe(false);
     }
+  });
+});
+
+// The `registration` and `organizer` ROLES are retired. The registration desk is
+// `smo` + smoPosition "registration", which must get exactly what the old
+// registration role got, while plain smo gets nothing new. `anusmo` +
+// anusmoPosition "registration" is a check-in-only desk.
+describe("retired registration/organizer roles", () => {
+  const SMO_REG = ["smo"];
+  const ANUSMO_REG = ["anusmo"];
+
+  it("the retired roles are in no role list any more", () => {
+    for (const list of [
+      ADMIN_ENTRY_ROLES, SCANNER_ONLY_ROLES, SCORING_ROLES, PRIZE_AWARD_ROLES, PRIZE_MANAGE_ROLES,
+      PROPERTY_TAG_ROLES, EVENT_UNSCOPED_ROLES, EVENT_DIRECT_EDIT_ROLES,
+    ] as unknown as readonly string[][]) {
+      expect(list).not.toContain("registration");
+      expect(list).not.toContain("organizer");
+    }
+  });
+
+  it("the retired role names no longer grant anything on their own", () => {
+    for (const role of ["registration", "organizer"]) {
+      expect(canEnterAdmin(role)).toBe(false);
+      expect(canGiveIndividualScoreAny([role])).toBe(false);
+      expect(canAwardPrizes([role])).toBe(false);
+      expect(canManagePrizes([role])).toBe(false);
+      expect(canManagePropertyTags([role])).toBe(false);
+      expect(canEditEventDirectly([role])).toBe(false);
+      expect(isEventUnscopedStaff([role])).toBe(false);
+    }
+  });
+
+  it("smo + global registration position passes every predicate the old role passed", () => {
+    expect(canEditEventDirectly(SMO_REG, "registration")).toBe(true);
+    expect(canManagePrizes(SMO_REG, "registration")).toBe(true);
+    expect(canExportPrizeReport(SMO_REG, "registration")).toBe(true);
+    expect(canAwardPrizes(SMO_REG, "registration")).toBe(true);
+    expect(canGiveIndividualScoreAny(SMO_REG)).toBe(true);
+    expect(canManagePropertyTags(SMO_REG, "registration")).toBe(true);
+    expect(isEventUnscopedStaff(SMO_REG, "registration")).toBe(true);
+    expect(canEnterAdmin("smo")).toBe(true);
+  });
+
+  it("smo + global registration position is a full admin user, not scanner-only", () => {
+    expect(isScannerOnlyAny(SMO_REG, true, "registration")).toBe(false);
+    expect(adminLandingHrefForRoles(SMO_REG, true, "registration")).toBe("/admin/dashboard");
+  });
+
+  it("anusmo + registration position may check in at every event and nothing else", () => {
+    expect(isAnusmoRegistration(ANUSMO_REG, "registration")).toBe(true);
+    expect(canCheckInEveryEvent(ANUSMO_REG, null, "registration")).toBe(true);
+    expect(canEnterAdminAny(ANUSMO_REG, true)).toBe(true);
+    // confined to the scanner, like other scanner-only holders
+    expect(isScannerOnlyAny(ANUSMO_REG, true, null, "registration")).toBe(true);
+    expect(adminLandingHrefForRoles(ANUSMO_REG, true, null, "registration")).toBe(SCANNER_HREF);
+    // none of the registration-desk breadth
+    expect(isGlobalRegistrationPosition(ANUSMO_REG, undefined, "registration")).toBe(false);
+    expect(isEventUnscopedStaff(ANUSMO_REG, null, "registration")).toBe(false);
+    expect(canEditEventDirectly(ANUSMO_REG, null, "registration")).toBe(false);
+    expect(canManagePrizes(ANUSMO_REG, null, "registration")).toBe(false);
+    expect(canExportPrizeReport(ANUSMO_REG, null, "registration")).toBe(false);
+    expect(canAwardPrizes(ANUSMO_REG, null, "registration")).toBe(false);
+    expect(canManagePropertyTags(ANUSMO_REG, null, "registration")).toBe(false);
+    expect(canGiveIndividualScoreAny(ANUSMO_REG)).toBe(false);
+  });
+
+  it("check-in at every event needs the registration position or unscoped staff", () => {
+    expect(canCheckInEveryEvent(["smo"])).toBe(true);
+    expect(canCheckInEveryEvent(["anusmo"], null, "secretary")).toBe(false);
+    expect(canCheckInEveryEvent(["anusmo"])).toBe(false);
+    expect(canCheckInEveryEvent(["student"], null, "registration")).toBe(false);
+    expect(canCheckInEveryEvent(["club_president"])).toBe(false);
+  });
+
+  it("plain smo (no registration position) gains nothing", () => {
+    expect(canEditEventDirectly(SMO_REG)).toBe(false);
+    expect(canManagePrizes(SMO_REG)).toBe(false);
+    expect(canManagePrizes(SMO_REG, "finance")).toBe(false);
+    expect(canExportPrizeReport(SMO_REG)).toBe(false);
+    expect(isScannerOnlyAny(SMO_REG, true)).toBe(true);
+    expect(adminLandingHrefForRoles(SMO_REG, true)).toBe(SCANNER_HREF);
+  });
+
+  it("anusmo without the registration position gains nothing", () => {
+    expect(canManagePrizes(ANUSMO_REG, null, "secretary")).toBe(false);
+    expect(canAwardPrizes(ANUSMO_REG)).toBe(false);
+    expect(canManagePropertyTags(ANUSMO_REG, null, "secretary")).toBe(false);
+  });
+
+  it("a position held without the matching role does not pass", () => {
+    expect(canManagePrizes(["student"], "registration")).toBe(false);
+    expect(canManagePrizes(["anusmo"], "registration")).toBe(false);
+    expect(canEditEventDirectly(["smo"], null, "registration")).toBe(false);
+  });
+
+  it("a club/major-scoped registration position never passes a global check", () => {
+    // Club/major scope lives in club_members.position / users.majorPosition and is
+    // resolved by EventScopeService; none of it reaches these role+smo/anusmo checks.
+    for (const roles of [["student"], ["club_president"], ["major_president"]]) {
+      expect(isGlobalRegistrationPosition(roles, null, null)).toBe(false);
+      expect(canEditEventDirectly(roles)).toBe(false);
+      expect(isEventUnscopedStaff(roles)).toBe(false);
+    }
+    expect(isScannerOnlyAny(["student"], true, null, null)).toBe(true);
   });
 });
